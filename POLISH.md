@@ -45,6 +45,7 @@ stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-
 - 2026-10-14 Keep Konsole (no new terminal), keep Plasma notifications/OSD/KRunner (style via Plasma Style).
 
 ## Rules (every agent)
+- Orchestrator: while agents run, commit explicit paths only (never `git add -A`: it would sweep up their work).
 - No smooth looping animation in PANEL representations (GPU: plasmashell+KWin redraw at 144-160 Hz).
   Stepped frames (a few repaints every few s) OK. Popups / the opened band may animate while open.
 - Motion: enter OutCubic/OutQuart, exit InCubic, 120/200/320 ms; no elastic/OutBack overshoot > ~1.05.
@@ -69,5 +70,6 @@ stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-
 - Clock + tray have no global shortcut; shots.py clicks them (positions from plasmashell scripting).
 
 ## Next step
-Wait for agent reports; review each `git diff` (plasmoids repo for A/B, plasma-rice repo for A/C), integrate live,
+Briefs ready for later: agents/A-launcher.md (M3, send to agent A after M1 is integrated),
+agents/C-boot.md (M5, send to agent C after M4 is integrated). Wait for agent reports; review each `git diff` (plasmoids repo for A/B, plasma-rice repo for A/C), integrate live,
 screenshot, commit. Meanwhile: bars cleanup (orchestrator). M0 check-in raised (baseline + token sheet).
