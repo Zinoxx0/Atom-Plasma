@@ -1,0 +1,12 @@
+{
+  "scheme": "scheme-tonal-spot",
+  "tokyo_tint": 0.6,
+  "depth": 0.0,
+  "candy": 1.0,
+  "bar_scale": {
+    "HDMI-A-1": 1.21,
+    "eDP-1": 1.1,
+    "DP-3": 1.1
+  },
+  "top_scale": 1.2
+}
