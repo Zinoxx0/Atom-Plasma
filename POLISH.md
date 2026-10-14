@@ -16,10 +16,10 @@ not cold or cyberpunk.
 ## Milestones
 | # | Area | Owner | Status |
 |---|------|-------|--------|
-| 0.1 | "!" attention over Clawd | orchestrator | in progress |
+| 0.1 | "!" attention over Clawd | orchestrator | done 2026-10-14 (ask.sh, verified both bars + Done button) |
 | 0.2 | Safety net (git x3, backup tarball) | orchestrator | done 2026-10-14 |
-| 0.3 | Baseline screenshots + perf | orchestrator | todo |
-| 0.4 | Design tokens + shared QML module | orchestrator | todo |
+| 0.3 | Baseline screenshots + perf | orchestrator | done 2026-10-14 (~/.cache/rice/shots/baseline) |
+| 0.4 | Design tokens + shared QML module | orchestrator | in progress |
 | 0.5 | Plasma 6.8 upgrade (own step when it lands) | orchestrator | waiting (not in repos 2026-10-14) |
 | 1 | Shell surfaces (Plasma Style, bars, popups) | agent A | todo |
 | 2 | Glimpse opened band v2 | agent B | todo |
@@ -54,8 +54,17 @@ not cold or cyberpunk.
 - `~/.cache/rice/backup-pre-polish-2026-10-14.tar.zst` (~/.config KDE bits, plasma, konsole, kwin, icons, rice state).
 - snapper pre/post around system-level changes.
 
+## Tools
+- `tools/shots.py <set> [part ...]` screenshot set + perf into ~/.cache/rice/shots/<set>/ (parts: screens popups
+  band apps notify osd lock perf; `popups:launcher,clock` for some). Takes over the desktop ~1 min.
+- `tools/pointer.py move|click X Y` uinput pointer (moves the user's real cursor).
+- Baseline perf (video playing): gpu 15.9 W avg, plasmashell 4.7% CPU, kwin 24.1% CPU.
+
 ## Open TODOs / known issues
-- (none yet)
+- Plasma popups aren't visible to KWin scripts (stackingOrder), so shots.py opens/closes popups by timing.
+- Clock + tray have no global shortcut; shots.py clicks them (positions from plasmashell scripting).
 
 ## Next step
-Build 0.1: ask.sh + claudeusage "!" (attention status, banner, Done button), verify on bars 23 and 96.
+0.4: tokens.py (single source) -> generated qml/Rice/Tokens.qml; shared QML module qml/Rice (RicePalette, Color.js,
+Ring, Clawd, GlassCard, IconButton, SectionHeader, PopupIn), symlinked into each plasmoid as contents/ui/Rice.
+Then the token sheet, the M0 "!" check-in, and launch agents A/B/C.
