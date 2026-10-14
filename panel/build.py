@@ -16,8 +16,12 @@ Safe to re-run: it only adds what is missing.
 import copy
 import json
 import subprocess
+import sys
 import time
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from tokens import TOKENS  # noqa: E402
 
 HOME = Path.home()
 APPLETSRC = HOME / ".config/plasma-org.kde.plasma.desktop-appletsrc"
@@ -27,6 +31,7 @@ SPACER = "org.kde.plasma.panelspacer"
 TASKS = "com.zinoxx.glimpse"
 LAUNCHER = "com.zinoxx.launcher"           # replaces Kickoff (favourites are Plasma's shared ones)
 LEGACY_TASKS = ["org.kde.plasma.icontasks", "org.kde.plasma.taskmanager"]
+ISLAND_RADIUS = TOKENS["radius"]["md"]     # islands share the windows' corner radius
 
 
 def widget_settings(p=None):
@@ -41,7 +46,7 @@ def widget_settings(p=None):
     w["backgroundColor"].update(enabled=True, sourceType=1, systemColor="backgroundColor",
                                 systemColorSet="View", alpha=0.72)
     w["foregroundColor"]["enabled"] = False
-    w["radius"] = {"enabled": True, "corner": {k: 14 for k in ("topLeft", "topRight", "bottomRight", "bottomLeft")}}
+    w["radius"] = {"enabled": True, "corner": {k: ISLAND_RADIUS for k in ("topLeft", "topRight", "bottomRight", "bottomLeft")}}
     w["margin"] = {"enabled": True, "side": {"left": 0, "right": 0, "top": 4, "bottom": 4}}
     w["spacing"] = 6
     w["border"].update(enabled=True, width=1, customSides=False)
@@ -95,7 +100,7 @@ def island_style(p, acc, states=True):
             {"color": argb(top, 0.80), "position": 0},
             {"color": argb(mix(bg, "#ffffff", lift / 2), 0.72), "position": 1}]}
         o["foregroundColor"]["enabled"] = False
-        o["radius"] = {"enabled": True, "corner": {k: 14 for k in ("topLeft", "topRight", "bottomRight", "bottomLeft")}}
+        o["radius"] = {"enabled": True, "corner": {k: ISLAND_RADIUS for k in ("topLeft", "topRight", "bottomRight", "bottomLeft")}}
         o["margin"] = {"enabled": True, "side": {"left": 0, "right": 0, "top": 4, "bottom": 4}}
         o["spacing"] = 6
         o["border"].update(enabled=True, width=1, customSides=False)
