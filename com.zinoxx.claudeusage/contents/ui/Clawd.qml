@@ -19,6 +19,7 @@ Item {
     property bool weekend: false
     property string season: ""      // "" | xmas | newyear
     property real sand: 1           // limited: share of the wait still to go (hourglass)
+    property bool alert: false      // Claude asked for a check-in (ask.sh): big "!" badge
     property var pal: ({})
     property real px: 8
     property bool interactive: true // false in the panel, so clicks reach the applet
@@ -45,22 +46,23 @@ Item {
     property int typed: 1           // length of the line being typed in the code window
     property int zz: 0              // Zzz frame
     property int twinkle: 0         // stars, confetti, steam
+    property int bounce: 0          // "!" badge frame (1 = up)
 
     // a reset party wakes it up
-    readonly property bool asleep: mood === "sleep" && !celebrate
+    readonly property bool asleep: mood === "sleep" && !celebrate && !alert
     readonly property bool sitting: mood === "limited"
-    readonly property string face: mood === "panic" ? "wide" : mood === "limited" ? "flat"
+    readonly property string face: alert || mood === "panic" ? "wide" : mood === "limited" ? "flat"
                                  : asleep && !peeking ? "sleep" : celebrate ? "joy" : "open"
     readonly property string eyes: blinking && (face === "open" || face === "wide") ? "blink" : face
     readonly property string hat: celebrate ? "party" : season === "xmas" ? "santa"
                                 : season === "newyear" ? "party" : daypart === "night" ? "nightcap" : ""
     // one thing at a time on the right: an hourglass while limited, the code
     // window while Claude Code works, coffee in the morning
-    readonly property string held: mood === "limited" ? "hourglass" : asleep ? ""
+    readonly property string held: alert ? "" : mood === "limited" ? "hourglass" : asleep ? ""
                                  : working ? "code" : daypart === "morning" ? "mug" : ""
     readonly property bool shades: weekend && daypart === "day" && mood === "happy" && !working && !celebrate
     readonly property bool blush: warm || celebrate || mood === "sweat"
-    readonly property bool star: daypart === "night" && !asleep && held !== "code" && !celebrate
+    readonly property bool star: daypart === "night" && !asleep && held !== "code" && !celebrate && !alert
     readonly property int gaze: glance !== 0 ? glance : held === "code" || held === "hourglass" ? 1 : 0
 
     readonly property color base: mood === "panic" || mood === "limited" ? "#e85d43"
@@ -253,6 +255,19 @@ Item {
                     }
                 }
 
+                // check-in from Claude: a big "!" badge on top of everything, bouncing in steps
+                Item {
+                    id: badge
+                    visible: root.alert
+                    y: -root.bounce
+                    readonly property color c: root.col("red", "#f7768e")
+                    Rectangle { x: 14.5; y: -4.4; width: 8; height: 8; radius: 1.6; color: "black"; opacity: 0.35 }
+                    Rectangle { x: 14; y: -5; width: 8; height: 8; radius: 1.6; color: badge.c }
+                    Px { x: 15; y: -5; width: 6; color: Qt.lighter(badge.c, 1.18) }
+                    Px { x: 17; y: -4; width: 2; height: 4; color: root.cream }
+                    Px { x: 17; y: 1; width: 2; color: root.cream }
+                }
+
                 // a star out at night
                 Item {
                     id: twinkler
@@ -337,6 +352,15 @@ Item {
         }
     }
     Timer { id: unglance; interval: 1500; onTriggered: root.glance = 0 }
+
+    // the "!" badge hops: up briefly, down longer (stepped, so it's cheap in the panel)
+    Timer {
+        interval: root.bounce ? 260 : 740
+        running: root.live && root.alert
+        repeat: true
+        onTriggered: root.bounce = root.bounce ? 0 : 1
+    }
+    onAlertChanged: if (!alert) bounce = 0
 
     // popup only: stars and steam twinkle, a soft idle bob
     Timer { interval: 650; running: root.looping; repeat: true; onTriggered: root.twinkle++ }

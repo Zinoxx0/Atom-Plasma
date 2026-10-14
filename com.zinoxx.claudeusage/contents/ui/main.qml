@@ -29,7 +29,12 @@ PlasmoidItem {
         engine: "executable"
         connectedSources: []
         onNewData: (source, data) => {
-            if (source.startsWith("cat ")) {
+            if (source.endsWith("#ask")) {
+                const out = (data["stdout"] ?? "").trim();
+                let a = null;
+                try { if (out) a = JSON.parse(out) } catch (e) {}
+                root.ask = a;
+            } else if (source.startsWith("cat ")) {
                 const parts = (data["stdout"] ?? "").split("\n@@SEP@@\n");
                 try { root.usage = JSON.parse(parts[0]) } catch (e) { root.usage = null }
                 try { if (parts[1]) root.pal = JSON.parse(parts[1]) } catch (e) {}
@@ -48,6 +53,19 @@ PlasmoidItem {
     Timer {
         interval: root.expanded ? 1000 : 30000; running: true; repeat: true
         onTriggered: root.now = Date.now() / 1000
+    }
+    // a check-in Claude asked for (~/.config/plasma-rice/ask.sh): a big "!" over Clawd until "Done"
+    property var ask: null
+    readonly property bool asking: ask !== null && !(ask.ack > 0)
+    Plasmoid.status: asking ? PlasmaCore.Types.NeedsAttentionStatus : PlasmaCore.Types.ActiveStatus
+    function ackAsk() {
+        if (!ask) return;
+        ask = Object.assign({}, ask, { ack: Math.floor(Date.now() / 1000) });
+        sh.connectSource('sh "$HOME/.config/plasma-rice/ask.sh" --ack #ack');
+    }
+    Timer {
+        interval: 3000; running: true; repeat: true; triggeredOnStart: true
+        onTriggered: sh.connectSource('cat "$HOME/.local/state/rice/ask.json" 2>/dev/null #ask')
     }
     Timer {   // limit notifications (80% / 95%), once per window
         interval: 60000; running: true; repeat: true; triggeredOnStart: true
@@ -141,8 +159,8 @@ PlasmoidItem {
     function ringFrom(i, hot) { return hot ? col("red", "#f7768e") : i === 0 ? col("primary", "#7aa2f7") : col("tertiary", "#bb9af7") }
     function ringTo(i, hot) { return hot ? col("orange", "#ff9e64") : i === 0 ? col("tertiary", "#bb9af7") : col("secondary", "#9aa5ce") }
 
-    toolTipMainText: "Claude"
-    toolTipSubText: hasData ? "Session " + Math.round(session.pct) + "%  ·  Weekly " + Math.round(weekly.pct) + "%\n" + moodText
+    toolTipMainText: asking ? "Claude needs you" : "Claude"
+    toolTipSubText: asking ? ask.msg + "\nOpen this to mark it done." : hasData ? "Session " + Math.round(session.pct) + "%  ·  Weekly " + Math.round(weekly.pct) + "%\n" + moodText
                             : "No usage data yet"
     preferredRepresentation: compactRepresentation
 
@@ -178,6 +196,7 @@ PlasmoidItem {
                 weekend: root.weekend
                 season: root.season
                 sand: root.sand
+                alert: root.asking
                 pal: root.pal
                 interactive: false
                 Layout.alignment: Qt.AlignVCenter
@@ -231,6 +250,70 @@ PlasmoidItem {
             spacing: 18
             transformOrigin: Item.Bottom
 
+            // a check-in from Claude (ask.sh)
+            Rectangle {
+                visible: root.asking
+                Layout.fillWidth: true
+                implicitHeight: askRow.implicitHeight + 24
+                radius: 16
+                color: Qt.alpha(root.col("red", "#f7768e"), 0.13)
+                border.width: 1
+                border.color: Qt.alpha(root.col("red", "#f7768e"), 0.45)
+                RowLayout {
+                    id: askRow
+                    anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 12 }
+                    spacing: 12
+                    Rectangle {
+                        implicitWidth: 34; implicitHeight: 34
+                        radius: 10
+                        color: root.col("red", "#f7768e")
+                        Text {
+                            anchors.centerIn: parent
+                            text: "!"
+                            color: root.col("surface_lowest", "#16161e")
+                            font.family: "Inter Display"; font.weight: Font.Black; font.pixelSize: 22
+                        }
+                    }
+                    ColumnLayout {
+                        spacing: 2
+                        Layout.fillWidth: true
+                        Text {
+                            text: "Claude needs you"
+                            color: root.col("red", "#f7768e")
+                            font.family: "Inter"; font.weight: Font.Bold; font.pixelSize: 13
+                        }
+                        Text {
+                            text: root.ask ? root.ask.msg : ""
+                            color: root.col("on_surface", "#e5e1e7")
+                            font.family: "Inter"; font.pixelSize: 13
+                            wrapMode: Text.Wrap
+                            Layout.fillWidth: true
+                        }
+                    }
+                    Rectangle {
+                        implicitWidth: doneText.implicitWidth + 26
+                        implicitHeight: 30
+                        radius: 15
+                        color: doneMouse.containsMouse ? root.col("red", "#f7768e") : Qt.alpha(root.col("red", "#f7768e"), 0.2)
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Text {
+                            id: doneText
+                            anchors.centerIn: parent
+                            text: "Done"
+                            color: doneMouse.containsMouse ? root.col("surface_lowest", "#16161e") : root.col("red", "#f7768e")
+                            font.family: "Inter"; font.weight: Font.Bold; font.pixelSize: 12
+                        }
+                        MouseArea {
+                            id: doneMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.ackAsk()
+                        }
+                    }
+                }
+            }
+
             // header
             RowLayout {
                 spacing: 18
@@ -254,6 +337,7 @@ PlasmoidItem {
                         weekend: root.weekend
                         season: root.season
                         sand: root.sand
+                        alert: root.asking
                         pal: root.pal
                         animate: root.expanded
                     }
