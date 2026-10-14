@@ -47,6 +47,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "panel"))
 import apps  # noqa: E402
 import build  # noqa: E402
 import icons  # noqa: E402
+import tokens  # noqa: E402
 import palette  # noqa: E402
 
 HOME = Path.home()
@@ -444,6 +445,7 @@ def main():
         print(json.dumps(ss))
         return
 
+    tokens.write()      # qml/Rice/Tokens.qml, from the design tokens
     lock = open(STATE / "rice.lock", "w")
     fcntl.flock(lock, fcntl.LOCK_EX)
 
