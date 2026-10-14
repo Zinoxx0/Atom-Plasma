@@ -1,0 +1,12 @@
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Authors": [{ "Name": "zinoxx" }],
+        "Description": "Plasma rice splash: Clawd over the blurred wallpaper. Only the splash is provided; everything else falls back to Breeze.",
+        "Id": "com.zinoxx.rice",
+        "License": "MIT",
+        "Name": "Rice",
+        "Version": "1.0"
+    },
+    "X-Plasma-APIVersion": "2"
+}
