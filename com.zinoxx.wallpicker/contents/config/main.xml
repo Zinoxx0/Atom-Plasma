@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0 http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+  <kcfgfile name=""/>
+  <group name="General">
+    <entry name="target" type="String">
+      <label>Screens the picker applies wallpapers to: "all" or an output name</label>
+      <default>all</default>
+    </entry>
+    <entry name="tags" type="String">
+      <label>Tags of the last "Get more" (comma-separated)</label>
+      <default></default>
+    </entry>
+    <entry name="tagHistory" type="StringList">
+      <label>Recent "Get more" tags, newest first</label>
+      <default></default>
+    </entry>
+  </group>
+</kcfg>

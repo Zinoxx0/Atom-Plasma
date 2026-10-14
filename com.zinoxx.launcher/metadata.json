@@ -1,0 +1,15 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [{ "Name": "zinoxx" }],
+        "Category": "Application Launchers",
+        "Description": "Calm, wallpaper-lit app launcher: search apps, settings, files and maths",
+        "Icon": "start-here-kde",
+        "Id": "com.zinoxx.launcher",
+        "License": "MIT",
+        "Name": "Launcher",
+        "Version": "1.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "X-Plasma-Provides": ["org.kde.plasma.launchermenu"]
+}

@@ -1,0 +1,15 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [{ "Name": "zinoxx" }],
+        "Category": "Windows and Tasks",
+        "Description": "Launchers on the bar; every open window in a slim self-hiding strip at the top of each screen",
+        "Icon": "preferences-system-windows",
+        "Id": "com.zinoxx.glimpse",
+        "License": "MIT",
+        "Name": "Glimpse",
+        "Version": "1.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "X-Plasma-Provides": ["org.kde.plasma.multitasking"]
+}

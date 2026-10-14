@@ -1,0 +1,14 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [{ "Name": "zinoxx" }],
+        "Category": "System Information",
+        "Description": "Lock, sleep, log out, restart and shut down",
+        "Icon": "system-shutdown",
+        "Id": "com.zinoxx.session",
+        "License": "MIT",
+        "Name": "Session",
+        "Version": "1.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

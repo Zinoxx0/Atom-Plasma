@@ -1,0 +1,14 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [{ "Name": "zinoxx" }],
+        "Category": "Utilities",
+        "Description": "Wallpaper grid that re-themes the whole desktop from the chosen image",
+        "Icon": "preferences-desktop-wallpaper",
+        "Id": "com.zinoxx.wallpicker",
+        "License": "MIT",
+        "Name": "Wallpaper Picker",
+        "Version": "1.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
