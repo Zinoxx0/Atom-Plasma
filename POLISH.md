@@ -19,19 +19,23 @@ not cold or cyberpunk.
 | 0.1 | "!" attention over Clawd | orchestrator | done 2026-10-14 (ask.sh, verified both bars + Done button) |
 | 0.2 | Safety net (git x3, backup tarball) | orchestrator | done 2026-10-14 |
 | 0.3 | Baseline screenshots + perf | orchestrator | done 2026-10-14 (~/.cache/rice/shots/baseline) |
-| 0.4 | Design tokens + shared QML module | orchestrator | in progress |
+| 0.4 | Design tokens + shared QML module | orchestrator | done 2026-10-15 (tokens.py, qml/Rice, token sheet) |
 | 0.5 | Plasma 6.8 upgrade (own step when it lands) | orchestrator | waiting (not in repos 2026-10-14) |
-| 1 | Shell surfaces (Plasma Style, bars, popups) | agent A | todo |
-| 2 | Glimpse opened band v2 | agent B | todo |
+| 1 | Shell surfaces (Plasma Style, bars, popups) | agent A | running |
+| 2 | Glimpse opened band v2 | agent B | running |
 | 3 | Launcher, logout, lock | agent A | todo |
-| 4 | Konsole, Dolphin, decorations, KWin motion | agent C | todo |
+| 4 | Konsole, Dolphin, decorations, KWin motion | agent C | running |
 | 5 | Boot chain (Limine, Plymouth, login, splash) | agent C + orchestrator | todo |
 | 6 | Consistency sweep, perf, memory | orchestrator | todo |
 
 ## Agents
 | Agent | Brief | Owns | State | Last commit |
 |-------|-------|------|-------|-------------|
-| (none running) | | | | |
+| A shell | agents/A-shell.md (M1) | plasma-style/build.py, plasmoids session/sysstats/claudeusage/wallpicker, qml/Rice/{Clawd,Ring}.qml + new Rice files | running (launched 2026-10-15) | - |
+| B glimpse | agents/B-glimpse.md (M2) | plasmoid com.zinoxx.glimpse | running (launched 2026-10-15) | - |
+| C apps | agents/C-apps.md (M4) | rice.py ansi/konsole/apply_konsole/alacritty/apply_kwin, apps.py, templates/, konsole/dolphin/darkly/klassy/kwinrc effects+blur, fastfetch, ~/.local/share/kwin/effects | running (launched 2026-10-15) | - |
+All agents: rules in agents/COMMON.md. Orchestrator meanwhile: bars (panel/build.py: same layout on every screen,
+stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-in.
 
 ## Decisions
 - 2026-10-14 Top band: keep idle strip + function. Opened band: no clock; media module floating right;
@@ -65,6 +69,5 @@ not cold or cyberpunk.
 - Clock + tray have no global shortcut; shots.py clicks them (positions from plasmashell scripting).
 
 ## Next step
-0.4: tokens.py (single source) -> generated qml/Rice/Tokens.qml; shared QML module qml/Rice (RicePalette, Color.js,
-Ring, Clawd, GlassCard, IconButton, SectionHeader, PopupIn), symlinked into each plasmoid as contents/ui/Rice.
-Then the token sheet, the M0 "!" check-in, and launch agents A/B/C.
+Wait for agent reports; review each `git diff` (plasmoids repo for A/B, plasma-rice repo for A/C), integrate live,
+screenshot, commit. Meanwhile: bars cleanup (orchestrator). M0 check-in raised (baseline + token sheet).
