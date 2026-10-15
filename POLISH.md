@@ -37,6 +37,10 @@ not cold or cyberpunk.
 All agents: rules in agents/COMMON.md. Orchestrator meanwhile: bars (panel/build.py: same layout on every screen,
 stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-in.
 
+## Log
+- 2026-10-15 00:10 all three agents hit the usage limit while still reading (no edits); resumed 02:31 via SendMessage.
+- 2026-10-15 M0 check-in acknowledged (Done) with no reply on animation speed: keeping the system 0.5x.
+
 ## Decisions
 - 2026-10-14 Top band: keep idle strip + function. Opened band: no clock; media module floating right;
   one icon per app, hover shows live thumbnails per window, clicking a thumbnail = normal click action.
