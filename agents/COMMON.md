@@ -56,6 +56,11 @@ type, motion, states (hover/press/focus/loading/empty), and colours that never c
   with a Timer that does `contentItem.grabToImage(r => { r.saveToFile(path); Qt.quit() })`. Plasma5Support works
   offscreen (RicePalette loads real palettes). console.* output is NOT shown by qml6 here: encode values in the
   render or in `Qt.exit(code)`.
+- Offscreen gotchas (found by agent B): `QT_QUICK_BACKEND=software` drops every layer.effect/MultiEffect; for
+  those use `QT_QUICK_BACKEND=rhi QSG_RHI_BACKEND=opengl QT_QPA_PLATFORM=offscreen`. `QT_FORCE_STDERR_LOGGING=1`
+  makes qml6 print console output and errors. Plasma's distance-field text ignores `font.variableAxes` (use
+  `renderType: Text.NativeRendering` for e.g. filled Material Symbols). On Wayland QScreen.devicePixelRatio is 2 for
+  both the 1.25 and 1.7 outputs: read real scales from `kscreen-doctor -j`.
 - Live: after a plasmashell restart wait ~8 s, then `journalctl --user -u plasma-plasmashell --since -1min`
   for QML errors. Screenshots: `spectacle -b -n -f -o file.png` = whole desktop at 2x; crop per output with
   geometry from `python3 -c "import sys; sys.path.insert(0,'$HOME/.config/plasma-rice/tools'); import pointer; print(pointer.outputs())"`
