@@ -9,6 +9,8 @@ KCM.SimpleKCM {
     property alias cfg_hoverDelay: hoverDelay.value
     property alias cfg_dwellDelay: dwellDelay.value
     property alias cfg_showNames: showNames.checked
+    property alias cfg_thumbnails: thumbnails.checked
+    property alias cfg_showMedia: showMedia.checked
     property string cfg_order
     property string cfg_glimpseStyle
     property string cfg_launcherMark
@@ -55,6 +57,14 @@ KCM.SimpleKCM {
             id: showNames
             Kirigami.FormData.label: i18n("Open strip:")
             text: i18n("Show app names next to icons")
+        }
+        QQC2.CheckBox {
+            id: thumbnails
+            text: i18n("Live window thumbnails under a hovered app")
+        }
+        QQC2.CheckBox {
+            id: showMedia
+            text: i18n("Media controls on the right while something plays")
         }
         QQC2.SpinBox {
             id: hoverDelay

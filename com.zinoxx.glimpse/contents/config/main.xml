@@ -12,6 +12,8 @@
     <entry name="order" type="String"><default>alpha</default></entry>
     <entry name="glimpseStyle" type="String"><default>pills</default></entry>
     <entry name="showNames" type="Bool"><default>false</default></entry>
+    <entry name="thumbnails" type="Bool"><default>true</default></entry>
+    <entry name="showMedia" type="Bool"><default>true</default></entry>
     <entry name="launcherMark" type="String"><default>dots</default></entry>
   </group>
 </kcfg>

@@ -1,83 +1,72 @@
 import QtQuick
-import QtQuick.Layouts
 import QtQuick.Shapes
 import QtQuick.Window
-import QtQuick.Effects
 import org.kde.plasma.plasmoid
-import org.kde.plasma.core as PlasmaCore
-import org.kde.plasma.extras as PlasmaExtras
-import org.kde.plasma.plasma5support as P5Support
 import org.kde.kirigami as Kirigami
 import org.kde.taskmanager as TaskManager
 import org.kde.kitemmodels as KItemModels
+import org.kde.plasma.plasma5support as P5Support
 import org.kde.layershell as LayerShell
+import "Rice"
+import "Rice/Color.js" as C
 
 // Glimpse: the bar keeps only launchers (lit when the app runs anywhere); every open window,
 // from every screen, lives in a slim band along the top edge of each screen, corner to corner,
-// that looks like part of the display's bezel. On hover it springs open, its pills popping out
-// into icons, its lower lip turning to glass. One instance per bar; each instance owns the band,
-// the opened bar ("shelf") and the fullscreen edge of its own screen.
+// that looks like part of the display's bezel. On hover it opens: one icon per app (several windows
+// stack behind it), live thumbnails of the hovered app's windows under it, media on the right.
+// One instance per bar; each instance owns the band, the opened band ("shelf") and the
+// fullscreen edge of its own screen.
 // Clicking a window: minimized -> restore here, on another screen -> slide here,
-// here and focused -> minimize, here -> focus. Middle-click: a new window of that app.
+// here and focused -> minimize, here -> focus. Clicking an app icon does that to the app's most
+// relevant window (see pickWindow). Middle-click: a new window of that app (on a thumbnail: close it).
 PlasmoidItem {
     id: root
 
     preferredRepresentation: fullRepresentation
+    fullRepresentation: BarLaunchers { g: root }
 
     readonly property var cfg: Plasmoid.configuration
+
+    // ------------------------------------------------------------------ palette and sizes
+    // this screen's wallpaper palette (rice.py), which also names the pre-blurred wallpaper band
+    // used as the glass backdrop
+    RicePalette { id: ricePal; output: root.screenName }
+    readonly property alias pal: ricePal
+    readonly property real uiScale: pal.uiScale        // bar widgets (rice settings "bar_scale")
+    readonly property real topScale: pal.topScale      // the top band (rice settings "top_scale")
+    function px(v) { return Math.round(v * topScale) }
+
     readonly property int stripHeight: Math.round(cfg.stripHeight * topScale)
-    readonly property bool reduceMotion: Kirigami.Units.longDuration <= 1
-    function ms(d) { return reduceMotion ? 0 : d }
-
-    // the opened bar
-    readonly property int barH: 44          // height of the opened band
-    readonly property int iconSize: Math.round(26 * topScale)
-    readonly property int slot: Math.round(40 * topScale)
-    // hovered icons grow, but stay inside the band (it doesn't grow with topScale)
-    readonly property real hoverMag: Math.min(1.3, 34 / iconSize)
-    readonly property int fillet: 14        // the rounded "screen corners" under the band
-    readonly property int tabH: 24          // the label tab that drips from the lip
+    readonly property int barH: 44                     // the opened band: fixed, only its contents scale
+    readonly property int iconSize: Math.min(px(28), barH - 10)
+    readonly property int slot: iconSize + px(16)
+    readonly property int fillet: 14                   // the rounded "screen corners" under the band
+    readonly property int tabH: px(22)                 // the label tab that drips from the lip
     readonly property int leftPad: fillet + 6
-
-    // ------------------------------------------------------------------ palette
-    // Same source as the other rice widgets: this screen's wallpaper palette (rice.py), which also
-    // names the pre-blurred wallpaper band used as the glass backdrop.
-    property var pal: ({})
-    // per-screen size of the bar widgets (rice settings "bar_scale", in the palette as _scale)
-    readonly property real uiScale: pal._scale || 1
-    // size of the resting strip, its pills and the opened band's icons (rice settings "top_scale")
-    readonly property real topScale: pal._topScale || 1
-    function col(n, f) { return pal[n] ?? f }
-    function alpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
-    // an app's own colour, from its icon (Kirigami.ImageColors): the most vivid sizeable swatch,
-    // lifted to a candy pastel that reads on the dark bezel. Monochrome icons get the text colour.
-    function appTint(ic) {
-        const pal = ic ? ic.palette : null
-        let best = null, score = 0
-        for (let i = 0; pal && i < pal.length; i++) {
-            const c = pal[i].color, r = pal[i].ratio
-            if (r < 0.04 || c.hslSaturation < 0.28 || c.hslLightness < 0.12 || c.hslLightness > 0.92) continue
-            const sc = c.hslSaturation * Math.sqrt(r)
-            if (sc > score) { best = c; score = sc }
-        }
-        if (!best) return cFg
-        return Qt.hsla(best.hslHue, Math.min(1, best.hslSaturation * 1.1), Math.max(0.62, Math.min(0.76, best.hslLightness)), 1)
+    // room the shelf leaves for the icons (screen width minus the media module): slots shrink to fit
+    property real iconRoom: 0
+    readonly property int appCount: {
+        let n = 0
+        for (const g of groups) n += g.apps.count
+        return n
     }
-    readonly property color cDeep: col("surface_lowest", "#11111b")
-    readonly property color cSurface: col("surface", "#181825")
-    readonly property color cFg: col("on_surface", Kirigami.Theme.textColor)
-    readonly property color cFgDim: col("on_surface_variant", "#bac2de")
-    readonly property color cMuted: col("muted", "#7f849c")
-    readonly property color cPrimary: col("primary", Kirigami.Theme.highlightColor)
-    readonly property color cOnPrimary: col("on_primary", "#1e1e2e")
-    readonly property color cTertiary: col("tertiary", "#f9e2af")
-    readonly property color cRed: col("red", "#f38ba8")
-    readonly property url glassUrl: pal._glass ? "file://" + pal._glass : ""
-    readonly property int glassBand: pal._glassBand || 160
-    // the glass colour wash: accent on the left, deep in the middle (icons stay legible), tertiary right
-    readonly property color washA: alpha(cPrimary, 0.48)
-    readonly property color washB: alpha(cDeep, 0.52)
-    readonly property color washC: alpha(cTertiary, 0.42)
+    readonly property int fitSlot: iconRoom > 0 && appCount > 0
+        ? Math.max(iconSize + px(4), Math.min(slot, Math.floor(iconRoom / appCount))) : slot
+
+    readonly property color cDeep: pal.surfaceLowest
+    readonly property color cFg: pal.fg
+    readonly property color cFgDim: pal.fgDim
+    readonly property color cPrimary: pal.primary
+    readonly property color cOnPrimary: pal.onPrimary
+    readonly property color cTertiary: pal.tertiary
+    readonly property color cRed: pal.red
+    readonly property url glassUrl: pal.values._glass ? "file://" + pal.values._glass : ""
+    readonly property int glassBand: pal.values._glassBand || 160
+    // the glass colour wash: accent on the left, deep in the middle (icons stay legible), tertiary
+    // right. Light, so the backdrop reads as glass rather than paint.
+    readonly property color washA: C.alpha(cPrimary, 0.30)
+    readonly property color washB: C.alpha(cDeep, 0.40)
+    readonly property color washC: C.alpha(cTertiary, 0.26)
     // the bezel: near black, with a hint of the palette so it isn't dead flat
     readonly property color cBezel: Qt.rgba(cDeep.r * 0.35, cDeep.g * 0.35, cDeep.b * 0.35, 1)
 
@@ -86,24 +75,26 @@ PlasmoidItem {
         engine: "executable"
         connectedSources: []
         onNewData: (source, data) => {
-            const tag = source.split("#pal ")[1]
-            if (tag !== undefined) {
-                if (tag.split(" ")[0] === root.screenName)
-                    try { root.pal = JSON.parse(data["stdout"]) } catch (e) {}
+            if (source.endsWith("#outputs")) {
+                try {
+                    const map = {}
+                    for (const o of JSON.parse(data["stdout"]).outputs)
+                        if (o.enabled) map[o.name] = { h: o.size.height, scale: o.scale || 1 }
+                    root.outputs = map
+                } catch (e) {}
             } else if (data["exit code"]) {
                 console.warn("glimpse:", source, data["stderr"])
             }
             disconnectSource(source)
         }
     }
-    function refreshPalette() {
-        if (!screenName) return
-        sh.connectSource('cat "$HOME/.local/state/rice/palette-' + screenName + '.json" 2>/dev/null || cat "$HOME/.local/state/rice/palette.json" #pal ' + screenName + ' ' + Date.now())
-    }
-    readonly property color themeAccent: Kirigami.Theme.highlightColor
-    onThemeAccentChanged: refreshPalette()
-    onScreenNameChanged: refreshPalette()
-    Component.onCompleted: refreshPalette()
+    // real resolution and scale of each output (Qt reports the scale rounded up, 2 for 1.25 and 1.7)
+    property var outputs: ({})
+    function readOutputs() { sh.connectSource("kscreen-doctor -j #outputs") }
+    onScreensChanged: readOutputs()
+    Component.onCompleted: readOutputs()
+    readonly property real dpr: outputs[screenName] ? outputs[screenName].scale : 1
+    function snap(v) { return Math.round(v * dpr) / dpr }
 
     // ------------------------------------------------------------------ screens
     readonly property var screens: Array.prototype.slice.call(Qt.application.screens)
@@ -122,15 +113,24 @@ PlasmoidItem {
     function screenFor(geo) {
         return screens.find(s => sameRect(geo, Qt.rect(s.virtualX, s.virtualY, s.width, s.height))) ?? null
     }
+    function isLaptop(s) { return !!s && /^(eDP|LVDS|DSI)/.test(s.name) }
+    function modeHeight(s) { return outputs[s.name] ? outputs[s.name].h : Math.round(s.height * s.devicePixelRatio) }
+    // a screen in a word, for tags: Laptop / 4K / 1440p
     function screenLabel(s) {
         if (!s) return ""
-        if (/^(eDP|LVDS|DSI)/.test(s.name)) return i18n("Laptop")
-        const h = Math.round(s.height * s.devicePixelRatio)
+        if (isLaptop(s)) return i18n("Laptop")
+        const h = modeHeight(s)
         return h >= 2160 ? "4K" : h + "p"
+    }
+    // ...and in two characters, for the tag on an icon (the laptop gets a glyph instead)
+    function screenShort(s) {
+        if (!s) return ""
+        const h = modeHeight(s)
+        return h >= 2160 ? "4K" : h >= 1440 ? "2K" : h >= 1080 ? "HD" : h + "p"
     }
 
     // ------------------------------------------------------------------ models
-    // every window, most recently used first: launcher state, fullscreen check, "recent" order.
+    // every window, most recently used first: launcher state, fullscreen check, picking a window.
     // filterHidden must stay off: on Wayland minimized windows report IsHidden.
     TaskManager.TasksModel {
         id: allTasks
@@ -154,8 +154,8 @@ PlasmoidItem {
         filterRowCallback: (row, parent) => allTasks.data(allTasks.index(row, 0, parent), TaskManager.AbstractTasksModel.IsWindow) === true
     }
 
-    // every window by app name, then by when it opened: a window keeps its place when it changes
-    // screen or title, so positions can be learned by heart
+    // the resting strip: one pill per window, by app name, then by when it opened: a window keeps
+    // its place when it changes screen or title, so positions can be learned by heart
     TaskManager.TasksModel {
         id: alphaTasks
         groupMode: TaskManager.TasksModel.GroupDisabled
@@ -171,11 +171,56 @@ PlasmoidItem {
         filterRowCallback: (row, parent) => alphaTasks.data(alphaTasks.index(row, 0, parent), TaskManager.AbstractTasksModel.IsWindow) === true
     }
 
-    // one window list per screen, left to right
+    // the opened band: one icon per app (an app with several windows is a group), in the same order
+    function appFilter(model) {
+        return (row, parent) => {
+            const i = model.index(row, 0, parent)
+            return model.data(i, TaskManager.AbstractTasksModel.IsWindow) === true
+                || model.data(i, TaskManager.AbstractTasksModel.IsGroupParent) === true
+        }
+    }
+    TaskManager.TasksModel {
+        id: alphaAppTasks
+        groupMode: TaskManager.TasksModel.GroupApplications
+        groupInline: false
+        sortMode: TaskManager.TasksModel.SortAlpha
+        filterByScreen: false
+        filterByVirtualDesktop: false
+        filterByActivity: false
+        filterHidden: false
+        // a window joining or leaving a group changes no row here: re-read the icons' state
+        onDataChanged: root.scheduleScan()
+        onRowsInserted: root.scheduleScan()
+        onRowsRemoved: root.scheduleScan()
+    }
+    KItemModels.KSortFilterProxyModel {
+        id: alphaApps
+        sourceModel: alphaAppTasks
+        filterRowCallback: root.appFilter(alphaAppTasks)
+    }
+    TaskManager.TasksModel {
+        id: recentAppTasks
+        groupMode: TaskManager.TasksModel.GroupApplications
+        groupInline: false
+        sortMode: TaskManager.TasksModel.SortLastActivated
+        filterByScreen: false
+        filterByVirtualDesktop: false
+        filterByActivity: false
+        filterHidden: false
+        onRowsInserted: root.scheduleScan()
+        onRowsRemoved: root.scheduleScan()
+    }
+    KItemModels.KSortFilterProxyModel {
+        id: recentApps
+        sourceModel: recentAppTasks
+        filterRowCallback: root.appFilter(recentAppTasks)
+    }
+
+    // one window list per screen, left to right (only for the "by screen" order)
     property var screenTasks: []
     Instantiator {
         id: perScreen
-        model: root.screens
+        model: root.cfg.order === "screen" ? root.screens : []
         delegate: ScreenTasks {
             required property var modelData
             screenInfo: modelData
@@ -191,9 +236,10 @@ PlasmoidItem {
         }
         screenTasks = list
     }
-    readonly property var groups: cfg.order === "recent" ? [{ screen: null, windows: recentWindows }]
-        : cfg.order === "screen" ? screenTasks.map(st => ({ screen: st.screenInfo, windows: st.windows }))
-        : [{ screen: null, windows: alphaWindows }]
+    // windows: the strip's pills; apps: the opened band's icons
+    readonly property var groups: cfg.order === "recent" ? [{ screen: null, windows: recentWindows, apps: recentApps }]
+        : cfg.order === "screen" ? screenTasks.map(st => ({ screen: st.screenInfo, windows: st.windows, apps: st.apps }))
+        : [{ screen: null, windows: alphaWindows, apps: alphaApps }]
     // first group with windows: later non-empty groups get a hairline divider in front
     readonly property int firstGroup: {
         for (let i = 0; i < groups.length; i++)
@@ -219,6 +265,8 @@ PlasmoidItem {
         sourceModel: launcherTasks
         filterRowCallback: (row, parent) => launcherTasks.data(launcherTasks.index(row, 0, parent), TaskManager.AbstractTasksModel.IsLauncher) === true
     }
+    readonly property alias launchers: launchers
+    readonly property alias launcherTasks: launcherTasks
     // called by Kickoff's "Pin to Task Manager" (X-Plasma-Provides: org.kde.plasma.multitasking)
     function addLauncher(url) {
         const u = String(url)
@@ -232,7 +280,8 @@ PlasmoidItem {
         const m = u.match(/^file:\/\/.*\/applications\/([^/]+\.desktop)$/)
         return m ? "applications:" + m[1] : u
     }
-    // Meta+1..9 (plasmashell calls this on the org.kde.plasma.multitasking provider)
+    // Meta+1..9 (plasmashell calls this on the org.kde.plasma.multitasking provider): the Nth pinned
+    // app on the bar, so per app. Running: the click rules on its most relevant window; else launch it.
     function activateTaskAtIndex(index) {
         const i = Number(index)
         if (!(i >= 0 && i < launchers.count)) return
@@ -251,6 +300,7 @@ PlasmoidItem {
     property var running: ({})          // app key -> { count, active, attention }
     property string runningKey: ""
     property bool fsMode: false          // a fullscreen window covers this screen
+    property int tick: 0                 // bumped on every model change: the band's icons re-read their windows
     signal republish()
     function scheduleScan() { Qt.callLater(scan) }
     function scheduleRepublish() { Qt.callLater(() => root.republish()) }
@@ -301,6 +351,57 @@ PlasmoidItem {
             running = map
         }
         if (fs !== fsMode) fsMode = fs
+        tick++
+    }
+
+    // an app's windows: the children of its group, or the row itself when it has just one
+    function windowsOf(model, idx, tick) {      // tick: only there to re-run a binding on model changes
+        if (!model || !idx || !idx.valid) return []
+        if (model.data(idx, TaskManager.AbstractTasksModel.IsGroupParent) !== true) return [idx]
+        const out = []
+        const n = model.rowCount(idx)
+        for (let i = 0; i < n; i++) out.push(model.index(i, 0, idx))
+        return out
+    }
+    // what a thumbnail shows about one window
+    function windowInfo(model, idx) {
+        const R = TaskManager.AbstractTasksModel
+        if (!model || !idx || !idx.valid) return null
+        const ids = model.data(idx, R.WinIdList)
+        const min = model.data(idx, R.IsMinimized) === true
+        const geo = model.data(idx, R.ScreenGeometry)
+        return {
+            uuid: ids && ids.length ? String(ids[0]) : "",
+            title: model.data(idx, Qt.DisplayRole) || "",
+            minimized: min,
+            active: !min && model.data(idx, R.IsActive) === true,
+            here: isMine(geo),
+            where: screenFor(geo),
+            geometry: model.data(idx, R.Geometry)
+        }
+    }
+    // what an app icon shows: how many windows, focused, any here, all minimized, and (when none is
+    // out here) the screen of its most recent window elsewhere
+    function appState(model, idx, tick) {
+        const R = TaskManager.AbstractTasksModel
+        const s = { count: 0, active: false, here: false, minimized: false, attention: false, where: null }
+        let allMin = true, latest = -1
+        for (const w of windowsOf(model, idx)) {
+            const min = model.data(w, R.IsMinimized) === true
+            const geo = model.data(w, R.ScreenGeometry)
+            s.count++
+            s.active = s.active || (!min && model.data(w, R.IsActive) === true)
+            s.attention = s.attention || model.data(w, R.IsDemandingAttention) === true
+            allMin = allMin && min
+            if (min) continue
+            if (isMine(geo)) { s.here = true; continue }
+            const t = model.data(w, R.LastActivated)
+            const ms = t ? new Date(t).getTime() : 0
+            if (ms > latest) { latest = ms; s.where = screenFor(geo) }
+        }
+        s.minimized = s.count > 0 && allMin
+        if (s.here) s.where = null
+        return s
     }
 
     // ------------------------------------------------------------------ actions
@@ -313,9 +414,10 @@ PlasmoidItem {
         }
         sh.connectSource("sh '" + helper + "' bring '" + id + "' '" + screenName + "' #run" + Date.now())
     }
+    // the click rules, on one window
     function actOn(model, idx) {
         const R = TaskManager.AbstractTasksModel
-        if (!idx.valid) return
+        if (!idx || !idx.valid) return
         if (!isMine(model.data(idx, R.ScreenGeometry)))
             bringHere(model.data(idx, R.WinIdList))                 // restore or slide it onto this screen
         else if (model.data(idx, R.IsMinimized) === true || model.data(idx, R.IsActive) !== true)
@@ -323,42 +425,49 @@ PlasmoidItem {
         else
             model.requestToggleMinimized(idx)
     }
-    function actOnRow(proxy, row) { actOn(proxy.sourceModel, proxy.mapToSource(proxy.index(row, 0))) }
-    function newInstanceRow(proxy, row) { proxy.sourceModel.requestNewInstance(proxy.mapToSource(proxy.index(row, 0))) }
+    // the window an app click acts on: focused here (-> minimize) > open here > minimized here >
+    // anywhere else; the most recent first within a tier
+    function pickWindow(model, list) {
+        const R = TaskManager.AbstractTasksModel
+        let best = null, bestScore = -1
+        for (const idx of list) {
+            const here = isMine(model.data(idx, R.ScreenGeometry))
+            const min = model.data(idx, R.IsMinimized) === true
+            const tier = !here ? 0 : min ? 1 : model.data(idx, R.IsActive) === true ? 3 : 2
+            const t = model.data(idx, R.LastActivated)
+            const score = tier * 1e14 + (t ? new Date(t).getTime() : 0)
+            if (score > bestScore) { best = idx; bestScore = score }
+        }
+        return best
+    }
+    function actOnTile(model, idx) {
+        const w = pickWindow(model, windowsOf(model, idx))
+        if (w) actOn(model, w)
+    }
     // a launcher of a running app follows the same rules, on that app's most relevant window
     function actOnApp(appId, url) {
         const R = TaskManager.AbstractTasksModel
         const keys = appKeys(appId, url)
-        // focused here (-> minimize) > open here > minimized here > anywhere else; most recent first within a tier
-        let best = null, bestScore = -1
+        const list = []
         for (let i = 0; i < allTasks.count; i++) {
             const idx = allTasks.index(i, 0)
             if (allTasks.data(idx, R.IsWindow) !== true) continue
-            if (!appKeys(allTasks.data(idx, R.AppId), allTasks.data(idx, R.LauncherUrlWithoutIcon)).some(k => keys.includes(k)))
-                continue
-            const here = isMine(allTasks.data(idx, R.ScreenGeometry))
-            const min = allTasks.data(idx, R.IsMinimized) === true
-            const tier = !here ? 0 : min ? 1 : allTasks.data(idx, R.IsActive) === true ? 3 : 2
-            const t = allTasks.data(idx, R.LastActivated)
-            const score = tier * 1e14 + (t ? new Date(t).getTime() : 0)
-            if (score > bestScore) { best = idx; bestScore = score }
+            if (appKeys(allTasks.data(idx, R.AppId), allTasks.data(idx, R.LauncherUrlWithoutIcon)).some(k => keys.includes(k)))
+                list.push(idx)
         }
+        const best = pickWindow(allTasks, list)
         if (best) actOn(allTasks, best)
         return best !== null
     }
-
-    function esc(s) { return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") }
-    function describe(t) {
-        const where = t.minimized ? i18n("minimized") : t.here ? i18n("on this screen") : i18n("on %1", screenLabel(t.where))
-        const verb = t.minimized || !t.here ? i18n("click to bring here") : t.active ? i18n("click to minimize") : i18n("click to focus")
-        return "<b>" + esc(t.title) + "</b>  <font color='" + cFgDim + "'>" + where + " · " + verb + "</font>"
+    function closeApp(model, idx) {
+        for (const w of windowsOf(model, idx)) model.requestClose(w)
     }
 
     // ------------------------------------------------------------------ open / close
     property bool shelfOpen: false
-    property bool shelfShown: false      // the opened bar's window is mapped (the resting band hides meanwhile)
-    property Item hoverTile: null       // Item-typed, so a destroyed tile nulls it
-    property bool menuOpen: false       // a tile's context menu is up: keep the bar open
+    property bool shelfMapped: false     // the opened band's window is up (the strip lets it have the pointer)
+    property bool shelfShown: false      // ...and fully drawn: only then does the resting band hide
+    property bool menuOpen: false        // a tile's context menu is up: keep the band open
     signal shelfRevealed()
     signal shelfClosing()
     Timer { id: openTimer; interval: root.cfg.hoverDelay; onTriggered: root.shelfOpen = true }
@@ -368,9 +477,10 @@ PlasmoidItem {
             if (root.menuOpen || root.stripHovered || root.shelfHovered) return
             root.shelfOpen = false
             root.hoverTile = null
+            root.thumbTile = null
         }
     }
-    // leaving the opened bar closes it at once; the longer grace covers hand-offs, when the bar maps
+    // leaving the opened band closes it at once; the longer grace covers hand-offs, when the band maps
     // over the strip (or the fullscreen edge) and the pointer has yet to enter it
     readonly property int handOff: 250
     function closeIn(ms) { closeTimer.interval = ms; closeTimer.restart() }
@@ -380,13 +490,41 @@ PlasmoidItem {
         if (on) { closeTimer.stop(); if (!shelfOpen) openTimer.restart() }
         else { openTimer.stop(); if (shelfOpen && !shelfHovered) closeIn(handOff) }
     }
-    property bool shelfHovered: false
-    function shelfHover(on) {
-        shelfHovered = on
-        if (on) closeTimer.stop()
+    // the opened band counts as one area: the band itself, plus the label tab and the thumbnails under it
+    property bool bandHovered: false
+    property bool dropHovered: false
+    readonly property bool shelfHovered: bandHovered || dropHovered
+    onShelfHoveredChanged: {
+        if (shelfHovered) closeTimer.stop()
         else if (!menuOpen) closeIn(20)     // just enough for a hand-off to the strip in the same frame
     }
     function openNow() { openTimer.stop(); closeTimer.stop(); shelfOpen = true }
+
+    // ------------------------------------------------------------------ hover: lens, tab, thumbnails
+    property IconTile hoverTile: null    // the icon under the pointer (object-typed: a destroyed tile nulls it)
+    property IconTile lensTile: null     // the icon the lens and the tab sit under (lingers over gaps)
+    property IconTile thumbTile: null    // the app whose thumbnails are out
+    onHoverTileChanged: {
+        if (hoverTile) {
+            lensHold.stop(); thumbOut.stop()
+            lensTile = hoverTile
+            if (thumbTile) thumbTile = hoverTile         // already out: follow the pointer at once
+            else if (cfg.thumbnails) thumbIn.restart()
+        } else {
+            lensHold.restart()
+            thumbOut.restart()
+        }
+    }
+    onDropHoveredChanged: if (dropHovered) { lensHold.stop(); thumbOut.stop() } else if (!hoverTile) { lensHold.restart(); thumbOut.restart() }
+    // gliding over a gap keeps the lens out; moving down onto the tab keeps the thumbnails coming
+    Timer {
+        id: lensHold
+        interval: 140
+        onTriggered: if (!root.hoverTile && !root.dropHovered) { root.lensTile = root.thumbTile; thumbIn.stop() }
+    }
+    Timer { id: thumbIn; interval: 200; onTriggered: if (root.shelfOpen && root.lensTile) root.thumbTile = root.lensTile }
+    Timer { id: thumbOut; interval: 300; onTriggered: if (!root.hoverTile && !root.dropHovered) { root.thumbTile = null; root.lensTile = null } }
+    onShelfOpenChanged: if (!shelfOpen) { thumbIn.stop(); thumbTile = null; lensTile = null }
 
     // ------------------------------------------------------------------ resting pill
     Component {
@@ -399,12 +537,14 @@ PlasmoidItem {
             readonly property bool active: model.IsActive === true && !minimized
             readonly property bool here: root.isMine(model.ScreenGeometry)
             readonly property bool hair: root.cfg.glimpseStyle === "hairline"
-            readonly property color tint: root.appTint(colors)
+            readonly property color tint: C.appTint(colors, root.cFg)
             Kirigami.ImageColors { id: colors; source: pill.model.decoration }
-            // a little wider while the hover delay runs: the bar is about to open
-            width: (hair ? (active ? 26 : 16) : (active ? 18 : 9)) * root.topScale + (root.stripHovered ? 3 : 0)
+            // whole device pixels, so the pills stay crisp at fractional scales
+            function snap(v) { return root.snap(v) }
+            // a little wider while the hover delay runs: the band is about to open
+            width: snap((hair ? (active ? 26 : 16) : (active ? 18 : 9)) * root.topScale + (root.stripHovered ? 3 : 0))
             height: ListView.view ? ListView.view.height : root.stripHeight
-            Behavior on width { SpringAnimation { spring: 4.5; damping: 0.22; epsilon: 0.05 } }
+            Behavior on width { NumberAnimation { duration: Tokens.base; easing.type: Tokens.move } }
 
             // the focused window's light leaks out from under the bezel
             Shape {
@@ -414,7 +554,7 @@ PlasmoidItem {
                 height: 64
                 visible: opacity > 0
                 opacity: pill.active ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: root.ms(320) } }
+                Behavior on opacity { NumberAnimation { duration: Tokens.slow } }
                 transform: Scale { origin.x: 32; origin.y: 32; yScale: 0.32 }
                 ShapePath {
                     strokeWidth: -1
@@ -422,8 +562,8 @@ PlasmoidItem {
                     fillGradient: RadialGradient {
                         centerX: 32; centerY: 32; centerRadius: 32
                         focalX: 32; focalY: 32
-                        GradientStop { position: 0; color: root.alpha(pill.tint, 0.6) }
-                        GradientStop { position: 0.45; color: root.alpha(pill.tint, 0.22) }
+                        GradientStop { position: 0; color: C.alpha(pill.tint, 0.6) }
+                        GradientStop { position: 0.45; color: C.alpha(pill.tint, 0.22) }
                         GradientStop { position: 1; color: "transparent" }
                     }
                     PathRectangle { x: 0; y: 0; width: 64; height: 64 }
@@ -431,15 +571,15 @@ PlasmoidItem {
             }
             // the app's own colour: full here, faint when it lives on another screen, a ring when minimized
             Rectangle {
-                anchors.verticalCenter: parent.verticalCenter
                 width: parent.width
-                height: pill.hair ? 1.5 : Math.max(2, root.cfg.stripHeight * 0.5 * root.topScale)
+                height: pill.hair ? pill.snap(1.5) : pill.snap(Math.max(2, root.cfg.stripHeight * 0.5 * root.topScale))
+                y: pill.snap((parent.height - height) / 2)
                 radius: height / 2
                 color: pill.minimized ? "transparent"
-                     : pill.active ? Qt.lighter(pill.tint, 1.12) : root.alpha(pill.tint, pill.here ? 0.85 : 0.4)
+                     : pill.active ? Qt.lighter(pill.tint, 1.12) : C.alpha(pill.tint, pill.here ? 0.85 : 0.4)
                 border.width: pill.minimized ? 1 : 0
-                border.color: root.alpha(pill.tint, 0.65)
-                Behavior on color { ColorAnimation { duration: root.ms(320) } }
+                border.color: C.alpha(pill.tint, 0.65)
+                Behavior on color { ColorAnimation { duration: Tokens.slow } }
             }
 
             // KWin's minimize animation (magic lamp) flies into this pill
@@ -459,200 +599,9 @@ PlasmoidItem {
         }
     }
 
-    // ------------------------------------------------------------------ icon in the opened bar
-    Component {
-        id: iconDelegate
-        Item {
-            id: tile
-            required property int index
-            required property var model
-            readonly property bool minimized: model.IsMinimized === true
-            readonly property bool active: model.IsActive === true && !minimized
-            readonly property bool here: root.isMine(model.ScreenGeometry)
-            readonly property var where: root.screenFor(model.ScreenGeometry)
-            readonly property string title: model.display || model.AppName || ""
-            readonly property bool hovered: ma.containsMouse
-            readonly property color tint: root.appTint(colors)
-            Kirigami.ImageColors { id: colors; source: tile.model.decoration }
-            property real pop: 0          // 0 = folded into its pill, 1 = out
-            property int delay: 0
-            width: root.slot + (name.visible ? name.width + 4 : 0)
-            height: root.barH
-
-            // icon: pops out of the bar, magnifies on hover, squashes on click
-            Kirigami.Icon {
-                id: icon
-                x: (root.slot - width) / 2
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.verticalCenterOffset: -2
-                width: root.iconSize
-                height: root.iconSize
-                source: tile.model.decoration
-                opacity: Math.min(1, tile.pop * 2.2) * (tile.minimized ? 0.45 : tile.here ? 1 : 0.9)
-                property real mag: tile.hovered ? (ma.pressed ? 1.05 : root.hoverMag) : 1
-                Behavior on mag { SpringAnimation { spring: 5; damping: 0.2; epsilon: 0.005 } }
-                scale: (0.15 + 0.85 * tile.pop) * mag
-                transform: [
-                    Translate { y: (1 - tile.pop) * -16 + (tile.hovered ? -3 : 0) },
-                    Scale { id: squash; origin.x: root.iconSize / 2; origin.y: root.iconSize }
-                ]
-            }
-            // app name, when enabled in the settings
-            Text {
-                id: name
-                visible: root.cfg.showNames
-                x: root.slot - 4
-                anchors.verticalCenter: icon.verticalCenter
-                width: Math.min(implicitWidth, 120)
-                text: tile.model.AppName || tile.title
-                elide: Text.ElideRight
-                opacity: Math.max(0, Math.min(1, tile.pop)) * (tile.minimized ? 0.5 : 1)
-                color: tile.here ? root.cFg : root.cFgDim
-                font.family: "Inter"
-                font.pixelSize: 12
-                font.weight: tile.active ? Font.DemiBold : Font.Medium
-            }
-            // focused: glowing accent bar
-            Rectangle {
-                anchors.horizontalCenter: icon.horizontalCenter
-                anchors.bottom: parent.bottom
-                anchors.bottomMargin: 4
-                width: tile.active ? 14 : 0
-                height: 3
-                radius: 1.5
-                opacity: tile.pop > 0.5 ? 1 : 0
-                Behavior on width { SpringAnimation { spring: 4; damping: 0.22; epsilon: 0.05 } }
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { position: 0; color: root.cPrimary }
-                    GradientStop { position: 1; color: root.cTertiary }
-                }
-                layer.enabled: tile.active
-                layer.effect: MultiEffect { shadowEnabled: true; shadowColor: root.cPrimary; shadowBlur: 0.6; shadowOpacity: 0.9; shadowVerticalOffset: 0; shadowHorizontalOffset: 0 }
-            }
-            // here: dot; minimized: ring
-            Rectangle {
-                anchors.horizontalCenter: icon.horizontalCenter
-                anchors.bottom: parent.bottom
-                anchors.bottomMargin: 3
-                visible: !tile.active && (tile.here || tile.minimized)
-                width: 4
-                height: 4
-                radius: 2
-                opacity: tile.pop > 0.5 ? 1 : 0
-                color: tile.minimized ? "transparent" : root.alpha(root.cFg, 0.85)
-                border.width: tile.minimized ? 1 : 0
-                border.color: root.alpha(root.cFg, 0.6)
-            }
-            // lives on another screen: gradient tag
-            Rectangle {
-                visible: !tile.here && !tile.minimized && tile.where !== null
-                x: icon.x + icon.width - 9
-                y: 3
-                height: 11
-                width: tag.implicitWidth + 7
-                radius: 5.5
-                scale: tile.pop
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { position: 0; color: root.cPrimary }
-                    GradientStop { position: 1; color: root.cTertiary }
-                }
-                Text {
-                    id: tag
-                    anchors.centerIn: parent
-                    text: root.screenLabel(tile.where)
-                    color: root.cOnPrimary
-                    font.family: "Inter"
-                    font.pixelSize: 8
-                    font.weight: Font.Black
-                }
-            }
-            MouseArea {
-                id: ma
-                anchors.fill: parent
-                hoverEnabled: true
-                acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
-                onContainsMouseChanged: {
-                    if (containsMouse) root.hoverTile = tile
-                    else if (root.hoverTile === tile) root.hoverTile = null
-                }
-                onClicked: mouse => {
-                    const view = tile.ListView.view
-                    if (!view) return
-                    if (mouse.button === Qt.RightButton) { tileMenu.openRelative(); return }
-                    if (mouse.button === Qt.MiddleButton) root.newInstanceRow(view.model, tile.index)
-                    else root.actOnRow(view.model, tile.index)
-                    squashAnim.restart()
-                }
-            }
-            PlasmaExtras.Menu {
-                id: tileMenu
-                visualParent: tile
-                readonly property string url: String(tile.model.LauncherUrlWithoutIcon || "")
-                onStatusChanged: {
-                    root.menuOpen = status === PlasmaExtras.Menu.Open || status === PlasmaExtras.Menu.Opening
-                    if (!root.menuOpen && !root.shelfHovered) root.closeIn(root.handOff)
-                }
-                PlasmaExtras.MenuItem {
-                    visible: tileMenu.url !== ""
-                    text: root.hasLauncher(tileMenu.url) ? i18n("Unpin from bar") : i18n("Pin to bar")
-                    icon: root.hasLauncher(tileMenu.url) ? "window-unpin" : "window-pin"
-                    onClicked: root.hasLauncher(tileMenu.url) ? root.removeLauncher(tileMenu.url) : root.addLauncher(tileMenu.url)
-                }
-                PlasmaExtras.MenuItem {
-                    text: i18n("New window")
-                    icon: "window-new"
-                    onClicked: if (tile.ListView.view) root.newInstanceRow(tile.ListView.view.model, tile.index)
-                }
-                PlasmaExtras.MenuItem {
-                    text: i18n("Close window")
-                    icon: "window-close"
-                    onClicked: {
-                        const v = tile.ListView.view
-                        if (v) v.model.sourceModel.requestClose(v.model.mapToSource(v.model.index(tile.index, 0)))
-                    }
-                }
-            }
-            SequentialAnimation {
-                id: squashAnim
-                ParallelAnimation {
-                    NumberAnimation { target: squash; property: "xScale"; to: 1.3; duration: root.ms(80); easing.type: Easing.OutQuad }
-                    NumberAnimation { target: squash; property: "yScale"; to: 0.72; duration: root.ms(80); easing.type: Easing.OutQuad }
-                }
-                ParallelAnimation {
-                    NumberAnimation { target: squash; property: "xScale"; to: 1; duration: root.ms(620); easing.type: Easing.OutElastic; easing.amplitude: 1.2; easing.period: 0.35 }
-                    NumberAnimation { target: squash; property: "yScale"; to: 1; duration: root.ms(620); easing.type: Easing.OutElastic; easing.amplitude: 1.2; easing.period: 0.35 }
-                }
-            }
-            // pop out, one after another, when the bar opens; fold back in when it closes
-            Connections {
-                target: root
-                function onShelfRevealed() {
-                    tile.delay = root.ms(40 + Math.min(14, Math.round(tile.mapToItem(null, 0, 0).x / root.slot)) * 18)
-                    foldAnim.stop()
-                    popAnim.restart()
-                }
-                function onShelfClosing() {
-                    popAnim.stop()
-                    foldAnim.restart()
-                }
-            }
-            SequentialAnimation {
-                id: popAnim
-                PropertyAction { target: tile; property: "pop"; value: 0 }
-                PauseAnimation { duration: tile.delay }
-                NumberAnimation { target: tile; property: "pop"; to: 1; duration: root.ms(560); easing.type: Easing.OutElastic; easing.amplitude: 1.15; easing.period: 0.4 }
-            }
-            NumberAnimation { id: foldAnim; target: tile; property: "pop"; to: 0; duration: root.ms(120); easing.type: Easing.InQuad }
-            // a window that shows up while the bar is open pops straight out
-            Component.onCompleted: if (root.shelfShown) { tile.delay = 0; popAnim.restart() }
-        }
-    }
-
     // ------------------------------------------------------------------ the resting band (always there)
     // Two windows per screen: the band, drawn click-through and as tall as its rounded corners, and an
-    // invisible strip over it that reserves the space, catches the pointer and opens the bar.
+    // invisible strip over it that reserves the space, catches the pointer and opens the band.
     // Both step aside while a fullscreen window covers the screen.
     Instantiator {
         model: root.myScreen && root.cfg.showStrip ? [root.myScreen] : []
@@ -678,7 +627,8 @@ PlasmoidItem {
 
             Item {
                 anchors.fill: parent
-                visible: !root.shelfShown       // the opened bar starts from this very shape, so the hand-off is seamless
+                // hidden only once the opened band is fully drawn over it, so the hand-off never flickers
+                visible: !root.shelfShown
                 Notch {
                     anchors.fill: parent
                     solid: true
@@ -692,7 +642,7 @@ PlasmoidItem {
                     id: pillRow
                     x: root.leftPad
                     height: root.stripHeight
-                    spacing: 7
+                    spacing: root.snap(7)
                     Repeater {
                         model: root.groups
                         delegate: ListView {
@@ -702,13 +652,13 @@ PlasmoidItem {
                             visible: count > 0
                             orientation: ListView.Horizontal
                             interactive: false
-                            spacing: 3
+                            spacing: root.snap(3)
                             model: modelData.windows
                             delegate: pillDelegate
                             onXChanged: root.scheduleRepublish()
-                            add: Transition { NumberAnimation { property: "scale"; from: 0; to: 1; duration: root.ms(520); easing.type: Easing.OutElastic; easing.amplitude: 1.2; easing.period: 0.4 } }
-                            remove: Transition { NumberAnimation { property: "scale"; to: 0; duration: root.ms(160); easing.type: Easing.InBack } }
-                            displaced: Transition { NumberAnimation { property: "x"; duration: root.ms(420); easing.type: Easing.OutBack; easing.overshoot: 1.8 } }
+                            add: Transition { NumberAnimation { property: "scale"; from: 0; to: 1; duration: Tokens.base; easing.type: Tokens.enter } }
+                            remove: Transition { NumberAnimation { property: "scale"; to: 0; duration: Tokens.fast; easing.type: Tokens.exit } }
+                            displaced: Transition { NumberAnimation { property: "x"; duration: Tokens.base; easing.type: Tokens.move } }
                         }
                     }
                 }
@@ -726,8 +676,8 @@ PlasmoidItem {
             transientParent: null
             visible: !root.fsMode
             color: "transparent"
-            // KWin may stack it above the opened bar: let the bar have the pointer while it is up
-            flags: Qt.FramelessWindowHint | Qt.WindowDoesNotAcceptFocus | (root.shelfShown ? Qt.WindowTransparentForInput : 0)
+            // KWin may stack it above the opened band: let the band have the pointer while it is up
+            flags: Qt.FramelessWindowHint | Qt.WindowDoesNotAcceptFocus | (root.shelfMapped ? Qt.WindowTransparentForInput : 0)
             width: modelData.width
             height: root.stripHeight
             LayerShell.Window.scope: "dock"
@@ -746,245 +696,15 @@ PlasmoidItem {
         }
     }
 
-    // ------------------------------------------------------------------ the opened bar
+    // ------------------------------------------------------------------ the opened band
     Instantiator {
         model: root.myScreen ? [root.myScreen] : []
-        delegate: Window {
-            id: shelfWin
-            required property var modelData
-            screen: modelData
-            x: modelData.virtualX
-            y: modelData.virtualY
-            transientParent: null
-            visible: false
-            color: "transparent"
-            // below the lip it is see-through (fillets, label tab, haze): click-through the moment it closes
-            flags: Qt.FramelessWindowHint | Qt.WindowDoesNotAcceptFocus | (root.shelfOpen ? 0 : Qt.WindowTransparentForInput)
-            width: modelData.width
-            height: Math.ceil(root.stripHeight + (root.barH - root.stripHeight) * 1.2) + Math.ceil(root.tabH * 1.25)
-            LayerShell.Window.scope: "dock"
-            LayerShell.Window.layer: root.fsMode ? LayerShell.Window.LayerOverlay : LayerShell.Window.LayerTop
-            LayerShell.Window.anchors: LayerShell.Window.AnchorTop | LayerShell.Window.AnchorLeft | LayerShell.Window.AnchorRight
-            LayerShell.Window.exclusionZone: -1
-            LayerShell.Window.keyboardInteractivity: LayerShell.Window.KeyboardInteractivityNone
-            LayerShell.Window.activateOnShow: false
-            LayerShell.Window.wantsToBeOnActiveScreen: false
-
-            property real morph: 0            // 0 = the resting band, 1 = the opened bar (overshoots)
-            readonly property real lip: Math.max(0, Math.min(1, morph))
-            readonly property real bandH: Math.max(root.stripHeight, root.stripHeight + (root.barH - root.stripHeight) * morph)
-            // rebuilt mid-animation (screen change): don't leave the resting band hidden
-            Component.onDestruction: { root.shelfShown = false; root.shelfOpen = false; root.hoverTile = null; root.menuOpen = false; root.shelfHovered = false }
-
-            Connections {
-                target: root
-                function onShelfOpenChanged() {
-                    if (root.shelfOpen) {
-                        closeMorph.stop()
-                        shelfWin.visible = true
-                        root.shelfShown = true
-                        openMorph.restart()
-                        root.shelfRevealed()
-                    } else {
-                        openMorph.stop()
-                        root.shelfClosing()
-                        closeMorph.restart()
-                    }
-                }
-            }
-
-            // the label tab drips from the lip under the hovered icon and rides along with the lens
-            property string tabText: ""
-            readonly property string liveText: root.hoverTile ? root.describe(root.hoverTile) : ""
-            onLiveTextChanged: if (liveText) tabText = liveText      // keeps its text while it retracts
-            property bool tabWanted: false
-            Timer { id: tabHold; interval: 140; onTriggered: shelfWin.tabWanted = false }   // gliding over a gap keeps it out
-            Connections {
-                target: root
-                function onHoverTileChanged() {
-                    if (root.hoverTile) { tabHold.stop(); shelfWin.tabWanted = true }
-                    else tabHold.restart()
-                }
-            }
-            property real tabDrop: tabWanted && morph > 0.85 ? root.tabH : 0
-            Behavior on tabDrop { SpringAnimation { spring: 5; damping: 0.3; epsilon: 0.05 } }
-            property real tabWidth: Math.min(width - 2 * root.fillet - 40, tabLabel.implicitWidth + 28)
-            Behavior on tabWidth { enabled: shelfWin.tabDrop > 1; SpringAnimation { spring: 4; damping: 0.3; epsilon: 0.1 } }
-            readonly property real tabGrown: Math.max(0, Math.min(1, tabDrop / root.tabH))
-
-            Notch {
-                id: notch
-                anchors.fill: parent
-                bandH: shelfWin.bandH
-                fillet: root.fillet
-                glass: shelfWin.lip
-                tabX: lens.x + lens.width / 2
-                tabW: shelfWin.tabWidth * (0.55 + 0.45 * shelfWin.tabGrown)     // a droplet that widens as it drops
-                tabH: Math.max(0, shelfWin.tabDrop) * shelfWin.lip
-                backdrop: root.glassUrl
-                backdropSize: Qt.size(shelfWin.width, root.glassBand)
-                bezel: root.cBezel
-                tintA: root.washA
-                tintB: root.washB
-                tintC: root.washC
-                rimA: root.cPrimary
-                rimB: root.cTertiary
-                glow: root.cPrimary
-            }
-            Text {
-                id: tabLabel
-                x: notch.tL + 14
-                y: shelfWin.bandH
-                width: Math.max(0, notch.tabW - 28)
-                height: notch.tabH
-                verticalAlignment: Text.AlignVCenter
-                horizontalAlignment: Text.AlignHCenter
-                text: shelfWin.tabText
-                textFormat: Text.StyledText
-                elide: Text.ElideRight
-                opacity: Math.max(0, Math.min(1, (notch.tabH - 12) / 10))
-                color: root.cFg
-                font.family: "Inter"
-                font.pixelSize: 11
-            }
-
-            // the band itself: the only part that counts as "on the bar"
-            Item {
-                id: band
-                width: parent.width
-                height: shelfWin.bandH
-                HoverHandler { onHoveredChanged: root.shelfHover(hovered) }
-
-                // liquid lens under the hovered icon: each edge springs on its own, the leading edge
-                // faster, so it stretches toward the target and snaps back
-                Rectangle {
-                    id: lens
-                    property real edgeL: 0
-                    property real edgeR: 0
-                    property bool toRight: true
-                    property real lead: 5.5
-                    property real lag: 2.6
-                    property color tint: root.hoverTile ? root.hoverTile.tint : root.cPrimary     // glows in the hovered app's colour
-                    Behavior on tint { ColorAnimation { duration: root.ms(200) } }
-                    // while invisible it jumps straight to the first target instead of sliding in from the last one
-                    Behavior on edgeL { enabled: lens.opacity > 0.05; SpringAnimation { spring: lens.toRight ? lens.lag : lens.lead; damping: 0.24; epsilon: 0.05 } }
-                    Behavior on edgeR { enabled: lens.opacity > 0.05; SpringAnimation { spring: lens.toRight ? lens.lead : lens.lag; damping: 0.24; epsilon: 0.05 } }
-                    x: edgeL
-                    width: Math.max(0, edgeR - edgeL)
-                    y: 5
-                    height: Math.max(0, band.height - 11)
-                    radius: Math.min(12, height / 2)
-                    opacity: root.hoverTile && shelfWin.morph > 0.6 ? 1 : 0
-                    Behavior on opacity { NumberAnimation { duration: root.ms(140) } }
-                    gradient: Gradient {
-                        GradientStop { position: 0; color: root.alpha("#ffffff", 0.16) }
-                        GradientStop { position: 1; color: root.alpha(lens.tint, 0.34) }
-                    }
-                    border.width: 1
-                    border.color: root.alpha("#ffffff", 0.22)
-                    function aim(t) {
-                        const p = t.mapToItem(band, 0, 0)
-                        const l = p.x + 2, r = p.x + t.width - 2
-                        toRight = l >= edgeL
-                        edgeL = l
-                        edgeR = r
-                    }
-                    Connections {
-                        target: root
-                        function onHoverTileChanged() { if (root.hoverTile) lens.aim(root.hoverTile) }
-                    }
-                }
-
-                Row {
-                    id: icons
-                    x: root.leftPad
-                    y: (band.height - root.barH) / 2
-                    height: root.barH
-                    spacing: 0
-                    Repeater {
-                        model: root.groups
-                        delegate: Row {
-                            id: group
-                            required property var modelData
-                            required property int index
-                            visible: list.count > 0
-                            spacing: 0
-                            Item {          // hairline between screens
-                                visible: group.index > root.firstGroup
-                                width: 11
-                                height: root.barH
-                                Rectangle {
-                                    anchors.centerIn: parent
-                                    width: 1
-                                    height: parent.height * 0.42 * shelfWin.lip
-                                    color: root.alpha(root.cFg, 0.22)
-                                }
-                            }
-                            ListView {
-                                id: list
-                                height: root.barH
-                                width: contentWidth
-                                orientation: ListView.Horizontal
-                                interactive: false
-                                spacing: 0
-                                model: group.modelData.windows
-                                delegate: iconDelegate
-                                add: Transition {
-                                    NumberAnimation { property: "scale"; from: 0.2; to: 1; duration: root.ms(560); easing.type: Easing.OutElastic; easing.amplitude: 1.2; easing.period: 0.4 }
-                                }
-                                remove: Transition {
-                                    ParallelAnimation {
-                                        NumberAnimation { property: "scale"; to: 0.1; duration: root.ms(200); easing.type: Easing.InBack; easing.overshoot: 2 }
-                                        NumberAnimation { property: "opacity"; to: 0; duration: root.ms(180) }
-                                    }
-                                }
-                                displaced: Transition { NumberAnimation { property: "x"; duration: root.ms(420); easing.type: Easing.OutBack; easing.overshoot: 1.8 } }
-                            }
-                        }
-                    }
-                    Text {          // nothing open yet
-                        visible: root.firstGroup < 0
-                        height: root.barH
-                        leftPadding: 4
-                        verticalAlignment: Text.AlignVCenter
-                        opacity: shelfWin.lip
-                        text: i18n("No open windows")
-                        color: root.cFgDim
-                        font.family: "Inter"
-                        font.pixelSize: 12
-                        font.weight: Font.Medium
-                    }
-                }
-            }
-
-            // opens with a springy overshoot; closes at once, folding the icons back into the lip
-            NumberAnimation {
-                id: openMorph
-                target: shelfWin
-                property: "morph"
-                to: 1
-                duration: root.ms(300)
-                easing.type: Easing.OutBack
-                easing.overshoot: 2.4
-            }
-            SequentialAnimation {
-                id: closeMorph
-                NumberAnimation { target: shelfWin; property: "morph"; to: 0; duration: root.ms(190); easing.type: Easing.OutCubic }
-                ScriptAction {
-                    script: {
-                        if (!root.shelfOpen) {
-                            shelfWin.visible = false
-                            root.shelfShown = false
-                        }
-                    }
-                }
-            }
-        }
+        delegate: ShelfWindow { g: root }
     }
 
     // ------------------------------------------------------------------ fullscreen edge
     // Only exists while a fullscreen window covers this screen: rest on the top edge for
-    // dwellDelay ms (a line fills meanwhile) and the bar drops in over the fullscreen window.
+    // dwellDelay ms (a line fills meanwhile) and the band drops in over the fullscreen window.
     Instantiator {
         model: root.myScreen && root.fsMode ? [root.myScreen] : []
         delegate: Window {
@@ -1037,189 +757,6 @@ PlasmoidItem {
                 id: dwellAnim
                 NumberAnimation { target: dwell; property: "width"; from: 0; to: edgeWin.width * 0.42; duration: root.cfg.dwellDelay; easing.type: Easing.InOutQuad }
                 ScriptAction { script: { root.openNow(); dwell.width = 0 } }
-            }
-        }
-    }
-
-    // ------------------------------------------------------------------ the bar: launchers
-    fullRepresentation: Item {
-        id: bar
-        readonly property int iconSize: Math.max(16, Math.min(Math.round(Kirigami.Units.iconSizes.medium * root.uiScale), height - 12))
-        Layout.fillHeight: true
-        Layout.minimumWidth: launcherRow.implicitWidth
-        Layout.preferredWidth: launcherRow.implicitWidth
-        Layout.maximumWidth: launcherRow.implicitWidth
-
-        DropArea {
-            anchors.fill: parent
-            onEntered: drag => { drag.accepted = drag.hasUrls && drag.urls.some(u => String(u).endsWith(".desktop")) }
-            onDropped: drop => {
-                for (const u of drop.urls)
-                    if (String(u).endsWith(".desktop")) root.addLauncher(root.launcherUrlFor(u))
-                drop.acceptProposedAction()
-            }
-        }
-        Row {
-            id: launcherRow
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 1
-            Repeater {
-                model: launchers
-                delegate: Item {
-                    id: lb
-                    required property int index
-                    required property var model
-                    readonly property var info: root.infoFor(model.AppId, model.LauncherUrlWithoutIcon, root.running)
-                    readonly property int count: info ? info.count : 0
-                    readonly property bool focused: info ? info.active : false
-                    readonly property bool attention: info ? info.attention : false
-                    readonly property color tint: root.appTint(colors)     // the app's own colour, as in the top band
-                    Kirigami.ImageColors { id: colors; source: lb.model.decoration }
-                    property bool launching: false
-                    width: bar.iconSize + 12
-                    height: bar.height
-                    onCountChanged: {
-                        if (count > 0 && launching) { launching = false; arrive.restart() }
-                    }
-
-                    function launch(newInstance) {
-                        const idx = launchers.mapToSource(launchers.index(lb.index, 0))
-                        if (newInstance) launcherTasks.requestNewInstance(idx)
-                        else launcherTasks.requestActivate(idx)
-                        launching = lb.count === 0     // single-window apps never show a second one
-                        launchTimeout.restart()
-                    }
-                    Timer { id: launchTimeout; interval: 6000; onTriggered: lb.launching = false }
-
-                    Rectangle {
-                        anchors.centerIn: parent
-                        width: bar.iconSize + 8
-                        height: width
-                        radius: 8
-                        color: root.alpha(root.cFg, ma.pressed ? 0.15 : ma.containsMouse ? 0.09 : 0)
-                        Behavior on color { ColorAnimation { duration: root.ms(140) } }
-                    }
-                    Shape {          // "glow" mark
-                        id: glow
-                        anchors.centerIn: icon
-                        width: bar.iconSize * 1.7
-                        height: width
-                        visible: root.cfg.launcherMark === "glow" && lb.count > 0
-                        opacity: lb.focused ? 1 : 0.5
-                        Behavior on opacity { NumberAnimation { duration: root.ms(220) } }
-                        ShapePath {
-                            strokeWidth: -1
-                            fillGradient: RadialGradient {
-                                centerX: glow.width / 2; centerY: glow.height / 2; centerRadius: glow.width / 2
-                                focalX: centerX; focalY: centerY
-                                GradientStop { position: 0; color: root.alpha(lb.attention ? root.cRed : lb.tint, 0.6) }
-                                GradientStop { position: 1; color: "transparent" }
-                            }
-                            PathRectangle { x: 0; y: 0; width: glow.width; height: glow.height }
-                        }
-                    }
-                    Kirigami.Icon {
-                        id: icon
-                        anchors.centerIn: parent
-                        width: bar.iconSize
-                        height: width
-                        source: lb.model.decoration
-                        property real mag: ma.pressed ? 0.82 : ma.containsMouse ? 1.14 : 1
-                        Behavior on mag { SpringAnimation { spring: 5; damping: 0.2; epsilon: 0.005 } }
-                        scale: mag
-                        transform: [
-                            Translate {
-                                y: ma.containsMouse && !ma.pressed ? -3 : 0
-                                Behavior on y { SpringAnimation { spring: 5; damping: 0.22; epsilon: 0.05 } }
-                            },
-                            Scale { id: arriveScale; origin.x: icon.width / 2; origin.y: icon.height }
-                        ]
-                    }
-                    SequentialAnimation {         // waiting for the app to show up
-                        running: lb.launching && !root.reduceMotion
-                        loops: Animation.Infinite
-                        NumberAnimation { target: icon; property: "opacity"; to: 0.35; duration: 480; easing.type: Easing.InOutSine }
-                        NumberAnimation { target: icon; property: "opacity"; to: 1; duration: 480; easing.type: Easing.InOutSine }
-                        onRunningChanged: if (!running) icon.opacity = 1
-                    }
-                    SequentialAnimation {         // ...and a hop when it does
-                        id: arrive
-                        ParallelAnimation {
-                            NumberAnimation { target: arriveScale; property: "yScale"; to: 1.3; duration: root.ms(120); easing.type: Easing.OutQuad }
-                            NumberAnimation { target: arriveScale; property: "xScale"; to: 0.85; duration: root.ms(120) }
-                        }
-                        ParallelAnimation {
-                            NumberAnimation { target: arriveScale; property: "yScale"; to: 1; duration: root.ms(700); easing.type: Easing.OutElastic; easing.amplitude: 1.2; easing.period: 0.35 }
-                            NumberAnimation { target: arriveScale; property: "xScale"; to: 1; duration: root.ms(700); easing.type: Easing.OutElastic; easing.amplitude: 1.2; easing.period: 0.35 }
-                        }
-                    }
-                    Row {            // "dots" mark: one per window (max 3); dash = focused
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.bottom: parent.bottom
-                        anchors.bottomMargin: 2
-                        spacing: 2
-                        visible: root.cfg.launcherMark === "dots"
-                        Repeater {
-                            model: Math.min(lb.count, 3)
-                            delegate: Rectangle {
-                                required property int index
-                                readonly property bool lead: index === 0 && lb.focused
-                                width: lead ? 10 : 4
-                                height: 4
-                                radius: 2
-                                color: lb.attention ? root.cRed : lead ? Qt.lighter(lb.tint, 1.1) : root.alpha(lb.tint, 0.75)
-                                Behavior on width { SpringAnimation { spring: 4.5; damping: 0.22; epsilon: 0.05 } }
-                                Behavior on color { ColorAnimation { duration: root.ms(200) } }
-                                scale: 0
-                                Component.onCompleted: popIn.start()
-                                NumberAnimation on scale { id: popIn; running: false; to: 1; duration: root.ms(520); easing.type: Easing.OutElastic; easing.amplitude: 1.2; easing.period: 0.4 }
-                            }
-                        }
-                    }
-                    Rectangle {      // "underline" mark
-                        visible: root.cfg.launcherMark === "underline" && lb.count > 0
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.bottom: parent.bottom
-                        anchors.bottomMargin: 2
-                        width: lb.focused ? bar.iconSize * 0.9 : bar.iconSize * 0.45
-                        height: 2
-                        radius: 1
-                        color: lb.attention ? root.cRed : lb.focused ? lb.tint : root.alpha(lb.tint, 0.6)
-                        Behavior on width { SpringAnimation { spring: 4.5; damping: 0.22; epsilon: 0.05 } }
-                    }
-
-                    PlasmaCore.ToolTipArea {
-                        anchors.fill: parent
-                        mainText: lb.model.AppName || lb.model.display || ""
-                        subText: lb.count ? i18np("1 window · middle-click for a new one", "%1 windows · middle-click for a new one", lb.count)
-                                          : i18n("Not running")
-                        MouseArea {
-                            id: ma
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
-                            onClicked: mouse => {
-                                if (mouse.button === Qt.RightButton) { menu.openRelative(); return }
-                                if (mouse.button === Qt.MiddleButton || lb.count === 0) { lb.launch(mouse.button === Qt.MiddleButton); return }
-                                root.actOnApp(lb.model.AppId, lb.model.LauncherUrlWithoutIcon)
-                            }
-                        }
-                    }
-                    PlasmaExtras.Menu {
-                        id: menu
-                        visualParent: lb
-                        PlasmaExtras.MenuItem {
-                            text: i18n("New window")
-                            icon: "window-new"
-                            onClicked: lb.launch(true)
-                        }
-                        PlasmaExtras.MenuItem {
-                            text: i18n("Unpin from bar")
-                            icon: "window-unpin"
-                            onClicked: root.removeLauncherAt(lb.index)
-                        }
-                    }
-                }
             }
         }
     }

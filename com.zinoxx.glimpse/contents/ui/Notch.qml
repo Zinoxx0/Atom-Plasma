@@ -6,7 +6,8 @@ import QtQuick.Effects
 // corner, with concave fillets where it meets the sides (so the screen looks rounded below it, as
 // if the bezel grew) and a tab that drips from its lower edge under the hovered icon (the label).
 // solid: just the bezel colour and a faint rim (the resting strip). Otherwise the lower lip turns to glass as
-// `glass` goes to 1: the screen's pre-blurred wallpaper band (rice.py), a colour wash, a lit rim.
+// `glass` goes to 1: the screen's pre-blurred wallpaper band (rice.py), a colour wash, a lit rim
+// that runs along the lip and around the tab, so the tab reads as part of the same edge.
 Item {
     id: n
 
@@ -43,7 +44,7 @@ Item {
         height: 18
         opacity: n.glass
         gradient: Gradient {
-            GradientStop { position: 0; color: Qt.rgba(n.glow.r, n.glow.g, n.glow.b, 0.30) }
+            GradientStop { position: 0; color: Qt.rgba(n.glow.r, n.glow.g, n.glow.b, 0.22) }
             GradientStop { position: 1; color: "transparent" }
         }
     }
@@ -122,33 +123,65 @@ Item {
                 GradientStop { position: 1; color: Qt.rgba(n.bezel.r, n.bezel.g, n.bezel.b, 1 - 0.42 * n.glass) }
             }
         }
-        Rectangle {     // and along the tab's edge
-            x: n.tL
-            y: n.bandH + n.tabH - 1.5
-            width: n.tabW
-            height: 1.5
-            visible: n.tabH > 4
-            opacity: n.glass
-            gradient: Gradient {
-                orientation: Gradient.Horizontal
-                GradientStop { position: 0.0; color: n.rimA }
-                GradientStop { position: 1.0; color: n.rimB }
-            }
-        }
     }
 
-    // lit rim along the lip: a faint edge light at rest, full once the lip turns to glass
+    // the resting rim: one crisp hairline along the lip
     Rectangle {
+        visible: n.solid
         y: n.bandH - height
         width: n.width
-        height: 1 + 0.5 * n.glass
-        opacity: n.rimRest + (1 - n.rimRest) * n.glass
+        height: 1
+        opacity: n.rimRest
         gradient: Gradient {
             orientation: Gradient.Horizontal
             GradientStop { position: 0.0; color: "transparent" }
             GradientStop { position: 0.12; color: n.rimA }
             GradientStop { position: 0.88; color: n.rimB }
             GradientStop { position: 1.0; color: "transparent" }
+        }
+    }
+
+    // the opened rim: follows the lip and goes round the tab instead of cutting across its neck
+    Shape {
+        id: rim
+        visible: !n.solid
+        anchors.fill: parent
+        opacity: n.rimRest + (1 - n.rimRest) * n.glass
+        preferredRendererType: Shape.CurveRenderer
+        readonly property real w: 1 + 0.5 * n.glass
+        readonly property real h: w / 2                       // the stroke sits just inside the edge
+        readonly property bool tab: n.tabH > 2 * w
+        // without a tab every point of it collapses onto the lip line
+        readonly property real lipY: n.bandH - h
+        readonly property real cf: tab ? n.tf : 0
+        readonly property real cr: tab ? n.tr : 0
+        readonly property real jy: tab ? n.bandH + cf : lipY  // where the joints meet the sides
+        readonly property real by: tab ? n.bandH + n.tabH - h : lipY
+        readonly property real lx: tab ? n.tL + h : n.tL
+        readonly property real rx: tab ? n.tR - h : n.tR
+        ShapePath {
+            fillColor: "transparent"
+            strokeWidth: rim.w
+            strokeColor: "white"
+            capStyle: ShapePath.FlatCap
+            joinStyle: ShapePath.RoundJoin
+            strokeGradient: LinearGradient {
+                x1: 0; y1: 0; x2: n.width; y2: 0
+                GradientStop { position: 0.0; color: "transparent" }
+                GradientStop { position: 0.12; color: n.rimA }
+                GradientStop { position: 0.88; color: n.rimB }
+                GradientStop { position: 1.0; color: "transparent" }
+            }
+            startX: n.fillet; startY: rim.lipY
+            PathLine { x: n.tL - rim.cf; y: rim.lipY }
+            PathQuad { x: rim.lx; y: rim.jy; controlX: rim.lx; controlY: rim.lipY }
+            PathLine { x: rim.lx; y: rim.by - rim.cr }
+            PathQuad { x: n.tL + rim.cr; y: rim.by; controlX: rim.lx; controlY: rim.by }
+            PathLine { x: n.tR - rim.cr; y: rim.by }
+            PathQuad { x: rim.rx; y: rim.by - rim.cr; controlX: rim.rx; controlY: rim.by }
+            PathLine { x: rim.rx; y: rim.jy }
+            PathQuad { x: n.tR + rim.cf; y: rim.lipY; controlX: rim.rx; controlY: rim.lipY }
+            PathLine { x: n.width - n.fillet; y: rim.lipY }
         }
     }
 }
