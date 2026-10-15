@@ -39,6 +39,9 @@ stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-
 
 ## Log
 - 2026-10-15 00:10 all three agents hit the usage limit while still reading (no edits); resumed 02:31 via SendMessage.
+- 2026-10-15 ~05:00 all three agents hit the usage limit again mid-work (uncommitted edits in plasma-rice and
+  plasmoids repos: A = plasma-style, Rice components, 4 widgets; B = Glimpse split into new files; C = rice.py
+  konsole/kwin parts, apps.py, kwin/ effects). Resumed 08:37 via SendMessage (agents keep their context).
 - 2026-10-15 M0 check-in acknowledged (Done) with no reply on animation speed: keeping the system 0.5x.
 
 ## Decisions
