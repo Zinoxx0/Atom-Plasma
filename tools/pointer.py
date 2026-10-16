@@ -45,6 +45,7 @@ class Pointer:
             e.EV_KEY: list(BUTTONS.values()),
             e.EV_ABS: [(e.ABS_X, AbsInfo(0, 0, self.w - 1, 0, 0, 0)),
                        (e.ABS_Y, AbsInfo(0, 0, self.h - 1, 0, 0, 0))],
+            e.EV_REL: [e.REL_WHEEL, e.REL_WHEEL_HI_RES],
         }
         self.dev = UInput(caps, name="rice-test-pointer")
         time.sleep(0.6)     # let KWin pick the device up
@@ -67,6 +68,21 @@ class Pointer:
         b = BUTTONS[button]
         self.dev.write(e.EV_KEY, b, 1); self.dev.syn(); time.sleep(0.05)
         self.dev.write(e.EV_KEY, b, 0); self.dev.syn()
+
+    def press(self, button="left"):
+        self.dev.write(e.EV_KEY, BUTTONS[button], 1); self.dev.syn()
+
+    def release(self, button="left"):
+        self.dev.write(e.EV_KEY, BUTTONS[button], 0); self.dev.syn()
+
+    def wheel(self, notches):
+        """Scroll: positive = up (away from the user), one notch = 120 hi-res units."""
+        for _ in range(abs(notches)):
+            d = 1 if notches > 0 else -1
+            self.dev.write(e.EV_REL, e.REL_WHEEL, d)
+            self.dev.write(e.EV_REL, e.REL_WHEEL_HI_RES, 120 * d)
+            self.dev.syn()
+            time.sleep(0.05)
 
     def close(self):
         self.dev.close()
