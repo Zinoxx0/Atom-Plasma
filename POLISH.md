@@ -21,9 +21,9 @@ not cold or cyberpunk.
 | 0.3 | Baseline screenshots + perf | orchestrator | done 2026-10-14 (~/.cache/rice/shots/baseline) |
 | 0.4 | Design tokens + shared QML module | orchestrator | done 2026-10-15 (tokens.py, qml/Rice, token sheet) |
 | 0.5 | Plasma 6.8 upgrade (own step when it lands) | orchestrator | waiting (not in repos 2026-10-14) |
-| 1 | Shell surfaces (Plasma Style, bars, popups) | agent A | running |
+| 1 | Shell surfaces (Plasma Style, bars, popups) | agent A | integrated 2026-10-16 (commits 8354c03, 9a39a11); check-in pending |
 | 2 | Glimpse opened band v2 | agent B | integrated 2026-10-15 (commit in plasmoids repo); check-in raised |
-| 3 | Launcher, logout, lock | agent A | todo |
+| 3 | Launcher, logout, lock | agent A | running (sent 2026-10-16 02:10) |
 | 4 | Konsole, Dolphin, decorations, KWin motion | agent C | running |
 | 5 | Boot chain (Limine, Plymouth, login, splash) | agent C + orchestrator | todo |
 | 6 | Consistency sweep, perf, memory | orchestrator | todo |
@@ -31,7 +31,7 @@ not cold or cyberpunk.
 ## Agents
 | Agent | Brief | Owns | State | Last commit |
 |-------|-------|------|-------|-------------|
-| A shell | agents/A-shell.md (M1) | plasma-style/build.py, plasmoids session/sysstats/claudeusage/wallpicker, qml/Rice/{Clawd,Ring}.qml + new Rice files | running (launched 2026-10-15) | - |
+| A shell | agents/A-shell.md (M1, done) then agents/A-launcher.md (M3, running) | plasma-style/build.py, plasmoids session/sysstats/claudeusage/wallpicker, qml/Rice/{Clawd,Ring}.qml + new Rice files | M3 running | M1: 8354c03 + 9a39a11 |
 | B glimpse | agents/B-glimpse.md (M2) | plasmoid com.zinoxx.glimpse | done, integrated | Glimpse v2 commit |
 | C apps | agents/C-apps.md (M4) | rice.py ansi/konsole/apply_konsole/alacritty/apply_kwin, apps.py, templates/, konsole/dolphin/darkly/klassy/kwinrc effects+blur, fastfetch, ~/.local/share/kwin/effects | running (launched 2026-10-15) | - |
 All agents: rules in agents/COMMON.md. Orchestrator meanwhile: bars (panel/build.py: same layout on every screen,
@@ -42,6 +42,10 @@ stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-
 - 2026-10-15 ~05:00 all three agents hit the usage limit again mid-work (uncommitted edits in plasma-rice and
   plasmoids repos: A = plasma-style, Rice components, 4 widgets; B = Glimpse split into new files; C = rice.py
   konsole/kwin parts, apps.py, kwin/ effects). Resumed 08:37 via SendMessage (agents keep their context).
+- 2026-10-15 agent C hit the WEEKLY limit (reset 2026-10-16 02:00); resumed 02:01. Usage is tight: be economical.
+- 2026-10-16 02:02 M1 integrated: neutral popup fill chosen (taste call, NEUTRAL #12131a). Restarted plasmashell
+  while all displays were DPMS-off -> panels on screen -1; background watcher (scratchpad/wake-watch.sh) restarts
+  plasmashell on wake if they stay at -1. If resuming in a new session: check `panels()` screens first.
 - 2026-10-15 M0 check-in acknowledged (Done) with no reply on animation speed: keeping the system 0.5x.
 
 ## Decisions
@@ -73,8 +77,10 @@ stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-
 - Baseline perf (video playing): gpu 15.9 W avg, plasmashell 4.7% CPU, kwin 24.1% CPU.
 
 ## Open TODOs / known issues
-- Shared Rice components: rename `required property RicePalette palette` -> `pal` (shadows Item.palette; journal
-  warns) and add IconButton `filled` (variable FILL axis + Text.NativeRendering). Do after agent A finishes (A uses them).
+- IconButton `filled` option (variable FILL axis + Text.NativeRendering), from agent B's note: not done yet.
+- New shutdown-only warning since the new style: PlasmoidHeading "Binding loop detected for property leftInset"
+  (stock applets, harmless; maybe dialog margins 10 -> 8).
+- Notification timeout line stays accent-orange (compiled QML; can't reach from Plasma Style).
 - Glimpse: real blur behind the band needs a tiny compiled QML plugin wrapping KWindowEffects::enableBlurBehind
   (not possible from QML); today it's the pre-blurred wallpaper. Candidate for M6.
 - Glimpse taste calls pending with the user: icons left (current) vs centred (taste-left/center.png in shots/agent-b),
