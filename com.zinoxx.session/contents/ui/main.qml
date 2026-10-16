@@ -124,7 +124,7 @@ PlasmoidItem {
                             GradientStop { position: 1; color: C.alpha(pal.surfaceLowest, 0.18) }
                         }
                         border.width: 1
-                        border.color: C.alpha("#ffffff", Tokens.alpha.outline)
+                        border.color: C.alpha(pal.edge, Tokens.alpha.outline)
                     }
                     PopupHeader {
                         anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: Tokens.space.md }
@@ -139,7 +139,7 @@ PlasmoidItem {
                                 GradientStop { position: 1; color: pal.tertiary }
                             }
                             border.width: 1.5
-                            border.color: C.alpha("#ffffff", Tokens.alpha.outlineStrong)
+                            border.color: C.alpha(pal.edge, Tokens.alpha.outlineStrong)
                             Text {
                                 anchors.centerIn: parent
                                 text: me.initial
@@ -169,7 +169,7 @@ PlasmoidItem {
                             // calm until you point at one: then it takes its colour
                             color: hot ? C.alpha(tint, m.pressed ? 0.26 : 0.16) : C.alpha(pal.fg, 0.04)
                             border.width: 1
-                            border.color: hot ? C.alpha(tint, 0.7) : C.alpha("#ffffff", Tokens.alpha.outline)
+                            border.color: hot ? C.alpha(tint, 0.7) : C.alpha(pal.edge, Tokens.alpha.outline)
                             scale: m.pressed ? 0.96 : hot ? 1.03 : 1
                             Behavior on scale { NumberAnimation { duration: Tokens.base; easing.type: Tokens.enter } }
                             Behavior on color { ColorAnimation { duration: Tokens.fast } }
@@ -208,7 +208,7 @@ PlasmoidItem {
                                     font.pixelSize: Tokens.size.label
                                 }
                             }
-                            FocusRing { radius: tile.radius }
+                            FocusRing { ink: pal.edge; radius: tile.radius }
                             MouseArea {
                                 id: m
                                 anchors.fill: parent

@@ -109,7 +109,7 @@ Item {
         width: Math.max(height, countText.implicitWidth + g.px(8))
         radius: height / 2
         opacity: tile.pop
-        color: C.alpha(g.cBezel, 0.92)
+        color: C.alpha(g.cPanel, 0.92)
         border.width: 1
         border.color: C.alpha(tile.tint, 0.7)
         Text {

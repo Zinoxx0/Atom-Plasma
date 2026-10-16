@@ -408,7 +408,7 @@ PlasmoidItem {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: 1
-                    color: C.alpha("#ffffff", Tokens.alpha.outline)
+                    color: C.alpha(pal.edge, Tokens.alpha.outline)
                 }
                 RowLayout {
                     Layout.fillWidth: true

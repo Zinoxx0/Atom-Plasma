@@ -294,7 +294,7 @@ Item {
                             font.pixelSize: Tokens.size.label
                         }
                     }
-                    FocusRing { radius: scr.radius }
+                    FocusRing { ink: pal.edge; radius: scr.radius }
                     MouseArea {
                         id: scrHover
                         anchors.fill: parent
@@ -393,7 +393,7 @@ Item {
                             color: pal.primary
                         }
                     }
-                    FocusRing { radius: pc.radius }
+                    FocusRing { ink: pal.edge; radius: pc.radius }
                     PlasmaCore.ToolTipArea {
                         anchors.fill: parent
                         mainText: pc.modelData.name
@@ -647,7 +647,7 @@ Item {
                                 color: pal.primary
                             }
                         }
-                        FocusRing { radius: Tokens.radius.md; shown: cell.focused }
+                        FocusRing { ink: pal.edge; radius: Tokens.radius.md; shown: cell.focused }
                         MouseArea {
                             id: hover
                             anchors.fill: parent

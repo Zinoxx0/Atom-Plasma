@@ -77,9 +77,9 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: Math.round(Tokens.radius.sm * g.topScale)
-        color: C.alpha("#ffffff", 0.05)
+        color: C.alpha(g.pal.edge, 0.05)
         border.width: 1
-        border.color: C.alpha("#ffffff", Tokens.alpha.outline)
+        border.color: C.alpha(g.pal.edge, Tokens.alpha.outline)
     }
 
     Row {
@@ -107,7 +107,7 @@ Item {
                 anchors.fill: parent
                 visible: !cover.visible
                 radius: cover.radius
-                color: C.alpha("#ffffff", 0.06)
+                color: C.alpha(g.pal.edge, 0.06)
                 Kirigami.Icon {
                     anchors.centerIn: parent
                     width: Math.round(parent.width * 0.7)
@@ -173,7 +173,7 @@ Item {
                 height: 2
                 radius: 1
                 visible: media.length > 0
-                color: C.alpha("#ffffff", 0.12)
+                color: C.alpha(g.pal.edge, 0.12)
                 Rectangle {
                     height: parent.height
                     radius: 1

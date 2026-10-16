@@ -69,6 +69,8 @@ PlasmoidItem {
     readonly property color washC: C.alpha(cTertiary, 0.26)
     // the bezel: near black, with a hint of the palette so it isn't dead flat
     readonly property color cBezel: Qt.rgba(cDeep.r * 0.35, cDeep.g * 0.35, cDeep.b * 0.35, 1)
+    // cards and badges over the opened drawer: the bezel on a dark screen, frost on a light one
+    readonly property color cPanel: pal.light ? pal.surfaceLowest : cBezel
 
     P5Support.DataSource {
         id: sh

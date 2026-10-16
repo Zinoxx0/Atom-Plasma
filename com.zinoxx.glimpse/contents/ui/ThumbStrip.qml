@@ -59,11 +59,11 @@ Item {
         anchors.fill: parent
         radius: strip.radius
         gradient: Gradient {
-            GradientStop { position: 0; color: C.alpha(C.mix(strip.g.cBezel, strip.g.cPrimary, 0.10), 0.96) }
-            GradientStop { position: 1; color: C.alpha(strip.g.cBezel, 0.96) }
+            GradientStop { position: 0; color: C.alpha(C.mix(strip.g.cPanel, strip.g.cPrimary, 0.10), 0.96) }
+            GradientStop { position: 1; color: C.alpha(strip.g.cPanel, 0.96) }
         }
         border.width: 1
-        border.color: C.alpha("#ffffff", Tokens.alpha.outline)
+        border.color: C.alpha(g.pal.edge, Tokens.alpha.outline)
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
@@ -92,7 +92,7 @@ Item {
         height: strip.g.px(16)
         width: label.implicitWidth + strip.g.px(10)
         radius: height / 2
-        color: accent ? strip.g.cPrimary : C.alpha(strip.g.cBezel, 0.88)
+        color: accent ? strip.g.cPrimary : C.alpha(strip.g.cPanel, 0.88)
         gradient: accent ? accentFill : null
         Gradient {
             id: accentFill
@@ -134,10 +134,10 @@ Item {
         Rectangle {
             anchors.fill: parent
             radius: strip.cardRadius
-            color: C.alpha("#ffffff", card.hovered ? Tokens.alpha.hover : 0.03)
+            color: C.alpha(g.pal.edge, card.hovered ? Tokens.alpha.hover : 0.03)
             border.width: 1
             border.color: card.active ? C.alpha(card.g.cPrimary, 0.8)
-                        : C.alpha("#ffffff", card.hovered ? Tokens.alpha.outlineStrong : Tokens.alpha.outline)
+                        : C.alpha(g.pal.edge, card.hovered ? Tokens.alpha.outlineStrong : Tokens.alpha.outline)
             Behavior on color { ColorAnimation { duration: Tokens.fast } }
             Behavior on border.color { ColorAnimation { duration: Tokens.fast } }
         }
@@ -236,9 +236,9 @@ Item {
             opacity: card.hovered ? 1 : 0
             visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: Tokens.fast } }
-            color: closeArea.containsMouse ? card.g.cRed : C.alpha(card.g.cBezel, 0.88)
+            color: closeArea.containsMouse ? card.g.cRed : C.alpha(card.g.cPanel, 0.88)
             border.width: 1
-            border.color: C.alpha("#ffffff", Tokens.alpha.outline)
+            border.color: C.alpha(g.pal.edge, Tokens.alpha.outline)
             Behavior on color { ColorAnimation { duration: Tokens.fast } }
             Text {
                 anchors.centerIn: parent

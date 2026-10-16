@@ -10,7 +10,8 @@ import QtQuick.Effects
 // the screen's pre-blurred wallpaper band (rice.py) under a dark veil, a colour wash, a faint dot
 // grid, a sheen along its top edge, and a lit rim that runs along the lip and around the tab, so the
 // tab reads as part of the same edge. `glint` (0 -> 1, once per opening) runs a light along the
-// rim from `glintX` outward.
+// rim from `glintX` outward. light: on a light screen the drawer is white frost instead of smoked
+// glass (the bezel strip it slides from stays black), and the lights on its rim run dark.
 Item {
     id: n
 
@@ -28,6 +29,10 @@ Item {
     property url backdrop
     property size backdropSize
     property color bezel: "#060609"
+    property bool light: false
+    property color frost: "#f4f5f8"
+    readonly property color veilColor: light ? frost : bezel
+    readonly property color spark: light ? Qt.rgba(0.12, 0.13, 0.16, 0.85) : Qt.rgba(1, 1, 1, 0.95)
     property color tintA: "transparent"    // colour wash, left / middle / right (alpha included)
     property color tintB: "transparent"
     property color tintC: "transparent"
@@ -104,7 +109,7 @@ Item {
             maskSpreadAtMin: 1.0
         }
 
-        Rectangle { anchors.fill: parent; color: n.bezel }
+        Rectangle { anchors.fill: parent; color: n.veilColor }
         Image {
             width: n.backdropSize.width
             height: n.backdropSize.height
@@ -128,11 +133,12 @@ Item {
             anchors.fill: parent
             readonly property real under: n.bezelH / Math.max(1, height)
             readonly property real lip: n.bandH / Math.max(1, height)
+            readonly property color c: n.veilColor
             gradient: Gradient {
-                GradientStop { position: 0; color: n.bezel }
-                GradientStop { position: veil.under; color: Qt.rgba(n.bezel.r, n.bezel.g, n.bezel.b, 1 - 0.24 * n.glass) }
-                GradientStop { position: veil.lip; color: Qt.rgba(n.bezel.r, n.bezel.g, n.bezel.b, 1 - 0.46 * n.glass) }
-                GradientStop { position: 1; color: Qt.rgba(n.bezel.r, n.bezel.g, n.bezel.b, 1 - 0.4 * n.glass) }
+                GradientStop { position: 0; color: veil.c }
+                GradientStop { position: veil.under; color: Qt.rgba(veil.c.r, veil.c.g, veil.c.b, 1 - 0.24 * n.glass) }
+                GradientStop { position: veil.lip; color: Qt.rgba(veil.c.r, veil.c.g, veil.c.b, 1 - 0.46 * n.glass) }
+                GradientStop { position: 1; color: Qt.rgba(veil.c.r, veil.c.g, veil.c.b, 1 - 0.4 * n.glass) }
             }
         }
         Image {         // the dot grid: texture so the glass reads as a material, not a flat fill
@@ -241,7 +247,7 @@ Item {
             gradient: Gradient {
                 orientation: Gradient.Horizontal
                 GradientStop { position: 0.0; color: "transparent" }
-                GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.95) }
+                GradientStop { position: 0.5; color: n.spark }
                 GradientStop { position: 1.0; color: "transparent" }
             }
         }
@@ -279,7 +285,7 @@ Item {
         gradient: Gradient {
             orientation: Gradient.Horizontal
             GradientStop { position: 0.0; color: "transparent" }
-            GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.8) }
+            GradientStop { position: 0.5; color: Qt.rgba(n.spark.r, n.spark.g, n.spark.b, 0.8) }
             GradientStop { position: 1.0; color: "transparent" }
         }
         NumberAnimation on x {

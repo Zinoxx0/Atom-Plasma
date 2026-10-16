@@ -135,6 +135,8 @@ Window {
         backdrop: g.glassUrl
         backdropSize: Qt.size(shelfWin.width, g.glassBand)
         bezel: g.cBezel
+        light: g.pal.light
+        frost: g.pal.surfaceLowest
         tintA: g.washA
         tintB: g.washB
         tintC: g.washC
@@ -190,11 +192,11 @@ Window {
             opacity: target && shelfWin.morph > 0.6 ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: Tokens.fast } }
             gradient: Gradient {
-                GradientStop { position: 0; color: C.alpha("#ffffff", 0.10) }
+                GradientStop { position: 0; color: C.alpha("#ffffff", g.pal.light ? 0.6 : 0.10) }
                 GradientStop { position: 1; color: C.alpha(lens.tint, 0.26) }
             }
             border.width: 1
-            border.color: C.alpha("#ffffff", Tokens.alpha.outlineStrong * 0.8)
+            border.color: C.alpha(g.pal.edge, Tokens.alpha.outlineStrong * 0.8)
             function aim(t) {
                 const p = t.mapToItem(band, 0, 0)
                 const l = p.x + 2, r = p.x + g.fitSlot - 2      // the icon's slot, not its name

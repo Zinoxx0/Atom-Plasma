@@ -369,7 +369,7 @@ PlasmoidItem {
                         Behavior on opacity { NumberAnimation { duration: Tokens.base; easing.type: Tokens.move } }
                         radius: hero.radius
                         border.width: 1
-                        border.color: C.alpha("#ffffff", Tokens.alpha.outline)
+                        border.color: C.alpha(pal.edge, Tokens.alpha.outline)
                         gradient: Gradient {
                             GradientStop { position: 0.0; color: C.alpha(pal.surfaceLowest, 0.0) }
                             GradientStop { position: 0.38; color: C.alpha(pal.surfaceLowest, 0.15) }
@@ -414,7 +414,7 @@ PlasmoidItem {
                                     GradientStop { position: 1; color: pal.tertiary }
                                 }
                                 border.width: 1
-                                border.color: C.alpha("#ffffff", Tokens.alpha.outlineStrong)
+                                border.color: C.alpha(pal.edge, Tokens.alpha.outlineStrong)
                                 Text {
                                     anchors.centerIn: parent
                                     text: me.initial
@@ -517,7 +517,7 @@ PlasmoidItem {
                         visible: !hero.adjusting
                         color: C.alpha(pal.surfaceLowest, pencilMouse.containsMouse || heroMenu.opened ? 0.78 : 0.5)
                         border.width: 1
-                        border.color: C.alpha("#ffffff", pencilMouse.containsMouse ? Tokens.alpha.outlineStrong : Tokens.alpha.outline)
+                        border.color: C.alpha(pal.edge, pencilMouse.containsMouse ? Tokens.alpha.outlineStrong : Tokens.alpha.outline)
                         Behavior on color { ColorAnimation { duration: Tokens.fast } }
                         Text {
                             anchors.centerIn: parent
@@ -600,7 +600,7 @@ PlasmoidItem {
                         radius: Tokens.radius.md
                         color: C.alpha(pal.fg, search.activeFocus ? 0.09 : 0.06)
                         border.width: search.activeFocus ? 1.5 : 1
-                        border.color: search.activeFocus ? C.alpha(pal.primary, 0.75) : C.alpha("#ffffff", Tokens.alpha.outline)
+                        border.color: search.activeFocus ? C.alpha(pal.primary, 0.75) : C.alpha(pal.edge, Tokens.alpha.outline)
                         Behavior on color { ColorAnimation { duration: Tokens.fast } }
                         Behavior on border.color { ColorAnimation { duration: Tokens.fast } }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.IBeamCursor; onPressed: search.forceActiveFocus() }
@@ -675,7 +675,7 @@ PlasmoidItem {
                                 radius: Tokens.radius.xs
                                 color: C.alpha(pal.fg, 0.07)
                                 border.width: 1
-                                border.color: C.alpha("#ffffff", Tokens.alpha.outline)
+                                border.color: C.alpha(pal.edge, Tokens.alpha.outline)
                                 Text {
                                     id: hint
                                     anchors.centerIn: parent
@@ -795,7 +795,7 @@ PlasmoidItem {
                                         }
                                     }
                                 }
-                                FocusRing { radius: pinCard.radius; shown: pin.focused; gap: 1 }
+                                FocusRing { ink: pal.edge; radius: pinCard.radius; shown: pin.focused; gap: 1 }
                                 MouseArea {
                                     id: pm
                                     anchors.fill: parent
@@ -957,7 +957,7 @@ PlasmoidItem {
                                     Behavior on color { ColorAnimation { duration: Tokens.fast } }
                                     Behavior on border.color { ColorAnimation { duration: Tokens.fast } }
                                 }
-                                FocusRing { radius: appCard.radius; target: appCard; shown: app.current; gap: 1 }
+                                FocusRing { ink: pal.edge; radius: appCard.radius; target: appCard; shown: app.current; gap: 1 }
                                 Column {
                                     anchors.centerIn: parent
                                     spacing: Tokens.space.sm
