@@ -6,9 +6,11 @@ import "Rice"
 import "Rice/Color.js" as C
 
 // One app in the opened band. Several windows of it stack up behind the icon (fainter copies,
-// fanned to the right) with a count; the lip under it lights up: a glowing bar when the app has
-// the focus, a dot when a window is out on this screen, a ring when all of them are minimized.
-// A tag in the corner names the screen its windows live on when none is here.
+// fanned to the right) with a count. Where its windows are shows in the icon itself: out on this
+// screen it looks as it always does and lights the glass under it; only minimized here it stays
+// solid but casts no light; with nothing on this screen it sits a little smaller and darker.
+// The lip under it: a glowing bar when the app has the focus, a dot when a window is out here,
+// a ring when this screen's windows of it are all minimized.
 Item {
     id: tile
     required property int index
@@ -23,8 +25,8 @@ Item {
     readonly property int count: st.count
     readonly property bool active: st.active
     readonly property bool here: st.here
-    readonly property bool minimized: st.minimized
-    readonly property var where: st.where
+    readonly property bool minimizedHere: st.minimizedHere
+    readonly property bool away: st.away
     readonly property string appName: model.AppName || model.display || ""
     readonly property var icon: model.decoration
     readonly property bool hovered: ma.containsMouse
@@ -37,22 +39,22 @@ Item {
     width: g.fitSlot + (name.visible ? name.width + 4 : 0)
     height: g.barH
 
-    // the app's light on the glass under it: kept to the glass, so it never spills onto the bezel or
-    // past the lip. Brightest for the focused app, faint for apps that live on another screen.
+    // the app's light on the glass under it, only while a window of it is out on this screen: kept to
+    // the band, so it never spills past the lip. Brightest for the focused app.
     Item {
         x: Math.round((g.fitSlot - width) / 2)
-        y: g.stripHeight
         width: g.px(84)
-        height: Math.max(0, g.barH - g.stripHeight)
+        height: g.barH
         clip: true
-        opacity: tile.pop
+        opacity: tile.pop * (tile.here ? 1 : 0)
         visible: opacity > 0.01
+        Behavior on opacity { NumberAnimation { duration: Tokens.base } }
         AppGlow {
             anchors.horizontalCenter: parent.horizontalCenter
-            y: g.barH - g.stripHeight - 6 - height / 2
+            y: g.barH - 6 - height / 2
             width: parent.width
             tint: tile.tint
-            strength: tile.active ? 0.65 : tile.minimized ? 0.14 : tile.here ? 0.4 : 0.22
+            strength: tile.active ? 0.65 : 0.4
             Behavior on strength { NumberAnimation { duration: Tokens.base } }
         }
     }
@@ -63,12 +65,18 @@ Item {
         y: tile.iconY
         width: g.iconSize
         height: g.iconSize
-        opacity: tile.pop * (tile.minimized ? 0.5 : tile.here || tile.count === 0 ? 1 : 0.9)
+        opacity: tile.pop
         // hover: a small, well-damped lift; press: a small dip
         property real mag: ma.pressed ? 0.94 : tile.hovered ? 1.07 : 1
         Behavior on mag { SpringAnimation { spring: 4; damping: 0.5; epsilon: 0.002 } }
-        scale: (0.92 + 0.08 * tile.pop) * mag
+        // nothing on this screen: a little smaller and darker
+        property real far: tile.away ? 1 : 0
+        Behavior on far { NumberAnimation { duration: Tokens.base; easing.type: Tokens.move } }
+        scale: (0.92 + 0.08 * tile.pop) * mag * (1 - 0.14 * far)
         transform: Translate { y: (1 - tile.pop) * g.px(6) }
+        layer.enabled: far > 0
+        layer.sourceRect: Qt.rect(0, 0, width + 2 * g.px(6) + 2, height)    // room for the stacked copies
+        layer.effect: MultiEffect { brightness: -0.42 * art.far; saturation: -0.3 * art.far }
 
         // the other windows: fainter copies of the icon, fanned out behind it
         Repeater {
@@ -116,33 +124,6 @@ Item {
         }
     }
 
-    // lives on another screen: a tag in the corner (the laptop is a glyph, others 4K / 2K / HD)
-    Rectangle {
-        id: tag
-        readonly property bool laptop: g.isLaptop(tile.where)
-        visible: !tile.here && !tile.minimized && tile.where !== null
-        x: Math.min(tile.width - width, art.x + g.iconSize - width * 0.6)
-        y: Math.max(1, art.y - g.px(3))
-        height: g.px(14)
-        width: Math.max(height, tagText.implicitWidth + g.px(8))
-        radius: height / 2
-        opacity: tile.pop
-        gradient: Gradient {
-            orientation: Gradient.Horizontal
-            GradientStop { position: 0; color: g.cPrimary }
-            GradientStop { position: 1; color: g.cTertiary }
-        }
-        Text {
-            id: tagText
-            anchors.centerIn: parent
-            text: tag.laptop ? "laptop_chromebook" : g.screenShort(tile.where)
-            color: g.cOnPrimary
-            font.family: tag.laptop ? Tokens.font.icons : Tokens.font.ui
-            font.pixelSize: tag.laptop ? g.px(12) : g.px(Tokens.size.caption)
-            font.weight: Font.Black
-        }
-    }
-
     // app name, when enabled in the settings
     Text {
         id: name
@@ -152,8 +133,8 @@ Item {
         width: Math.min(implicitWidth, g.px(120))
         text: tile.appName
         elide: Text.ElideRight
-        opacity: tile.pop * (tile.minimized ? 0.5 : 1)
-        color: tile.here ? g.cFg : g.cFgDim
+        opacity: tile.pop
+        color: tile.away ? g.cFgDim : g.cFg
         font.family: Tokens.font.ui
         font.pixelSize: g.px(Tokens.size.label)
         font.weight: tile.active ? Font.DemiBold : Font.Medium
@@ -177,17 +158,17 @@ Item {
         layer.enabled: tile.active
         layer.effect: MultiEffect { shadowEnabled: true; shadowColor: g.cPrimary; shadowBlur: 0.6; shadowOpacity: 0.9; shadowVerticalOffset: 0; shadowHorizontalOffset: 0 }
     }
-    // a window here: dot; all minimized: ring
+    // a window out here: dot; this screen's windows of it all minimized: ring
     Rectangle {
         x: art.x + (g.iconSize - width) / 2
         y: g.barH - height - 1
-        visible: !tile.active && (tile.here || tile.minimized)
+        visible: !tile.active && (tile.here || tile.minimizedHere)
         width: 4
         height: 4
         radius: 2
         opacity: tile.pop
-        color: tile.minimized ? "transparent" : C.alpha(g.cFg, 0.85)
-        border.width: tile.minimized ? 1 : 0
+        color: tile.minimizedHere ? "transparent" : C.alpha(g.cFg, 0.85)
+        border.width: tile.minimizedHere ? 1 : 0
         border.color: C.alpha(g.cFg, 0.6)
     }
 

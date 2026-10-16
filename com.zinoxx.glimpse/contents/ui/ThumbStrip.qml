@@ -5,9 +5,10 @@ import "Rice"
 import "Rice/Color.js" as C
 
 // Live thumbnails of one app's windows, hanging under its icon below the label tab: one card per
-// window, with its title, the screen it is on and whether it is minimized. A card takes the same
-// clicks as a window in the band (minimized -> restore here, elsewhere -> slide here, focused ->
-// minimize, else focus); middle-click or the x closes it. The streams only run while it shows.
+// window, with its title and whether it is minimized; a window on another screen sits a little smaller
+// and darker, like its app's icon. A card takes the same clicks as a window in the band (minimized ->
+// restore here, elsewhere -> slide here, focused -> minimize, else focus); middle-click or the x
+// closes it. The streams only run while it shows.
 Item {
     id: strip
     property var g                          // the Glimpse root
@@ -120,11 +121,13 @@ Item {
         readonly property bool minimized: info ? info.minimized : false
         readonly property bool active: info ? info.active : false
         readonly property bool here: info ? info.here : true
-        readonly property var where: info ? info.where : null
+        readonly property bool away: !here         // on another screen: a little smaller and darker
         readonly property real aspect: strip.aspects[index] ?? 1.6
         readonly property bool hovered: hover.hovered
         width: Math.round(strip.th * aspect) + 2 * strip.cpad
         height: strip.cardH
+        scale: away ? 0.92 : 1
+        Behavior on scale { NumberAnimation { duration: Tokens.base; easing.type: Tokens.move } }
 
         HoverHandler { id: hover }
 
@@ -151,6 +154,8 @@ Item {
                 maskSource: previewMask
                 maskThresholdMin: 0.5
                 maskSpreadAtMin: 1.0
+                brightness: card.away ? -0.42 : 0
+                saturation: card.away ? -0.3 : 0
             }
             Rectangle { anchors.fill: parent; color: C.alpha("#000000", 0.3) }
             Kirigami.Icon {         // until the first frame arrives (and for windows KWin can't show)
@@ -166,7 +171,6 @@ Item {
                 anchors.fill: parent
                 active: strip.streaming && card.uuid !== ""
                 source: "PipeWireThumb.qml"
-                opacity: card.minimized ? 0.45 : 1
             }
             Binding { target: stream.item; property: "uuid"; value: card.uuid; when: stream.status === Loader.Ready }
         }
@@ -179,17 +183,11 @@ Item {
             radius: Math.max(4, strip.cardRadius - strip.cpad)
         }
 
-        // where it is: another screen, or minimized
-        Row {
+        Chip {
             x: preview.x + strip.cpad
             y: preview.y + strip.cpad
-            spacing: strip.g.px(4)
-            Chip {      // same words as the tag on the icon (the laptop spelled out)
-                visible: !card.here && !card.minimized && card.where !== null
-                accent: true
-                text: card.g.isLaptop(card.where) ? card.g.screenLabel(card.where) : card.g.screenShort(card.where)
-            }
-            Chip { visible: card.minimized; text: i18n("Minimized") }
+            visible: card.minimized
+            text: i18n("Minimized")
         }
 
         Row {
@@ -211,7 +209,7 @@ Item {
                 width: parent.width - appIcon.width - parent.spacing
                 text: card.title
                 elide: Text.ElideRight
-                color: card.minimized ? card.g.cFgDim : card.g.cFg
+                color: card.away ? card.g.cFgDim : card.g.cFg
                 font.family: Tokens.font.ui
                 font.pixelSize: strip.g.px(Tokens.size.small)
                 font.weight: card.active ? Font.DemiBold : Font.Medium

@@ -5,8 +5,8 @@ import QtQuick.Effects
 // The bar's silhouette and material: a band hanging from the top edge of the screen, corner to
 // corner, with concave fillets where it meets the sides (so the screen looks rounded below it, as
 // if the bezel grew) and a tab that drips from its lower edge under the hovered icon (the label).
-// solid: just the bezel colour and a faint rim (the resting strip). Otherwise the resting strip stays
-// as a solid bezel (`bezelH`) and a smoked-glass drawer slides out under it as `glass` goes to 1:
+// solid: just the bezel colour and a faint rim (the resting strip). Otherwise a smoked-glass drawer
+// slides out from under the resting strip's solid bezel (`bezelH`, which shrinks away as it opens):
 // the screen's pre-blurred wallpaper band (rice.py) under a dark veil, a colour wash, a faint dot
 // grid, a sheen along its top edge, and a lit rim that runs along the lip and around the tab, so the
 // tab reads as part of the same edge. `glint` (0 -> 1, once per opening) runs a light along the
@@ -156,14 +156,14 @@ Item {
         }
     }
 
-    // the drawer's top edge catching the light where it comes out from under the bezel
+    // the drawer's top edge catching the light where it comes out from under the bezel (gone with it)
     Rectangle {
-        visible: !n.solid && n.glass > 0
+        visible: !n.solid && n.glass > 0 && opacity > 0
         x: n.fillet
         y: n.bezelH
         width: n.width - 2 * n.fillet
         height: 1
-        opacity: n.glass
+        opacity: n.glass * Math.min(1, n.bezelH / 3)
         gradient: Gradient {
             orientation: Gradient.Horizontal
             GradientStop { position: 0.0; color: "transparent" }

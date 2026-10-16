@@ -123,7 +123,7 @@ Window {
         width: parent.width
         height: shelfWin.drawn ? g.barH + g.tabH + 20 : 0
         bandH: shelfWin.bandH
-        bezelH: g.stripHeight
+        bezelH: g.stripHeight * (1 - shelfWin.lip)     // the resting strip melts into the glass as it opens
         fillet: g.fillet
         glass: shelfWin.lip
         glint: shelfWin.glint

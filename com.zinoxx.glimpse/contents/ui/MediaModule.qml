@@ -59,13 +59,13 @@ Item {
     Kirigami.ImageColors { id: artColors; source: media.artUrl }
     Item {
         x: -g.px(24)
-        y: g.stripHeight - media.y
+        y: -media.y
         width: media.width + 2 * g.px(24)
-        height: Math.max(0, g.barH - g.stripHeight)
+        height: g.barH
         clip: true
         AppGlow {
             anchors.horizontalCenter: parent.horizontalCenter
-            y: g.barH - g.stripHeight - 6 - height / 2
+            y: g.barH - 6 - height / 2
             width: parent.width
             flat: Math.min(0.62, 70 / Math.max(1, width))
             tint: C.appTint(artColors, g.cPrimary)

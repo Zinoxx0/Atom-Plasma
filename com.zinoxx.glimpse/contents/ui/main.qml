@@ -113,21 +113,6 @@ PlasmoidItem {
     function screenFor(geo) {
         return screens.find(s => sameRect(geo, Qt.rect(s.virtualX, s.virtualY, s.width, s.height))) ?? null
     }
-    function isLaptop(s) { return !!s && /^(eDP|LVDS|DSI)/.test(s.name) }
-    function modeHeight(s) { return outputs[s.name] ? outputs[s.name].h : Math.round(s.height * s.devicePixelRatio) }
-    // a screen in a word, for tags: Laptop / 4K / 1440p
-    function screenLabel(s) {
-        if (!s) return ""
-        if (isLaptop(s)) return i18n("Laptop")
-        const h = modeHeight(s)
-        return h >= 2160 ? "4K" : h + "p"
-    }
-    // ...and in two characters, for the tag on an icon (the laptop gets a glyph instead)
-    function screenShort(s) {
-        if (!s) return ""
-        const h = modeHeight(s)
-        return h >= 2160 ? "4K" : h >= 1440 ? "2K" : h >= 1080 ? "HD" : h + "p"
-    }
 
     // ------------------------------------------------------------------ models
     // every window, most recently used first: launcher state, fullscreen check, picking a window.
@@ -380,27 +365,22 @@ PlasmoidItem {
             geometry: model.data(idx, R.Geometry)
         }
     }
-    // what an app icon shows: how many windows, focused, any here, all minimized, and (when none is
-    // out here) the screen of its most recent window elsewhere
+    // what an app icon shows: how many windows, focused, a window out on this screen (here), only
+    // minimized ones on this screen (minimizedHere), or nothing on this screen at all (away)
     function appState(model, idx, tick) {
         const R = TaskManager.AbstractTasksModel
-        const s = { count: 0, active: false, here: false, minimized: false, attention: false, where: null }
-        let allMin = true, latest = -1
+        const s = { count: 0, active: false, here: false, minimizedHere: false, away: false, attention: false }
         for (const w of windowsOf(model, idx)) {
             const min = model.data(w, R.IsMinimized) === true
-            const geo = model.data(w, R.ScreenGeometry)
+            const mine = isMine(model.data(w, R.ScreenGeometry))
             s.count++
             s.active = s.active || (!min && model.data(w, R.IsActive) === true)
             s.attention = s.attention || model.data(w, R.IsDemandingAttention) === true
-            allMin = allMin && min
-            if (min) continue
-            if (isMine(geo)) { s.here = true; continue }
-            const t = model.data(w, R.LastActivated)
-            const ms = t ? new Date(t).getTime() : 0
-            if (ms > latest) { latest = ms; s.where = screenFor(geo) }
+            if (mine && !min) s.here = true
+            else if (mine) s.minimizedHere = true
         }
-        s.minimized = s.count > 0 && allMin
-        if (s.here) s.where = null
+        if (s.here) s.minimizedHere = false
+        s.away = s.count > 0 && !s.here && !s.minimizedHere
         return s
     }
 
