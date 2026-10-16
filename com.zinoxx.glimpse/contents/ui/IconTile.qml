@@ -54,7 +54,7 @@ Item {
             y: g.barH - 6 - height / 2
             width: parent.width
             tint: tile.tint
-            strength: tile.active ? 0.65 : 0.4
+            strength: (tile.active ? 0.65 : 0.4) * Math.max(0.3, g.pal.glow)
             Behavior on strength { NumberAnimation { duration: Tokens.base } }
         }
     }

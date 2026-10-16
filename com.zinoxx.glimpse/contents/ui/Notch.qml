@@ -38,6 +38,7 @@ Item {
     property var rimStops: []
     property bool shimmer: false           // a slow light drifting along the rim (only while open)
     property color glow: "transparent"
+    property real glowLevel: 1              // the mood's glow (palette _glow): the haze under the lip
     property real rimRest: 0.55            // the lit rim's strength while the band is closed
 
     // the tab's corners shrink with it, so it can grow out of a flat edge; it stays clear of the fillets
@@ -54,7 +55,7 @@ Item {
         height: 18
         opacity: n.glass
         gradient: Gradient {
-            GradientStop { position: 0; color: Qt.rgba(n.glow.r, n.glow.g, n.glow.b, 0.22) }
+            GradientStop { position: 0; color: Qt.rgba(n.glow.r, n.glow.g, n.glow.b, 0.22 * n.glowLevel) }
             GradientStop { position: 1; color: "transparent" }
         }
     }

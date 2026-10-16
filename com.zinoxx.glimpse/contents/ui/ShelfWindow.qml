@@ -143,6 +143,7 @@ Window {
         rimStops: g.pal.values._rim || []
         shimmer: g.shelfOpen
         glow: g.cPrimary
+        glowLevel: g.pal.glow
     }
     Text {
         id: tabLabel

@@ -764,7 +764,7 @@ PlasmoidItem {
                                         width: parent.width * 1.05
                                         flat: 0.72
                                         tint: pin.tint
-                                        strength: pin.hot ? 0.5 : 0.28
+                                        strength: (pin.hot ? 0.5 : 0.28) * Math.max(0.3, pal.glow)
                                         Behavior on strength { NumberAnimation { duration: Tokens.base } }
                                     }
                                     // pressed dips; hover grows the icon, not the card (the row clips)
