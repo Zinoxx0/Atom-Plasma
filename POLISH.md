@@ -145,3 +145,11 @@ Done (17:30): E1 on blue / pale green / near-white / near-black / orange wallpap
 launcher all follow each palette and stay readable; restored the user's look (preset "spy"). Idle: 12.1 W, plasmashell
 2.4 %, KWin 12.4 % (shots/pass2/perf.txt). Known trade-off: on light wallpapers the band's lower glass reads grey-brown
 (it stays a dark bezel by design).
+
+## Pass 3: character-driven colours + Theme page (approved 2026-10-16 ~17:50)
+Plan: ~/.claude/plans/stateless-sauteeing-map.md. Decisions: white wallpaper -> LIGHT frosted UI (dark text, silver
+accents, terminals stay dark); black -> VOID + starlight; manual colours are temporary unless saved as a theme
+(presets become themes); bias modern/neon, pastel only for calm wallpapers (pastel surfaces: my call).
+Phases: 1 engine + offline palette sheet (check-in) / 2 dark moods live / 3 light mode / 4 overrides + Themes +
+Theme page / 5 sweep + tests.
+- [ ] P1 engine (palette.py analyse/mood/build_v2) + tools/palette_sheet.py
