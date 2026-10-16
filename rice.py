@@ -497,6 +497,30 @@ def glass(img, s):
     return str(out) if out.exists() else ""
 
 
+RIM_STOPS = 12
+
+
+def rim(glass_img, p):
+    """The top band's glow line, left to right: the colour of the wallpaper under each stretch of
+    the top edge (the glass strip, so aligned with the real desktop), lit up to read as light
+    (bright, saturated) and pulled a little toward the primary so it stays one family. Greys take
+    the primary's hue. Glimpse draws it as gradient stops along its rim."""
+    if not glass_img:
+        return []
+    from PIL import Image
+    try:
+        cols = Image.open(glass_img).convert("RGB").resize((RIM_STOPS, 1), Image.BOX)
+    except OSError:
+        return []
+    _, _, ph = palette.to_oklch(p["primary"])
+    out = []
+    for i in range(RIM_STOPS):
+        L, C, H = palette.to_oklch("#%02x%02x%02x" % cols.getpixel((i, 0)))
+        H = palette.hue_toward(ph if C < 0.03 else H, ph, 0.25)
+        out.append(palette.oklch(min(0.86, max(0.74, L + 0.25)), min(0.19, max(0.1, C * 1.8)), H))
+    return out
+
+
 def scale_for(setting, output):
     """A size factor from settings.json: one number for every screen, or {output: factor}."""
     if isinstance(setting, (int, float)):
@@ -510,7 +534,8 @@ def apply_screens(ss, cfg, fallback):
     for s in ss:
         img = Path(s["image"]) if s["image"] else None
         p = with_meta(palette_for(img, cfg), img) if img else fallback
-        p = dict(p, _glass=glass(img, s), _glassBand=GLASS_BAND,
+        g = glass(img, s)
+        p = dict(p, _glass=g, _glassBand=GLASS_BAND, _rim=rim(g, p),
                  _scale=scale_for(cfg.get("bar_scale"), s["name"]),         # size of that bar's widgets
                  _topScale=scale_for(cfg.get("top_scale"), s["name"]))      # size of the Glimpse band up top
         write_if_changed(STATE / f"palette-{s['name']}.json", json.dumps(p, indent=2) + "\n")

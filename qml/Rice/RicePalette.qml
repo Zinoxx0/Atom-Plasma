@@ -3,6 +3,7 @@ import QtCore
 import Qt.labs.folderlistmodel
 import org.kde.plasma.plasma5support as P5Support
 import org.kde.kirigami as Kirigami
+import "Color.js" as C
 
 // This screen's wallpaper palette (~/.local/state/rice/palette-<output>.json, written by rice.py),
 // for every rice widget. Until it has loaded, and for keys a palette lacks, it answers with one
@@ -23,31 +24,67 @@ Item {
 
     function col(name) { return values[name] ?? Tokens.fallback[name] ?? "#ff00ff" }
 
-    // the usual roles, as colours
-    readonly property color surfaceLowest: col("surface_lowest")
-    readonly property color surface: col("surface")
-    readonly property color surfaceLow: col("surface_low")
-    readonly property color surfaceContainer: col("surface_container")
-    readonly property color surfaceHigh: col("surface_high")
-    readonly property color surfaceHighest: col("surface_highest")
-    readonly property color outline: col("outline")
-    readonly property color outlineVariant: col("outline_variant")
-    readonly property color muted: col("muted")
-    readonly property color fg: col("on_surface")
-    readonly property color fgDim: col("on_surface_variant")
-    readonly property color primary: col("primary")
-    readonly property color onPrimary: col("on_primary")
-    readonly property color secondary: col("secondary")
-    readonly property color tertiary: col("tertiary")
-    readonly property color red: col("red")
-    readonly property color orange: col("orange")
-    readonly property color yellow: col("yellow")
-    readonly property color green: col("green")
-    readonly property color teal: col("teal")
-    readonly property color cyan: col("cyan")
-    readonly property color blue: col("blue")
-    readonly property color magenta: col("magenta")
-    readonly property color claude: col("claude")
+    // The usual roles, as colours. They glide to a new wallpaper's colours instead of snapping (not at
+    // the first load: widgets start in their screen's colours). onPrimary doesn't: QML reads a name
+    // starting with "on" as a signal handler, and `Behavior on onPrimary` crashes the engine.
+    property bool glide: false
+    onLoadedChanged: if (loaded) Qt.callLater(() => rp.glide = true)
+    property color surfaceLowest: col("surface_lowest")
+    property color surface: col("surface")
+    property color surfaceLow: col("surface_low")
+    property color surfaceContainer: col("surface_container")
+    property color surfaceHigh: col("surface_high")
+    property color surfaceHighest: col("surface_highest")
+    property color outline: col("outline")
+    property color outlineVariant: col("outline_variant")
+    property color muted: col("muted")
+    property color fg: col("on_surface")
+    property color fgDim: col("on_surface_variant")
+    property color primary: col("primary")
+    property color onPrimary: col("on_primary")
+    property color secondary: col("secondary")
+    property color tertiary: col("tertiary")
+    property color claude: col("claude")
+    // Status hues (and the candy accents) are pulled a little toward this screen's primary, so a
+    // green "on track" or a red warning still reads as itself but belongs to the wallpaper. col()
+    // still answers with the raw palette.
+    readonly property real harmony: 0.22
+    function tuned(name) { return C.mix(col(name), col("primary"), harmony) }
+    property color red: tuned("red")
+    property color orange: tuned("orange")
+    property color yellow: tuned("yellow")
+    property color green: tuned("green")
+    property color teal: tuned("teal")
+    property color cyan: tuned("cyan")
+    property color blue: tuned("blue")
+    property color magenta: tuned("magenta")
+    // what a state means, for chips, meters and alerts
+    readonly property color ok: green
+    readonly property color warn: yellow
+    readonly property color bad: red
+    Behavior on surfaceLowest { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on surface { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on surfaceLow { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on surfaceContainer { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on surfaceHigh { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on surfaceHighest { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on outline { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on outlineVariant { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on muted { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on fg { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on fgDim { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on primary { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on secondary { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on tertiary { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on claude { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on red { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on orange { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on yellow { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on green { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on teal { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on cyan { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on blue { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
+    Behavior on magenta { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
 
     function refresh() {
         if (output)
