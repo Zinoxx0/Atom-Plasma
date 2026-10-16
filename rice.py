@@ -7,6 +7,10 @@
     rice.py restore          re-apply the current wallpaper's theme
     rice.py thumbs           (re)build picker thumbnails
     rice.py screens          JSON list of screens and their wallpapers (for the picker)
+    rice.py preset save|load|delete <name>
+                             presets: every screen's wallpaper (and the one that drives the
+                             theme) under a short name, to switch whole looks at once
+    rice.py presets          JSON list of the presets, with thumbnails (for the picker)
 
     --screen all|focused|<output>   which screens get the wallpaper (default: focused,
                                     the one KWin reports as active; kglobalaccel caches
@@ -59,6 +63,8 @@ STATE = HOME / ".local/state/rice"
 CACHE = HOME / ".cache/rice"
 THUMBS = CACHE / "thumbs-plasma"
 CURRENT = STATE / "wallpaper"
+PRESETS = STATE / "presets.json"
+PRESET_LEN = 10     # names stay short: they're chips in the picker
 EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
@@ -527,6 +533,75 @@ def set_lockscreen(img):
         "--group", "org.kde.image", "--group", "General", "--key", "PreviewImage", f"file://{img}")
 
 
+# ---------------------------------------------------------------- presets
+def presets():
+    try:
+        return json.loads(PRESETS.read_text())
+    except (OSError, ValueError):
+        return []
+
+
+def preset_name(name):
+    name = " ".join(str(name).split())[:PRESET_LEN]
+    if not name:
+        sys.exit("a preset needs a name")
+    return name
+
+
+def find_preset(ps, name):
+    return next((p for p in ps if p["name"].lower() == name.lower()), None)
+
+
+def preset_save(name, ss):
+    """The wallpaper of every screen now, and the one driving the global theme; a preset with the
+    same name (any case) is replaced in place."""
+    name = preset_name(name)
+    walls_now = {s["name"]: s["image"] for s in ss if s["image"]}
+    if not walls_now:
+        sys.exit("no wallpapers to save")
+    try:
+        theme = str(CURRENT.resolve(strict=True))
+    except OSError:
+        theme = ""
+    entry = {"name": name, "screens": walls_now,
+             "theme": theme if theme in walls_now.values() else next(iter(walls_now.values()))}
+    ps = presets()
+    old = find_preset(ps, name)
+    if old:
+        ps[ps.index(old)] = entry
+    else:
+        ps.append(entry)
+    write_if_changed(PRESETS, json.dumps(ps, indent=2) + "\n")
+    print(name)
+
+
+def preset_delete(name):
+    ps = presets()
+    old = find_preset(ps, name)
+    if old:
+        ps.remove(old)
+        write_if_changed(PRESETS, json.dumps(ps, indent=2) + "\n")
+
+
+def preset_prepare(name, ss):
+    """Puts a preset's wallpapers on every screen but the one that drives the theme and returns
+    (that image, that screen), which main() then picks and themes from like any other pick.
+    Screens the preset doesn't know (or whose image is gone) keep what they have."""
+    p = find_preset(presets(), name)
+    if not p:
+        sys.exit(f"no preset named {name!r}")
+    have = {s["name"]: s for s in ss}
+    usable = {o: img for o, img in p["screens"].items() if o in have and Path(img).is_file()}
+    if not usable:
+        sys.exit(f"none of {p['name']!r}'s wallpapers are on a connected screen any more")
+    lead = next((o for o, img in usable.items() if img == p["theme"]), next(iter(usable)))
+    for o, img in usable.items():
+        if o != lead and have[o]["image"] != img:
+            set_images([have[o]], Path(img))
+            have[o]["image"] = img
+    return usable[lead], lead, p["name"]
+
+
 def main():
     args = sys.argv[1:]
     target = "focused"
@@ -546,12 +621,29 @@ def main():
             s["thumb"] = str(thumb(Path(s["image"]))) if s["image"] else ""
         print(json.dumps(ss))
         return
+    if arg == "presets":
+        print(json.dumps([dict(p, thumbs={o: str(thumb(Path(img))) for o, img in p["screens"].items()
+                                           if Path(img).is_file()}) for p in presets()]))
+        return
+    preset = ""
+    if arg == "preset":
+        sub, preset = (args[1:3] + ["", ""])[:2]
+        if sub == "save":
+            preset_save(preset, screens())
+            return
+        if sub == "delete":
+            preset_delete(preset)
+            return
+        if sub != "load":
+            sys.exit("rice.py preset save|load|delete <name>")
 
     tokens.write()      # qml/Rice/Tokens.qml, from the design tokens
     lock = open(STATE / "rice.lock", "w")
     fcntl.flock(lock, fcntl.LOCK_EX)
 
     ss = screens()
+    if preset:      # load: the other screens first, then the lead one themes everything like a pick
+        arg, target, preset = preset_prepare(preset, ss)
     if target == "focused":
         target = run("qdbus6", "org.kde.KWin", "/KWin", "org.kde.KWin.activeOutputName").stdout.strip() or "all"
     chosen = [s for s in ss if target in ("all", s["name"])]
@@ -597,7 +689,7 @@ def main():
         where = one["label"] if one and len(ss) > 1 else "all screens" if len(ss) > 1 else ""
         run("notify-send", "-a", "Theme", "-i", str(img), "-h",
             "string:x-canonical-private-synchronous:wallpaper", "Theme updated",
-            img.name + (f" · {where}" if where else ""))
+            f"Preset “{preset}”" if preset else img.name + (f" · {where}" if where else ""))
 
 
 if __name__ == "__main__":
