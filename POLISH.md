@@ -93,12 +93,25 @@ stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-
 - Plasma popups aren't visible to KWin scripts (stackingOrder), so shots.py opens/closes popups by timing.
 - Clock + tray have no global shortcut; shots.py clicks them (positions from plasmashell scripting).
 
+## M6 progress (2026-10-16, orchestrator)
+- Bars normalized (plasmashell stopped): DP-3 bar order clock -> show desktop like the laptop bar, spacers 10 -> 8,
+  laptop bar got a trailing 8 px spacer (new widget 170) like the main bar; stray appletsrc group
+  [Containments96Appletsts] and plasmashellrc [PlasmaViews][Panel 2] removed. Backups: ~/.cache/rice/appletsrc.pre-bars,
+  plasmashellrc.pre-bars. TODO after wake: re-push island styles (`python3 -c "import json,rice;
+  rice.apply_screens(rice.screens(), rice.settings(), json.loads((rice.STATE/'palette.json').read_text()))"` in
+  ~/.config/plasma-rice) so the per-island gradient follows the new DP-3 order; check all 3 bars in a screenshot.
+- Token sweep findings (left to fix): literal durations in launcher Emblem.qml (280/1100/560 ms one-shots ->
+  Tokens.ms), MediaModule 140 ms, session power-icon OutBack overshoot 0.8 (allowed but could be OutCubic);
+  hex literals: glimpse 12, launcher 8 (check they're intentional, e.g. shadows). Popup-only skeleton loops are fine.
+
 ## Rollback notes
 - Boot: /boot/limine.conf.pre-m5 is the pre-M5 config (cp back + `sudo limine-mkinitcpio`). Plymouth fallback:
   `sudo plymouth-set-default-theme cachyos && sudo limine-mkinitcpio`. Logout screen: kdeglobals
   LookAndFeelPackage=org.kde.breezedark.desktop.
 
 ## Next step
+(2026-10-16 ~02:45) Usage limit reached mid-M6. Resume here: wait for display wake (watcher restarts plasmashell),
+then re-push islands (M6 progress above), live checks, user answers, reboot check, finish the token sweep.
 All agents done (A: M1+M3, B: M2, C: M4+M5). Displays were DPMS-off all night: a background watcher
 (scratchpad/wake-watch.sh) restarts plasmashell on wake (loads the M3 launcher/session). Then: live checks (shots.py
 set `m-live`: screens popups band apps lock + launcher keyboard + logout via promptLogout default mode, cancel at once),
