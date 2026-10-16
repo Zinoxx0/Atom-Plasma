@@ -80,8 +80,8 @@ PlasmoidItem {
     readonly property real updatedAgo: hasData ? now - Number(usage.updated ?? 0) : 1e9
     readonly property bool stale: updatedAgo > 30 * 60
     readonly property real peak: Math.max(session.pct, weekly.pct)
-    readonly property string mood: peak >= 100 ? "limited" : peak >= 90 ? "panic" : peak >= 75 ? "sweat"
-                                 : (stale || !hasData) ? "sleep" : "happy"
+    // how full the usage is shows as how tired Clawd looks (Clawd.usage), not as a mood
+    readonly property string mood: peak >= 100 ? "limited" : (stale || !hasData) ? "sleep" : "happy"
 
     // ---------- Clawd's situation ----------
     readonly property var clock: new Date(now * 1000)
@@ -89,10 +89,14 @@ PlasmoidItem {
     readonly property string daypart: hour < 5 || hour >= 22 ? "night" : hour < 10 ? "morning"
                                     : hour < 18 ? "day" : "evening"
     readonly property bool weekend: clock.getDay() === 0 || clock.getDay() === 6
-    readonly property string season: clock.getMonth() === 11 && clock.getDate() <= 26 ? "xmas"
+    readonly property string season: clock.getMonth() === 9 && clock.getDate() >= 24 ? "halloween"
+        : clock.getMonth() === 11 && clock.getDate() <= 26 ? "xmas"
         : (clock.getMonth() === 11 && clock.getDate() === 31) || (clock.getMonth() === 0 && clock.getDate() === 1) ? "newyear" : ""
     // the status line rewrites the cache on every Claude Code update
     readonly property bool working: hasData && updatedAgo < 180
+    // what Claude Code is doing right now (its hooks write it, ClaudeActivity watches)
+    ClaudeActivity { id: claude }
+    readonly property string activity: claude.activity
     readonly property bool warm: session.pace >= 0 && session.pct >= 25 && session.pct > session.pace + 15
     // a party for 15 min when a window that was half used or more resets
     property real partyUntil: 0
@@ -107,13 +111,19 @@ PlasmoidItem {
 
     readonly property string moodText: {
         if (celebrate) return "Fresh limits! Let's go.";
-        if (mood === "limited") return "Limit reached. Back " + (limitWin.reset ? "at " + at(limitWin.reset) : "soon") + ".";
-        if (mood === "panic") return "Running on fumes!";
-        if (mood === "sweat") return "Getting warm. Maybe pace yourself.";
+        if (mood === "limited") return "Out of energy. Recharging " + (limitWin.reset ? "until " + at(limitWin.reset) : "for a while") + ".";
+        if (activity === "waiting") return "Claude is waiting for you.";
+        if (activity === "done") return "All done!";
+        if (peak >= 90) return "Running on fumes. So… sleepy.";
         if (mood === "sleep") return !hasData ? "No usage data yet."
                                    : daypart === "night" ? "Fast asleep. Goodnight!" : "Napping until Claude Code runs again.";
-        if (working) return daypart === "night" ? "Burning the midnight oil with you."
+        const busy = ({ thinking: "Thinking it through…", typing: "Typing away with you.", building: "Running commands…",
+                        reading: "Reading the code…", web: "Looking things up…", juggling: "Juggling subagents…",
+                        sweeping: "Tidying up the context…" })[activity];
+        if (busy) return peak >= 75 ? busy + " A bit sleepy." : busy;
+        if (working && activity !== "idle") return daypart === "night" ? "Burning the midnight oil with you."
                           : warm ? "In the zone, a bit ahead of pace." : "In the zone with you.";
+        if (peak >= 75) return "Getting sleepy. Maybe pace yourself.";
         if (season === "xmas") return "Ho ho ho. Plenty of room left.";
         return ({
             morning: "Good morning! Coffee's ready.",
@@ -165,8 +175,10 @@ PlasmoidItem {
             else root.expanded = !root.expanded;
         }
 
-        // the island around it lights up on hover (Panel Colorizer); Clawd just says hi
-        onContainsMouseChanged: if (containsMouse) mini.hop()
+        // the island around it lights up on hover (Panel Colorizer); Clawd says hi and its eyes follow
+        // the pointer. A click on Clawd itself plays one of its acts, anywhere else opens the popup.
+        onContainsMouseChanged: if (containsMouse) mini.greet()
+        onPositionChanged: mouse => mini.lookAt(mini.mapFromItem(compact, mouse.x, mouse.y).x / mini.width)
 
         RowLayout {
             id: row
@@ -177,7 +189,9 @@ PlasmoidItem {
                 px: 2 * root.uiScale
                 continuous: false
                 mood: root.mood
+                usage: root.peak
                 working: root.working
+                activity: root.activity
                 celebrate: root.celebrate
                 warm: root.warm
                 daypart: root.daypart
@@ -186,7 +200,7 @@ PlasmoidItem {
                 sand: root.sand
                 alert: root.asking
                 pal: root.palValues
-                interactive: false
+                hovered: compact.containsMouse
                 Layout.alignment: Qt.AlignVCenter
                 Layout.topMargin: 2
             }
@@ -317,7 +331,9 @@ PlasmoidItem {
                             anchors.verticalCenterOffset: 4
                             px: 4.2
                             mood: root.mood
+                            usage: root.peak
                             working: root.working
+                            activity: root.activity
                             celebrate: root.celebrate
                             warm: root.warm
                             daypart: root.daypart

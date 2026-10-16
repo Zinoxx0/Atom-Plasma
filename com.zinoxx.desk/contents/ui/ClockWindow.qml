@@ -170,7 +170,10 @@ DeskWindow {
         y: col.y + timeRow.y + Math.round(cw.timeSize * 0.2) - height
         continuous: false
         mood: cw.d.mood
+        usage: cw.d.peak
         working: cw.d.working
+        activity: cw.d.activity
+        weather: cw.d.sky
         daypart: cw.d.daypart
         season: cw.d.season
         pal: cw.d.pal.values

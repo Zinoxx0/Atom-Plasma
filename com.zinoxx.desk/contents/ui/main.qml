@@ -80,12 +80,22 @@ PlasmoidItem {
     }
     readonly property real updatedAgo: usage ? nowSec - Number(usage.updated ?? 0) : 1e9
     readonly property real peak: Math.max(pctOf("five_hour"), pctOf("seven_day"))
-    readonly property string mood: peak >= 100 ? "limited" : peak >= 90 ? "panic" : peak >= 75 ? "sweat"
-                                 : (!usage || updatedAgo > 30 * 60) ? "sleep" : "happy"
+    // how full the usage is shows as how tired Clawd looks (Clawd.usage), not as a mood
+    readonly property string mood: peak >= 100 ? "limited" : (!usage || updatedAgo > 30 * 60) ? "sleep" : "happy"
     readonly property bool working: usage !== null && updatedAgo < 180
+    // what Claude Code is doing (its hooks), watched only where Clawd is shown
+    ClaudeActivity { id: claude; active: root.desk.clawd === true }
+    readonly property string activity: claude.activity
+    // rain or snow outside (Open-Meteo / WMO weather codes): an umbrella, a scarf
+    readonly property string sky: {
+        const c = Number(weather?.now?.code ?? -1)
+        return (c >= 51 && c <= 67) || (c >= 80 && c <= 82) || c >= 95 ? "rain"
+             : (c >= 71 && c <= 77) || c === 85 || c === 86 ? "snow" : ""
+    }
     readonly property int hour: now.getHours()
     readonly property string daypart: hour < 5 || hour >= 22 ? "night" : hour < 10 ? "morning" : hour < 18 ? "day" : "evening"
-    readonly property string season: now.getMonth() === 11 && now.getDate() <= 26 ? "xmas"
+    readonly property string season: now.getMonth() === 9 && now.getDate() >= 24 ? "halloween"
+        : now.getMonth() === 11 && now.getDate() <= 26 ? "xmas"
         : (now.getMonth() === 11 && now.getDate() === 31) || (now.getMonth() === 0 && now.getDate() === 1) ? "newyear" : ""
 
     // ---- music: the card on one screen, the status line on the others
