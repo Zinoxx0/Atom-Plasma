@@ -24,8 +24,8 @@ not cold or cyberpunk.
 | 1 | Shell surfaces (Plasma Style, bars, popups) | agent A | integrated 2026-10-16 (commits 8354c03, 9a39a11); check-in pending |
 | 2 | Glimpse opened band v2 | agent B | integrated 2026-10-15 (commit in plasmoids repo); check-in raised |
 | 3 | Launcher, logout, lock | agent A | running (sent 2026-10-16 02:10) |
-| 4 | Konsole, Dolphin, decorations, KWin motion | agent C | running |
-| 5 | Boot chain (Limine, Plymouth, login, splash) | agent C + orchestrator | todo |
+| 4 | Konsole, Dolphin, decorations, KWin motion | agent C | integrated 2026-10-16 (3d187d8); check-in pending |
+| 5 | Boot chain (Limine, Plymouth, login, splash) | agent C + orchestrator | running (sent 2026-10-16; C leaves limine.conf + limine-mkinitcpio to the orchestrator) |
 | 6 | Consistency sweep, perf, memory | orchestrator | todo |
 
 ## Agents
@@ -83,6 +83,10 @@ stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-
 - Notification timeout line stays accent-orange (compiled QML; can't reach from Plasma Style).
 - Glimpse: real blur behind the band needs a tiny compiled QML plugin wrapping KWindowEffects::enableBlurBehind
   (not possible from QML); today it's the pre-blurred wallpaper. Candidate for M6.
+- M4 taste calls pending with the user: icons Papirus-Rice (now) vs Tela-circle dracula/purple/nord; cursor Simp1e (now) vs
+  Bibata Classic/Ice/Amber (shots/agent-c/icons-cursors-comparison.png); fastfetch logo wallpaper (now) vs Clawd; shadow tint
+  0.18; diminactive off. Installed but unused: tela-circle-icon-theme-{dracula,purple,nord}, bibata-cursor-theme-bin.
+- Live check still owed for M4 (agent C used a headless KWin sandbox): `tools/shots.py m4 apps` when the user is around.
 - Glimpse taste calls pending with the user: icons left (current) vs centred (taste-left/center.png in shots/agent-b),
   paused media stays visible (current), stack style = fanned icon copies + count (current).
 - Glimpse untested live: "recent" and "screen" order modes.
