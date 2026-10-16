@@ -35,6 +35,7 @@ Item {
     property string weather: ""     // "" | rain | snow (the desk passes it)
     property real sand: 1           // limited: share of the wait still to go (hourglass)
     property bool alert: false      // Claude asked for a check-in (ask.sh): big "!" badge
+    signal alertClicked()           // clicked while the "!" is up (no act: the widget shows or settles it)
     property var pal: ({})
     property real px: 8
     property bool interactive: true // hover greets, a click plays an act
@@ -240,6 +241,7 @@ Item {
     }
     property var clicks: []
     function poke() {
+        if (alert) { alertClicked(); return }
         const t = Date.now()
         clicks = clicks.filter(c => t - c < 1600).concat([t])
         if (clicks.length >= 4) { clicks = []; play("dizzy", 3); return }

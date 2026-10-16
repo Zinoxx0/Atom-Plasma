@@ -51,12 +51,14 @@ Item {
         x.open("GET", StandardPaths.writableLocation(StandardPaths.GenericCacheLocation) + "/clawd/activity.json")
         x.send()
     }
+    // (the folder stays set: an empty FolderListModel folder means the current directory, which would
+    // watch the whole home folder; an inactive one just doesn't read)
     FolderListModel {
-        folder: ca.active ? StandardPaths.writableLocation(StandardPaths.GenericCacheLocation) + "/clawd" : ""
+        folder: StandardPaths.writableLocation(StandardPaths.GenericCacheLocation) + "/clawd"
         nameFilters: ["activity.json"]
         showDirs: false
-        onDataChanged: reread.restart()
-        onRowsInserted: reread.restart()
+        onDataChanged: if (ca.active) reread.restart()
+        onRowsInserted: if (ca.active) reread.restart()
     }
     Timer { id: reread; interval: 60; onTriggered: ca.read() }
     // the clock only ticks while something is going on (to let "done" and stale states expire)
@@ -66,5 +68,6 @@ Item {
         repeat: true
         onTriggered: ca.now = Date.now() / 1000
     }
-    Component.onCompleted: read()
+    Component.onCompleted: if (active) read()
+    onActiveChanged: if (active) read()
 }
