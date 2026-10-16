@@ -223,6 +223,8 @@ panels().forEach(function (p) {
         if (typeof pins === "string") pins = pins ? pins.split(",") : [];
     }
     one("%(tasks)s", {"General": {"launchers": pins}});
+    // the wallpaper picker lives inside the launcher now (Meta+Shift+W, the wheel over the emblem)
+    old = old.concat(have["com.zinoxx.wallpicker"] || []);
     old.forEach(function (w) { w.remove(); });
     var clock = (have["org.kde.plasma.digitalclock"] || [])[0];
     if (clock) {
@@ -242,7 +244,6 @@ panels().forEach(function (p) {
     if (main) {
         one("org.kde.plasma.systemtray");
         one("com.zinoxx.claudeusage");
-        one("com.zinoxx.wallpicker");
         one("com.zinoxx.sysstats");
         one("com.zinoxx.session");
     } else {
@@ -353,7 +354,7 @@ def order_for(ids, main):
     s = list(ids["small"])
     k = lambda name: ids[name]
     if main:
-        seq = [k(LAUNCHER), k("com.zinoxx.wallpicker"), s[0],
+        seq = [k(LAUNCHER), s[0],
                k(TASKS), ids["expanding"],
                k("com.zinoxx.claudeusage"), s[1], k("com.zinoxx.sysstats"), s[2],
                k("org.kde.plasma.systemtray"), s[3], k("org.kde.plasma.digitalclock"), s[4],
