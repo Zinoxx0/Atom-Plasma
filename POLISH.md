@@ -26,7 +26,7 @@ not cold or cyberpunk.
 | 3 | Launcher, logout, lock | agent A | integrated 2026-10-16 (a90a187, 94e8301; kdeglobals LookAndFeelPackage=com.zinoxx.rice); live check pending |
 | 4 | Konsole, Dolphin, decorations, KWin motion | agent C | integrated 2026-10-16 (3d187d8); check-in pending |
 | 5 | Boot chain (Limine, Plymouth, login, splash) | agent C + orchestrator | applied 2026-10-16 (4e26020; limine header + limine-mkinitcpio run by orchestrator, both initramfs contain the rice theme); reboot check pending |
-| 6 | Consistency sweep, perf, memory | orchestrator | next |
+| 6 | Consistency sweep, perf, memory | orchestrator | done 2026-10-16 except the reboot check (shots/m6, perf 11.3 W vs 15.9 W baseline) |
 
 ## Agents
 | Agent | Brief | Owns | State | Last commit |
@@ -54,6 +54,8 @@ stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-
   one icon per app, hover shows live thumbnails per window, clicking a thumbnail = normal click action.
 - 2026-10-14 Window/popup motion: smooth and subtle (fade + small scale/slide, no overshoot).
 - 2026-10-14 Check-ins: "!" over Clawd at each milestone + anything needing reboot/relogin.
+- 2026-10-16 User picks: band icons stay LEFT; icons Tela-circle-dracula-dark (settings icon_theme, greeter too);
+  cursor stays Simp1e-Tokyo-Night; animation speed stays 0.5x (no objection).
 - 2026-10-16 Agents: orchestrator alone from now on; at most 1 extra agent if absolutely needed (4 was too heavy).
 - 2026-10-14 Keep Konsole (no new terminal), keep Plasma notifications/OSD/KRunner (style via Plasma Style).
 
@@ -111,9 +113,9 @@ stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-
   LookAndFeelPackage=org.kde.breezedark.desktop.
 
 ## Next step
-(2026-10-16 11:55) Displays woke 11:49, watcher restarted plasmashell (panels on 0 1 2, no QML errors), islands
-re-pushed, bars + idle bands verified (shots/m6/bar-*.png, top-*.png), launcher captured (shots/m6/popup-launcher.png).
-No agents running; orchestrator works alone (see Agents). Remaining, in order: review launcher shot; live checks
-(apps: Konsole/Dolphin, lock --testing, logout via promptLogout + cancel at once) when the user is OK with windows
-popping up; user answers (band left/centre, icons/cursor, animation speed); reboot check for M5; perf pass; memory
-update; final check-in.
+(2026-10-16 12:20) M6 done apart from the reboot: live checks passed (shots/m6: bars, idle bands, launcher, logout,
+lock --testing, notification, OSD, Konsole without toolbars, Dolphin), Tela icons live on bars + greeter
+(snapper 101/102), perf 11.3 W / plasmashell 3.1% / kwin 23.6% (baseline 15.9 / 4.7 / 24.1). Konsole toolbars came
+back because the long-running Konsole wrote its old state on close: konsole-chrome now hides them in open windows
+over D-Bus too (eacfdc1). Remaining: the user reboots once -> check Limine, Plymouth, greeter (Tela icons), splash,
+then close the project (final summary). Rollback for boot in "Rollback notes".
