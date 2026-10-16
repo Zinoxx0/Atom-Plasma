@@ -737,6 +737,18 @@ def apply_screens(ss, cfg, fallback):
                 write_if_changed(seen, key)
 
 
+def stage_login(p, img):
+    """The login screen follows the theme: its wallpaper, colours and Plasma Style are staged for the copier
+    that `boot.py login` installs (a system unit; the greeter can't read ~). Skipped until it's installed."""
+    if not Path("/etc/systemd/system/atom-plasma-greeter.path").exists():
+        return
+    try:
+        import boot     # numpy and PIL: only imported here, off the path of the quick commands
+        boot.stage_greeter(img, STYLE.get(p.get("_scheme"), "Rice"))
+    except Exception as e:      # the desktop's theme mustn't fail because of the login screen
+        print(f"rice.py: login screen: {e}", file=sys.stderr)
+
+
 def set_lockscreen(img):
     run("kwriteconfig6", "--file", "kscreenlockerrc", "--group", "Greeter", "--group", "Wallpaper",
         "--group", "org.kde.image", "--group", "General", "--key", "Image", f"file://{img}")
@@ -938,6 +950,7 @@ def main():
                      f"var colors = {json.dumps({k: v for k, v in p.items() if not k.startswith('_')})};\n")
     apply_style(p)
     apply_scheme(p)
+    stage_login(p, img)
     apply_kwin(p)
     apply_konsole(tp)
     icons.apply(tp["primary"], cfg.get("icon_theme", "Papirus-Rice"))

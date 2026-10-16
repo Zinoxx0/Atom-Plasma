@@ -10,8 +10,9 @@ Plymouth theme means rebuilding the initramfs.
     boot.py plymouth [--rebuild] installs theme "rice" in /usr/share/plymouth/themes/rice; --rebuild also
                                  selects it and runs limine-mkinitcpio (rebuilds the initramfs, re-pins
                                  its hashes in limine.conf)
-    boot.py login                Plasma Login greeter: wallpaper, Rice colours, Inter, the Rice Plasma
-                                 Style, GREETER_ICONS / GREETER_CURSOR (installed system-wide if needed)
+    boot.py login                Plasma Login greeter: follows the theme from then on (installs a small
+                                 system unit that copies what rice.py stages: wallpaper, colours, Plasma
+                                 Style), Inter, GREETER_ICONS / GREETER_CURSOR (system-wide if needed)
     boot.py preview              renders in ~/.cache/rice/shots/agent-c/boot/, nothing installed
 
 One fixed boot surface (BOOT: the neutral dark of the Plasma Style's popups) carries Limine and
@@ -522,49 +523,130 @@ def install_system(src, dst):
         sudo("chmod", "-R", "u=rwX,go=rX", str(dst))
 
 
-def apply_login(p):
-    img = Path(p["_wallpaper"])
-    walls = GREETER / "wallpapers"
-    dst = walls / ("rice-login" + img.suffix.lower())
-    sudo("install", "-d", "-o", "plasmalogin", "-g", "plasmalogin", "-m", "755", str(walls))
-    sudo("sh", "-c", f'rm -f "{walls}"/rice-login.*')
-    sudo("install", "-o", "plasmalogin", "-g", "plasmalogin", "-m", "644", str(img), str(dst))
-    conf = "/etc/plasmalogin.conf"
-    backup_once(conf)
-    kw = ["kwriteconfig6", "--file", conf, "--group", "Greeter"]
-    sudo(*kw, "--key", "WallpaperPluginId", "org.kde.image")
-    for key in ("Image", "PreviewImage"):
-        sudo(*kw, "--group", "Wallpaper", "--group", "org.kde.image", "--group", "General", "--key", key, f"file://{dst}")
+# The login screen follows the theme. The greeter runs as its own user and can't read ~, so rice.py stages
+# this theme's wallpaper (a light JPEG scaled to the biggest screen), colours and Plasma Style in
+# ~/.local/state/rice/greeter/ on every change (stage_greeter), and a root-owned system unit that
+# `boot.py login` installs copies them for the greeter whenever the stage's `stamp` changes. Nothing
+# runs as root when the wallpaper changes, and the copier only takes plain files from that one folder.
+STAGE = HOME / ".local/state/rice/greeter"
+SYNC = Path("/usr/local/lib/atom-plasma/greeter-sync")
+SYNC_SH = """#!/bin/sh
+# Atom Plasma: copy the login screen's wallpaper, colours and Plasma Style, staged by rice.py in %(stage)s,
+# to the Plasma Login greeter. Run by atom-plasma-greeter.service, which atom-plasma-greeter.path starts
+# whenever the stage's stamp changes. Installed by %(home)s/.config/plasma-rice/boot.py login.
+set -eu
+SRC=%(stage)s
+G=%(greeter)s
+[ "$(realpath -e "$SRC")" = "$SRC" ] || exit 0            # the folder itself, not a link somewhere else
+take() {    # plain files only (no links): the greeter user gets to read what's copied
+    [ -f "$SRC/$1" ] && [ ! -L "$SRC/$1" ] || return 0
+    install -o plasmalogin -g plasmalogin -m "$3" "$SRC/$1" "$2.new" && mv -f "$2.new" "$2"
+}
+install -d -o plasmalogin -g plasmalogin -m 755 "$G/wallpapers"
+install -d -o plasmalogin -g plasmalogin -m 700 "$G/.config"
+take wallpaper.jpg "$G/wallpapers/rice-login.jpg" 644
+take kdeglobals "$G/.config/kdeglobals" 600
+take plasmarc "$G/.config/plasmarc" 600
+"""
+UNIT_SERVICE = """[Unit]
+Description=Atom Plasma: give the login screen the theme's wallpaper and colours
 
-    # the Plasma Style and themes the greeter needs, where the greeter user can read them
-    install_system(HOME / ".local/share/plasma/desktoptheme/Rice", Path("/usr/share/plasma/desktoptheme/Rice"))
-    for name in (GREETER_ICONS, GREETER_CURSOR):
-        if not (Path("/usr/share/icons") / name).is_dir():
-            install_system(HOME / ".local/share/icons" / name, Path("/usr/share/icons") / name)
-    if GREETER_ICONS == "Papirus-Rice":     # icons.py regenerates the local copy; keep the system one in step
-        install_system(HOME / ".local/share/icons/Papirus-Rice", Path("/usr/share/icons/Papirus-Rice"))
+[Service]
+Type=oneshot
+ExecStart=%(sync)s
+"""
+UNIT_PATH = """[Unit]
+Description=Atom Plasma: follow the theme on the login screen
 
-    # colours, fonts, icons and cursor for the greeter user
+[Path]
+PathChanged=%(stage)s/stamp
+Unit=atom-plasma-greeter.service
+
+[Install]
+WantedBy=multi-user.target
+"""
+
+
+def greeter_kdeglobals():
+    """The greeter user's kdeglobals: the active KDE colour scheme, Inter, Darkly and the icon theme."""
     scheme = subprocess.run(["kreadconfig6", "--file", "kdeglobals", "--group", "General", "--key", "ColorScheme"],
                             capture_output=True, text=True).stdout.strip()
     groups = ini_parse((HOME / f".local/share/color-schemes/{scheme}.colors").read_text())
     ui = tokens.TOKENS["font"]["ui"]
     groups.setdefault("[General]", {}).update({
-        "ColorScheme": "Rice", "Name": "Rice",
+        "ColorScheme": "Rice", "Name": "Atom Plasma",
         "font": f"{ui},10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1", "menuFont": f"{ui},10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1",
         "smallestReadableFont": f"{ui},8,-1,5,400,0,0,0,0,0,0,0,0,0,0,1",
         "toolBarFont": f"{ui},10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1"})
     groups.setdefault("[KDE]", {})["widgetStyle"] = "Darkly"
     groups["[Icons]"] = {"Theme": GREETER_ICONS}
+    return "# Written by ~/.config/plasma-rice/boot.py\n" + ini_dump(groups)
+
+
+def stage_greeter(img, style="Rice"):
+    """Stage the login screen's look for the copier (see STAGE): this wallpaper scaled down to cover the
+    biggest screen (a JPEG instead of decoding a 15 MB PNG at every login), the colours, the Plasma Style.
+    The stamp changes only when something did. Called by rice.py after every re-theme."""
+    STAGE.mkdir(parents=True, exist_ok=True)
+    changed = False
+    src = f"{img}:{img.stat().st_mtime}"
+    tag = STAGE / "wallpaper.src"
+    if not (STAGE / "wallpaper.jpg").exists() or not tag.exists() or tag.read_text() != src:
+        tmp = STAGE / "wallpaper.tmp.jpg"
+        subprocess.run(["magick", f"{img}[0]", "-resize", "3840x2160^>", "-strip", "-quality", "92", str(tmp)],
+                       check=True, timeout=60)
+        tmp.replace(STAGE / "wallpaper.jpg")
+        tag.write_text(src)
+        changed = True
+    for name, text in (("kdeglobals", greeter_kdeglobals()),
+                       ("plasmarc", f"# Written by ~/.config/plasma-rice/boot.py\n[Theme]\nname={style}\n")):
+        f = STAGE / name
+        if not f.exists() or f.read_text() != text:
+            f.write_text(text)
+            changed = True
+    if changed or not (STAGE / "stamp").exists():
+        (STAGE / "stamp").write_text(f"{img}\n")
+        (STAGE / "stamp").touch()
+    return changed
+
+
+def apply_login(p):
+    """Plasma Login greeter: installs the copier that keeps it on the theme's wallpaper and colours (see
+    STAGE), points the greeter at the copied wallpaper, installs the Plasma Styles, icons and cursor it
+    needs system-wide, and copies the current look once."""
+    stage_greeter(Path(p["_wallpaper"]), "Rice-Light" if p.get("_scheme") == "light" else "Rice")
+    sudo("install", "-d", "-m", "755", str(SYNC.parent))
+    sudo_write(SYNC, SYNC_SH % {"stage": STAGE, "greeter": GREETER, "home": HOME}, mode="755")
+    sudo_write("/etc/systemd/system/atom-plasma-greeter.service", UNIT_SERVICE % {"sync": SYNC})
+    sudo_write("/etc/systemd/system/atom-plasma-greeter.path", UNIT_PATH % {"stage": STAGE})
+    sudo("systemctl", "daemon-reload")
+    sudo("systemctl", "enable", "--now", "atom-plasma-greeter.path")
+
+    walls = GREETER / "wallpapers"
+    sudo("sh", "-c", f'rm -f "{walls}"/rice-login.png "{walls}"/rice-login.jpeg')     # older copies
+    conf = "/etc/plasmalogin.conf"
+    backup_once(conf)
+    kw = ["kwriteconfig6", "--file", conf, "--group", "Greeter"]
+    sudo(*kw, "--key", "WallpaperPluginId", "org.kde.image")
+    for key in ("Image", "PreviewImage"):
+        sudo(*kw, "--group", "Wallpaper", "--group", "org.kde.image", "--group", "General", "--key", key,
+             f"file://{walls}/rice-login.jpg")
+
+    # the Plasma Styles and themes the greeter needs, where the greeter user can read them
+    for style in ("Rice", "Rice-Light"):
+        install_system(HOME / ".local/share/plasma/desktoptheme" / style, Path("/usr/share/plasma/desktoptheme") / style)
+    for name in (GREETER_ICONS, GREETER_CURSOR):
+        if not (Path("/usr/share/icons") / name).is_dir():
+            install_system(HOME / ".local/share/icons" / name, Path("/usr/share/icons") / name)
+    if GREETER_ICONS == "Papirus-Rice":     # icons.py regenerates the local copy; keep the system one in step
+        install_system(HOME / ".local/share/icons/Papirus-Rice", Path("/usr/share/icons/Papirus-Rice"))
     cfg = GREETER / ".config"
     backup_once(cfg / "kdeglobals")
-    sudo_write(cfg / "kdeglobals", "# Written by ~/.config/plasma-rice/boot.py\n" + ini_dump(groups),
-               owner="plasmalogin", mode="600")
     sudo_write(cfg / "kcminputrc", f"[Mouse]\ncursorSize=24\ncursorTheme={GREETER_CURSOR}\n",
                owner="plasmalogin", mode="600")
-    sudo_write(cfg / "plasmarc", "# Written by ~/.config/plasma-rice/boot.py\n[Theme]\nname=Rice\n",
-               owner="plasmalogin", mode="600")
-    print(f"login: wallpaper {dst.name}, Rice colours + Plasma Style, {ui}, {GREETER_ICONS}, {GREETER_CURSOR}")
+    sudo(str(SYNC))
+    print(f"login: follows the theme (atom-plasma-greeter.path), now {Path(p['_wallpaper']).name}; "
+          f"{GREETER_ICONS}, {GREETER_CURSOR}")
 
 
 # ---------------------------------------------------------------- preview
