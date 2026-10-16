@@ -1,5 +1,8 @@
 import QtQuick
+import QtQuick.Effects
 import QtQuick.Layouts
+import QtQuick.Dialogs
+import QtCore
 import QtQuick.Controls as QQC2
 import QtQuick.Window
 import org.kde.plasma.plasmoid
@@ -13,10 +16,12 @@ import "Rice"
 import "Rice/Color.js" as C
 
 // A calm, wallpaper-lit app launcher in the style of the session menu. Left: a hero card of
-// this screen's wallpaper with the time, a greeting and session shortcuts. Right: a search
-// field over pinned apps, category chips and the app grid. Typing searches apps, settings,
-// files and maths (KRunner), grouped by kind. Favourites are Plasma's shared ones (Kickoff's).
-// Meta opens it (X-Plasma-Provides: org.kde.plasma.launchermenu).
+// this screen's wallpaper (or a picture chosen with its pencil, placed by hand) with the time,
+// a greeting and session shortcuts. Right: a search field over pinned apps, category chips and
+// the app grid, or the wallpaper picker (WallpaperPane). Typing searches apps, settings, files
+// and maths (KRunner), grouped by kind. Favourites are Plasma's shared ones (Kickoff's).
+// Meta opens it (X-Plasma-Provides: org.kde.plasma.launchermenu); Meta+Shift+W opens it on the
+// wallpapers; the wheel over the emblem steps this screen's wallpaper.
 PlasmoidItem {
     id: root
 
@@ -30,9 +35,38 @@ PlasmoidItem {
         id: sh
         engine: "executable"
         connectedSources: []
-        onNewData: source => disconnectSource(source)
+        onNewData: (source, data) => {
+            if (source.indexOf("#mode") >= 0 && String(data["stdout"] ?? "").trim() === "walls") root.openWallpapers("desktop")
+            disconnectSource(source)
+        }
     }
     function run(cmd) { sh.connectSource(cmd + " #run " + Date.now()) }
+
+    // what the right side shows: the apps, or the wallpapers (to set them, or to pick the hero)
+    property string view: "apps"
+    property string wallMode: "desktop"
+    function openWallpapers(mode) { wallMode = mode; view = "walls" }
+    // Meta+Shift+W (~/.local/share/applications/net.local.rice-wallpapers.desktop) leaves a note,
+    // then opens the launcher: read it once per opening
+    onExpandedChanged: {
+        if (root.expanded) sh.connectSource('f="$HOME/.local/state/rice/launcher-open"; cat "$f" 2>/dev/null; rm -f "$f" #mode ' + Date.now())
+        else { view = "apps"; wallMode = "desktop" }
+    }
+    // the wheel over the emblem: this screen's next / previous wallpaper
+    function stepWallpaper(d) { run('python3 "$HOME/.config/plasma-rice/rice.py" ' + (d > 0 ? "next" : "prev") + " --screen '" + Screen.name + "'") }
+
+    // the hero image: chosen here, or this screen's wallpaper
+    readonly property var cfg: Plasmoid.configuration
+    function setHero(path) { cfg.heroImage = path || "" }
+    FileDialog {
+        id: browseDialog
+        title: "Choose the hero image"
+        nameFilters: ["Images (*.png *.jpg *.jpeg *.webp *.avif)", "All files (*)"]
+        currentFolder: StandardPaths.writableLocation(StandardPaths.PicturesLocation)
+        // the popup stays open while the dialog has the focus
+        onVisibleChanged: root.hideOnWindowDeactivate = !visible
+        onAccepted: root.setHero(String(selectedFile).replace(/^file:\/\//, ""))
+    }
 
     toolTipMainText: "Apps"
     toolTipSubText: "Search apps, settings, files and maths · Meta"
@@ -152,10 +186,10 @@ PlasmoidItem {
     // session shortcuts in the hero card. Restart and shut down go through the rice logout
     // screen (org.kde.LogoutPrompt), the same confirmation the session widget uses.
     readonly property var sessionActions: [
-        { icon: "lock", tip: "Lock", color: "primary", cmd: "loginctl lock-session" },
-        { icon: "bedtime", tip: "Sleep", color: "tertiary", cmd: "systemctl suspend" },
-        { icon: "restart_alt", tip: "Restart…", color: "orange", cmd: "qdbus6 org.kde.LogoutPrompt /LogoutPrompt org.kde.LogoutPrompt.promptReboot" },
-        { icon: "power_settings_new", tip: "Shut down…", color: "red", cmd: "qdbus6 org.kde.LogoutPrompt /LogoutPrompt org.kde.LogoutPrompt.promptShutDown" }
+        { icon: "lock", tip: "Lock", tone: "primary", cmd: "loginctl lock-session" },
+        { icon: "bedtime", tip: "Sleep", tone: "tertiary", cmd: "systemctl suspend" },
+        { icon: "restart_alt", tip: "Restart…", tone: "warn", cmd: "qdbus6 org.kde.LogoutPrompt /LogoutPrompt org.kde.LogoutPrompt.promptReboot" },
+        { icon: "power_settings_new", tip: "Shut down…", tone: "bad", cmd: "qdbus6 org.kde.LogoutPrompt /LogoutPrompt org.kde.LogoutPrompt.promptShutDown" }
     ]
     function greeting(h) { return h < 5 ? "Up late," : h < 12 ? "Good morning," : h < 18 ? "Good afternoon," : "Good evening," }
 
@@ -206,6 +240,11 @@ PlasmoidItem {
         Layout.preferredWidth: Layout.minimumWidth
         Layout.fillHeight: true
         onClicked: root.expanded = !root.expanded
+        property real acc: 0
+        onWheel: wheel => {
+            acc += wheel.angleDelta.y
+            if (Math.abs(acc) >= 120) { root.stepWallpaper(acc < 0 ? 1 : -1); acc = 0 }
+        }
         Emblem {
             id: emblem
             anchors.centerIn: parent
@@ -258,6 +297,7 @@ PlasmoidItem {
         PopupIn {
             anchors.fill: parent
             active: root.expanded
+            ricePalette: pal
 
             RowLayout {
                 anchors.fill: parent
@@ -272,30 +312,61 @@ PlasmoidItem {
                     Layout.preferredWidth: root.px(248)
                     Layout.fillHeight: true
 
-                    // the small cached thumbnail shows at once; the full image fades in over it once decoded
-                    Kirigami.ShadowedImage {
-                        anchors.fill: parent
-                        visible: wall.opacity < 1
-                        radius: hero.radius
-                        color: C.alpha(pal.primary, 0.12)
-                        source: pal.thumb ? "file://" + pal.thumb : ""
-                        fillMode: Image.PreserveAspectCrop
+                    // What it shows: a picture picked with the pencil, or this screen's wallpaper; while
+                    // picking, the one under the pointer. Where it sits (focus point and zoom, set with
+                    // "Adjust manually") only applies to the image it was set for.
+                    property string preview: ""
+                    readonly property string source: preview || root.cfg.heroImage || pal.wallpaper
+                    readonly property bool placed: !preview && root.cfg.heroFor === source
+                    property bool adjusting: false
+                    property real editX: 0.5
+                    property real editY: 0.5
+                    property real editZoom: 1
+                    readonly property real fx: adjusting ? editX : placed ? root.cfg.heroX : 0.5
+                    readonly property real fy: adjusting ? editY : placed ? root.cfg.heroY : 0.5
+                    readonly property real zoom: adjusting ? editZoom : placed ? root.cfg.heroZoom : 1
+                    function startAdjust() { editX = fx; editY = fy; editZoom = zoom; adjusting = true }
+                    function finishAdjust(keep) {
+                        if (keep) {
+                            root.cfg.heroFor = source
+                            root.cfg.heroX = editX
+                            root.cfg.heroY = editY
+                            root.cfg.heroZoom = editZoom
+                        }
+                        adjusting = false
                     }
-                    Kirigami.ShadowedImage {
-                        id: wall
+                    Connections { target: root; function onExpandedChanged() { if (!root.expanded) { hero.finishAdjust(false); hero.preview = "" } } }
+
+                    Item {
+                        id: art
                         anchors.fill: parent
-                        radius: hero.radius
-                        color: "transparent"
-                        // the full wallpaper, decoded at about the card's real size (the thumbnail is too small for a tall crop)
-                        source: pal.wallpaper ? "file://" + pal.wallpaper : pal.thumb ? "file://" + pal.thumb : ""
-                        sourceSize.height: Math.ceil(height * Screen.devicePixelRatio)
-                        fillMode: Image.PreserveAspectCrop
-                        asynchronous: true
-                        opacity: status === Image.Ready ? 1 : 0
-                        Behavior on opacity { NumberAnimation { duration: Tokens.slow; easing.type: Tokens.enter } }
+                        layer.enabled: true
+                        layer.effect: MultiEffect { maskEnabled: true; maskSource: artMask; maskThresholdMin: 0.5; maskSpreadAtMin: 1.0 }
+                        Rectangle { anchors.fill: parent; color: C.alpha(pal.primary, 0.12) }
+                        Image {
+                            id: wall
+                            source: hero.source ? "file://" + hero.source : ""
+                            asynchronous: true
+                            smooth: true
+                            mipmap: true
+                            // decoded at about the size it shows (the card is tall: the height decides)
+                            sourceSize.height: Math.ceil(hero.height * Screen.devicePixelRatio * Math.min(3, Math.max(1, hero.zoom)))
+                            // cover the card, then zoom; the focus point picks which part shows
+                            readonly property real cover: implicitWidth > 0 && implicitHeight > 0
+                                ? Math.max(hero.width / implicitWidth, hero.height / implicitHeight) * hero.zoom : 1
+                            width: implicitWidth * cover
+                            height: implicitHeight * cover
+                            x: (hero.width - width) * hero.fx
+                            y: (hero.height - height) * hero.fy
+                            opacity: status === Image.Ready ? 1 : 0
+                            Behavior on opacity { NumberAnimation { duration: Tokens.slow; easing.type: Tokens.enter } }
+                        }
                     }
+                    Rectangle { id: artMask; anchors.fill: parent; radius: hero.radius; visible: false; layer.enabled: true }
                     Rectangle {      // dusk falls over the lower half, where the text sits
                         anchors.fill: parent
+                        opacity: hero.adjusting ? 0.35 : 1
+                        Behavior on opacity { NumberAnimation { duration: Tokens.base; easing.type: Tokens.move } }
                         radius: hero.radius
                         border.width: 1
                         border.color: C.alpha("#ffffff", Tokens.alpha.outline)
@@ -310,6 +381,10 @@ PlasmoidItem {
                     ColumnLayout {
                         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: root.px(Tokens.space.lg + 4) }
                         spacing: 0
+                        // out of the way while the picture is being placed
+                        opacity: hero.adjusting ? 0 : 1
+                        visible: opacity > 0
+                        Behavior on opacity { NumberAnimation { duration: Tokens.base; easing.type: Tokens.move } }
                         Text {
                             text: Qt.formatTime(pop.now, "HH:mm")
                             color: pal.fg
@@ -380,7 +455,7 @@ PlasmoidItem {
                                     icon: modelData.icon
                                     tooltip: modelData.tip
                                     size: root.px(40)
-                                    accent: pal.col(modelData.color)
+                                    accent: pal[modelData.tone]
                                     onAccent: pal.surfaceLowest
                                     Keys.onLeftPressed: if (index > 0) sessionButtons.itemAt(index - 1).forceActiveFocus(Qt.TabFocusReason)
                                     Keys.onRightPressed: if (index < sessionButtons.count - 1) sessionButtons.itemAt(index + 1).forceActiveFocus(Qt.TabFocusReason)
@@ -389,18 +464,135 @@ PlasmoidItem {
                             }
                         }
                     }
+
+                    // placing the picture: drag to move it, scroll to zoom; Done keeps it, Esc doesn't
+                    MouseArea {
+                        id: placer
+                        anchors.fill: parent
+                        enabled: hero.adjusting
+                        visible: enabled
+                        cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                        property point last
+                        onPressed: m => last = Qt.point(m.x, m.y)
+                        onPositionChanged: m => {
+                            const dx = m.x - last.x, dy = m.y - last.y
+                            last = Qt.point(m.x, m.y)
+                            const sx = hero.width - wall.width, sy = hero.height - wall.height    // 0 or less
+                            if (sx < -0.5) hero.editX = Math.max(0, Math.min(1, hero.editX + dx / sx))
+                            if (sy < -0.5) hero.editY = Math.max(0, Math.min(1, hero.editY + dy / sy))
+                        }
+                        onWheel: w => hero.editZoom = Math.max(1, Math.min(3, hero.editZoom * (w.angleDelta.y > 0 ? 1.08 : 1 / 1.08)))
+                    }
+                    Column {
+                        anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: root.px(Tokens.space.lg) }
+                        spacing: Tokens.space.sm
+                        opacity: hero.adjusting ? 1 : 0
+                        visible: opacity > 0
+                        Behavior on opacity { NumberAnimation { duration: Tokens.base; easing.type: Tokens.move } }
+                        Chip {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            palette: pal
+                            solid: true
+                            tint: C.alpha(pal.surfaceLowest, 0.78)
+                            textColor: pal.fg
+                            icon: "pan_tool"
+                            size: 26
+                            text: "Drag to move · scroll to zoom"
+                        }
+                        Row {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            spacing: Tokens.space.sm
+                            Pill { palette: pal; icon: "restart_alt"; text: "Reset"; accent: pal.secondary; onAccent: pal.col("on_secondary")
+                                   onClicked: { hero.editX = 0.5; hero.editY = 0.5; hero.editZoom = 1 } }
+                            Pill { palette: pal; icon: "check"; text: "Done"; onClicked: hero.finishAdjust(true) }
+                        }
+                    }
+                    Keys.onEscapePressed: event => { if (hero.adjusting) { hero.finishAdjust(false); event.accepted = true } else event.accepted = false }
+
+                    // the pencil: what the hero shows
+                    Rectangle {
+                        id: pencil
+                        anchors { right: parent.right; top: parent.top; margins: Tokens.space.sm + 2 }
+                        width: root.px(32); height: width; radius: width / 2
+                        visible: !hero.adjusting
+                        color: C.alpha(pal.surfaceLowest, pencilMouse.containsMouse || heroMenu.opened ? 0.78 : 0.5)
+                        border.width: 1
+                        border.color: C.alpha("#ffffff", pencilMouse.containsMouse ? Tokens.alpha.outlineStrong : Tokens.alpha.outline)
+                        Behavior on color { ColorAnimation { duration: Tokens.fast } }
+                        Text {
+                            anchors.centerIn: parent
+                            text: "edit"
+                            color: pencilMouse.containsMouse ? pal.primary : pal.fg
+                            font.family: Tokens.font.icons
+                            font.pixelSize: root.px(17)
+                            Behavior on color { ColorAnimation { duration: Tokens.fast } }
+                        }
+                        PlasmaCore.ToolTipArea {
+                            anchors.fill: parent
+                            mainText: "Hero image"
+                            subText: root.cfg.heroImage ? "A picture of your choice" : "Follows this screen's wallpaper"
+                            MouseArea {
+                                id: pencilMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: heroMenu.openRelative()
+                            }
+                        }
+                    }
+                    PlasmaExtras.Menu {
+                        id: heroMenu
+                        visualParent: pencil
+                        readonly property bool opened: status === PlasmaExtras.Menu.Open
+                        PlasmaExtras.MenuItem {
+                            text: "Pick from wallpapers"
+                            icon: "preferences-desktop-wallpaper"
+                            onClicked: root.openWallpapers("hero")
+                        }
+                        PlasmaExtras.MenuItem {
+                            text: "Adjust manually"
+                            icon: "transform-move"
+                            onClicked: { hero.startAdjust(); hero.forceActiveFocus() }
+                        }
+                        PlasmaExtras.MenuItem {
+                            text: "Browse image…"
+                            icon: "document-open"
+                            onClicked: browseDialog.open()
+                        }
+                        PlasmaExtras.MenuItem { separator: true; visible: !!root.cfg.heroImage }
+                        PlasmaExtras.MenuItem {
+                            visible: !!root.cfg.heroImage
+                            text: "Follow the wallpaper"
+                            icon: "view-refresh"
+                            onClicked: root.setHero("")
+                        }
+                    }
                 }
 
-                // ------------------------------------------------------ search + content
-                ColumnLayout {
+                // ------------------------------------------------------ search + content, or wallpapers
+                Item {
+                    id: rightSide
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     Layout.topMargin: Tokens.space.lg
                     Layout.rightMargin: Tokens.space.lg
                     Layout.bottomMargin: Tokens.space.lg
-                    spacing: Tokens.space.md
 
-                    // search
+                ColumnLayout {
+                    id: appsPane
+                    anchors.fill: parent
+                    spacing: Tokens.space.md
+                    // the two views trade places with a fade and a short slide
+                    opacity: root.view === "apps" ? 1 : 0
+                    visible: opacity > 0
+                    enabled: root.view === "apps"
+                    Behavior on opacity { NumberAnimation { duration: Tokens.base; easing.type: Tokens.move } }
+                    transform: Translate { x: root.view === "apps" ? 0 : -root.px(16); Behavior on x { NumberAnimation { duration: Tokens.slow; easing.type: Tokens.move } } }
+
+                    // search, and the way to the wallpapers
+                    RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Tokens.space.sm
                     Rectangle {
                         id: searchBox
                         Layout.fillWidth: true
@@ -497,6 +689,15 @@ PlasmoidItem {
                         }
                     }
 
+                    IconButton {
+                        palette: pal
+                        icon: "wallpaper"
+                        tooltip: "Wallpapers"
+                        size: root.px(46)
+                        onClicked: root.openWallpapers("desktop")
+                    }
+                    }
+
                     // ---------------------------------------------- browse: pinned, chips, grid
                     ColumnLayout {
                         id: browse
@@ -553,9 +754,19 @@ PlasmoidItem {
                                     id: pinCard
                                     anchors.fill: parent
                                     radius: Tokens.radius.md
-                                    color: C.alpha(pin.tint, pm.pressed ? 0.30 : pin.hot ? 0.22 : 0.10)
+                                    color: C.alpha(pin.tint, pm.pressed ? 0.22 : pin.hot ? 0.14 : 0.06)
                                     border.width: 1
                                     border.color: C.alpha(pin.tint, pin.hot ? 0.65 : 0.22)
+                                    // the app's colour, lighting the card from under its icon (as in the top band)
+                                    AppGlow {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        y: root.px(30) - height / 2
+                                        width: parent.width * 1.05
+                                        flat: 0.72
+                                        tint: pin.tint
+                                        strength: pin.hot ? 0.5 : 0.28
+                                        Behavior on strength { NumberAnimation { duration: Tokens.base } }
+                                    }
                                     // pressed dips; hover grows the icon, not the card (the row clips)
                                     scale: pm.pressed ? 0.96 : 1
                                     Behavior on scale { NumberAnimation { duration: Tokens.fast; easing.type: Tokens.enter } }
@@ -647,24 +858,43 @@ PlasmoidItem {
                             }
                         }
 
-                        // app grid: whole columns, the leftover split on both sides so it sits centred
+                        // app grid: whole columns, centred. The view is exactly its columns wide inside a box
+                        // that fills the room: a cell width that follows the view's own width, plus a centring
+                        // margin, left GridView counting too few columns (3 of 6) and never counting again.
+                        Item {
+                        id: gridBox
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
                         GridView {
                             id: grid
                             objectName: "appGrid"
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
                             readonly property int columns: 6
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: columns * cellWidth
+                            height: parent.height
                             clip: true
-                            cellWidth: Math.floor(width / columns)
+                            cellWidth: Math.floor(gridBox.width / columns)
                             cellHeight: root.px(100)
-                            leftMargin: Math.floor((width - columns * cellWidth) / 2)
                             model: root.browseModel
                             currentIndex: -1
                             keyNavigationEnabled: true
                             activeFocusOnTab: true
                             boundsBehavior: Flickable.StopAtBounds
                             highlightFollowsCurrentItem: false
-                            QQC2.ScrollBar.vertical: PlasmaComponents.ScrollBar {}
+                            // a slim scroll pip, quiet until the grid moves or is hovered
+                            Rectangle {
+                                parent: grid
+                                anchors.right: parent.right
+                                y: grid.visibleArea.yPosition * grid.height
+                                width: 4
+                                height: Math.max(24, grid.visibleArea.heightRatio * grid.height)
+                                radius: 2
+                                color: C.alpha(pal.fg, 0.3)
+                                visible: grid.contentHeight > grid.height + 1
+                                opacity: grid.moving || gridHover.hovered ? 1 : 0.35
+                                Behavior on opacity { NumberAnimation { duration: Tokens.base } }
+                            }
+                            HoverHandler { id: gridHover }
                             onActiveFocusChanged: if (activeFocus && currentIndex < 0) currentIndex = 0
                             // swap categories with a soft fade
                             onModelChanged: { opacity = 0; fadeIn.restart() }
@@ -772,6 +1002,7 @@ PlasmoidItem {
                                 }
                             }
                         }
+                    }
                     }
 
                     // ---------------------------------------------- results
@@ -968,7 +1199,30 @@ PlasmoidItem {
                                 font.pixelSize: root.px(Tokens.size.label)
                             }
                         }
+                                        }
+                }
+
+                // built the first time it's opened, then kept
+                Loader {
+                    id: walls
+                    anchors.fill: parent
+                    active: root.view === "walls" || item !== null
+                    opacity: root.view === "walls" ? 1 : 0
+                    visible: opacity > 0
+                    enabled: root.view === "walls"
+                    Behavior on opacity { NumberAnimation { duration: Tokens.base; easing.type: Tokens.move } }
+                    transform: Translate { x: root.view === "walls" ? 0 : root.px(16); Behavior on x { NumberAnimation { duration: Tokens.slow; easing.type: Tokens.move } } }
+                    onEnabledChanged: if (enabled && item) Qt.callLater(() => item.forceActiveFocus())
+                    onLoaded: item.forceActiveFocus()
+                    sourceComponent: WallpaperPane {
+                        cfg: root.cfg
+                        mode: root.wallMode
+                        heroCurrent: root.cfg.heroImage || pal.wallpaper     // the choice, not the preview
+                        onBack: { root.view = "apps"; hero.preview = ""; Qt.callLater(() => search.forceActiveFocus()) }
+                        onHeroHovered: path => hero.preview = path
+                        onHeroPicked: path => { root.setHero(path); hero.preview = ""; root.view = "apps" }
                     }
+                }
                 }
             }
         }
