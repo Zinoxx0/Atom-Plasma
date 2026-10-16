@@ -5,7 +5,7 @@ import "Color.js" as C
 // an accent wash at the top. Radius defaults to md (popups are lg, so cards nest inside them).
 Rectangle {
     id: card
-    required property RicePalette palette
+    required override property RicePalette palette
     property color accent: "transparent"    // set to tint the top edge with an accent
     radius: Tokens.radius.md
     color: C.alpha(palette.surfaceHigh, Tokens.alpha.card)

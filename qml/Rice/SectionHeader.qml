@@ -2,7 +2,7 @@ import QtQuick
 
 // Small caps heading above a group in a popup ("PINNED", "RESULTS", ...).
 Text {
-    required property RicePalette palette
+    required override property RicePalette palette
     color: palette.fgDim
     opacity: 0.8
     font.family: Tokens.font.ui

@@ -6,7 +6,7 @@ import "Color.js" as C
 // hover and press, a focus ring for the keyboard, a Plasma-styled tooltip.
 Item {
     id: btn
-    required property RicePalette palette
+    required override property RicePalette palette
     property string icon: ""            // Material Symbols name, e.g. "lock"
     property string text: ""
     property string tooltip: ""
@@ -23,13 +23,12 @@ Item {
     Keys.onSpacePressed: clicked()
 
     Rectangle {
+        id: face
         anchors.fill: parent
         radius: Math.min(height / 2, Tokens.radius.sm)
         color: btn.checked ? C.alpha(btn.accent, 0.22)
              : mouse.pressed ? C.alpha(btn.palette.fg, Tokens.alpha.press)
              : btn.hovered ? C.alpha(btn.palette.fg, Tokens.alpha.hover) : "transparent"
-        border.width: btn.activeFocus ? 2 : 0
-        border.color: C.alpha(btn.accent, 0.8)
         Behavior on color { ColorAnimation { duration: Tokens.fast } }
     }
     Row {
@@ -55,16 +54,18 @@ Item {
             font.pixelSize: Tokens.size.label
         }
     }
-    MouseArea {
-        id: mouse
-        anchors.fill: parent
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-        onClicked: btn.clicked()
-    }
+    FocusRing { radius: face.radius }
+    // the tooltip area wraps the mouse area: as a sibling on top it would take the hover for itself
     PlasmaCore.ToolTipArea {
         anchors.fill: parent
         mainText: btn.tooltip
         active: btn.tooltip !== ""
+        MouseArea {
+            id: mouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: btn.clicked()
+        }
     }
 }

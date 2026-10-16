@@ -7,3 +7,9 @@ IconButton IconButton.qml
 SectionHeader SectionHeader.qml
 PopupIn PopupIn.qml
 Color Color.js
+Account Account.qml
+Busy Busy.qml
+Chip Chip.qml
+FocusRing FocusRing.qml
+Pill Pill.qml
+PopupHeader PopupHeader.qml

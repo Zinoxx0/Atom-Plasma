@@ -22,8 +22,9 @@ Item {
     implicitWidth: 140
     implicitHeight: 140
 
+    // instant: jump to the value (the panel: a sweep per update would keep it redrawing)
     property bool instant: false
-    Behavior on shown { enabled: !root.instant; NumberAnimation { duration: 1100; easing.type: Easing.OutCubic } }
+    Behavior on shown { enabled: !root.instant && Tokens.speed > 0; NumberAnimation { duration: Tokens.ms(1100); easing.type: Tokens.enter } }
     onShownChanged: canvas.requestPaint()
     onFromChanged: canvas.requestPaint()
     onToChanged: canvas.requestPaint()

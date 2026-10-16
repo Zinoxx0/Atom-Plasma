@@ -1,10 +1,12 @@
 import QtQuick
+import QtQuick.Window
 
 // Clawd, the Claude Code creature, as pixel art that reacts to your usage, to
 // whether Claude Code is working, to the time of day and to the season.
 //
 // The art is drawn in grid cells (22 x 10; hats and bubbles poke above row 0)
-// and scaled up by `px`. In the panel (continuous: false) it only moves in
+// and scaled up by `px`, snapped to whole device pixels (`unit`) so every cell
+// is the same size and the edges stay crisp on fractional scales (1.25, 1.7). In the panel (continuous: false) it only moves in
 // stepped pixel-art frames, short bursts every few seconds: a smooth looping
 // animation in a panel widget keeps plasmashell + KWin redrawing at full
 // refresh rate (~27 W on the NVIDIA). The popup adds a smooth idle bob.
@@ -29,8 +31,10 @@ Item {
     readonly property bool live: visible && animate
     readonly property bool looping: live && continuous
 
-    implicitWidth: 22 * px
-    implicitHeight: 10 * px
+    readonly property real dpr: Screen.devicePixelRatio > 0 ? Screen.devicePixelRatio : 1
+    readonly property real unit: Math.max(1, Math.round(px * dpr)) / dpr
+    implicitWidth: 22 * unit
+    implicitHeight: 10 * unit
 
     function col(name, fallback) { return pal[name] ?? fallback }
 
@@ -82,7 +86,7 @@ Item {
         id: art
         width: 22
         height: 10
-        scale: root.px
+        scale: root.unit
         transformOrigin: Item.TopLeft
 
         // ground shadow, fainter while hopping
