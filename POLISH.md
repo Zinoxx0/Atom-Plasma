@@ -25,8 +25,8 @@ not cold or cyberpunk.
 | 2 | Glimpse opened band v2 | agent B | integrated 2026-10-15 (commit in plasmoids repo); check-in raised |
 | 3 | Launcher, logout, lock | agent A | integrated 2026-10-16 (a90a187, 94e8301; kdeglobals LookAndFeelPackage=com.zinoxx.rice); live check pending |
 | 4 | Konsole, Dolphin, decorations, KWin motion | agent C | integrated 2026-10-16 (3d187d8); check-in pending |
-| 5 | Boot chain (Limine, Plymouth, login, splash) | agent C + orchestrator | applied 2026-10-16 (4e26020; limine header + limine-mkinitcpio run by orchestrator, both initramfs contain the rice theme); reboot check pending |
-| 6 | Consistency sweep, perf, memory | orchestrator | done 2026-10-16 except the reboot check (shots/m6, perf 11.3 W vs 15.9 W baseline) |
+| 5 | Boot chain (Limine, Plymouth, login, splash) | agent C + orchestrator | applied 2026-10-16 (4e26020; limine header + limine-mkinitcpio run by orchestrator, both initramfs contain the rice theme); rebooted 12:18, logs clean |
+| 6 | Consistency sweep, perf, memory | orchestrator | done 2026-10-16 (shots/m6, perf 11.3 W vs 15.9 W baseline) |
 
 ## Agents
 | Agent | Brief | Owns | State | Last commit |
@@ -113,9 +113,9 @@ stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-
   LookAndFeelPackage=org.kde.breezedark.desktop.
 
 ## Next step
-(2026-10-16 12:20) M6 done apart from the reboot: live checks passed (shots/m6: bars, idle bands, launcher, logout,
-lock --testing, notification, OSD, Konsole without toolbars, Dolphin), Tela icons live on bars + greeter
-(snapper 101/102), perf 11.3 W / plasmashell 3.1% / kwin 23.6% (baseline 15.9 / 4.7 / 24.1). Konsole toolbars came
-back because the long-running Konsole wrote its old state on close: konsole-chrome now hides them in open windows
-over D-Bus too (eacfdc1). Remaining: the user reboots once -> check Limine, Plymouth, greeter (Tela icons), splash,
-then close the project (final summary). Rollback for boot in "Rollback notes".
+(2026-10-16 12:25) PROJECT COMPLETE. Reboot at 12:18 verified from logs: kernel `quiet splash`, no Plymouth errors,
+greeter up with Tela icons (its only message, GreeterState.qml:79 LoginState, is compiled stock code), splash ran
+2.7 s, panels on 0 1 2 with all three Colorizers, rice_window/rice_popups/blur/corners/magiclamp loaded (glide off),
+Krohnkite started once, Konsole toolbars hidden after login. Only the user saw the screens themselves: any visual
+notes from them become new small tasks. Leftover ideas (not started): real blur behind the Glimpse band (needs a
+compiled plugin), Plasma 6.8 upgrade step when it lands (milestone 0.5).
