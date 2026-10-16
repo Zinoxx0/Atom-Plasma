@@ -35,16 +35,28 @@ PlasmoidItem {
     Sensors.Sensor { id: memTot;  sensorId: "memory/physical/total";       updateRateLimit: 60000 }
     Sensors.Sensor { id: gpu;     sensorId: "gpu/gpu0/usage";              updateRateLimit: root.rate }
     Sensors.Sensor { id: gpuTemp; sensorId: "gpu/gpu0/temperature";        updateRateLimit: root.rate }
-    Sensors.Sensor { id: igpu;    sensorId: "gpu/gpu1/usage";              updateRateLimit: root.rate }
+    Sensors.Sensor { id: igpu;    sensorId: "gpu/gpu1/usage";              updateRateLimit: root.rate
+                     onValueChanged: root.igpuRecent = root.igpuRecent.concat([root.num(igpu)]).slice(-3) }
+    Sensors.Sensor { id: gpuClock; sensorId: "gpu/gpu0/coreFrequency";     updateRateLimit: root.rate
+                     onValueChanged: root.gpuTopClock = Math.max(root.gpuTopClock, root.num(gpuClock)) }
 
     function num(s) { const v = Number(s.value); return isFinite(v) ? v : 0 }
+
+    // GPU load as work done, not the raw "busy" %: idling at 210 MHz (a tenth of its boost) the NVIDIA
+    // reads 100 % busy from a few compositor frames, so its usage is weighted by its clock against the
+    // highest clock seen (from 1800 MHz: it boosts past that within a minute). The iGPU's sensor throws
+    // single 100 % readings as it wakes from GFXOFF, so it shows the median of its last three.
+    property real gpuTopClock: 1800
+    readonly property real gpuLoad: num(gpuClock) > 0 ? num(gpu) * Math.min(1, num(gpuClock) / gpuTopClock) : num(gpu)
+    property var igpuRecent: []
+    readonly property real igpuLoad: igpuRecent.length ? igpuRecent.slice().sort((a, b) => a - b)[(igpuRecent.length - 1) >> 1] : 0
     readonly property var stats: [
         { key: "cpu", label: "CPU", icon: "memory", value: num(cpu), from: "primary", to: "secondary",
           sub: cpuTemp.value ? Math.round(num(cpuTemp)) + "°C" : "" },
         { key: "mem", label: "RAM", icon: "memory_alt", value: num(mem), from: "secondary", to: "tertiary",
           sub: (num(memUsed) / 1073741824).toFixed(1) + " / " + Math.round(num(memTot) / 1073741824) + " GB" },
-        { key: "gpu", label: "GPU", icon: "stadia_controller", value: Math.max(num(gpu), num(igpu)), from: "tertiary", to: "primary",
-          sub: (gpuTemp.value ? Math.round(num(gpuTemp)) + "°C · " : "") + "iGPU " + Math.round(num(igpu)) + "%" },
+        { key: "gpu", label: "GPU", icon: "stadia_controller", value: Math.max(gpuLoad, igpuLoad), from: "tertiary", to: "primary",
+          sub: (gpuTemp.value ? Math.round(num(gpuTemp)) + "°C · " : "") + "iGPU " + Math.round(igpuLoad) + "%" },
     ]
     // the screen's own colour family; past 70 / 90 % the (harmonized) warning colours take over
     function heat(v, base) { return v >= 90 ? pal.bad : v >= 70 ? pal.warn : pal[base] }
@@ -71,7 +83,9 @@ PlasmoidItem {
         return out.split("\n").map(l => l.trim()).filter(l => l).map(l => {
             const i = l.indexOf(" ");
             const v = Number(l.slice(0, i));
-            return { name: l.slice(i + 1).trim(), value: tab === 1 ? v / 1048576 : v }   // rss is in KiB
+            // rss is in KiB; a process's GPU share is weighted by the clock like the ring
+            return { name: l.slice(i + 1).trim(),
+                     value: tab === 1 ? v / 1048576 : tab === 2 && num(gpuClock) > 0 ? v * Math.min(1, num(gpuClock) / gpuTopClock) : v }
         });
     }
     Timer { interval: 2000; running: root.expanded; repeat: true; triggeredOnStart: true; onTriggered: root.readTop() }
