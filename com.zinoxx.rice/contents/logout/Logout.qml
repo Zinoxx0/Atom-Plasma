@@ -169,7 +169,7 @@ Item {
                         GradientStop { position: 1; color: pal.tertiary }
                     }
                     border.width: 1
-                    border.color: C.alpha("#ffffff", Tokens.alpha.outlineStrong)
+                    border.color: C.alpha(pal.edge, Tokens.alpha.outlineStrong)
                     Text {
                         anchors.centerIn: parent
                         text: me.initial
