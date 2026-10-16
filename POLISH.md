@@ -31,10 +31,11 @@ not cold or cyberpunk.
 ## Agents
 | Agent | Brief | Owns | State | Last commit |
 |-------|-------|------|-------|-------------|
-| A shell | agents/A-shell.md (M1, done) then agents/A-launcher.md (M3, running) | plasma-style/build.py, plasmoids session/sysstats/claudeusage/wallpicker, qml/Rice/{Clawd,Ring}.qml + new Rice files | done | M1 8354c03 9a39a11, M3 a90a187 94e8301 |
+| A shell | agents/A-shell.md (M1, done) then agents/A-launcher.md (M3, done) | plasma-style/build.py, plasmoids session/sysstats/claudeusage/wallpicker, qml/Rice/{Clawd,Ring}.qml + new Rice files | done | M1 8354c03 9a39a11, M3 a90a187 94e8301 |
 | B glimpse | agents/B-glimpse.md (M2) | plasmoid com.zinoxx.glimpse | done, integrated | Glimpse v2 commit |
-| C apps | agents/C-apps.md (M4) then agents/C-boot.md (M5), both done | rice.py ansi/konsole/apply_konsole/alacritty/apply_kwin, apps.py, templates/, konsole/dolphin/darkly/klassy/kwinrc effects+blur, fastfetch, ~/.local/share/kwin/effects | running (launched 2026-10-15) | - |
-All agents: rules in agents/COMMON.md. Orchestrator meanwhile: bars (panel/build.py: same layout on every screen,
+| C apps | agents/C-apps.md (M4) then agents/C-boot.md (M5), both done | rice.py ansi/konsole/apply_konsole/alacritty/apply_kwin, apps.py, templates/, konsole/dolphin/darkly/klassy/kwinrc effects+blur, fastfetch, ~/.local/share/kwin/effects | done, integrated | M4 3d187d8, M5 4e26020 |
+**2026-10-16 user rule: from now on the orchestrator works ALONE; at most ONE extra agent, and only if truly
+needed** (4 concurrent sessions were too heavy for the machine). All agents: rules in agents/COMMON.md. Orchestrator meanwhile: bars (panel/build.py: same layout on every screen,
 stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-in.
 
 ## Log
@@ -53,6 +54,7 @@ stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-
   one icon per app, hover shows live thumbnails per window, clicking a thumbnail = normal click action.
 - 2026-10-14 Window/popup motion: smooth and subtle (fade + small scale/slide, no overshoot).
 - 2026-10-14 Check-ins: "!" over Clawd at each milestone + anything needing reboot/relogin.
+- 2026-10-16 Agents: orchestrator alone from now on; at most 1 extra agent if absolutely needed (4 was too heavy).
 - 2026-10-14 Keep Konsole (no new terminal), keep Plasma notifications/OSD/KRunner (style via Plasma Style).
 
 ## Rules (every agent)
@@ -109,12 +111,9 @@ stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-
   LookAndFeelPackage=org.kde.breezedark.desktop.
 
 ## Next step
-(2026-10-16 07:05) Waiting for display wake (watcher restarts plasmashell), then re-push islands (M6 progress
-above), live checks, user answers, reboot check, perf pass, memory update.
-All agents done (A: M1+M3, B: M2, C: M4+M5). Displays were DPMS-off all night: a background watcher
-(scratchpad/wake-watch.sh) restarts plasmashell on wake (loads the M3 launcher/session). Then: live checks (shots.py
-set `m-live`: screens popups band apps lock + launcher keyboard + logout via promptLogout default mode, cancel at once),
-user answers (band left/centre, icons/cursor, animation speed), reboot check for M5, then M6 sweep.
-Old note: Briefs ready for later: agents/A-launcher.md (M3, send to agent A after M1 is integrated),
-agents/C-boot.md (M5, send to agent C after M4 is integrated). Wait for agent reports; review each `git diff` (plasmoids repo for A/B, plasma-rice repo for A/C), integrate live,
-screenshot, commit. Meanwhile: bars cleanup (orchestrator). M0 check-in raised (baseline + token sheet).
+(2026-10-16 11:55) Displays woke 11:49, watcher restarted plasmashell (panels on 0 1 2, no QML errors), islands
+re-pushed, bars + idle bands verified (shots/m6/bar-*.png, top-*.png), launcher captured (shots/m6/popup-launcher.png).
+No agents running; orchestrator works alone (see Agents). Remaining, in order: review launcher shot; live checks
+(apps: Konsole/Dolphin, lock --testing, logout via promptLogout + cancel at once) when the user is OK with windows
+popping up; user answers (band left/centre, icons/cursor, animation speed); reboot check for M5; perf pass; memory
+update; final check-in.
