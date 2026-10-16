@@ -457,14 +457,15 @@ def set_images(targets, img):
 
 
 def palette_for(img, cfg):
-    """matugen + palette.build, cached per image and settings (a pick touches up to three screens)."""
-    key = hashlib.sha1(json.dumps([str(img), img.stat().st_mtime, cfg], sort_keys=True).encode()).hexdigest()[:16]
+    """palette v2 (the wallpaper's own colours and character: palette.analyse + build_v2), cached per
+    image and settings (a pick touches up to three screens)."""
+    key = hashlib.sha1(json.dumps(["v2", str(img), img.stat().st_mtime, cfg], sort_keys=True).encode()).hexdigest()[:16]
     f = CACHE / "palettes" / f"{key}.json"
     try:
         return json.loads(f.read_text())
     except (OSError, ValueError):
         pass
-    p = palette.build(palette.matugen(img, cfg.get("scheme", "scheme-tonal-spot")), cfg)
+    p = palette.build_v2(palette.analyse(img), cfg)
     write_if_changed(f, json.dumps(p))
     return p
 
@@ -513,11 +514,16 @@ def rim(glass_img, p):
     except OSError:
         return []
     _, _, ph = palette.to_oklch(p["primary"])
+    mood = p.get("_mood", "soft")
     out = []
     for i in range(RIM_STOPS):
         L, C, H = palette.to_oklch("#%02x%02x%02x" % cols.getpixel((i, 0)))
+        if mood in ("void", "graphite") or (mood == "light" and C < 0.03):
+            out.append(palette.oklch(min(0.92, max(0.80, L + 0.3)), 0.008, 255))   # starlight / silver
+            continue
         H = palette.hue_toward(ph if C < 0.03 else H, ph, 0.25)
-        out.append(palette.oklch(min(0.86, max(0.74, L + 0.25)), min(0.19, max(0.1, C * 1.8)), H))
+        lo, hi = (0.16, 0.26) if mood == "neon" else (0.1, 0.19)
+        out.append(palette.oklch(min(0.86, max(0.70, L + 0.25)), min(hi, max(lo, C * 2.0)), H))
     return out
 
 

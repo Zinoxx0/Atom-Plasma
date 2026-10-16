@@ -7,7 +7,8 @@ import QtQuick.Shapes
 Item {
     id: au
     property RicePalette ricePalette
-    property real strength: 0.13
+    // fainter where the mood barely glows (void), fuller on neon
+    property real strength: 0.13 * (ricePalette ? Math.max(0.25, ricePalette.glow) : 1)
     property real drift: 1
     clip: true
 

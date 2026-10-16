@@ -21,6 +21,11 @@ Item {
     readonly property real topScale: values._topScale || 1      // rice settings top_scale
     readonly property string wallpaper: values._wallpaper || ""
     readonly property string thumb: values._thumb || ""
+    // the wallpaper's character (palette v2): neon / soft / light / void / graphite
+    readonly property string mood: values._mood || "soft"
+    readonly property bool light: values._scheme === "light"
+    readonly property real glow: values._glow ?? 0.7       // how much things glow: 1 neon .. 0.35 void
+    readonly property color edge: values._edge || "#ffffff" // hairlines and sheens
 
     function col(name) { return values[name] ?? Tokens.fallback[name] ?? "#ff00ff" }
 
@@ -48,7 +53,7 @@ Item {
     // Status hues (and the candy accents) are pulled a little toward this screen's primary, so a
     // green "on track" or a red warning still reads as itself but belongs to the wallpaper. col()
     // still answers with the raw palette.
-    readonly property real harmony: 0.22
+    readonly property real harmony: 0.10
     function tuned(name) { return C.mix(col(name), col("primary"), harmony) }
     property color red: tuned("red")
     property color orange: tuned("orange")
@@ -59,9 +64,9 @@ Item {
     property color blue: tuned("blue")
     property color magenta: tuned("magenta")
     // what a state means, for chips, meters and alerts
-    readonly property color ok: green
-    readonly property color warn: yellow
-    readonly property color bad: red
+    readonly property color ok: values.ok ? col("ok") : green
+    readonly property color warn: values.warn ? col("warn") : yellow
+    readonly property color bad: values.bad ? col("bad") : red
     Behavior on surfaceLowest { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
     Behavior on surface { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
     Behavior on surfaceLow { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }

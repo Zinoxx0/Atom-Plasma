@@ -291,6 +291,10 @@ def build_v2(a, settings=None, ov=None):
     settings = settings or {}
     ov = ov or {}
     mood = ov.get("mood") if ov.get("mood") in MOODS else mood_of(a)
+    # until the bars, popups and Plasma Style can go light (settings light_ui), a light mood is drawn
+    # dark: silver for a white wallpaper, soft pastel for a calm-light one
+    if mood == "light" and not settings.get("light_ui", False):
+        mood = "graphite" if a["C"] < 0.02 else "soft"
     k = float(ov.get("intensity", 1.0))
     hues, mono = _accent_hues(a)
     light = mood == "light"
