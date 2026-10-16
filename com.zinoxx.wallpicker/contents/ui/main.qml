@@ -7,6 +7,8 @@ import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.components as PlasmaComponents
 import org.kde.plasma.plasma5support as P5Support
 import org.kde.kirigami as Kirigami
+import "Rice"
+import "Rice/Color.js" as C
 
 // HyDE-style wallpaper selector: a grid of ~/Pictures/Wallpapers; clicking one
 // runs ~/.config/plasma-rice/rice.py, which sets it on the chosen screen(s) and
@@ -15,9 +17,8 @@ import org.kde.kirigami as Kirigami
 PlasmoidItem {
     id: root
 
-    property var pal: ({})
-    // per-screen size of the bar widgets (rice settings "bar_scale", in the palette as _scale)
-    readonly property real uiScale: pal._scale || 1
+    RicePalette { id: pal; output: Screen.name }
+    readonly property real uiScale: pal.uiScale
     property string home: ""
     property var walls: []          // file names in ~/Pictures/Wallpapers
     property string current: ""     // last wallpaper picked (drives the global theme)
@@ -35,10 +36,29 @@ PlasmoidItem {
     readonly property var targetScreen: screens.find(s => s.name === target) ?? null
     readonly property var here: screens.find(s => s.name === screenName) ?? null
 
-    function col(n, f) { return pal[n] ?? f }
     function q(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'" }
+    function pathOf(name) { return home + "/Pictures/Wallpapers/" + name }
+    // already showing on every screen the popup targets (then a click does nothing)
+    function isCurrent(path) {
+        return targetScreen ? targetScreen.image === path
+             : screens.length ? screens.every(s => s.image === path) : path === current;
+    }
+    function pick(name) { const p = pathOf(name); if (!isCurrent(p)) apply(p) }
     function thumb(name) { return "file://" + home + "/.cache/rice/thumbs-plasma/" + name.replace(/\.[^.]+$/, "") + ".jpg" }
     function fileName(p) { return p ? p.split("/").pop() : "" }
+
+    // The grid's model, kept in step with `walls` in place: a reload (every time the popup
+    // opens) only inserts and removes what changed, so the grid keeps its delegates and their
+    // loaded thumbnails instead of rebuilding and fading everything in again.
+    ListModel { id: wallModel }
+    function syncModel(names) {
+        const want = new Set(names);
+        for (let i = wallModel.count - 1; i >= 0; i--)
+            if (!want.has(wallModel.get(i).name)) wallModel.remove(i);
+        // both lists are sorted the same way, so what's left is in order: fill in the gaps
+        for (let i = 0; i < names.length; i++)
+            if (i >= wallModel.count || wallModel.get(i).name !== names[i]) wallModel.insert(i, { name: names[i] });
+    }
 
     P5Support.DataSource {
         id: sh
@@ -50,10 +70,11 @@ PlasmoidItem {
             if (kind === "list") {
                 const parts = out.split("\n@@\n");
                 root.home = (parts[0] ?? "").trim();
-                root.walls = (parts[1] ?? "").split("\n").filter(s => s.length);
+                const names = (parts[1] ?? "").split("\n").filter(s => s.length);
                 root.current = (parts[2] ?? "").trim();
-                try { root.pal = JSON.parse(parts[3]) } catch (e) {}
-                try { root.screens = JSON.parse(parts[4]) } catch (e) {}
+                try { root.screens = JSON.parse(parts[3]) } catch (e) {}
+                root.syncModel(names);
+                root.walls = names;
                 root.loaded = true;
             } else if (kind === "apply") {
                 root.busy = ""; root.pending = "";
@@ -75,8 +96,7 @@ PlasmoidItem {
     function reload() {
         sh.connectSource('echo "$HOME"; printf "\\n@@\\n"; python3 "$HOME/.config/plasma-rice/rice.py" thumbs; '
             + 'find "$HOME/Pictures/Wallpapers" -maxdepth 1 -type f \\( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" \\) -printf "%f\\n" | sort; '
-            + 'printf "\\n@@\\n"; readlink -f "$HOME/.local/state/rice/wallpaper"; printf "\\n@@\\n"; '
-            + 'cat "$HOME/.local/state/rice/palette-' + screenName + '.json" 2>/dev/null || cat "$HOME/.local/state/rice/palette.json"; '
+            + 'printf "\\n@@\\n"; readlink -f "$HOME/.local/state/rice/wallpaper"; '
             + 'printf "\\n@@\\n"; python3 "$HOME/.config/plasma-rice/rice.py" screens #list ' + Date.now());
     }
     // scr: "all", "focused" or an output name; defaults to the popup's target
@@ -104,6 +124,7 @@ PlasmoidItem {
 
     Component.onCompleted: reload()
     onExpandedChanged: if (root.expanded) reload()
+    // rice.py re-themes by switching the colour scheme: a wallpaper changed from elsewhere
     readonly property color themeAccent: Kirigami.Theme.highlightColor
     onThemeAccentChanged: reload()
 
@@ -123,7 +144,8 @@ PlasmoidItem {
     compactRepresentation: MouseArea {
         id: compact
         hoverEnabled: true
-        Layout.minimumWidth: 46 * root.uiScale
+        // the same side padding as every rice bar widget
+        Layout.minimumWidth: chip.width + 2 * Tokens.space.md * root.uiScale
         Layout.preferredWidth: Layout.minimumWidth
         Layout.fillHeight: true
         onClicked: root.expanded = !root.expanded
@@ -136,13 +158,13 @@ PlasmoidItem {
         Item {
             id: chip
             anchors.centerIn: parent
-            width: 34 * root.uiScale; height: 22 * root.uiScale
-            scale: compact.containsMouse ? 1.1 : 1
-            Behavior on scale { NumberAnimation { duration: 220; easing.type: Easing.OutBack } }
+            width: Math.round(34 * root.uiScale); height: Math.round(22 * root.uiScale)
+            scale: compact.containsMouse ? 1.06 : 1
+            Behavior on scale { NumberAnimation { duration: Tokens.base; easing.type: Tokens.enter } }
             Kirigami.ShadowedImage {
                 anchors.fill: parent
-                radius: 7
-                color: "transparent"
+                radius: Tokens.radius.xs
+                color: C.alpha(pal.fg, 0.08)
                 source: root.here && root.here.thumb ? "file://" + root.here.thumb
                       : root.current && root.home ? root.thumb(root.fileName(root.current)) : ""
                 sourceSize.width: 96
@@ -151,23 +173,22 @@ PlasmoidItem {
             }
             Rectangle {
                 anchors.fill: parent
-                radius: 7
+                radius: Tokens.radius.xs
                 color: "transparent"
                 border.width: 1.5
-                border.color: compact.containsMouse || root.expanded ? root.col("primary", "#7aa2f7") : Qt.alpha(root.col("on_surface", "#c0caf5"), 0.35)
-                Behavior on border.color { ColorAnimation { duration: 150 } }
+                border.color: compact.containsMouse || root.expanded ? pal.primary : C.alpha(pal.fg, 0.35)
+                Behavior on border.color { ColorAnimation { duration: Tokens.fast } }
             }
-            Rectangle {   // spinner while re-theming
+            Rectangle {   // re-theming: a stepped spinner (a smooth one would keep the panel redrawing)
                 anchors.fill: parent
-                radius: 7
+                radius: Tokens.radius.xs
                 visible: root.busy === "apply"
-                color: Qt.alpha(root.col("background", "#1a1b26"), 0.6)
-                Text {
+                color: C.alpha(pal.col("background"), 0.6)
+                Busy {
                     anchors.centerIn: parent
-                    text: "progress_activity"
-                    color: root.col("primary", "#7aa2f7")
-                    font.family: "Material Symbols Rounded"; font.pixelSize: 16
-                    RotationAnimation on rotation { running: root.busy === "apply"; from: 0; to: 360; duration: 800; loops: Animation.Infinite }
+                    width: Math.round(14 * root.uiScale); height: width
+                    running: root.busy === "apply"
+                    color: pal.primary
                 }
             }
         }
@@ -175,368 +196,448 @@ PlasmoidItem {
 
     // ---------- popup ----------
     fullRepresentation: Item {
-        Layout.preferredWidth: 780
-        Layout.preferredHeight: 600
-        Layout.minimumWidth: 560
-        Layout.minimumHeight: 420
+        Layout.preferredWidth: 800
+        Layout.preferredHeight: 620
+        Layout.minimumWidth: 580
+        Layout.minimumHeight: 440
 
-        ColumnLayout {
+        PopupIn {
             anchors.fill: parent
-            anchors.margins: 12
-            spacing: 14
+            active: root.expanded
 
-            // header: title, current name, palette swatches
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 14
-                ColumnLayout {
-                    spacing: 2
-                    Text {
-                        text: "Wallpaper"
-                        color: root.col("on_surface", "#c0caf5")
-                        font.family: "Inter Display"; font.weight: Font.ExtraBold; font.pixelSize: 24
-                    }
-                    Text {
-                        text: root.targetScreen ? root.fileName(root.targetScreen.image) || "–"
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: Tokens.space.lg
+                spacing: Tokens.space.md
+
+                PopupHeader {
+                    Layout.fillWidth: true
+                    palette: pal
+                    title: "Wallpaper"
+                    subtitle: !root.loaded ? "" : root.targetScreen ? root.fileName(root.targetScreen.image) || "–"
                             : root.screens.some(s => s.image !== root.screens[0].image) ? root.screens.length + " screens, different wallpapers"
                             : root.fileName(root.current) || "–"
-                        color: root.col("on_surface_variant", "#a9b1d6")
-                        font.family: "Inter"; font.pixelSize: 12
-                    }
-                }
-                Item { Layout.fillWidth: true }
-                Row {
-                    spacing: -6   // overlapping candy dots
-                    Repeater {
-                        model: ["primary", "secondary", "tertiary", "red", "orange", "yellow", "green", "cyan", "blue", "magenta"]
-                        Rectangle {
-                            required property string modelData
-                            required property int index
-                            width: 24; height: 24; radius: 12
-                            color: root.col(modelData, "#888")
-                            border.width: 2
-                            border.color: root.col("surface", "#1a1b26")
-                            z: 20 - index
-                            scale: dotHover.containsMouse ? 1.25 : 1
-                            Behavior on scale { NumberAnimation { duration: 160; easing.type: Easing.OutBack } }
-                            MouseArea { id: dotHover; anchors.fill: parent; hoverEnabled: true }
-                            QQC2.ToolTip.visible: dotHover.containsMouse
-                            QQC2.ToolTip.text: modelData + "  " + root.col(modelData, "")
-                        }
-                    }
-                }
-            }
-
-            // target screens: All, then one chip per screen (left to right) showing what's on it
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 8
-                visible: root.screens.length > 1
-                Repeater {
-                    model: root.screens.length > 1 ? [{ name: "all", label: "All screens", thumb: "", main: false }].concat(root.screens) : []
-                    Rectangle {
-                        id: scr
-                        required property var modelData
-                        readonly property bool selected: root.target === modelData.name
-                        implicitHeight: 44
-                        implicitWidth: scrRow.implicitWidth + 18
-                        radius: 12
-                        color: selected ? Qt.alpha(root.col("primary", "#7aa2f7"), 0.18)
-                                        : Qt.alpha(root.col("on_surface", "#c0caf5"), scrHover.containsMouse ? 0.10 : 0.05)
-                        border.width: selected ? 1.5 : 1
-                        border.color: selected ? root.col("primary", "#7aa2f7")
-                                    : scrHover.containsMouse ? Qt.alpha(root.col("primary", "#7aa2f7"), 0.6)
-                                    : Qt.alpha(root.col("on_surface", "#c0caf5"), 0.10)
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                        Behavior on border.color { ColorAnimation { duration: 150 } }
-                        RowLayout {
-                            id: scrRow
-                            anchors.centerIn: parent
-                            spacing: 8
-                            Item {
-                                implicitWidth: 44; implicitHeight: 26
-                                Kirigami.ShadowedImage {
+                    subtitleLines: 1
+                    // this screen's palette as overlapping candy dots
+                    trailing: Row {
+                        spacing: -6
+                        Repeater {
+                            model: ["primary", "secondary", "tertiary", "red", "orange", "yellow", "green", "cyan", "blue", "magenta"]
+                            Rectangle {
+                                id: dotItem
+                                required property string modelData
+                                required property int index
+                                width: 24; height: 24; radius: 12
+                                color: pal.col(modelData)
+                                border.width: 2
+                                border.color: pal.surface
+                                z: dotTip.containsMouse ? 30 : 20 - index
+                                scale: dotTip.containsMouse ? 1.2 : 1
+                                Behavior on scale { NumberAnimation { duration: Tokens.fast; easing.type: Tokens.enter } }
+                                PlasmaCore.ToolTipArea {
+                                    id: dotTip
                                     anchors.fill: parent
-                                    visible: scr.modelData.thumb !== ""
-                                    radius: 6
-                                    color: "transparent"
-                                    source: scr.modelData.thumb ? "file://" + scr.modelData.thumb : ""
-                                    sourceSize.width: 96
-                                    fillMode: Image.PreserveAspectCrop
-                                    asynchronous: true
-                                }
-                                Text {
-                                    anchors.centerIn: parent
-                                    visible: scr.modelData.name === "all"
-                                    text: "view_column"
-                                    color: scr.selected ? root.col("primary", "#7aa2f7") : root.col("on_surface_variant", "#a9b1d6")
-                                    font.family: "Material Symbols Rounded"; font.pixelSize: 22
+                                    mainText: dotItem.modelData
+                                    subText: String(pal.col(dotItem.modelData))
                                 }
                             }
-                            ColumnLayout {
-                                spacing: 0
-                                Text {
-                                    text: scr.modelData.label
-                                    color: root.col("on_surface", "#c0caf5")
-                                    font.family: "Inter"; font.weight: Font.DemiBold; font.pixelSize: 12
-                                }
-                                Text {
-                                    text: scr.modelData.name === "all" ? root.screens.length + " screens"
-                                        : scr.modelData.name + (scr.modelData.main ? " · main" : "")
-                                    color: root.col("muted", "#565f89")
-                                    font.family: "Inter"; font.pixelSize: 10
-                                }
-                            }
-                        }
-                        MouseArea {
-                            id: scrHover
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: { Plasmoid.configuration.target = scr.modelData.name; Qt.callLater(grid.showCurrent) }
                         }
                     }
                 }
-                Item { Layout.fillWidth: true }
-            }
 
-            // actions
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 8
-                readonly property color acc: root.col("primary", "#7aa2f7")
-                PillButton { icon: "shuffle"; label: "Shuffle"; accent: parent.acc; fg: root.col("on_surface", "#c0caf5"); accentText: root.col("on_primary", "#1a1b26"); busy: root.busy === "apply" && root.pending === "random"; onClicked: root.apply("random") }
-                PillButton { icon: "skip_previous"; accent: parent.acc; accentText: root.col("on_primary", "#1a1b26"); onClicked: root.apply("prev") }
-                PillButton { icon: "skip_next"; accent: parent.acc; accentText: root.col("on_primary", "#1a1b26"); onClicked: root.apply("next") }
-                PillButton { icon: "folder_open"; accent: root.col("secondary", "#9aa5ce"); accentText: root.col("on_secondary", "#1a1b26"); onClicked: root.openFolder() }
-                Item { Layout.fillWidth: true }
-                Text {
-                    Layout.maximumWidth: 420
-                    text: root.status || (root.walls.length + " wallpapers")
-                    elide: Text.ElideRight
-                    color: root.col("muted", "#565f89")
-                    font.family: "Inter"; font.pixelSize: 12
-                }
-            }
-
-            // get more: describe what you want, wallhaven.py finds the best matches you don't have yet
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 8
-                TagField {
-                    id: tagField
+                // target screens: All, then one chip per screen (left to right) showing what's on it
+                RowLayout {
                     Layout.fillWidth: true
-                    text: Plasmoid.configuration.tags
-                    placeholder: "Describe what you want: modern, clean, aesthetic…"
-                    accent: root.col("tertiary", "#bb9af7")
-                    fg: root.col("on_surface", "#c0caf5")
-                    muted: root.col("muted", "#565f89")
-                    busy: root.busy === "fetch"
-                    onAccepted: root.fetch(text)
-                }
-                PillButton {
-                    implicitHeight: 34
-                    icon: root.busy === "fetch" ? "progress_activity" : "cloud_download"
-                    label: "Get more"
-                    accent: root.col("tertiary", "#bb9af7")
-                    fg: root.col("on_surface", "#c0caf5")
-                    accentText: root.col("on_tertiary", "#1a1b26")
-                    busy: root.busy === "fetch"
-                    onClicked: root.fetch(tagField.text)
-                }
-            }
-            // recent searches: click to get more of the same, right-click to forget
-            Flow {
-                Layout.fillWidth: true
-                spacing: 6
-                visible: Plasmoid.configuration.tagHistory.length > 0
-                Repeater {
-                    model: Plasmoid.configuration.tagHistory
-                    Rectangle {
-                        id: recent
-                        required property string modelData
-                        height: 24
-                        width: chipText.implicitWidth + 20
-                        radius: 12
-                        readonly property color acc: root.col("tertiary", "#bb9af7")
-                        color: chipHover.containsMouse ? Qt.alpha(acc, 0.22) : Qt.alpha(root.col("on_surface", "#c0caf5"), 0.05)
-                        border.width: 1
-                        border.color: chipHover.containsMouse ? acc : Qt.alpha(acc, 0.18)
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                        Text {
-                            id: chipText
-                            anchors.centerIn: parent
-                            text: recent.modelData
-                            color: chipHover.containsMouse ? root.col("on_surface", "#c0caf5") : root.col("on_surface_variant", "#a9b1d6")
-                            font.family: "Inter"; font.pixelSize: 11
+                    spacing: Tokens.space.sm
+                    visible: root.screens.length > 1
+                    Repeater {
+                        id: screenChips
+                        model: root.screens.length > 1 ? [{ name: "all", label: "All screens", thumb: "", main: false }].concat(root.screens) : []
+                        Rectangle {
+                            id: scr
+                            required property var modelData
+                            required property int index
+                            readonly property bool selected: root.target === modelData.name
+                            readonly property bool hot: scrHover.containsMouse || activeFocus
+                            implicitHeight: 44
+                            implicitWidth: scrRow.implicitWidth + 2 * Tokens.space.sm + 2
+                            radius: Tokens.radius.sm
+                            color: selected ? C.alpha(pal.primary, scrHover.pressed ? 0.26 : 0.18)
+                                 : C.alpha(pal.fg, scrHover.pressed ? 0.14 : hot ? 0.09 : 0.05)
+                            border.width: 1
+                            border.color: selected ? pal.primary : hot ? C.alpha(pal.primary, 0.6) : C.alpha(pal.fg, Tokens.alpha.outline)
+                            Behavior on color { ColorAnimation { duration: Tokens.fast } }
+                            Behavior on border.color { ColorAnimation { duration: Tokens.fast } }
+
+                            function choose() { Plasmoid.configuration.target = modelData.name; Qt.callLater(grid.showCurrent) }
+                            activeFocusOnTab: true
+                            Keys.onReturnPressed: choose()
+                            Keys.onEnterPressed: choose()
+                            Keys.onSpacePressed: choose()
+                            Keys.onLeftPressed: if (index > 0) screenChips.itemAt(index - 1).forceActiveFocus(Qt.TabFocusReason)
+                            Keys.onRightPressed: if (index < screenChips.count - 1) screenChips.itemAt(index + 1).forceActiveFocus(Qt.TabFocusReason)
+
+                            RowLayout {
+                                id: scrRow
+                                anchors.centerIn: parent
+                                spacing: Tokens.space.sm
+                                Item {
+                                    implicitWidth: 44; implicitHeight: 26
+                                    Kirigami.ShadowedImage {
+                                        anchors.fill: parent
+                                        visible: scr.modelData.thumb !== ""
+                                        radius: Tokens.radius.xs
+                                        color: C.alpha(pal.fg, 0.08)
+                                        source: scr.modelData.thumb ? "file://" + scr.modelData.thumb : ""
+                                        sourceSize.width: 96
+                                        fillMode: Image.PreserveAspectCrop
+                                        asynchronous: true
+                                    }
+                                    Text {
+                                        anchors.centerIn: parent
+                                        visible: scr.modelData.name === "all"
+                                        text: "view_column"
+                                        color: scr.selected ? pal.primary : pal.fgDim
+                                        font.family: Tokens.font.icons
+                                        font.pixelSize: 22
+                                    }
+                                }
+                                ColumnLayout {
+                                    spacing: 0
+                                    Text {
+                                        text: scr.modelData.label
+                                        color: pal.fg
+                                        font.family: Tokens.font.ui
+                                        font.weight: Font.DemiBold
+                                        font.pixelSize: Tokens.size.label
+                                    }
+                                    Text {
+                                        text: scr.modelData.name === "all" ? root.screens.length + " screens"
+                                            : scr.modelData.name + (scr.modelData.main ? " · main" : "")
+                                        color: pal.muted
+                                        font.family: Tokens.font.ui
+                                        font.pixelSize: Tokens.size.caption
+                                    }
+                                }
+                            }
+                            FocusRing { radius: scr.radius }
+                            MouseArea {
+                                id: scrHover
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: scr.choose()
+                            }
                         }
-                        MouseArea {
-                            id: chipHover
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    }
+                    Item { Layout.fillWidth: true }
+                }
+
+                // actions
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Tokens.space.sm
+                    Pill { palette: pal; icon: "shuffle"; text: "Shuffle"; busy: root.busy === "apply" && root.pending === "random"; onClicked: root.apply("random") }
+                    Pill { palette: pal; icon: "skip_previous"; tooltip: "Previous"; onClicked: root.apply("prev") }
+                    Pill { palette: pal; icon: "skip_next"; tooltip: "Next"; onClicked: root.apply("next") }
+                    Pill { palette: pal; icon: "folder_open"; tooltip: "Open the wallpaper folder"; accent: pal.secondary; onAccent: pal.col("on_secondary"); onClicked: root.openFolder() }
+                    Item { Layout.fillWidth: true }
+                    Text {
+                        Layout.maximumWidth: 420
+                        text: root.status || (root.loaded ? root.walls.length + " wallpapers" : "")
+                        elide: Text.ElideRight
+                        color: pal.muted
+                        font.family: Tokens.font.ui
+                        font.pixelSize: Tokens.size.label
+                    }
+                }
+
+                // get more: describe what you want, wallhaven.py finds the best matches you don't have yet
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Tokens.space.sm
+                    TagField {
+                        id: tagField
+                        Layout.fillWidth: true
+                        palette: pal
+                        text: Plasmoid.configuration.tags
+                        placeholder: "Describe what you want: modern, clean, aesthetic…"
+                        accent: pal.tertiary
+                        onAccent: pal.col("on_tertiary")
+                        busy: root.busy === "fetch"
+                        onAccepted: root.fetch(text)
+                    }
+                    Pill {
+                        palette: pal
+                        size: tagField.implicitHeight
+                        icon: "cloud_download"
+                        text: "Get more"
+                        accent: pal.tertiary
+                        onAccent: pal.col("on_tertiary")
+                        busy: root.busy === "fetch"
+                        onClicked: root.fetch(tagField.text)
+                    }
+                }
+                // recent searches: click to get more of the same, right-click to forget
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: Tokens.space.xs + 2
+                    visible: Plasmoid.configuration.tagHistory.length > 0
+                    Repeater {
+                        model: Plasmoid.configuration.tagHistory
+                        Chip {
+                            id: recent
+                            required property string modelData
+                            palette: pal
+                            interactive: true
+                            bold: false
+                            size: 24
+                            text: modelData
+                            tint: pal.tertiary
+                            tooltip: "Get more like this · right-click to forget"
                             onClicked: mouse => {
                                 if (mouse.button === Qt.RightButton) { root.forgetTags(recent.modelData); return }
-                                tagField.text = recent.modelData
-                                root.fetch(recent.modelData)
+                                tagField.text = recent.modelData;
+                                root.fetch(recent.modelData);
                             }
                         }
-                        QQC2.ToolTip.visible: chipHover.containsMouse
-                        QQC2.ToolTip.delay: 600
-                        QQC2.ToolTip.text: "Get more like this · right-click to forget"
                     }
                 }
-            }
 
-            // grid
-            GridView {
-                id: grid
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                clip: true
-                cellWidth: Math.floor(width / 4)
-                cellHeight: Math.round(cellWidth * 9 / 16)
-                model: root.walls
-                boundsBehavior: Flickable.StopAtBounds
-                QQC2.ScrollBar.vertical: PlasmaComponents.ScrollBar {}
+                // grid (with its loading and empty states)
+                Item {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
 
-                add: Transition { NumberAnimation { properties: "opacity,scale"; from: 0; duration: 260; easing.type: Easing.OutCubic } }
-
-                delegate: Item {
-                    id: cell
-                    required property string modelData
-                    required property int index
-                    readonly property string path: root.home + "/Pictures/Wallpapers/" + modelData
-                    // screens showing it; "current" = already on every targeted screen
-                    readonly property var usedOn: root.screens.filter(s => s.image === path)
-                    readonly property bool isCurrent: root.targetScreen ? root.targetScreen.image === path
-                                                    : root.screens.length ? usedOn.length === root.screens.length
-                                                    : path === root.current
-                    readonly property bool applying: root.busy === "apply" && root.pending === path
-                    width: grid.cellWidth
-                    height: grid.cellHeight
-                    z: hover.containsMouse ? 2 : 0
-
-                    Item {
-                        id: tile
+                    GridView {
+                        id: grid
                         anchors.fill: parent
-                        anchors.margins: 6
-                        scale: hover.pressed ? 0.97 : hover.containsMouse ? 1.06 : 1
-                        Behavior on scale { NumberAnimation { duration: 220; easing.type: Easing.OutBack } }
+                        visible: root.loaded && wallModel.count > 0
+                        clip: true
+                        cellWidth: Math.floor(width / 4)
+                        cellHeight: Math.round(cellWidth * 9 / 16)
+                        model: wallModel
+                        // keep every thumbnail's delegate alive while scrolling (a few dozen)
+                        cacheBuffer: Math.max(0, Math.ceil(wallModel.count / 4) * cellHeight)
+                        boundsBehavior: Flickable.StopAtBounds
+                        QQC2.ScrollBar.vertical: PlasmaComponents.ScrollBar {}
 
-                        // soft glow behind the hovered/current tile
-                        Rectangle {
-                            anchors.fill: parent
-                            anchors.margins: -4
-                            radius: 16
-                            color: "transparent"
-                            border.width: 4
-                            border.color: Qt.alpha(root.col("primary", "#7aa2f7"), cell.isCurrent ? 0.35 : hover.containsMouse ? 0.2 : 0)
-                            Behavior on border.color { ColorAnimation { duration: 180 } }
+                        // only what a reload really adds (a "Get more") arrives animated
+                        add: Transition {
+                            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Tokens.base; easing.type: Tokens.enter }
+                            NumberAnimation { property: "scale"; from: 0.94; to: 1; duration: Tokens.slow; easing.type: Tokens.enter }
                         }
-                        Kirigami.ShadowedImage {
-                            id: img
-                            anchors.fill: parent
-                            radius: 12
-                            color: "transparent"
-                            source: root.home ? root.thumb(cell.modelData) : ""
-                            sourceSize.width: 480
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
-                            opacity: status === Image.Ready ? 1 : 0
-                            Behavior on opacity { NumberAnimation { duration: 250 } }
-                        }
-                        Rectangle {   // hover brighten
-                            anchors.fill: parent
-                            radius: 12
-                            color: "white"
-                            opacity: hover.containsMouse ? 0.06 : 0
-                            Behavior on opacity { NumberAnimation { duration: 150 } }
-                        }
-                        Rectangle {   // which screens show it (only with more than one screen)
-                            visible: root.screens.length > 1 && cell.usedOn.length > 0
-                            anchors { left: parent.left; bottom: parent.bottom; margins: 7 }
-                            width: usedText.implicitWidth + 14; height: 20; radius: 10
-                            color: Qt.alpha(root.col("background", "#1a1b26"), 0.78)
-                            Text {
-                                id: usedText
-                                anchors.centerIn: parent
-                                text: cell.usedOn.length === root.screens.length ? "All screens" : cell.usedOn.map(s => s.label).join(" · ")
-                                color: root.col("on_surface", "#c0caf5")
-                                font.family: "Inter"; font.weight: Font.DemiBold; font.pixelSize: 10
+                        remove: Transition { NumberAnimation { property: "opacity"; to: 0; duration: Tokens.fast; easing.type: Tokens.exit } }
+                        displaced: Transition { NumberAnimation { properties: "x,y"; duration: Tokens.base; easing.type: Tokens.move } }
+
+                        // keyboard: Tab in, arrows to move, Enter to apply
+                        activeFocusOnTab: true
+                        keyNavigationEnabled: true
+                        currentIndex: -1
+                        onActiveFocusChanged: if (activeFocus && currentIndex < 0) currentIndex = 0
+                        Keys.onReturnPressed: if (currentIndex >= 0) root.pick(wallModel.get(currentIndex).name)
+                        Keys.onEnterPressed: if (currentIndex >= 0) root.pick(wallModel.get(currentIndex).name)
+                        Keys.onSpacePressed: if (currentIndex >= 0) root.pick(wallModel.get(currentIndex).name)
+
+                        delegate: Item {
+                            id: cell
+                            required property string name
+                            required property int index
+                            readonly property string path: root.pathOf(name)
+                            readonly property var usedOn: root.screens.filter(s => s.image === path)   // screens showing it
+                            readonly property bool isCurrent: root.isCurrent(path)
+                            readonly property bool applying: root.busy === "apply" && root.pending === path
+                            readonly property bool focused: GridView.isCurrentItem && grid.activeFocus
+                            readonly property bool hot: hover.containsMouse || focused
+                            width: grid.cellWidth
+                            height: grid.cellHeight
+                            z: hot ? 2 : 0
+
+                            Item {
+                                id: tile
+                                anchors.fill: parent
+                                anchors.margins: Tokens.space.xs + 2
+                                scale: hover.pressed ? 0.97 : cell.hot ? 1.04 : 1
+                                Behavior on scale { NumberAnimation { duration: Tokens.base; easing.type: Tokens.enter } }
+
+                                // soft glow behind the hovered/current tile
+                                Rectangle {
+                                    anchors.fill: parent
+                                    anchors.margins: -4
+                                    radius: Tokens.radius.md + 4
+                                    color: "transparent"
+                                    border.width: 4
+                                    border.color: C.alpha(pal.primary, cell.isCurrent ? 0.35 : cell.hot ? 0.2 : 0)
+                                    Behavior on border.color { ColorAnimation { duration: Tokens.fast } }
+                                }
+                                Rectangle {   // placeholder while the thumbnail loads
+                                    anchors.fill: parent
+                                    radius: Tokens.radius.md
+                                    color: C.alpha(pal.fg, 0.06)
+                                    visible: img.status !== Image.Ready
+                                }
+                                Kirigami.ShadowedImage {
+                                    id: img
+                                    anchors.fill: parent
+                                    radius: Tokens.radius.md
+                                    color: "transparent"
+                                    source: root.home ? root.thumb(cell.name) : ""
+                                    sourceSize.width: 480
+                                    fillMode: Image.PreserveAspectCrop
+                                    asynchronous: true
+                                    opacity: status === Image.Ready ? 1 : 0
+                                    Behavior on opacity { NumberAnimation { duration: Tokens.base; easing.type: Tokens.enter } }
+                                }
+                                Rectangle {   // hover brighten
+                                    anchors.fill: parent
+                                    radius: Tokens.radius.md
+                                    color: "white"
+                                    opacity: cell.hot ? 0.06 : 0
+                                    Behavior on opacity { NumberAnimation { duration: Tokens.fast } }
+                                }
+                                Chip {   // which screens show it (only with more than one screen)
+                                    visible: root.screens.length > 1 && cell.usedOn.length > 0
+                                    anchors { left: parent.left; bottom: parent.bottom; margins: Tokens.space.sm }
+                                    palette: pal
+                                    size: 20
+                                    solid: true
+                                    tint: C.alpha(pal.col("background"), 0.8)
+                                    textColor: pal.fg
+                                    text: cell.usedOn.length === root.screens.length ? "All screens" : cell.usedOn.map(s => s.label).join(" · ")
+                                }
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: Tokens.radius.md
+                                    color: "transparent"
+                                    border.width: cell.isCurrent ? 2.5 : 1
+                                    border.color: cell.isCurrent ? pal.primary
+                                                : cell.hot ? C.alpha(pal.primary, 0.8)
+                                                : C.alpha(pal.fg, Tokens.alpha.outline)
+                                    Behavior on border.color { ColorAnimation { duration: Tokens.fast } }
+                                }
+                                Chip {   // just fetched
+                                    visible: root.fresh.indexOf(cell.name) >= 0
+                                    anchors { left: parent.left; top: parent.top; margins: Tokens.space.sm }
+                                    palette: pal
+                                    size: 20
+                                    solid: true
+                                    tint: pal.tertiary
+                                    text: "NEW"
+                                }
+                                Rectangle {   // "current" badge
+                                    visible: cell.isCurrent
+                                    anchors { right: parent.right; top: parent.top; margins: Tokens.space.sm }
+                                    width: 24; height: 24; radius: 12
+                                    color: pal.primary
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "check"
+                                        color: pal.onPrimary
+                                        font.family: Tokens.font.icons
+                                        font.pixelSize: 17
+                                        font.weight: Font.Bold
+                                    }
+                                }
+                                Rectangle {   // applying overlay
+                                    anchors.fill: parent
+                                    radius: Tokens.radius.md
+                                    visible: cell.applying
+                                    color: C.alpha(pal.col("background"), 0.55)
+                                    Busy {
+                                        anchors.centerIn: parent
+                                        width: 28; height: 28
+                                        running: cell.applying
+                                        color: pal.primary
+                                    }
+                                }
+                                FocusRing { radius: Tokens.radius.md; shown: cell.focused }
+                                MouseArea {
+                                    id: hover
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: cell.isCurrent ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                    onClicked: root.pick(cell.name)
+                                }
                             }
                         }
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: 12
-                            color: "transparent"
-                            border.width: cell.isCurrent ? 2.5 : 1
-                            border.color: cell.isCurrent ? root.col("primary", "#7aa2f7")
-                                        : hover.containsMouse ? Qt.alpha(root.col("primary", "#7aa2f7"), 0.8)
-                                        : Qt.alpha(root.col("on_surface", "#c0caf5"), 0.10)
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                        function showCurrent() {
+                            const want = root.targetScreen ? root.targetScreen.image : root.current;
+                            const i = root.walls.findIndex(n => root.home + "/Pictures/Wallpapers/" + n === want);
+                            if (i >= 0) positionViewAtIndex(i, GridView.Contain);
                         }
-                        Rectangle {   // just fetched
-                            visible: root.fresh.indexOf(cell.modelData) >= 0
-                            anchors { left: parent.left; top: parent.top; margins: 7 }
-                            width: newText.implicitWidth + 14; height: 20; radius: 10
-                            color: root.col("tertiary", "#bb9af7")
-                            Text {
-                                id: newText
-                                anchors.centerIn: parent
-                                text: "NEW"
-                                color: root.col("on_tertiary", "#1a1b26")
-                                font.family: "Inter"; font.weight: Font.Black; font.pixelSize: 10
+                        Connections {
+                            target: root
+                            function onExpandedChanged() { if (root.expanded) Qt.callLater(grid.showCurrent) }
+                            // after a "Get more", bring the first new one into view
+                            function onWallsChanged() {
+                                const i = root.walls.findIndex(n => root.fresh.indexOf(n) >= 0);
+                                if (i >= 0) Qt.callLater(() => grid.positionViewAtIndex(i, GridView.Contain));
                             }
-                        }
-                        Rectangle {   // "current" badge
-                            visible: cell.isCurrent
-                            anchors { right: parent.right; top: parent.top; margins: 7 }
-                            width: 24; height: 24; radius: 12
-                            color: root.col("primary", "#7aa2f7")
-                            Text {
-                                anchors.centerIn: parent
-                                text: "check"
-                                color: root.col("on_primary", "#1a1b26")
-                                font.family: "Material Symbols Rounded"; font.pixelSize: 17; font.weight: Font.Bold
-                            }
-                        }
-                        Rectangle {   // applying overlay
-                            anchors.fill: parent
-                            radius: 12
-                            visible: cell.applying
-                            color: Qt.alpha(root.col("background", "#1a1b26"), 0.55)
-                            Text {
-                                anchors.centerIn: parent
-                                text: "progress_activity"
-                                color: root.col("primary", "#7aa2f7")
-                                font.family: "Material Symbols Rounded"; font.pixelSize: 30
-                                RotationAnimation on rotation { running: cell.applying; from: 0; to: 360; duration: 800; loops: Animation.Infinite }
-                            }
-                        }
-                        MouseArea {
-                            id: hover
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: if (!cell.isCurrent) root.apply(cell.path)
                         }
                     }
-                }
 
-                function showCurrent() {
-                    const want = root.targetScreen ? root.targetScreen.image : root.current;
-                    const i = root.walls.findIndex(n => root.home + "/Pictures/Wallpapers/" + n === want);
-                    if (i >= 0) positionViewAtIndex(i, GridView.Contain);
-                }
-                Connections {
-                    target: root
-                    function onExpandedChanged() { if (root.expanded) Qt.callLater(grid.showCurrent) }
-                    // after a "Get more", bring the first new one into view
-                    function onWallsChanged() {
-                        const i = root.walls.findIndex(n => root.fresh.indexOf(n) >= 0);
-                        if (i >= 0) Qt.callLater(() => grid.positionViewAtIndex(i, GridView.Contain));
+                    // loading: placeholder tiles breathing while the first list comes in
+                    Grid {
+                        id: skeleton
+                        anchors.fill: parent
+                        visible: !root.loaded
+                        columns: 4
+                        readonly property real cw: Math.floor(width / 4)
+                        Repeater {
+                            model: 8
+                            Item {
+                                width: skeleton.cw; height: Math.round(skeleton.cw * 9 / 16)
+                                Rectangle {
+                                    anchors.fill: parent
+                                    anchors.margins: Tokens.space.xs + 2
+                                    radius: Tokens.radius.md
+                                    color: C.alpha(pal.fg, 0.06)
+                                    SequentialAnimation on opacity {
+                                        running: skeleton.visible && root.expanded
+                                        loops: Animation.Infinite
+                                        NumberAnimation { to: 0.45; duration: 700; easing.type: Easing.InOutSine }
+                                        NumberAnimation { to: 1; duration: 700; easing.type: Easing.InOutSine }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // empty: nothing in ~/Pictures/Wallpapers yet
+                    ColumnLayout {
+                        anchors.centerIn: parent
+                        visible: root.loaded && wallModel.count === 0
+                        spacing: Tokens.space.sm
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: "wallpaper"
+                            color: pal.muted
+                            font.family: Tokens.font.icons
+                            font.pixelSize: 48
+                        }
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: "No wallpapers yet"
+                            color: pal.fg
+                            font.family: Tokens.font.display
+                            font.weight: Font.Bold
+                            font.pixelSize: Tokens.size.title
+                        }
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: "Drop images in ~/Pictures/Wallpapers, or get some from wallhaven."
+                            color: pal.fgDim
+                            font.family: Tokens.font.ui
+                            font.pixelSize: Tokens.size.label
+                        }
+                        RowLayout {
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.topMargin: Tokens.space.sm
+                            spacing: Tokens.space.sm
+                            Pill { palette: pal; icon: "cloud_download"; text: "Get some"; accent: pal.tertiary; onAccent: pal.col("on_tertiary"); busy: root.busy === "fetch"; onClicked: root.fetch(tagField.text) }
+                            Pill { palette: pal; icon: "folder_open"; text: "Open folder"; accent: pal.secondary; onAccent: pal.col("on_secondary"); onClicked: root.openFolder() }
+                        }
                     }
                 }
             }

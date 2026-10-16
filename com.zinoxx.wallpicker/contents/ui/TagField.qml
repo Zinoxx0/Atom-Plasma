@@ -1,24 +1,27 @@
 import QtQuick
 import QtQuick.Layouts
+import "Rice"
+import "Rice/Color.js" as C
 
-// Rounded text field for wallhaven tags, in the same style as PillButton.
+// Rounded text field for wallhaven tags, in the same style as the Rice pills.
 Rectangle {
     id: field
+    required override property RicePalette palette
     property alias text: input.text
     property string placeholder: ""
-    property color accent: "#7aa2f7"
-    property color fg: "#c0caf5"
-    property color muted: "#565f89"
+    property color accent: palette.tertiary
+    property color onAccent: palette.col("on_tertiary")    // text on the accent (selection)
     property bool busy: false
     signal accepted()
 
+    readonly property bool hovered: hover.containsMouse || clear.containsMouse
     implicitHeight: 34
     radius: height / 2
-    color: Qt.alpha(fg, input.activeFocus ? 0.09 : hover.containsMouse ? 0.07 : 0.05)
-    border.width: input.activeFocus ? 1.5 : 1
-    border.color: input.activeFocus ? accent : Qt.alpha(accent, hover.containsMouse ? 0.45 : 0.2)
-    Behavior on color { ColorAnimation { duration: 150 } }
-    Behavior on border.color { ColorAnimation { duration: 150 } }
+    color: C.alpha(palette.fg, input.activeFocus ? 0.09 : hovered ? 0.07 : 0.05)
+    border.width: 1
+    border.color: input.activeFocus ? accent : C.alpha(accent, hovered ? 0.45 : 0.2)
+    Behavior on color { ColorAnimation { duration: Tokens.fast } }
+    Behavior on border.color { ColorAnimation { duration: Tokens.fast } }
 
     MouseArea {     // clicks on the padding focus the text too
         id: hover
@@ -29,14 +32,15 @@ Rectangle {
     }
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 12
-        anchors.rightMargin: 10
-        spacing: 8
+        anchors.leftMargin: Tokens.space.md
+        anchors.rightMargin: Tokens.space.sm + 2
+        spacing: Tokens.space.sm
         Text {
             text: "sell"
-            color: input.activeFocus ? field.accent : field.muted
-            font.family: "Material Symbols Rounded"
+            color: input.activeFocus ? field.accent : field.palette.muted
+            font.family: Tokens.font.icons
             font.pixelSize: 17
+            Behavior on color { ColorAnimation { duration: Tokens.fast } }
         }
         Item {
             Layout.fillWidth: true
@@ -45,14 +49,15 @@ Rectangle {
                 id: input
                 anchors.fill: parent
                 verticalAlignment: TextInput.AlignVCenter
-                color: field.fg
+                color: field.palette.fg
                 selectionColor: field.accent
-                selectedTextColor: "#11111b"
-                font.family: "Inter"
-                font.pixelSize: 13
+                selectedTextColor: field.onAccent
+                font.family: Tokens.font.ui
+                font.pixelSize: Tokens.size.body
                 clip: true
                 selectByMouse: true
                 readOnly: field.busy
+                activeFocusOnTab: true
                 onAccepted: field.accepted()
             }
             Text {
@@ -60,7 +65,7 @@ Rectangle {
                 verticalAlignment: Text.AlignVCenter
                 visible: !input.text && !input.preeditText
                 text: field.placeholder
-                color: field.muted
+                color: field.palette.muted
                 font: input.font
                 elide: Text.ElideRight
             }
@@ -68,9 +73,10 @@ Rectangle {
         Text {          // clear
             visible: input.text.length > 0 && !field.busy
             text: "close"
-            color: clear.containsMouse ? field.fg : field.muted
-            font.family: "Material Symbols Rounded"
+            color: clear.pressed ? field.accent : clear.containsMouse ? field.palette.fg : field.palette.muted
+            font.family: Tokens.font.icons
             font.pixelSize: 16
+            Behavior on color { ColorAnimation { duration: Tokens.fast } }
             MouseArea {
                 id: clear
                 anchors.fill: parent
@@ -81,4 +87,5 @@ Rectangle {
             }
         }
     }
+    // focus (clicked or tabbed into) is the accent edge above, like the Plasma Style's text fields
 }
