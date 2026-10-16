@@ -20,7 +20,7 @@ not cold or cyberpunk.
 | 0.2 | Safety net (git x3, backup tarball) | orchestrator | done 2026-10-14 |
 | 0.3 | Baseline screenshots + perf | orchestrator | done 2026-10-14 (~/.cache/rice/shots/baseline) |
 | 0.4 | Design tokens + shared QML module | orchestrator | done 2026-10-15 (tokens.py, qml/Rice, token sheet) |
-| 0.5 | Plasma 6.8 upgrade (own step when it lands) | orchestrator | arrived 2026-10-16 14:01 via the user's cachy-update (repo part OK, snapper 105/106); AUR plugins rebuilt against 6.8 and installed (darkly, klassy, better-blur-dx, panel-colorizer, rounded-corners-rice; snapper 108); kara fails on 6.8 (X11 taskmanager headers gone) and is unused; AUR apps updated (snapper 118). Next: reboot, then verify |
+| 0.5 | Plasma 6.8 upgrade (own step when it lands) | orchestrator | done 2026-10-16: arrived via cachy-update, AUR plugins rebuilt (kara dropped: unused, won't build), rebooted 14:15, verified (effects, Colorizer, bars, bands, no QML errors) |
 | 1 | Shell surfaces (Plasma Style, bars, popups) | agent A | integrated 2026-10-16 (commits 8354c03, 9a39a11); check-in pending |
 | 2 | Glimpse opened band v2 | agent B | integrated 2026-10-15 (commit in plasmoids repo); check-in raised |
 | 3 | Launcher, logout, lock | agent A | integrated 2026-10-16 (a90a187, 94e8301; kdeglobals LookAndFeelPackage=com.zinoxx.rice); live check pending |
