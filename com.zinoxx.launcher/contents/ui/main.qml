@@ -236,7 +236,8 @@ PlasmoidItem {
     compactRepresentation: MouseArea {
         id: compact
         hoverEnabled: true
-        Layout.minimumWidth: (emblem.implicitWidth + 6) * root.s
+        // a pill, not a square: the bar's one wide, accent-filled island (panel/build.py launcher_style)
+        Layout.minimumWidth: Math.round(emblem.implicitWidth * 1.8 * root.s)
         Layout.preferredWidth: Layout.minimumWidth
         Layout.fillHeight: true
         onClicked: root.expanded = !root.expanded
@@ -251,12 +252,14 @@ PlasmoidItem {
             hovered: compact.containsMouse
             pressed: compact.pressed
             open: root.expanded
-            scale: root.s              // vector, stays crisp
-            c1: pal.primary
-            c2: pal.tertiary
-            c3: pal.red
-            c4: pal.teal
-            glow: pal.primary
+            scale: root.s * 1.12       // vector, stays crisp
+            // light on the accent fill: a white core and orbits with a breath of the tertiary,
+            // candy satellites
+            c1: "#ffffff"
+            c2: C.mix(pal.tertiary, "#ffffff", 0.55)
+            c3: C.mix(pal.red, "#ffffff", 0.15)
+            c4: C.mix(pal.teal, "#ffffff", 0.15)
+            glow: "#ffffff"
         }
     }
 
