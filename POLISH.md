@@ -174,3 +174,14 @@ Theme page / 5 sweep + tests.
 Gotchas: Colorizer's fg override sets `color` on every Text/Icon of an island (would flatten our accent text, so only
 stock islands get it); `palette.edge` inside a FocusRing resolves to FocusRing's own Item.palette (qualify with the
 root id); a light KDE scheme makes the portal report light (Zen/web would follow: pinned dark).
+
+## Desktop layer + launcher button (2026-10-16, user away, free hand)
+- Rice Desk `com.zinoxx.desk` (0cbed18) + layout.py / weather.py / rice.py `_layout` `_desk` (7b3d401). Clock + status on
+  every screen, music card + Clawd on DP-3, all in each wallpaper's quiet zone, never the upper-left quadrant.
+  Verified live: per-screen placement, hover (hourly weather, card controls), relocation + dark ink on a white wallpaper.
+  Bugs found: windows created before their screen landed on other outputs (fixed: Instantiator + transientParent null);
+  a 1px line at the clock window's edge (fractional-scale edge stretch; fixed with padding > shadow reach).
+- Launcher button: wide pill, bigger white emblem, accent-filled jewel island (launcher_style).
+- Idle: ~12.8 W GPU, plasmashell 3.8 %, KWin 4.5 % with a Claude Code session drawing in Konsole (noisy; desk adds
+  no continuous redraw).
+- Ideas left: game shelf, rig card, calendar (offered, not picked); nudging a widget by hand per wallpaper.
