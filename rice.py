@@ -31,7 +31,9 @@ it follow their own screen's wallpaper (palette-<output>.json + Colorizer over D
 
 Writes / applies:
     ~/.local/state/rice/palette.json            global palette (last wallpaper picked)
-    ~/.local/state/rice/palette-<output>.json   per-screen palette for the widgets on that bar
+    ~/.local/state/rice/palette-<output>.json   per-screen palette for the widgets on that bar, with
+                                                `_layout` (layout.py: where the desktop clock and music
+                                                card sit on that wallpaper) and `_desk` (com.zinoxx.desk)
     ~/.local/share/color-schemes/Rice{A,B}.colors  KDE colour scheme (alternated so
                                                 Plasma always sees a "new" scheme)
     ~/.local/share/konsole/Rice-<hash>.*        Konsole scheme + profile, hot-swapped into open sessions
@@ -44,7 +46,8 @@ Writes / applies:
     apps.py                                     VS Code, btop, MangoHud, Zen themes
 Settings: ~/.config/plasma-rice/settings.json (scheme, tokyo_tint, depth, candy, wallhaven_queries,
 bar_scale for the size of a bar's widgets, top_scale for the Glimpse band at the top,
-icon_theme, light_ui: light wallpapers turn the desktop light (frosted Plasma Style "Rice-Light", a light
+icon_theme, desk_media (the screen whose desktop clock carries the music card and Clawd; default the
+biggest), weather {"city": ...} (weather.py), light_ui: light wallpapers turn the desktop light (frosted Plasma Style "Rice-Light", a light
 KDE scheme, white-frost islands and popups; terminals and apps keep a dark twin palette);
 each size is one factor for every screen or {output: factor}).
 The current-wallpaper symlink is ~/.local/state/rice/wallpaper.
@@ -62,6 +65,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "panel"))
 import apps  # noqa: E402
 import build  # noqa: E402
 import icons  # noqa: E402
+import layout  # noqa: E402
 import tokens  # noqa: E402
 import palette  # noqa: E402
 
@@ -647,6 +651,47 @@ def rim(glass_img, p):
     return out
 
 
+def desk_layout(img, s):
+    """Where the desktop widgets sit on this screen's wallpaper (layout.py), cached per image and size."""
+    w, h = s.get("w"), s.get("h")
+    if not img or not w or not h:
+        return None
+    key = hashlib.sha1(f"{img}:{img.stat().st_mtime}:{w}x{h}:{layout.VERSION}".encode()).hexdigest()[:16]
+    f = CACHE / "layout" / f"{key}.json"
+    try:
+        return json.loads(f.read_text())
+    except (OSError, ValueError):
+        pass
+    L = layout.place(img, w, h)
+    L.pop("_cost", None)
+    write_if_changed(f, json.dumps(L))
+    return L
+
+
+def current_theme(ss, ovs):
+    """The saved theme the screens show right now (same wallpapers, same hand-picked colours, the same
+    screen driving the theme), or ""."""
+    try:
+        cur = str(CURRENT.resolve(strict=True))
+    except OSError:
+        cur = ""
+    now = {s["name"]: s["image"] for s in ss}
+    for p in presets():
+        known = [o for o in p["screens"] if o in now]
+        if known and all(now[o] == p["screens"][o] for o in known) and p.get("theme") == cur \
+                and all((ovs.get(o) or {}) == (p.get("overrides", {}).get(o) or {}) for o in known):
+            return p["name"]
+    return ""
+
+
+def media_screen(ss, cfg):
+    """The screen whose clock carries the music card and Clawd: settings desk_media, else the biggest."""
+    names = [s["name"] for s in ss]
+    if cfg.get("desk_media") in names:
+        return cfg["desk_media"]
+    return max(ss, key=lambda s: (s.get("w") or 0) * (s.get("h") or 0))["name"] if ss else ""
+
+
 def scale_for(setting, output):
     """A size factor from settings.json: one number for every screen, or {output: factor}."""
     if isinstance(setting, (int, float)):
@@ -658,13 +703,17 @@ def apply_screens(ss, cfg, fallback):
     """Each screen's palette (with its overrides), for the widgets on its bar, and its bar's island colours."""
     pals = {}
     ovs = overrides()
+    music = media_screen(ss, cfg)
+    theme_name = current_theme(ss, ovs)
     for s in ss:
         img = Path(s["image"]) if s["image"] else None
         p = with_meta(palette_for(img, cfg, ovs.get(s["name"])), img) if img else fallback
         g = glass(img, s)
         p = dict(p, _glass=g, _glassBand=GLASS_BAND, _rim=rim(g, p),
                  _scale=scale_for(cfg.get("bar_scale"), s["name"]),         # size of that bar's widgets
-                 _topScale=scale_for(cfg.get("top_scale"), s["name"]))      # size of the Glimpse band up top
+                 _topScale=scale_for(cfg.get("top_scale"), s["name"]),      # size of the Glimpse band up top
+                 _layout=desk_layout(img, s),                               # the desktop widgets' places (com.zinoxx.desk)
+                 _desk={"media": s["name"] == music, "clawd": s["name"] == music, "theme": theme_name})
         write_if_changed(STATE / f"palette-{s['name']}.json", json.dumps(p, indent=2) + "\n")
         pals[s["screen"]] = p
     try:

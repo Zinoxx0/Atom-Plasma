@@ -132,6 +132,51 @@ def island_style(p, acc, states=True, fg=False):
     return out
 
 
+def launcher_style(p):
+    """The launcher's island is the bar's one jewel: filled with the screen's accent (primary to
+    tertiary, left to right) instead of neutral glass, a bright sheen along the top, a brighter
+    outline and a soft glow of its own colour. Hover lights it up; an open launcher glows fully."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    import palette
+
+    def deep(c, top):
+        """The accent as a jewel tone: no lighter than `top`, with enough colour to glow (greys stay grey)."""
+        L, C, H = palette.to_oklch(c)
+        return palette.oklch(min(L, top), max(C, 0.11) if C >= 0.03 else C, H)
+
+    ws = json.loads(PRESET.read_text())["globalSettings"]["widgets"]
+    w = ws["normal"]
+    a, b = deep(p["primary"], 0.56), deep(p.get("tertiary", p["primary"]), 0.48)
+
+    def color(c, alpha):
+        return {"enabled": True, "sourceType": 0, "custom": c, "alpha": alpha}
+
+    def look(fill, edge, sheen, glow):
+        o = copy.deepcopy(w)
+        o["enabled"] = True
+        o["blurBehind"] = True
+        o["backgroundColor"].update(enabled=True, sourceType=5, alpha=1)
+        o["backgroundColor"]["gradient"] = {"orientation": 0, "stops": [
+            {"color": argb(mix(a, "#ffffff", 0.10 + sheen * 0.2), fill), "position": 0},
+            {"color": argb(mix(b, "#000000", 0.08), fill * 0.92), "position": 1}]}
+        o["foregroundColor"]["enabled"] = False
+        o["radius"] = {"enabled": True, "corner": {k: ISLAND_RADIUS for k in ("topLeft", "topRight", "bottomRight", "bottomLeft")}}
+        o["margin"] = {"enabled": True, "side": {"left": 0, "right": 0, "top": 4, "bottom": 4}}
+        o["spacing"] = 6
+        o["border"].update(enabled=True, width=1, customSides=False)
+        o["border"]["color"].update(color(mix(p["primary"], "#ffffff", 0.25), edge))
+        # no top sheen line: Colorizer draws it straight across, past the rounded corners, which shows
+        # on a bright island (the gradient carries the light instead)
+        o["borderSecondary"]["enabled"] = False
+        o["shadow"]["background"].update(enabled=True, size=14, xOffset=0, yOffset=3)
+        o["shadow"]["background"]["color"].update(color(p["primary"], glow))
+        o["shadow"]["foreground"]["enabled"] = False
+        return o
+
+    return {"normal": look(0.86, 0.6, 0.35, 0.30), "hovered": look(0.94, 0.85, 0.45, 0.45),
+            "expanded": look(0.98, 0.95, 0.5, 0.58), "needsAttention": look(0.94, 0.9, 0.45, 0.45)}
+
+
 # inner side padding for lone widgets that would otherwise touch the island's edge
 PADS = {"org.kde.plasma.digitalclock": 10, "org.kde.plasma.showdesktop": 5}
 
@@ -148,7 +193,10 @@ def island_overrides(p, panel):
         pad = max((PADS.get(w, 0) for _, w in group), default=0) if len(group) == 1 else 0
         name = f"Island {n}"
         stock = all(not w.startswith("com.zinoxx.") for _, w in group)
-        overrides[name] = island_style(p, acc, states=len(group) == 1, fg=stock)
+        if any(w == "com.zinoxx.launcher" for _, w in group):
+            overrides[name] = launcher_style(p)
+        else:
+            overrides[name] = island_style(p, acc, states=len(group) == 1, fg=stock)
         if pad:
             for o in overrides[name].values():
                 o["margin"] = {"enabled": True, "side": dict(o["margin"]["side"], left=pad, right=pad)}
