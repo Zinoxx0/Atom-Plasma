@@ -140,6 +140,8 @@ Window {
         tintC: g.washC
         rimA: g.cPrimary
         rimB: g.cTertiary
+        rimStops: g.pal.values._rim || []
+        shimmer: g.shelfOpen
         glow: g.cPrimary
     }
     Text {

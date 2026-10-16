@@ -241,6 +241,7 @@ PlasmoidItem {
         PopupIn {
             anchors.fill: parent
             active: root.expanded
+            ricePalette: pal
 
             ColumnLayout {
                 anchors.fill: parent

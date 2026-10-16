@@ -1,9 +1,11 @@
 import QtQuick
+import QtQuick.Effects
 import QtQuick.Layouts
 import QtQuick.Window
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasma5support as P5Support
+import org.kde.kirigami as Kirigami
 import "Rice"
 import "Rice/Color.js" as C
 
@@ -19,11 +21,12 @@ PlasmoidItem {
     property real uptime: 0
 
     readonly property var actions: [
-        { id: "lock",     icon: "lock",               label: "Lock",      color: "primary",  cmd: "loginctl lock-session" },
-        { id: "sleep",    icon: "bedtime",            label: "Sleep",     color: "tertiary", cmd: "systemctl suspend" },
-        { id: "logout",   icon: "logout",             label: "Log out",   color: "yellow",   cmd: "qdbus6 org.kde.LogoutPrompt /LogoutPrompt org.kde.LogoutPrompt.promptLogout" },
-        { id: "reboot",   icon: "restart_alt",        label: "Restart",   color: "orange",   cmd: "qdbus6 org.kde.LogoutPrompt /LogoutPrompt org.kde.LogoutPrompt.promptReboot" },
-        { id: "shutdown", icon: "power_settings_new", label: "Shut down", color: "red",      cmd: "qdbus6 org.kde.LogoutPrompt /LogoutPrompt org.kde.LogoutPrompt.promptShutDown" },
+        // tone: the colour a tile lights up in (calm ones the screen's accent, the ones that end the session warm)
+        { id: "lock",     icon: "lock",               label: "Lock",      tone: "primary",   cmd: "loginctl lock-session" },
+        { id: "sleep",    icon: "bedtime",            label: "Sleep",     tone: "tertiary",  cmd: "systemctl suspend" },
+        { id: "logout",   icon: "logout",             label: "Log out",   tone: "secondary", cmd: "qdbus6 org.kde.LogoutPrompt /LogoutPrompt org.kde.LogoutPrompt.promptLogout" },
+        { id: "reboot",   icon: "restart_alt",        label: "Restart",   tone: "warn",      cmd: "qdbus6 org.kde.LogoutPrompt /LogoutPrompt org.kde.LogoutPrompt.promptReboot" },
+        { id: "shutdown", icon: "power_settings_new", label: "Shut down", tone: "bad",       cmd: "qdbus6 org.kde.LogoutPrompt /LogoutPrompt org.kde.LogoutPrompt.promptShutDown" },
     ]
 
     P5Support.DataSource {
@@ -65,7 +68,7 @@ PlasmoidItem {
             id: power
             anchors.centerIn: parent
             text: "power_settings_new"
-            color: compact.containsMouse || root.expanded ? pal.red : pal.fg
+            color: compact.containsMouse || root.expanded ? pal.bad : pal.fg
             font.family: Tokens.font.icons
             font.pixelSize: Math.round(20 * root.uiScale)
             rotation: compact.containsMouse ? 90 : 0
@@ -87,33 +90,64 @@ PlasmoidItem {
         PopupIn {
             anchors.fill: parent
             active: root.expanded
+            ricePalette: pal
 
             ColumnLayout {
                 id: content
                 anchors { left: parent.left; right: parent.right; top: parent.top; margins: Tokens.space.lg }
                 spacing: Tokens.space.lg
 
-                PopupHeader {
+                // you, on a strip of this screen's wallpaper
+                Item {
                     Layout.fillWidth: true
-                    palette: pal
-                    title: me.displayName
-                    subtitle: me.loginName + "@" + me.host + "  ·  " + root.upText(root.uptime)
-                    leading: Rectangle {   // avatar: the initial on a primary -> tertiary gradient
-                        implicitWidth: 52; implicitHeight: 52; radius: 26
+                    implicitHeight: 84
+                    implicitWidth: tiles.implicitWidth
+                    Kirigami.ShadowedImage {
+                        id: strip
+                        anchors.fill: parent
+                        radius: Tokens.radius.md
+                        color: C.alpha(pal.fg, 0.06)
+                        source: pal.wallpaper ? "file://" + pal.wallpaper : ""
+                        sourceSize.width: 1000
+                        fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                        opacity: status === Image.Ready ? 1 : 0
+                        Behavior on opacity { NumberAnimation { duration: Tokens.base } }
+                    }
+                    Rectangle {     // a dark wash, deepest on the left where the text sits
+                        anchors.fill: parent
+                        radius: Tokens.radius.md
                         gradient: Gradient {
                             orientation: Gradient.Horizontal
-                            GradientStop { position: 0; color: pal.primary }
-                            GradientStop { position: 1; color: pal.tertiary }
+                            GradientStop { position: 0; color: C.alpha(pal.surfaceLowest, 0.82) }
+                            GradientStop { position: 0.65; color: C.alpha(pal.surfaceLowest, 0.45) }
+                            GradientStop { position: 1; color: C.alpha(pal.surfaceLowest, 0.18) }
                         }
                         border.width: 1
-                        border.color: C.alpha("#ffffff", Tokens.alpha.outlineStrong)
-                        Text {
-                            anchors.centerIn: parent
-                            text: me.initial
-                            color: pal.onPrimary
-                            font.family: Tokens.font.display
-                            font.weight: Font.Black
-                            font.pixelSize: Tokens.size.display
+                        border.color: C.alpha("#ffffff", Tokens.alpha.outline)
+                    }
+                    PopupHeader {
+                        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: Tokens.space.md }
+                        palette: pal
+                        title: me.displayName
+                        subtitle: me.loginName + "@" + me.host + "  ·  " + root.upText(root.uptime)
+                        leading: Rectangle {   // avatar: the initial on a primary -> tertiary gradient
+                            implicitWidth: 52; implicitHeight: 52; radius: 26
+                            gradient: Gradient {
+                                orientation: Gradient.Horizontal
+                                GradientStop { position: 0; color: pal.primary }
+                                GradientStop { position: 1; color: pal.tertiary }
+                            }
+                            border.width: 1.5
+                            border.color: C.alpha("#ffffff", Tokens.alpha.outlineStrong)
+                            Text {
+                                anchors.centerIn: parent
+                                text: me.initial
+                                color: pal.onPrimary
+                                font.family: Tokens.font.display
+                                font.weight: Font.Black
+                                font.pixelSize: Tokens.size.display
+                            }
                         }
                     }
                 }
@@ -128,13 +162,14 @@ PlasmoidItem {
                             id: tile
                             required property var modelData
                             required property int index
-                            readonly property color tint: pal.col(modelData.color)
+                            readonly property color tint: pal[modelData.tone]
                             readonly property bool hot: m.containsMouse || activeFocus
                             width: 92; height: 104
                             radius: Tokens.radius.md
-                            color: C.alpha(tint, m.pressed ? 0.30 : hot ? 0.22 : 0.10)
+                            // calm until you point at one: then it takes its colour
+                            color: hot ? C.alpha(tint, m.pressed ? 0.26 : 0.16) : C.alpha(pal.fg, 0.04)
                             border.width: 1
-                            border.color: C.alpha(tint, hot ? 0.65 : 0.22)
+                            border.color: hot ? C.alpha(tint, 0.7) : C.alpha("#ffffff", Tokens.alpha.outline)
                             scale: m.pressed ? 0.96 : hot ? 1.03 : 1
                             Behavior on scale { NumberAnimation { duration: Tokens.base; easing.type: Tokens.enter } }
                             Behavior on color { ColorAnimation { duration: Tokens.fast } }
@@ -154,9 +189,12 @@ PlasmoidItem {
                                 Text {
                                     anchors.horizontalCenter: parent.horizontalCenter
                                     text: tile.modelData.icon
-                                    color: tile.tint
+                                    color: tile.hot ? tile.tint : pal.fgDim
+                                    Behavior on color { ColorAnimation { duration: Tokens.fast } }
                                     font.family: Tokens.font.icons
                                     font.pixelSize: 32
+                                    layer.enabled: tile.hot
+                                    layer.effect: MultiEffect { shadowEnabled: true; shadowColor: tile.tint; shadowBlur: 0.7; shadowOpacity: 0.9; shadowHorizontalOffset: 0; shadowVerticalOffset: 0 }
                                     // grow by scale, not font size, so the layout stays put
                                     scale: tile.hot ? 1.12 : 1
                                     Behavior on scale { NumberAnimation { duration: Tokens.base; easing.type: Tokens.enter } }

@@ -625,6 +625,7 @@ PlasmoidItem {
                     bezel: root.cBezel
                     rimA: root.cPrimary
                     rimB: root.cTertiary
+                    rimStops: root.pal.values._rim || []
                 }
                 Row {
                     id: pillRow

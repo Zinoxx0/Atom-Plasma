@@ -33,6 +33,10 @@ Item {
     property color tintC: "transparent"
     property color rimA: "white"
     property color rimB: "white"
+    // the rim's colours left to right, sampled from the wallpaper's top edge (rice.py `_rim`); without
+    // them it runs rimA -> rimB
+    property var rimStops: []
+    property bool shimmer: false           // a slow light drifting along the rim (only while open)
     property color glow: "transparent"
     property real rimRest: 0.55            // the lit rim's strength while the band is closed
 
@@ -180,13 +184,7 @@ Item {
         width: n.width
         height: 1
         opacity: n.rimRest
-        gradient: Gradient {
-            orientation: Gradient.Horizontal
-            GradientStop { position: 0.0; color: "transparent" }
-            GradientStop { position: 0.12; color: n.rimA }
-            GradientStop { position: 0.88; color: n.rimB }
-            GradientStop { position: 1.0; color: "transparent" }
-        }
+        gradient: Gradient { id: restGrad; orientation: Gradient.Horizontal }
     }
 
     // the opened rim: follows the lip and goes round the tab instead of cutting across its neck
@@ -213,13 +211,7 @@ Item {
             strokeColor: "white"
             capStyle: ShapePath.FlatCap
             joinStyle: ShapePath.RoundJoin
-            strokeGradient: LinearGradient {
-                x1: 0; y1: 0; x2: n.width; y2: 0
-                GradientStop { position: 0.0; color: "transparent" }
-                GradientStop { position: 0.12; color: n.rimA }
-                GradientStop { position: 0.88; color: n.rimB }
-                GradientStop { position: 1.0; color: "transparent" }
-            }
+            strokeGradient: LinearGradient { id: openGrad; x1: 0; y1: 0; x2: n.width; y2: 0 }
             startX: n.fillet; startY: rim.lipY
             PathLine { x: n.tL - rim.cf; y: rim.lipY }
             PathQuad { x: rim.lx; y: rim.jy; controlX: rim.lx; controlY: rim.lipY }
@@ -251,6 +243,51 @@ Item {
                 GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.95) }
                 GradientStop { position: 1.0; color: "transparent" }
             }
+        }
+    }
+
+    // both rims share one set of stops: transparent at the very ends, the colours in between
+    readonly property var rimColors: rimStops && rimStops.length >= 2 ? rimStops : [rimA, rimB]
+    Component { id: stopC; GradientStop {} }
+    property var oldStops: []
+    function buildRims() {
+        const made = [];
+        for (const g of [restGrad, openGrad]) {
+            const cs = rimColors, k = cs.length;
+            const list = [stopC.createObject(g, { position: 0, color: "transparent" })];
+            for (let i = 0; i < k; i++)
+                list.push(stopC.createObject(g, { position: 0.08 + 0.84 * i / (k - 1), color: cs[i] }));
+            list.push(stopC.createObject(g, { position: 1, color: "transparent" }));
+            g.stops = list;
+            made.push(...list);
+        }
+        for (const s of oldStops) s.destroy();
+        oldStops = made;
+    }
+    onRimColorsChanged: buildRims()
+    Component.onCompleted: buildRims()
+
+    // while open: a soft light travelling slowly along the lip, left to right
+    Rectangle {
+        id: drift
+        visible: !n.solid && n.shimmer && n.glass > 0.9
+        width: 320
+        height: 2
+        y: n.bandH - 1.5
+        opacity: 0.55
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop { position: 0.0; color: "transparent" }
+            GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.8) }
+            GradientStop { position: 1.0; color: "transparent" }
+        }
+        NumberAnimation on x {
+            running: drift.visible
+            loops: Animation.Infinite
+            from: n.fillet - drift.width
+            to: n.width - n.fillet
+            duration: 6500
+            easing.type: Easing.InOutSine
         }
     }
 }
