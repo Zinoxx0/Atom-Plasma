@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Shapes
+import "Rice"
 
 // The launcher's mark: a glowing core with two tilted orbits crossing like an atom, a
 // satellite on each. The far half of every orbit passes behind the core, so it has depth.
@@ -43,7 +44,7 @@ Item {
     readonly property real openT2: 300
 
     property real lit: open ? 1 : hovered ? 0.75 : 0.45   // glow strength
-    Behavior on lit { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
+    Behavior on lit { NumberAnimation { duration: Tokens.ms(280); easing.type: Easing.OutCubic } }
     property real flare: open ? 1.22 : hovered ? 1.08 : 1
     Behavior on flare { SpringAnimation { spring: 3.4; damping: 0.2; epsilon: 0.002 } }
 
@@ -59,8 +60,8 @@ Item {
     function near(t) { return Math.sin(t * Math.PI / 180) >= 0 }
 
     // hover: one full swing round, satellites in opposite directions; open/close glide to place
-    NumberAnimation { id: swing1; target: e; property: "t1"; duration: 1100; easing.type: Easing.OutCubic }
-    NumberAnimation { id: swing2; target: e; property: "t2"; duration: 1100; easing.type: Easing.OutCubic }
+    NumberAnimation { id: swing1; target: e; property: "t1"; duration: Tokens.ms(1100); easing.type: Easing.OutCubic }
+    NumberAnimation { id: swing2; target: e; property: "t2"; duration: Tokens.ms(1100); easing.type: Easing.OutCubic }
     function glide(to1, to2, extra) {
         swing1.stop(); swing2.stop()
         t1 = ((t1 % 360) + 360) % 360
@@ -114,8 +115,8 @@ Item {
     }
     ParallelAnimation {
         id: rippleAnim
-        NumberAnimation { target: ripple; property: "scale"; from: 0.6; to: 2.0; duration: 560; easing.type: Easing.OutCubic }
-        NumberAnimation { target: ripple; property: "opacity"; from: 0.85; to: 0; duration: 560; easing.type: Easing.OutQuad }
+        NumberAnimation { target: ripple; property: "scale"; from: 0.6; to: 2.0; duration: Tokens.ms(560); easing.type: Easing.OutCubic }
+        NumberAnimation { target: ripple; property: "opacity"; from: 0.85; to: 0; duration: Tokens.ms(560); easing.type: Easing.OutQuad }
     }
 
     // the mark itself, squished as one when pressed

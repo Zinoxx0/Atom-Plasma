@@ -114,7 +114,7 @@ Item {
                         radius: 1
                         color: "white"
                         opacity: 0.9
-                        Behavior on height { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+                        Behavior on height { NumberAnimation { duration: Tokens.fast; easing.type: Tokens.enter } }
                         Timer {
                             interval: 150 + parent.index * 37
                             repeat: true
