@@ -23,17 +23,17 @@ not cold or cyberpunk.
 | 0.5 | Plasma 6.8 upgrade (own step when it lands) | orchestrator | waiting (not in repos 2026-10-14) |
 | 1 | Shell surfaces (Plasma Style, bars, popups) | agent A | integrated 2026-10-16 (commits 8354c03, 9a39a11); check-in pending |
 | 2 | Glimpse opened band v2 | agent B | integrated 2026-10-15 (commit in plasmoids repo); check-in raised |
-| 3 | Launcher, logout, lock | agent A | running (sent 2026-10-16 02:10) |
+| 3 | Launcher, logout, lock | agent A | integrated 2026-10-16 (a90a187, 94e8301; kdeglobals LookAndFeelPackage=com.zinoxx.rice); live check pending |
 | 4 | Konsole, Dolphin, decorations, KWin motion | agent C | integrated 2026-10-16 (3d187d8); check-in pending |
-| 5 | Boot chain (Limine, Plymouth, login, splash) | agent C + orchestrator | running (sent 2026-10-16; C leaves limine.conf + limine-mkinitcpio to the orchestrator) |
-| 6 | Consistency sweep, perf, memory | orchestrator | todo |
+| 5 | Boot chain (Limine, Plymouth, login, splash) | agent C + orchestrator | applied 2026-10-16 (4e26020; limine header + limine-mkinitcpio run by orchestrator, both initramfs contain the rice theme); reboot check pending |
+| 6 | Consistency sweep, perf, memory | orchestrator | next |
 
 ## Agents
 | Agent | Brief | Owns | State | Last commit |
 |-------|-------|------|-------|-------------|
-| A shell | agents/A-shell.md (M1, done) then agents/A-launcher.md (M3, running) | plasma-style/build.py, plasmoids session/sysstats/claudeusage/wallpicker, qml/Rice/{Clawd,Ring}.qml + new Rice files | M3 running | M1: 8354c03 + 9a39a11 |
+| A shell | agents/A-shell.md (M1, done) then agents/A-launcher.md (M3, running) | plasma-style/build.py, plasmoids session/sysstats/claudeusage/wallpicker, qml/Rice/{Clawd,Ring}.qml + new Rice files | done | M1 8354c03 9a39a11, M3 a90a187 94e8301 |
 | B glimpse | agents/B-glimpse.md (M2) | plasmoid com.zinoxx.glimpse | done, integrated | Glimpse v2 commit |
-| C apps | agents/C-apps.md (M4) | rice.py ansi/konsole/apply_konsole/alacritty/apply_kwin, apps.py, templates/, konsole/dolphin/darkly/klassy/kwinrc effects+blur, fastfetch, ~/.local/share/kwin/effects | running (launched 2026-10-15) | - |
+| C apps | agents/C-apps.md (M4) then agents/C-boot.md (M5), both done | rice.py ansi/konsole/apply_konsole/alacritty/apply_kwin, apps.py, templates/, konsole/dolphin/darkly/klassy/kwinrc effects+blur, fastfetch, ~/.local/share/kwin/effects | running (launched 2026-10-15) | - |
 All agents: rules in agents/COMMON.md. Orchestrator meanwhile: bars (panel/build.py: same layout on every screen,
 stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-in.
 
@@ -93,7 +93,16 @@ stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-
 - Plasma popups aren't visible to KWin scripts (stackingOrder), so shots.py opens/closes popups by timing.
 - Clock + tray have no global shortcut; shots.py clicks them (positions from plasmashell scripting).
 
+## Rollback notes
+- Boot: /boot/limine.conf.pre-m5 is the pre-M5 config (cp back + `sudo limine-mkinitcpio`). Plymouth fallback:
+  `sudo plymouth-set-default-theme cachyos && sudo limine-mkinitcpio`. Logout screen: kdeglobals
+  LookAndFeelPackage=org.kde.breezedark.desktop.
+
 ## Next step
-Briefs ready for later: agents/A-launcher.md (M3, send to agent A after M1 is integrated),
+All agents done (A: M1+M3, B: M2, C: M4+M5). Displays were DPMS-off all night: a background watcher
+(scratchpad/wake-watch.sh) restarts plasmashell on wake (loads the M3 launcher/session). Then: live checks (shots.py
+set `m-live`: screens popups band apps lock + launcher keyboard + logout via promptLogout default mode, cancel at once),
+user answers (band left/centre, icons/cursor, animation speed), reboot check for M5, then M6 sweep.
+Old note: Briefs ready for later: agents/A-launcher.md (M3, send to agent A after M1 is integrated),
 agents/C-boot.md (M5, send to agent C after M4 is integrated). Wait for agent reports; review each `git diff` (plasmoids repo for A/B, plasma-rice repo for A/C), integrate live,
 screenshot, commit. Meanwhile: bars cleanup (orchestrator). M0 check-in raised (baseline + token sheet).
