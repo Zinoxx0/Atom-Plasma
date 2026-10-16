@@ -41,14 +41,44 @@ Window {
         g.hoverTile = null; g.bandHovered = false; g.dropHovered = false
     }
 
+    // Stays mapped (above the strip, which maps first), so opening never waits for the window to come
+    // up (~70 ms the first time). While closed it draws nothing: the band's material has no height and
+    // everything else has faded out. Over a fullscreen window it only maps while open, so nothing sits
+    // on top of a game.
+    readonly property bool drawn: morph > 0 || g.shelfOpen
+    function ensureMapped() {
+        unmap.stop()
+        if (!visible) {
+            visible = true
+            g.shelfMapped = true
+        }
+    }
+    Timer {
+        id: unmap
+        interval: 1000
+        onTriggered: {
+            if (!shelfWin.g.fsMode || shelfWin.g.shelfOpen || shelfWin.morph > 0) return
+            shelfWin.visible = false
+            shelfWin.g.shelfMapped = false
+        }
+    }
+    // after a fullscreen window: map again once the strip is back, so this one lands above it
+    Timer { id: remap; interval: 150; onTriggered: if (!shelfWin.g.fsMode) shelfWin.ensureMapped() }
+    Component.onCompleted: remap.start()
+
     Connections {
         target: shelfWin.g
+        function onFsModeChanged() {
+            if (!shelfWin.g.fsMode) remap.restart()
+            else if (!shelfWin.g.shelfOpen) unmap.restart()
+        }
         function onShelfOpenChanged() {
             const g = shelfWin.g
             if (g.shelfOpen) {
                 closeMorph.stop()
-                shelfWin.visible = true
-                g.shelfMapped = true
+                // back before it had folded away: carry on from where it is, no second light
+                if (shelfWin.morph < 0.3) glintRun.restart()
+                shelfWin.ensureMapped()
                 openMorph.restart()
                 g.shelfRevealed()
             } else {
@@ -59,24 +89,21 @@ Window {
             }
         }
     }
-    // opens with a quick, soft grow; closes at once, the icons fading back into the lip
+    // opens with a quick, soft grow (from wherever a closing left it); closes at once, the icons
+    // fading back into the lip
     SequentialAnimation {
         id: openMorph
-        NumberAnimation { target: shelfWin; property: "morph"; to: 1; duration: Tokens.ms(220); easing.type: Easing.OutQuart }
+        NumberAnimation { target: shelfWin; property: "morph"; to: 1; duration: Tokens.ms(170); easing.type: Easing.OutQuart }
         // drawn for a good few frames by now: the resting band can step aside without a flicker
         ScriptAction { script: if (shelfWin.g.shelfOpen) shelfWin.g.shelfShown = true }
     }
+    // the light that runs out along the rim from where the pointer met the edge
+    property real glint: 1
+    NumberAnimation { id: glintRun; target: shelfWin; property: "glint"; from: 0; to: 1; duration: Tokens.ms(650); easing.type: Easing.OutCubic }
     SequentialAnimation {
         id: closeMorph
         NumberAnimation { target: shelfWin; property: "morph"; to: 0; duration: Tokens.fast; easing.type: Easing.OutCubic }
-        ScriptAction {
-            script: {
-                if (!shelfWin.g.shelfOpen) {
-                    shelfWin.visible = false
-                    shelfWin.g.shelfMapped = false
-                }
-            }
-        }
+        ScriptAction { script: if (!shelfWin.g.shelfOpen && shelfWin.g.fsMode) unmap.restart() }
     }
 
     // ------------------------------------------------------------------ the label tab
@@ -94,10 +121,13 @@ Window {
     Notch {
         id: notch
         width: parent.width
-        height: g.barH + g.tabH + 20
+        height: shelfWin.drawn ? g.barH + g.tabH + 20 : 0
         bandH: shelfWin.bandH
+        bezelH: g.stripHeight
         fillet: g.fillet
         glass: shelfWin.lip
+        glint: shelfWin.glint
+        glintX: g.edgeX
         tabX: lens.x + lens.width / 2
         tabW: shelfWin.tabWidth * (0.6 + 0.4 * shelfWin.tabGrown)     // a droplet that widens as it drops
         tabH: Math.max(0, shelfWin.tabDrop) * shelfWin.lip

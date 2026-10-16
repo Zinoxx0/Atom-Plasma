@@ -470,7 +470,6 @@ PlasmoidItem {
     property bool menuOpen: false        // a tile's context menu is up: keep the band open
     signal shelfRevealed()
     signal shelfClosing()
-    Timer { id: openTimer; interval: root.cfg.hoverDelay; onTriggered: root.shelfOpen = true }
     Timer {
         id: closeTimer
         onTriggered: {
@@ -480,15 +479,24 @@ PlasmoidItem {
             root.thumbTile = null
         }
     }
-    // leaving the opened band closes it at once; the longer grace covers hand-offs, when the band maps
-    // over the strip (or the fullscreen edge) and the pointer has yet to enter it
-    readonly property int handOff: 250
+    // leaving the opened band closes it at once; the short grace covers hand-offs between the strip,
+    // the band and the fullscreen edge, whose leave and enter arrive as two events
+    readonly property int handOff: 80
     function closeIn(ms) { closeTimer.interval = ms; closeTimer.restart() }
+    // The strip always takes the pointer, open or not, so the band can come back the moment the
+    // pointer does: nothing waits for a window to map or a closing animation to end. Only pushing
+    // against the very edge of the screen opens it; hovering the strip just readies the pills.
     property bool stripHovered: false
+    property real edgeX: 0              // where the pointer met the edge: the rim lights up from there
     function stripHover(on) {
         stripHovered = on
-        if (on) { closeTimer.stop(); if (!shelfOpen) openTimer.restart() }
-        else { openTimer.stop(); if (shelfOpen && !shelfHovered) closeIn(handOff) }
+        if (on) closeTimer.stop()
+        else if (shelfOpen && !shelfHovered) closeIn(handOff)
+    }
+    function edgeTouched(x) {
+        if (shelfOpen) return
+        edgeX = x
+        openNow()
     }
     // the opened band counts as one area: the band itself, plus the label tab and the thumbnails under it
     property bool bandHovered: false
@@ -498,7 +506,7 @@ PlasmoidItem {
         if (shelfHovered) closeTimer.stop()
         else if (!menuOpen) closeIn(20)     // just enough for a hand-off to the strip in the same frame
     }
-    function openNow() { openTimer.stop(); closeTimer.stop(); shelfOpen = true }
+    function openNow() { closeTimer.stop(); shelfOpen = true }
 
     // ------------------------------------------------------------------ hover: lens, tab, thumbnails
     property IconTile hoverTile: null    // the icon under the pointer (object-typed: a destroyed tile nulls it)
@@ -676,8 +684,8 @@ PlasmoidItem {
             transientParent: null
             visible: !root.fsMode
             color: "transparent"
-            // KWin may stack it above the opened band: let the band have the pointer while it is up
-            flags: Qt.FramelessWindowHint | Qt.WindowDoesNotAcceptFocus | (root.shelfMapped ? Qt.WindowTransparentForInput : 0)
+            // the opened band is mapped after it (so it is stacked above) and takes the pointer while open
+            flags: Qt.FramelessWindowHint | Qt.WindowDoesNotAcceptFocus
             width: modelData.width
             height: root.stripHeight
             LayerShell.Window.scope: "dock"
@@ -691,8 +699,17 @@ PlasmoidItem {
             // a hidden or destroyed window gets no leave event
             onVisibleChanged: if (!visible && root.stripHovered) root.stripHover(false)
             Component.onDestruction: if (root.stripHovered) root.stripHover(false)
-            HoverHandler { onHoveredChanged: root.stripHover(hovered) }
-            TapHandler { onTapped: root.openNow() }
+            // a MouseArea, not a HoverHandler: it reports every move, including the one that ends on the edge
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                onContainsMouseChanged: {
+                    root.stripHover(containsMouse)
+                    if (containsMouse && mouseY < 1) root.edgeTouched(mouseX)
+                }
+                onPositionChanged: mouse => { if (mouse.y < 1) root.edgeTouched(mouse.x) }
+                onClicked: mouse => { root.edgeX = mouse.x; root.openNow() }
+            }
         }
     }
 
@@ -742,6 +759,7 @@ PlasmoidItem {
                 }
             }
             HoverHandler {
+                id: edgeHover
                 onHoveredChanged: {
                     if (hovered) {
                         closeTimer.stop()
@@ -756,7 +774,7 @@ PlasmoidItem {
             SequentialAnimation {
                 id: dwellAnim
                 NumberAnimation { target: dwell; property: "width"; from: 0; to: edgeWin.width * 0.42; duration: root.cfg.dwellDelay; easing.type: Easing.InOutQuad }
-                ScriptAction { script: { root.openNow(); dwell.width = 0 } }
+                ScriptAction { script: { root.edgeX = edgeHover.point.position.x; root.openNow(); dwell.width = 0 } }
             }
         }
     }

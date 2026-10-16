@@ -55,6 +55,25 @@ Item {
     opacity: presence * pop
     visible: opacity > 0
 
+    // the album art lights the glass under the module, like the apps do under their icons
+    Kirigami.ImageColors { id: artColors; source: media.artUrl }
+    Item {
+        x: -g.px(24)
+        y: g.stripHeight - media.y
+        width: media.width + 2 * g.px(24)
+        height: Math.max(0, g.barH - g.stripHeight)
+        clip: true
+        AppGlow {
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: g.barH - g.stripHeight - 6 - height / 2
+            width: parent.width
+            flat: Math.min(0.62, 70 / Math.max(1, width))
+            tint: C.appTint(artColors, g.cPrimary)
+            strength: media.playing ? 0.32 : 0.16
+            Behavior on strength { NumberAnimation { duration: Tokens.base } }
+        }
+    }
+
     Rectangle {
         anchors.fill: parent
         radius: Math.round(Tokens.radius.sm * g.topScale)

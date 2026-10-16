@@ -6,8 +6,7 @@
   <group name="General">
     <entry name="launchers" type="StringList"><default></default></entry>
     <entry name="showStrip" type="Bool"><default>true</default></entry>
-    <entry name="stripHeight" type="Int"><default>6</default><min>3</min><max>16</max></entry>
-    <entry name="hoverDelay" type="Int"><default>120</default></entry>
+    <entry name="stripHeight" type="Int"><default>8</default><min>3</min><max>16</max></entry>
     <entry name="dwellDelay" type="Int"><default>700</default></entry>
     <entry name="order" type="String"><default>alpha</default></entry>
     <entry name="glimpseStyle" type="String"><default>pills</default></entry>

@@ -37,6 +37,26 @@ Item {
     width: g.fitSlot + (name.visible ? name.width + 4 : 0)
     height: g.barH
 
+    // the app's light on the glass under it: kept to the glass, so it never spills onto the bezel or
+    // past the lip. Brightest for the focused app, faint for apps that live on another screen.
+    Item {
+        x: Math.round((g.fitSlot - width) / 2)
+        y: g.stripHeight
+        width: g.px(84)
+        height: Math.max(0, g.barH - g.stripHeight)
+        clip: true
+        opacity: tile.pop
+        visible: opacity > 0.01
+        AppGlow {
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: g.barH - g.stripHeight - 6 - height / 2
+            width: parent.width
+            tint: tile.tint
+            strength: tile.active ? 0.65 : tile.minimized ? 0.14 : tile.here ? 0.4 : 0.22
+            Behavior on strength { NumberAnimation { duration: Tokens.base } }
+        }
+    }
+
     Item {
         id: art
         x: Math.round((g.fitSlot - g.iconSize) / 2)
@@ -212,11 +232,12 @@ Item {
         }
     }
 
-    // fade and rise into place, one after another, when the band opens; fade out when it closes
+    // fade and rise into place, a quick ripple from the left, when the band opens; fade out when it
+    // closes. Caught while still folding away, it comes straight back from where it is.
     Connections {
         target: g
         function onShelfRevealed() {
-            tile.delay = Tokens.ms(40) + Math.min(12, Math.round(tile.mapToItem(null, 0, 0).x / g.fitSlot)) * Tokens.ms(16)
+            tile.delay = tile.pop > 0.05 ? 0 : Math.min(8, Math.round(tile.mapToItem(null, 0, 0).x / g.fitSlot)) * Tokens.ms(12)
             foldAnim.stop()
             popAnim.restart()
         }
@@ -227,7 +248,6 @@ Item {
     }
     SequentialAnimation {
         id: popAnim
-        PropertyAction { target: tile; property: "pop"; value: 0 }
         PauseAnimation { duration: tile.delay }
         NumberAnimation { target: tile; property: "pop"; to: 1; duration: Tokens.base; easing.type: Easing.OutQuart }
     }

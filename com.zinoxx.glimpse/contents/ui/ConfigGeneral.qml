@@ -6,7 +6,6 @@ import org.kde.kcmutils as KCM
 KCM.SimpleKCM {
     property alias cfg_showStrip: showStrip.checked
     property alias cfg_stripHeight: stripHeight.value
-    property alias cfg_hoverDelay: hoverDelay.value
     property alias cfg_dwellDelay: dwellDelay.value
     property alias cfg_showNames: showNames.checked
     property alias cfg_thumbnails: thumbnails.checked
@@ -33,7 +32,7 @@ KCM.SimpleKCM {
         QQC2.CheckBox {
             id: showStrip
             Kirigami.FormData.label: i18n("Top strip:")
-            text: i18n("Show the window strip at the top of this screen")
+            text: i18n("Show the window strip at the top of this screen (push the pointer against the top edge to open it)")
         }
         QQC2.SpinBox {
             id: stripHeight
@@ -65,13 +64,6 @@ KCM.SimpleKCM {
         QQC2.CheckBox {
             id: showMedia
             text: i18n("Media controls on the right while something plays")
-        }
-        QQC2.SpinBox {
-            id: hoverDelay
-            Kirigami.FormData.label: i18n("Open after hovering (ms):")
-            from: 0
-            to: 1500
-            stepSize: 50
         }
         QQC2.SpinBox {
             id: dwellDelay
