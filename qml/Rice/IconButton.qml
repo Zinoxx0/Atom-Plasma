@@ -12,6 +12,7 @@ Item {
     property string tooltip: ""
     property color accent: palette.primary
     property bool checked: false
+    property bool filled: false        // solid Material Symbols glyph (the font's FILL axis)
     property real size: 32
     signal clicked()
 
@@ -40,6 +41,9 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             text: btn.icon
             color: btn.checked || btn.hovered ? btn.accent : btn.palette.fg
+            // the distance-field renderer ignores variable font axes, so the glyph renders natively
+            renderType: Text.NativeRendering
+            font.variableAxes: btn.filled ? ({ "FILL": 1 }) : ({})
             font.family: Tokens.font.icons
             font.pixelSize: Math.round(btn.size * 0.56)
             Behavior on color { ColorAnimation { duration: Tokens.fast } }

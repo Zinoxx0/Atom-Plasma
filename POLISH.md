@@ -77,7 +77,6 @@ stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-
 - Baseline perf (video playing): gpu 15.9 W avg, plasmashell 4.7% CPU, kwin 24.1% CPU.
 
 ## Open TODOs / known issues
-- IconButton `filled` option (variable FILL axis + Text.NativeRendering), from agent B's note: not done yet.
 - New shutdown-only warning since the new style: PlasmoidHeading "Binding loop detected for property leftInset"
   (stock applets, harmless; maybe dialog margins 10 -> 8).
 - Notification timeout line stays accent-orange (compiled QML; can't reach from Plasma Style).
@@ -100,9 +99,9 @@ stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-
   plasmashellrc.pre-bars. TODO after wake: re-push island styles (`python3 -c "import json,rice;
   rice.apply_screens(rice.screens(), rice.settings(), json.loads((rice.STATE/'palette.json').read_text()))"` in
   ~/.config/plasma-rice) so the per-island gradient follows the new DP-3 order; check all 3 bars in a screenshot.
-- Token sweep findings (left to fix): literal durations in launcher Emblem.qml (280/1100/560 ms one-shots ->
-  Tokens.ms), MediaModule 140 ms, session power-icon OutBack overshoot 0.8 (allowed but could be OutCubic);
-  hex literals: glimpse 12, launcher 8 (check they're intentional, e.g. shadows). Popup-only skeleton loops are fine.
+- Token sweep done 2026-10-16 07:05: Emblem + MediaModule durations now Tokens-scaled; remaining hex literals are
+  intentional (white/black alpha chrome, bezel, Emblem defaults overridden by the palette); session power icon keeps a
+  0.8 OutBack (within the rule); popup-only skeleton loops are fine. IconButton gained `filled` (FILL axis, native text).
 
 ## Rollback notes
 - Boot: /boot/limine.conf.pre-m5 is the pre-M5 config (cp back + `sudo limine-mkinitcpio`). Plymouth fallback:
@@ -110,8 +109,8 @@ stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-
   LookAndFeelPackage=org.kde.breezedark.desktop.
 
 ## Next step
-(2026-10-16 ~02:45) Usage limit reached mid-M6. Resume here: wait for display wake (watcher restarts plasmashell),
-then re-push islands (M6 progress above), live checks, user answers, reboot check, finish the token sweep.
+(2026-10-16 07:05) Waiting for display wake (watcher restarts plasmashell), then re-push islands (M6 progress
+above), live checks, user answers, reboot check, perf pass, memory update.
 All agents done (A: M1+M3, B: M2, C: M4+M5). Displays were DPMS-off all night: a background watcher
 (scratchpad/wake-watch.sh) restarts plasmashell on wake (loads the M3 launcher/session). Then: live checks (shots.py
 set `m-live`: screens popups band apps lock + launcher keyboard + logout via promptLogout default mode, cancel at once),
