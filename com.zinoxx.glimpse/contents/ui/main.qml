@@ -5,7 +5,6 @@ import org.kde.plasma.plasmoid
 import org.kde.kirigami as Kirigami
 import org.kde.taskmanager as TaskManager
 import org.kde.kitemmodels as KItemModels
-import org.kde.plasma.plasma5support as P5Support
 import org.kde.layershell as LayerShell
 import "Rice"
 import "Rice/Color.js" as C
@@ -72,10 +71,8 @@ PlasmoidItem {
     // cards and badges over the opened drawer: the bezel on a dark screen, frost on a light one
     readonly property color cPanel: pal.light ? pal.surfaceLowest : cBezel
 
-    P5Support.DataSource {
+    RiceShell {
         id: sh
-        engine: "executable"
-        connectedSources: []
         onNewData: (source, data) => {
             if (source.endsWith("#outputs")) {
                 try {

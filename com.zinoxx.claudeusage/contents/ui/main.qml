@@ -3,7 +3,6 @@ import QtQuick.Layouts
 import QtQuick.Window
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
-import org.kde.plasma.plasma5support as P5Support
 import "Rice"
 import "Rice/Color.js" as C
 
@@ -22,10 +21,8 @@ PlasmoidItem {
     // ---------- data ----------
     readonly property string codeDir: Qt.resolvedUrl("../code/").toString().replace("file://", "")
 
-    P5Support.DataSource {
+    RiceShell {
         id: sh
-        engine: "executable"
-        connectedSources: []
         onNewData: (source, data) => {
             if (source.endsWith("#ask")) {
                 const out = (data["stdout"] ?? "").trim();

@@ -4,7 +4,6 @@ import QtQuick.Layouts
 import QtQuick.Window
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
-import org.kde.plasma.plasma5support as P5Support
 import org.kde.kirigami as Kirigami
 import "Rice"
 import "Rice/Color.js" as C
@@ -29,16 +28,14 @@ PlasmoidItem {
         { id: "shutdown", icon: "power_settings_new", label: "Shut down", tone: "bad",       cmd: "qdbus6 org.kde.LogoutPrompt /LogoutPrompt org.kde.LogoutPrompt.promptShutDown" },
     ]
 
-    P5Support.DataSource {
+    RiceShell {
         id: sh
-        engine: "executable"
-        connectedSources: []
         onNewData: (source, data) => {
             if (source.indexOf("#up") >= 0) root.uptime = parseFloat(data["stdout"] ?? "0") || 0;
             disconnectSource(source);
         }
     }
-    function refresh() { sh.connectSource('cut -d" " -f1 /proc/uptime #up ' + Date.now()) }
+    function refresh() { sh.connectSource('cut -d" " -f1 /proc/uptime #up') }
     Component.onCompleted: refresh()
     onExpandedChanged: if (root.expanded) refresh()
 

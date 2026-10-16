@@ -5,7 +5,6 @@ import QtQuick.Window
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.components as PlasmaComponents
-import org.kde.plasma.plasma5support as P5Support
 import org.kde.kirigami as Kirigami
 import "Rice"
 import "Rice/Color.js" as C
@@ -63,10 +62,8 @@ PlasmoidItem {
             if (i >= wallModel.count || wallModel.get(i).name !== names[i]) wallModel.insert(i, { name: names[i] });
     }
 
-    P5Support.DataSource {
+    RiceShell {
         id: sh
-        engine: "executable"
-        connectedSources: []
         onNewData: (source, data) => {
             const out = data["stdout"] ?? "";
             const kind = (source.match(/#(\w+) \d+$/) || [])[1];     // the tags in a fetch could contain anything

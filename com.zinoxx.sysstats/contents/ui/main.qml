@@ -3,7 +3,6 @@ import QtQuick.Layouts
 import QtQuick.Window
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
-import org.kde.plasma.plasma5support as P5Support
 import org.kde.ksysguard.sensors as Sensors
 import "Rice"
 import "Rice/Color.js" as C
@@ -17,10 +16,8 @@ PlasmoidItem {
     Account { id: me }
     readonly property real uiScale: pal.uiScale
 
-    P5Support.DataSource {
+    RiceShell {
         id: sh
-        engine: "executable"
-        connectedSources: []
         onNewData: (source, data) => {
             if (source.indexOf("#up") >= 0) root.uptime = parseFloat(data["stdout"] ?? "0") || 0;
             else if (source.indexOf("#top") >= 0) root.topProcs = root.parseTop(data["stdout"] ?? "");
@@ -28,7 +25,7 @@ PlasmoidItem {
         }
     }
     property real uptime: 0
-    onExpandedChanged: if (expanded) sh.connectSource('cut -d" " -f1 /proc/uptime #up ' + Date.now())
+    onExpandedChanged: if (expanded) sh.connectSource('cut -d" " -f1 /proc/uptime #up')
 
     readonly property int rate: expanded ? 1000 : 2500
     Sensors.Sensor { id: cpu;     sensorId: "cpu/all/usage";               updateRateLimit: root.rate }
@@ -69,7 +66,7 @@ PlasmoidItem {
             ? "nvidia-smi pmon -c 1 -s u 2>/dev/null | awk 'NR > 2 && $4 ~ /^[0-9]+$/ { print $4, $NF }' | sort -rn | head -3"
             : "ps -eo " + (tab === 1 ? "rss" : "pcpu") + ",comm --no-headers --sort=-" + (tab === 1 ? "rss" : "pcpu") + " | head -3"
     }
-    function readTop() { sh.connectSource(topCommand() + " #top " + Date.now()) }
+    function readTop() { sh.connectSource(topCommand() + " #top") }
     function parseTop(out) {
         return out.split("\n").map(l => l.trim()).filter(l => l).map(l => {
             const i = l.indexOf(" ");

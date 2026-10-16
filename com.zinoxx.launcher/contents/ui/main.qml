@@ -9,7 +9,6 @@ import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.components as PlasmaComponents
 import org.kde.plasma.extras as PlasmaExtras
-import org.kde.plasma.plasma5support as P5Support
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.private.kicker as Kicker
 import "Rice"
@@ -31,10 +30,8 @@ PlasmoidItem {
     readonly property real s: pal.uiScale
     function px(n) { return Math.round(n * s) }
 
-    P5Support.DataSource {
+    RiceShell {
         id: sh
-        engine: "executable"
-        connectedSources: []
         onNewData: (source, data) => {
             if (source.indexOf("#mode") >= 0 && String(data["stdout"] ?? "").trim() === "walls") root.openWallpapers("desktop")
             disconnectSource(source)
@@ -49,7 +46,7 @@ PlasmoidItem {
     // Meta+Shift+W (~/.local/share/applications/net.local.rice-wallpapers.desktop) leaves a note,
     // then opens the launcher: read it once per opening
     onExpandedChanged: {
-        if (root.expanded) sh.connectSource('f="$HOME/.local/state/rice/launcher-open"; cat "$f" 2>/dev/null; rm -f "$f" #mode ' + Date.now())
+        if (root.expanded) sh.connectSource('f="$HOME/.local/state/rice/launcher-open"; cat "$f" 2>/dev/null; rm -f "$f" #mode')
         else { view = "apps"; wallMode = "desktop" }
     }
     // the wheel over the emblem: this screen's next / previous wallpaper

@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
 import org.kde.plasma.core as PlasmaCore
-import org.kde.plasma.plasma5support as P5Support
 import "Rice"
 import "Rice/Color.js" as C
 
@@ -83,10 +82,8 @@ Item {
         sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" theme reset --screen ' + q(target) + ' #tset ' + Date.now())
     }
 
-    P5Support.DataSource {
+    RiceShell {
         id: sh
-        engine: "executable"
-        connectedSources: []
         onNewData: (source, data) => {
             const out = data["stdout"] ?? ""
             if (source.indexOf("#tshow") >= 0) {

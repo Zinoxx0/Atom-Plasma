@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Layouts
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
-import org.kde.plasma.plasma5support as P5Support
 import "Rice"
 
 // Rice Desk: the desktop's information layer, one per screen. A clock with the date and a status
@@ -54,10 +53,8 @@ PlasmoidItem {
     property var weather: null
     // ---- Claude usage, for Clawd
     property var usage: null
-    P5Support.DataSource {
+    RiceShell {
         id: sh
-        engine: "executable"
-        connectedSources: []
         onNewData: (source, data) => {
             const out = data["stdout"] ?? ""
             if (source.indexOf("#weather") >= 0) { try { root.weather = JSON.parse(out) } catch (e) {} }
@@ -67,11 +64,11 @@ PlasmoidItem {
     }
     Timer {
         interval: 15 * 60 * 1000; running: true; repeat: true; triggeredOnStart: true
-        onTriggered: sh.connectSource('python3 "$HOME/.config/plasma-rice/weather.py" #weather ' + Date.now())
+        onTriggered: sh.connectSource('python3 "$HOME/.config/plasma-rice/weather.py" #weather')
     }
     Timer {
         interval: 30000; running: root.desk.clawd === true; repeat: true; triggeredOnStart: true
-        onTriggered: sh.connectSource('cat "$HOME/.cache/claude-usage.json" 2>/dev/null #usage ' + Date.now())
+        onTriggered: sh.connectSource('cat "$HOME/.cache/claude-usage.json" 2>/dev/null #usage')
     }
 
     // ---- Clawd's situation (the bar's Claude widget, in short)
