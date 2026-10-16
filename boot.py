@@ -52,7 +52,7 @@ SPLASH_IMAGES = HOME / ".local/share/plasma/look-and-feel/com.zinoxx.rice/conten
 FRAMES = 60
 
 # the greeter's icon and cursor themes: one line each to switch (the user picks at a check-in)
-GREETER_ICONS = "Papirus-Rice"
+GREETER_ICONS = "Tela-circle-dracula-dark"
 GREETER_CURSOR = "Simp1e-Tokyo-Night"
 
 # the fixed boot surface: the Plasma Style's popup fill, a breath of light in the middle

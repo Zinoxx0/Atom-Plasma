@@ -26,11 +26,13 @@ Writes / applies:
     ~/.config/alacritty/plasma-rice.toml
     templates/*                                 e.g. ~/.config/starship.toml
     kwinrc [Round-Corners]                      gradient window border (primary -> tertiary)
-    ~/.local/share/icons/Papirus-Rice           folder colour nearest the accent (icons.py)
+    ~/.local/share/icons/Papirus-Rice           folder colour nearest the accent (icons.py; only when
+                                                settings icon_theme is Papirus-Rice)
     look-and-feel/com.zinoxx.rice splash palette
     apps.py                                     VS Code, btop, MangoHud, Zen themes
 Settings: ~/.config/plasma-rice/settings.json (scheme, tokyo_tint, depth, candy, wallhaven_queries,
-bar_scale for the size of a bar's widgets, top_scale for the Glimpse band at the top;
+bar_scale for the size of a bar's widgets, top_scale for the Glimpse band at the top,
+icon_theme;
 each is one factor for every screen or {output: factor}).
 The current-wallpaper symlink is ~/.local/state/rice/wallpaper.
 """
@@ -575,7 +577,7 @@ def main():
     apply_scheme(p)
     apply_kwin(p)
     apply_konsole(p)
-    icons.apply(p["primary"])
+    icons.apply(p["primary"], cfg.get("icon_theme", "Papirus-Rice"))
     apps.apply(p)
 
     if arg != "restore":

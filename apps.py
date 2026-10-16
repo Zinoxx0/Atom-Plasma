@@ -155,6 +155,14 @@ def konsole_chrome():
     state = kde_read(staterc).get(("MainWindow",), {}).get("State")
     if state:
         kde_set(staterc, {"MainWindow": {"State": qt_toolbars_hidden(state, ("mainToolBar", "sessionToolbar"))}})
+    # hide them in open windows too, so what those write back on close is already right
+    names = subprocess.run(["qdbus6"], capture_output=True, text=True).stdout.split()
+    for svc in (n for n in names if n.startswith("org.kde.konsole-")):
+        paths = subprocess.run(["qdbus6", svc], capture_output=True, text=True).stdout.split()
+        for path in (p for p in paths if p.count("/") == 2 and p.startswith("/konsole/MainWindow_")):
+            for bar in ("mainToolBar", "sessionToolbar"):
+                subprocess.run(["qdbus6", svc, path, "org.kde.konsole.KXmlGuiWindow.setToolBarVisible", bar, "false"],
+                               capture_output=True)
 
 
 def qt_toolbars_hidden(state_b64, names):

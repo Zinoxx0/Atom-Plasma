@@ -63,8 +63,21 @@ def index_theme():
     return "\n".join(body)
 
 
-def apply(accent):
-    """Point the folder icons at the colour nearest `accent`. Returns (colour, changed)."""
+def use_theme(theme):
+    """Make `theme` the active icon theme (plasma-changeicons also tells running apps)."""
+    now = subprocess.run(["kreadconfig6", "--file", "kdeglobals", "--group", "Icons", "--key", "Theme"],
+                         capture_output=True, text=True).stdout.strip()
+    if now != theme:
+        subprocess.run(["/usr/lib/plasma-changeicons", theme], capture_output=True, check=False)
+
+
+def apply(accent, theme="Papirus-Rice"):
+    """Point the folder icons at the colour nearest `accent`. Returns (colour, changed).
+    Any other theme (settings icon_theme) has fixed folder colours, so it is only made active."""
+    if theme != "Papirus-Rice":
+        use_theme(theme)
+        return None, False
+    use_theme(theme)
     color = nearest(accent)
     marker = DST / ".color"
     if marker.exists() and marker.read_text() == color:
