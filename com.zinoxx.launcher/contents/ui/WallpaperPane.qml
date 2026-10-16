@@ -9,10 +9,12 @@ import org.kde.kirigami as Kirigami
 import "Rice"
 import "Rice/Color.js" as C
 
-// The wallpaper picker, inside the launcher: a grid of ~/Pictures/Wallpapers. Clicking one runs
+// The Theme page, inside the launcher. Wallpapers: a grid of ~/Pictures/Wallpapers; clicking one runs
 // ~/.config/plasma-rice/rice.py, which sets it on the chosen screen(s) and re-themes the desktop
-// from it. Screen chips pick the target, presets keep every screen's wallpaper under a short name,
-// "Get more" asks wallhaven for new ones. In "hero" mode it only picks the launcher's hero image.
+// from it; "Get more" asks wallhaven for new ones. Colours (ColoursTab): the mood and accents rice.py
+// read from the wallpaper, to change by hand. Screen chips pick the target; themes keep every
+// screen's wallpaper and hand-picked colours under a short name. In "hero" mode it only picks the
+// launcher's hero image.
 Item {
     id: wp
     property var cfg                        // the launcher's Plasmoid.configuration
@@ -35,7 +37,8 @@ Item {
     property string status: ""
     property bool loaded: false
     property var fresh: []          // file names brought by the last "Get more" (badged in the grid)
-    property bool naming: false     // the preset name field is out
+    property bool naming: false     // the theme name field is out
+    property string tab: "walls"    // "walls" | "colours"
 
     readonly property string target: screens.some(s => s.name === cfg.wallTarget) ? cfg.wallTarget : "all"
     readonly property var targetScreen: screens.find(s => s.name === target) ?? null
@@ -89,7 +92,7 @@ Item {
                 wp.reload()
             } else if (kind === "psave") {
                 const name = out.trim()
-                wp.status = name ? "Saved preset “" + name + "”" : "Couldn't save the preset"
+                wp.status = name ? "Saved theme “" + name + "”" : "Couldn't save the theme"
                 wp.reload()
             } else if (kind === "pdelete") {
                 wp.reload()
@@ -147,7 +150,7 @@ Item {
         sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" preset load ' + q(name) + ' #apply ' + Date.now())
     }
     function deletePreset(name) {
-        status = "Deleted preset “" + name + "”"
+        status = "Deleted theme “" + name + "”"
         sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" preset delete ' + q(name) + ' #pdelete ' + Date.now())
     }
     // on screen right now: every connected screen it knows shows its wallpaper, and the theme is its
@@ -184,7 +187,7 @@ Item {
                 Layout.fillWidth: true
                 spacing: 0
                 Text {
-                    text: wp.heroMode ? "Hero image" : "Wallpapers"
+                    text: wp.heroMode ? "Hero image" : "Theme"
                     color: pal.fg
                     font.family: Tokens.font.display
                     font.weight: Font.Bold
@@ -193,7 +196,7 @@ Item {
                 Text {
                     Layout.fillWidth: true
                     text: wp.heroMode ? "Pick the picture behind the clock · hover to preview"
-                        : !wp.loaded ? "" : wp.status || (wp.walls.length + " wallpapers · "
+                        : !wp.loaded ? "" : wp.status || ((wp.tab === "colours" ? "Accents" : wp.walls.length + " wallpapers") + " · "
                           + (wp.targetScreen ? "for " + wp.targetScreen.label : "for every screen"))
                     elide: Text.ElideRight
                     color: pal.muted
@@ -201,27 +204,57 @@ Item {
                     font.pixelSize: Tokens.size.label
                 }
             }
-            Row {
+            // Wallpapers | Colours
+            Rectangle {
                 visible: !wp.heroMode
-                spacing: -6
-                Repeater {
-                    model: ["primary", "secondary", "tertiary", "red", "orange", "yellow", "green", "cyan", "blue", "magenta"]
-                    Rectangle {
-                        id: dot
-                        required property string modelData
-                        required property int index
-                        width: 20; height: 20; radius: 10
-                        color: pal.col(modelData)
-                        border.width: 2
-                        border.color: pal.surface
-                        z: dotTip.containsMouse ? 30 : 20 - index
-                        scale: dotTip.containsMouse ? 1.2 : 1
-                        Behavior on scale { NumberAnimation { duration: Tokens.fast; easing.type: Tokens.enter } }
-                        PlasmaCore.ToolTipArea {
-                            id: dotTip
-                            anchors.fill: parent
-                            mainText: dot.modelData
-                            subText: String(pal.col(dot.modelData))
+                implicitWidth: tabs.implicitWidth + 6
+                implicitHeight: 34
+                radius: height / 2
+                color: C.alpha(pal.fg, 0.05)
+                border.width: 1
+                border.color: C.alpha(pal.edge, Tokens.alpha.outline)
+                Row {
+                    id: tabs
+                    anchors.centerIn: parent
+                    spacing: 2
+                    Repeater {
+                        model: [{ id: "walls", icon: "wallpaper", text: "Wallpapers" }, { id: "colours", icon: "palette", text: "Colours" }]
+                        Rectangle {
+                            id: tb
+                            required property var modelData
+                            readonly property bool on: wp.tab === modelData.id
+                            width: tbRow.implicitWidth + 2 * Tokens.space.md
+                            height: 28
+                            radius: height / 2
+                            color: on ? pal.primary : tbMouse.containsMouse ? C.alpha(pal.fg, 0.08) : "transparent"
+                            Behavior on color { ColorAnimation { duration: Tokens.fast } }
+                            Row {
+                                id: tbRow
+                                anchors.centerIn: parent
+                                spacing: Tokens.space.xs + 2
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: tb.modelData.icon
+                                    color: tb.on ? pal.onPrimary : pal.fgDim
+                                    font.family: Tokens.font.icons
+                                    font.pixelSize: 16
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: tb.modelData.text
+                                    color: tb.on ? pal.onPrimary : pal.fg
+                                    font.family: Tokens.font.ui
+                                    font.weight: Font.DemiBold
+                                    font.pixelSize: Tokens.size.label
+                                }
+                            }
+                            MouseArea {
+                                id: tbMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: wp.tab = tb.modelData.id
+                            }
                         }
                     }
                 }
@@ -306,17 +339,17 @@ Item {
             }
         }
 
-        // actions, and presets (every screen's wallpaper under a name: click to bring the look back,
-        // right-click to delete; saving asks for a name, 10 characters at most)
+        // actions, and themes (every screen's wallpaper and hand-picked colours under a name: click to
+        // bring the look back, right-click to delete; saving asks for a name, 10 characters at most)
         RowLayout {
             Layout.fillWidth: true
             spacing: Tokens.space.sm
             visible: !wp.heroMode
-            Pill { palette: pal; icon: "shuffle"; tooltip: "Shuffle"; busy: wp.busy === "apply" && wp.pending === "random"; onClicked: wp.apply("random") }
-            Pill { palette: pal; icon: "skip_previous"; tooltip: "Previous"; onClicked: wp.apply("prev") }
-            Pill { palette: pal; icon: "skip_next"; tooltip: "Next"; onClicked: wp.apply("next") }
-            Pill { palette: pal; icon: "folder_open"; tooltip: "Open the wallpaper folder"; accent: pal.secondary; onAccent: pal.col("on_secondary"); onClicked: wp.openFolder() }
-            Rectangle { implicitWidth: 1; implicitHeight: 22; color: C.alpha(pal.fg, 0.12) }
+            Pill { palette: pal; visible: wp.tab === "walls"; icon: "shuffle"; tooltip: "Shuffle"; busy: wp.busy === "apply" && wp.pending === "random"; onClicked: wp.apply("random") }
+            Pill { palette: pal; visible: wp.tab === "walls"; icon: "skip_previous"; tooltip: "Previous"; onClicked: wp.apply("prev") }
+            Pill { palette: pal; visible: wp.tab === "walls"; icon: "skip_next"; tooltip: "Next"; onClicked: wp.apply("next") }
+            Pill { palette: pal; visible: wp.tab === "walls"; icon: "folder_open"; tooltip: "Open the wallpaper folder"; accent: pal.secondary; onAccent: pal.col("on_secondary"); onClicked: wp.openFolder() }
+            Rectangle { visible: wp.tab === "walls"; implicitWidth: 1; implicitHeight: 22; color: C.alpha(pal.fg, 0.12) }
             ListView {
                 id: presetList
                 Layout.fillWidth: true
@@ -397,7 +430,8 @@ Item {
                     PlasmaCore.ToolTipArea {
                         anchors.fill: parent
                         mainText: pc.modelData.name
-                        subText: (pc.isOn ? "On screen now" : "Click to bring this look back") + " · right-click to delete"
+                        subText: (pc.modelData.overrides ? "Wallpapers and colours · " : "")
+                               + (pc.isOn ? "On screen now" : "Click to bring this theme back") + " · right-click to delete"
                         MouseArea {
                             id: pcMouse
                             anchors.fill: parent
@@ -420,7 +454,7 @@ Item {
                 palette: pal
                 glyph: "bookmark"
                 maximumLength: 10
-                placeholder: "Preset name, 10 letters max"
+                placeholder: "Theme name, 10 letters max"
                 accent: pal.primary
                 onAccent: pal.onPrimary
                 onAccepted: wp.savePreset(text)
@@ -429,8 +463,8 @@ Item {
             Pill {
                 palette: pal
                 icon: wp.naming ? "check" : "bookmark_add"
-                text: wp.naming ? "Save" : (wp.presets.length ? "" : "Save preset")
-                tooltip: wp.naming ? "" : "Keep the wallpaper of every screen under a name"
+                text: wp.naming ? "Save" : (wp.presets.length ? "" : "Save theme")
+                tooltip: wp.naming ? "" : "Save theme: every screen's wallpaper and colours under a name"
                 onClicked: {
                     if (wp.naming) { wp.savePreset(presetField.text); return }
                     presetField.text = ""
@@ -444,7 +478,7 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             spacing: Tokens.space.sm
-            visible: !wp.heroMode
+            visible: !wp.heroMode && wp.tab === "walls"
             TagField {
                 id: tagField
                 Layout.fillWidth: true
@@ -477,7 +511,7 @@ Item {
             spacing: Tokens.space.xs + 2
             clip: true
             boundsBehavior: Flickable.StopAtBounds
-            visible: !wp.heroMode && wp.cfg.tagHistory.length > 0
+            visible: !wp.heroMode && wp.tab === "walls" && wp.cfg.tagHistory.length > 0
             model: wp.cfg.tagHistory
             layer.enabled: contentWidth > width
             layer.effect: EdgeFade { view: recentTags }
@@ -500,10 +534,21 @@ Item {
             }
         }
 
+        // Colours: the target screen's mood and accents, editable
+        ColoursTab {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            visible: !wp.heroMode && wp.tab === "colours"
+            pal: pal
+            screen: wp.target === "all" ? Screen.name : wp.target
+            target: wp.target
+        }
+
         // the grid (with its loading and empty states)
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
+            visible: wp.heroMode || wp.tab === "walls"
 
             GridView {
                 id: grid

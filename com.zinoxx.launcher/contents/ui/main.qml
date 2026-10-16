@@ -691,8 +691,8 @@ PlasmoidItem {
 
                     IconButton {
                         palette: pal
-                        icon: "wallpaper"
-                        tooltip: "Wallpapers"
+                        icon: "palette"
+                        tooltip: "Theme: wallpapers and colours"
                         size: root.px(46)
                         onClicked: root.openWallpapers("desktop")
                     }
