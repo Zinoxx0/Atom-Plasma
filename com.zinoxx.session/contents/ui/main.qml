@@ -7,8 +7,9 @@ import org.kde.plasma.plasma5support as P5Support
 import "Rice"
 import "Rice/Color.js" as C
 
-// wlogout-style session menu. Log out / restart / shut down need a second
-// click within 4 s, so a stray click can't end the session.
+// wlogout-style session menu. Log out / restart / shut down open the rice logout screen
+// (org.kde.LogoutPrompt), the one confirmation every launcher uses, so a stray click can't
+// end the session.
 PlasmoidItem {
     id: root
 
@@ -16,14 +17,13 @@ PlasmoidItem {
     Account { id: me }
     readonly property real uiScale: pal.uiScale
     property real uptime: 0
-    property string armed: ""
 
     readonly property var actions: [
-        { id: "lock",     icon: "lock",               label: "Lock",      color: "primary",  confirm: false, cmd: "loginctl lock-session" },
-        { id: "sleep",    icon: "bedtime",            label: "Sleep",     color: "tertiary", confirm: false, cmd: "systemctl suspend" },
-        { id: "logout",   icon: "logout",             label: "Log out",   color: "yellow",   confirm: true,  cmd: "qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout" },
-        { id: "reboot",   icon: "restart_alt",        label: "Restart",   color: "orange",   confirm: true,  cmd: "qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logoutAndReboot" },
-        { id: "shutdown", icon: "power_settings_new", label: "Shut down", color: "red",      confirm: true,  cmd: "qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logoutAndShutdown" },
+        { id: "lock",     icon: "lock",               label: "Lock",      color: "primary",  cmd: "loginctl lock-session" },
+        { id: "sleep",    icon: "bedtime",            label: "Sleep",     color: "tertiary", cmd: "systemctl suspend" },
+        { id: "logout",   icon: "logout",             label: "Log out",   color: "yellow",   cmd: "qdbus6 org.kde.LogoutPrompt /LogoutPrompt org.kde.LogoutPrompt.promptLogout" },
+        { id: "reboot",   icon: "restart_alt",        label: "Restart",   color: "orange",   cmd: "qdbus6 org.kde.LogoutPrompt /LogoutPrompt org.kde.LogoutPrompt.promptReboot" },
+        { id: "shutdown", icon: "power_settings_new", label: "Shut down", color: "red",      cmd: "qdbus6 org.kde.LogoutPrompt /LogoutPrompt org.kde.LogoutPrompt.promptShutDown" },
     ]
 
     P5Support.DataSource {
@@ -37,15 +37,12 @@ PlasmoidItem {
     }
     function refresh() { sh.connectSource('cut -d" " -f1 /proc/uptime #up ' + Date.now()) }
     Component.onCompleted: refresh()
-    onExpandedChanged: { armed = ""; if (root.expanded) refresh() }
+    onExpandedChanged: if (root.expanded) refresh()
 
     function trigger(a) {
-        if (a.confirm && armed !== a.id) { armed = a.id; disarm.restart(); return }
-        armed = "";
         root.expanded = false;
         sh.connectSource(a.cmd + " #run " + Date.now());
     }
-    Timer { id: disarm; interval: 4000; onTriggered: root.armed = "" }
 
     function upText(s) {
         const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
@@ -132,11 +129,10 @@ PlasmoidItem {
                             required property var modelData
                             required property int index
                             readonly property color tint: pal.col(modelData.color)
-                            readonly property bool isArmed: root.armed === modelData.id
-                            readonly property bool hot: m.containsMouse || activeFocus || isArmed
+                            readonly property bool hot: m.containsMouse || activeFocus
                             width: 92; height: 104
                             radius: Tokens.radius.md
-                            color: isArmed ? tint : C.alpha(tint, m.pressed ? 0.30 : hot ? 0.22 : 0.10)
+                            color: C.alpha(tint, m.pressed ? 0.30 : hot ? 0.22 : 0.10)
                             border.width: 1
                             border.color: C.alpha(tint, hot ? 0.65 : 0.22)
                             scale: m.pressed ? 0.96 : hot ? 1.03 : 1
@@ -158,33 +154,20 @@ PlasmoidItem {
                                 Text {
                                     anchors.horizontalCenter: parent.horizontalCenter
                                     text: tile.modelData.icon
-                                    color: tile.isArmed ? pal.col("background") : tile.tint
+                                    color: tile.tint
                                     font.family: Tokens.font.icons
                                     font.pixelSize: 32
                                     // grow by scale, not font size, so the layout stays put
-                                    scale: tile.hot && !tile.isArmed ? 1.12 : 1
+                                    scale: tile.hot ? 1.12 : 1
                                     Behavior on scale { NumberAnimation { duration: Tokens.base; easing.type: Tokens.enter } }
                                 }
                                 Text {
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    text: tile.isArmed ? "Again?" : tile.modelData.label
-                                    color: tile.isArmed ? pal.col("background") : pal.fg
+                                    text: tile.modelData.label
+                                    color: pal.fg
                                     font.family: Tokens.font.ui
                                     font.weight: Font.DemiBold
                                     font.pixelSize: Tokens.size.label
-                                }
-                            }
-                            // countdown while armed
-                            Rectangle {
-                                anchors { left: parent.left; bottom: parent.bottom; leftMargin: Tokens.space.lg; bottomMargin: Tokens.space.sm + 2 }
-                                height: 3; radius: 1.5
-                                color: pal.col("background")
-                                opacity: 0.6
-                                width: 0
-                                visible: tile.isArmed
-                                NumberAnimation on width {
-                                    running: tile.isArmed
-                                    from: tile.width - 2 * Tokens.space.lg; to: 0; duration: 4000
                                 }
                             }
                             FocusRing { radius: tile.radius }
