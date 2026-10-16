@@ -85,6 +85,12 @@ PlasmoidItem {
     readonly property bool working: usage !== null && updatedAgo < 180
     // what Claude Code is doing (its hooks), watched only where Clawd is shown
     ClaudeActivity { id: claude; active: root.desk.clawd === true }
+    // a check-in from Claude (ask.sh): the "!" over the desktop Clawd and its message under the clock,
+    // until it's marked done (a click on Clawd, or the bar's popup) or Claude clears it
+    ClaudeAsk { id: checkIn; active: root.desk.clawd === true }
+    readonly property bool asking: checkIn.asking
+    readonly property string askMsg: checkIn.msg
+    function askDone() { checkIn.done() }
     readonly property string activity: claude.activity
     // rain or snow outside (Open-Meteo / WMO weather codes): an umbrella, a scarf
     readonly property string sky: {

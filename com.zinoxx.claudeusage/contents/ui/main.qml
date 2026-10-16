@@ -24,12 +24,7 @@ PlasmoidItem {
     RiceShell {
         id: sh
         onNewData: (source, data) => {
-            if (source.endsWith("#ask")) {
-                const out = (data["stdout"] ?? "").trim();
-                let a = null;
-                try { if (out) a = JSON.parse(out) } catch (e) {}
-                root.ask = a;
-            } else if (source.endsWith("#usage")) {
+            if (source.endsWith("#usage")) {
                 try { root.usage = JSON.parse(data["stdout"] ?? "") } catch (e) { root.usage = null }
             }
             disconnectSource(source);
@@ -48,18 +43,12 @@ PlasmoidItem {
         onTriggered: root.now = Date.now() / 1000
     }
     // a check-in Claude asked for (~/.config/plasma-rice/ask.sh): a big "!" over Clawd until "Done"
-    property var ask: null
-    readonly property bool asking: ask !== null && !(ask.ack > 0)
+    // (or until Claude clears it); ClaudeAsk watches the file, no polling
+    ClaudeAsk { id: checkIn }
+    readonly property var ask: checkIn.ask
+    readonly property bool asking: checkIn.asking
     Plasmoid.status: asking ? PlasmaCore.Types.NeedsAttentionStatus : PlasmaCore.Types.ActiveStatus
-    function ackAsk() {
-        if (!ask) return;
-        ask = Object.assign({}, ask, { ack: Math.floor(Date.now() / 1000) });
-        sh.connectSource('sh "$HOME/.config/plasma-rice/ask.sh" --ack #ack');
-    }
-    Timer {
-        interval: 3000; running: true; repeat: true; triggeredOnStart: true
-        onTriggered: sh.connectSource('cat "$HOME/.local/state/rice/ask.json" 2>/dev/null #ask')
-    }
+    function ackAsk() { checkIn.done() }
     Timer {   // limit notifications (80% / 95%), once per window
         interval: 60000; running: true; repeat: true; triggeredOnStart: true
         onTriggered: sh.connectSource("python3 '" + root.codeDir + "alerts.py'")
@@ -201,6 +190,7 @@ PlasmoidItem {
                 alert: root.asking
                 pal: root.palValues
                 hovered: compact.containsMouse
+                onAlertClicked: root.expanded = true        // the popup has the message and Done
                 Layout.alignment: Qt.AlignVCenter
                 Layout.topMargin: 2
             }

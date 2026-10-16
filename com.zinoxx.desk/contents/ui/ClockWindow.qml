@@ -121,6 +121,20 @@ DeskWindow {
                     font.pixelSize: cw.statusSize
                 }
             }
+            // a check-in from Claude, in the hover forecast's place (so the window has room), until it's
+            // settled (a click on Clawd marks it done); hovering still shows the forecast
+            Text {
+                visible: cw.d.asking && cw.d.desk.clawd === true && !hover.hovered
+                Layout.alignment: cw.align
+                Layout.maximumWidth: col.width
+                Layout.topMargin: Math.round(cw.bh * 0.045)
+                elide: Text.ElideRight
+                text: "!   " + cw.d.askMsg
+                color: cw.dark ? "#b4233c" : "#ff7d92"
+                font.family: Tokens.font.ui
+                font.weight: Font.DemiBold
+                font.pixelSize: cw.statusSize
+            }
             // the next hours, on hover, on one line: hour, sky, temperature
             Row {
                 Layout.alignment: cw.align
@@ -177,6 +191,8 @@ DeskWindow {
         daypart: cw.d.daypart
         season: cw.d.season
         pal: cw.d.pal.values
+        alert: cw.d.asking
+        onAlertClicked: cw.d.askDone()
         interactive: true
         animate: cw.visible
     }
