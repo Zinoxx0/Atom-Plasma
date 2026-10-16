@@ -339,6 +339,11 @@ def apply_style(p):
 def apply_scheme(p):
     schemes = HOME / ".local/share/color-schemes"
     current = run("kreadconfig6", "--file", "kdeglobals", "--group", "General", "--key", "ColorScheme").stdout.strip()
+    try:        # unchanged (a colour edit on another screen): leave the apps alone, no repaint
+        if current in ("RiceA", "RiceB") and (schemes / f"{current}.colors").read_text() == kde_scheme(p, current):
+            return
+    except OSError:
+        pass
     name = "RiceB" if current == "RiceA" else "RiceA"
     write_if_changed(schemes / f"{name}.colors", kde_scheme(p, name))
     run("plasma-apply-colorscheme", name)
@@ -475,7 +480,7 @@ def screens():
         o = outs.get((d["x"], d["y"]))
         if not o:
             continue
-        s = found.setdefault(o["name"], dict(o, screen=d["screen"], x=d["x"], main=d["screen"] == 0,
+        s = found.setdefault(o["name"], dict(o, screen=d["screen"], x=d["x"], y=d["y"], main=d["screen"] == 0,
                                               desktops=[], image=""))
         s["desktops"].append(d["id"])
         img = d["image"].removeprefix("file://")
@@ -538,6 +543,9 @@ def theme_args(args):
         if flag in args:
             i = args.index(flag)
             v = args[i + 1] if i + 1 < len(args) else ""
+            if v in ("auto", ""):       # back to the wallpaper's own
+                out[k] = "auto"
+                continue
             if k == "mood":
                 if v not in palette.MOODS + ("auto", ""):
                     sys.exit(f"mood is one of {', '.join(palette.MOODS)} or auto")
@@ -770,8 +778,15 @@ def main():
         return
     if arg == "screens":
         ss = screens()
+        lead, ovs = lead_screen(ss), overrides()
         for s in ss:
             s["thumb"] = str(thumb(Path(s["image"]))) if s["image"] else ""
+            s["lead"] = s["name"] == lead                   # its wallpaper drives the system theme
+            s["overrides"] = ovs.get(s["name"], {})         # hand-picked colours
+            try:
+                s["accent"] = json.loads((STATE / f"palette-{s['name']}.json").read_text())["primary"]
+            except (OSError, ValueError, KeyError):
+                s["accent"] = ""
         print(json.dumps(ss))
         return
     if arg == "presets":
