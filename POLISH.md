@@ -20,7 +20,7 @@ not cold or cyberpunk.
 | 0.2 | Safety net (git x3, backup tarball) | orchestrator | done 2026-10-14 |
 | 0.3 | Baseline screenshots + perf | orchestrator | done 2026-10-14 (~/.cache/rice/shots/baseline) |
 | 0.4 | Design tokens + shared QML module | orchestrator | done 2026-10-15 (tokens.py, qml/Rice, token sheet) |
-| 0.5 | Plasma 6.8 upgrade (own step when it lands) | orchestrator | waiting (not in repos 2026-10-14) |
+| 0.5 | Plasma 6.8 upgrade (own step when it lands) | orchestrator | arrived 2026-10-16 14:01 via the user's cachy-update (repo part OK, snapper 105/106); rebuilding AUR plugins (darkly, klassy, better-blur-dx, panel-colorizer, kara, rounded-corners-rice), then reboot + verify |
 | 1 | Shell surfaces (Plasma Style, bars, popups) | agent A | integrated 2026-10-16 (commits 8354c03, 9a39a11); check-in pending |
 | 2 | Glimpse opened band v2 | agent B | integrated 2026-10-15 (commit in plasmoids repo); check-in raised |
 | 3 | Launcher, logout, lock | agent A | integrated 2026-10-16 (a90a187, 94e8301; kdeglobals LookAndFeelPackage=com.zinoxx.rice); live check pending |
