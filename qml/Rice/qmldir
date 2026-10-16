@@ -14,3 +14,4 @@ FocusRing FocusRing.qml
 Pill Pill.qml
 PopupHeader PopupHeader.qml
 Aurora Aurora.qml
+RiceShell RiceShell.qml

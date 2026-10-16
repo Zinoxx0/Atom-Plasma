@@ -723,8 +723,18 @@ def apply_screens(ss, cfg, fallback):
     for bar in bars:
         if bar["screen"] in pals:
             p = pals[bar["screen"]]
-            build.colorizer_apply(bar, {"widgets": build.widget_settings(p),
-                                        "configurationOverrides": build.island_overrides(p, bar)})
+            patch = {"widgets": build.widget_settings(p), "configurationOverrides": build.island_overrides(p, bar)}
+            # only bars whose islands change: each apply runs in plasmashell and restyles the whole bar
+            # (a pick on one screen leaves the other two bars as they are)
+            seen = CACHE / "colorizer" / f"{bar['panel']}-{bar['colorizer']}.sha1"
+            key = hashlib.sha1(json.dumps(patch, sort_keys=True).encode()).hexdigest()
+            try:
+                if seen.read_text() == key:
+                    continue
+            except OSError:
+                pass
+            if build.colorizer_apply(bar, patch):
+                write_if_changed(seen, key)
 
 
 def set_lockscreen(img):
@@ -935,7 +945,7 @@ def main():
 
     if arg != "restore":
         where = one["label"] if one and len(ss) > 1 else "all screens" if len(ss) > 1 else ""
-        run("notify-send", "-a", "Theme", "-i", str(img), "-h",
+        run("notify-send", "-a", "Theme", "-i", str(thumb(img)), "-h",     # not the full image: plasmashell decodes the icon
             "string:x-canonical-private-synchronous:wallpaper", "Theme updated",
             f"Preset “{preset}”" if preset else img.name + (f" · {where}" if where else ""))
 

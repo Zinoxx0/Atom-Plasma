@@ -1,7 +1,6 @@
 import QtQuick
 import QtCore
 import Qt.labs.folderlistmodel
-import org.kde.plasma.plasma5support as P5Support
 import org.kde.kirigami as Kirigami
 import "Color.js" as C
 
@@ -95,22 +94,42 @@ Item {
     Behavior on blue { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
     Behavior on magenta { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
 
-    function refresh() {
-        if (output)
-            sh.connectSource('cat "$HOME/.local/state/rice/palette-' + output + '.json" 2>/dev/null'
-                             + ' || cat "$HOME/.local/state/rice/palette.json" #pal ' + output + ' ' + Date.now());
+    // The file is read with XMLHttpRequest, no process: plasmashell runs with QML_XHR_ALLOW_FILE_READ=1
+    // (~/.config/systemd/user/plasma-plasmashell.service.d/rice.conf). Without it (the logout screen,
+    // the splash) the request never answers, so after a short wait `cat` reads it through RiceShell.
+    // An unchanged file leaves `values` alone: a new object re-runs every binding on the raw palette
+    // (the desk layout, the rim stops, Clawd), and every palette re-reads at each colour scheme switch.
+    property string raw: ""                     // the file as last taken
+    function take(t) {
+        if (!t || t === raw) return;
+        try {
+            const j = JSON.parse(t);
+            if (j && j.primary) { raw = t; values = j; }
+        } catch (e) {}
     }
-    P5Support.DataSource {
+    property int reads: 0
+    function refresh() {
+        if (!output) return;
+        const n = ++reads;
+        const x = new XMLHttpRequest();
+        x.onreadystatechange = () => {
+            if (x.readyState !== XMLHttpRequest.DONE || n !== rp.reads) return;
+            viaShell.stop();
+            if (x.responseText) rp.take(x.responseText);
+            else rp.shellRead();
+        };
+        x.open("GET", StandardPaths.writableLocation(StandardPaths.HomeLocation) + "/.local/state/rice/palette-" + output + ".json");
+        x.send();
+        viaShell.restart();
+    }
+    function shellRead() {
+        sh.connectSource('cat "$HOME/.local/state/rice/palette-' + output + '.json" 2>/dev/null'
+                         + ' || cat "$HOME/.local/state/rice/palette.json" #pal ' + output);
+    }
+    Timer { id: viaShell; interval: 250; onTriggered: rp.shellRead() }
+    RiceShell {
         id: sh
-        engine: "executable"
-        connectedSources: []
-        onNewData: (source, data) => {
-            try {
-                const j = JSON.parse(data["stdout"] ?? "");
-                if (j && j.primary) rp.values = j;
-            } catch (e) {}
-            disconnectSource(source);
-        }
+        onNewData: (source, data) => rp.take(data["stdout"] ?? "")
     }
     // rice.py writes the file (to a temp name, then a rename) on every wallpaper change: a watch on
     // its folder (inotify, no polling) sees each replace, so every widget follows its screen at once.

@@ -452,6 +452,8 @@ def main():
             break
         time.sleep(0.5)
     time.sleep(1)
+    for f in (HOME / ".cache/rice/colorizer").glob("*.sha1"):     # rice.py skips bars it thinks are current
+        f.unlink()
     subprocess.run([str(HOME / ".config/plasma-rice/rice.py"), "restore"], check=False)
 
 
