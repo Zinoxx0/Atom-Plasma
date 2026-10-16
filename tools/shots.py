@@ -120,10 +120,10 @@ def band(d):
     with Pointer() as p:
         p.move(o["x"] + o["w"] / 2, o["y"] + 300)
         time.sleep(0.4)
-        p.glide(o["x"] + o["w"] / 2, o["y"] + 300, o["x"] + 400, o["y"] + 2, 250)
+        p.glide(o["x"] + o["w"] / 2, o["y"] + 300, o["x"] + 400, o["y"], 250)  # it opens on the very edge
         time.sleep(0.9)
         crop(capture(d / "_band.png"), MAIN, top=180).save(d / "band-open.png")
-        p.glide(o["x"] + 400, o["y"] + 2, o["x"] + 44, o["y"] + 20, 300)     # over the first icon
+        p.glide(o["x"] + 400, o["y"], o["x"] + 44, o["y"] + 20, 300)     # over the first icon
         time.sleep(0.9)
         crop(capture(d / "_band.png"), MAIN, top=180).save(d / "band-hover.png")
         p.glide(o["x"] + 44, o["y"] + 20, o["x"] + o["w"] / 2, o["y"] + 400, 200)

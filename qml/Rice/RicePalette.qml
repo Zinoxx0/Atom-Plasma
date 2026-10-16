@@ -1,4 +1,6 @@
 import QtQuick
+import QtCore
+import Qt.labs.folderlistmodel
 import org.kde.plasma.plasma5support as P5Support
 import org.kde.kirigami as Kirigami
 
@@ -64,7 +66,17 @@ Item {
             disconnectSource(source);
         }
     }
-    // rice.py re-themes by switching the colour scheme (RiceA/RiceB): the cue to re-read the file
+    // rice.py writes the file (to a temp name, then a rename) on every wallpaper change: a watch on
+    // its folder (inotify, no polling) sees each replace, so every widget follows its screen at once.
+    // The colour scheme switch used to be the cue, but plasmashell 6.8 no longer passes it on live.
+    FolderListModel {
+        folder: StandardPaths.writableLocation(StandardPaths.HomeLocation) + "/.local/state/rice"
+        nameFilters: rp.output ? ["palette-" + rp.output + ".json"] : []
+        showDirs: false
+        onDataChanged: reread.restart()
+        onRowsInserted: reread.restart()
+    }
+    Timer { id: reread; interval: 120; onTriggered: rp.refresh() }     // one read per burst of writes
     readonly property color themeAccent: Kirigami.Theme.highlightColor
     onThemeAccentChanged: refresh()
     onOutputChanged: refresh()
