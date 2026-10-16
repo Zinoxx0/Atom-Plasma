@@ -165,7 +165,12 @@ Theme page / 5 sweep + tests.
       theme-screen file = the screen driving the theme; presets save/load overrides + lead (a preset is a theme). Launcher:
       WallpaperPane is the "Theme" page with Wallpapers | Colours tabs (ColoursTab.qml: mood chips, 3 accent cards, wallpaper
       swatches, H/S/L sliders + hex, intensity, preview island, Discard/Automatic + Apply); wording preset -> theme.
-- [ ] P5 sweep: user check of the Colours tab; idle 11.5 W GPU / plasmashell 3.1 % / KWin 3.3 % (with audio playing).
+- [x] P4b Theme page redesign after the user's UX note ("the customization flow feels messy"), 83bae12 + 8b1dfb2:
+      scope wide -> narrow (Themes, Screens desk map, then Wallpaper | Colours tabs with their own tools), one label rail,
+      Save look labelled and dotted while unsaved, Colours LIVE with Undo/Automatic, Discover (wallhaven) collapsed.
+      User choices: live edits, desk map, keep the launcher's left panel, collapsible Discover. Verified live with uinput:
+      1440p -> Void -> Undo, 0.5 s each (bug found + fixed: theme set rejected "auto" for colours).
+- [ ] P5 sweep: user check of the Theme page; idle 11.5 W GPU / plasmashell 3.1 % / KWin 3.3 % (with audio playing).
 Gotchas: Colorizer's fg override sets `color` on every Text/Icon of an island (would flatten our accent text, so only
 stock islands get it); `palette.edge` inside a FocusRing resolves to FocusRing's own Item.palette (qualify with the
 root id); a light KDE scheme makes the portal report light (Zen/web would follow: pinned dark).
