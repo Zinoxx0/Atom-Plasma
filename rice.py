@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plasma rice: set a wallpaper and re-theme the desktop from it.
+"""Atom Plasma: set a wallpaper and re-theme the desktop from it.
 
     rice.py <image>          set a specific image
     rice.py next|prev        step through ~/Pictures/Wallpapers
@@ -180,7 +180,7 @@ def kde_scheme(p, name):
     out.append("[Colors:Selection]")
     out += [f"BackgroundNormal={c(p['primary'])}", f"BackgroundAlternate={c(p['primary_dim'])}"]
     out += [f"{k}={c(v)}" for k, v in sel.items()]
-    out += ["", "[General]", f"ColorScheme={name}", f"Name=Rice ({name[-1]})", "accentActiveTitlebar=false",
+    out += ["", "[General]", f"ColorScheme={name}", f"Name=Atom Plasma ({name[-1]})", "accentActiveTitlebar=false",
             "accentInactiveTitlebar=false", "shadeSortColumn=true", "TitlebarIsAccentColored=false", "",
             "[KDE]", "contrast=4", "",
             "[WM]",

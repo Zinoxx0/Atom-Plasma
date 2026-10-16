@@ -32,8 +32,8 @@ BG = "ColorScheme-Background"
 # popups and tooltips: one fixed neutral body. The scheme background is the last-picked wallpaper's colour,
 # which tinted popups on the other screens (plum over a blue screen)
 VARIANTS = {
-    "dark": dict(dir="Rice", name="Rice", NEUTRAL="#12131a", INK=WHITE, TICK="#14151b", LIGHT=False, SHADOW=1.0),
-    "light": dict(dir="Rice-Light", name="Rice Light", NEUTRAL="#f4f5f8", INK=BLACK, TICK="#ffffff", LIGHT=True,
+    "dark": dict(dir="Rice", name="Atom Plasma", NEUTRAL="#12131a", INK=WHITE, TICK="#14151b", LIGHT=False, SHADOW=1.0),
+    "light": dict(dir="Rice-Light", name="Atom Plasma Light", NEUTRAL="#f4f5f8", INK=BLACK, TICK="#ffffff", LIGHT=True,
                   SHADOW=0.55),
 }
 NEUTRAL, INK, TICK, LIGHT, SHADOW = "#12131a", WHITE, "#14151b", False, 1.0

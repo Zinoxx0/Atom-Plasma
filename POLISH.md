@@ -1,4 +1,6 @@
-# Polish pass: live handoff file
+# Atom Plasma (plasma-rice): polish pass handoff file
+
+The project's name is Atom Plasma (2026-10-16); paths and ids keep `rice` (plasma-rice, com.zinoxx.rice, the Rice style, RiceA/RiceB).
 
 Read this first when resuming. The full plan is `~/.claude/plans/stateless-sauteeing-map.md`.
 Goal: HyDE-level polish on KDE Plasma (bars/islands, widgets, launcher, Glimpse top band, Konsole,
