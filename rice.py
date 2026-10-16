@@ -324,34 +324,47 @@ KWIN_EFFECTS = {   # effect id -> on; rice_* live in plasma-rice/kwin (apps.py s
     "rice_window": True,            # open/close: fade + small scale (replaces glide / scale)
     "rice_popups": True,            # menus, tooltips: fade + short slide (replaces fadingpopups)
     "kwin6_effect_glide": False, "scale": False, "fadingpopups": False,
+    # rounded corners + window border: the local build (pkg/kwin-effect-rounded-corners-rice) that
+    # colours each window's border from its own screen's palette, under its own id
+    "kwin4_effect_shapecorners": False, "kwin4_effect_shapecorners_rice": True,
 }
+CORNERS = "kwin4_effect_shapecorners_rice"
 BLUR_CLASSES = ["zen", "dolphin", "Alacritty"]   # force-blurred: these don't ask for blur KWin 6.7 understands
 
 
 def apply_kwin(p):
     """Window chrome. ShapeCorners clips every window to the windows radius (tokens md) and draws the
-    active window's gradient border (primary -> tertiary, HyDE style); Klassy draws the titlebar and
-    the shadow with the same round corner (a squircle clip would leave Klassy's round shadow peeking
-    out at the corners), the active window's shadow faintly tinted with the accent. Also keeps the
-    rice's window motion effects loaded and the blur settings."""
+    active window's gradient border (primary -> tertiary, HyDE style) in the palette of the screen the
+    window is on ([Round-Corners][Output <name>], read by the patched local build; `p` is the fallback);
+    Klassy draws the titlebar and a neutral shadow with the same round corner (a squircle clip would
+    leave Klassy's round shadow peeking out at the corners; a tinted shadow can't follow the screen).
+    Also keeps the rice's window motion effects loaded and the blur settings."""
     c, r = palette.rgb_csv, tokens.TOKENS["radius"]["md"]
     corners = apps.kde_set("kwinrc", {"Round-Corners": {
         "Size": r, "InactiveCornerRadius": r, "UseSquircleShape": False, "UseNativeDecorationShadows": True,
         "OutlineColor": c(p["primary"]), "OutlineColor2": c(p["tertiary"]),
         "InactiveOutlineColor": c(p["outline_variant"]), "InactiveOutlineColor2": c(p["outline_variant"])}})
+    for f in sorted(STATE.glob("palette-*.json")):
+        try:
+            sp = json.loads(f.read_text())
+        except (OSError, ValueError):
+            continue
+        corners |= apps.kde_set("kwinrc", {("Round-Corners", f"Output {f.stem.removeprefix('palette-')}"): {
+            "OutlineColor": c(sp["primary"]), "OutlineColor2": c(sp["tertiary"]),
+            "InactiveOutlineColor": c(sp["outline_variant"])}})
     blur = apps.kde_set("kwinrc", {"Effect-better-blur-dx": {"BlurStrength": 8, "WindowClasses": "\n".join(BLUR_CLASSES)}})
     deco = apps.kde_set("kwinrc", {"org.kde.kdecoration2": {"ButtonsOnLeft": "M", "ButtonsOnRight": "IAX"}})
     deco |= apps.kde_set("klassy/klassyrc", {
         "Windeco": {"WindowCornerRadius": r},
         "ShadowStyle": {"ShadowSizeActive": "ShadowLarge", "ShadowStrengthActive": 230,
-                        "ShadowColorActive": c(palette.mix("#000000", p["primary"], 0.18)),
+                        "ShadowColorActive": "0,0,0",
                         "ShadowSizeInactive": "ShadowMedium", "ShadowStrengthInactive": 150,
                         "ShadowColorInactive": "0,0,0"}})
     apps.kde_set("kwinrc", {"Plugins": {f"{e}Enabled": on for e, on in KWIN_EFFECTS.items()}})
 
     fx = "org.kde.kwin.Effects"
     if corners:
-        run("qdbus6", "org.kde.KWin", "/Effects", f"{fx}.reconfigureEffect", "kwin4_effect_shapecorners")
+        run("qdbus6", "org.kde.KWin", "/Effects", f"{fx}.reconfigureEffect", CORNERS)
     if blur:
         run("qdbus6", "org.kde.KWin", "/Effects", f"{fx}.reconfigureEffect", "better_blur_dx")
     if deco:    # decorations only re-read their settings on a KWin reconfigure (scripts stay as they are)

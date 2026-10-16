@@ -1,0 +1,294 @@
+diff --git a/src/Animation.cpp b/src/Animation.cpp
+index f4f1d6d..6639403 100644
+--- a/src/Animation.cpp
++++ b/src/Animation.cpp
+@@ -7,7 +7,9 @@
+ 
+ #include "WindowManager.h"
+ #if QT_VERSION_MAJOR >= 6
++#include <core/output.h>
+ #include <effect/effecthandler.h>
++#include <effect/effectwindow.h>
+ #else
+ #include <kwineffects.h>
+ #endif
+@@ -18,6 +20,24 @@
+ 
+ using namespace std::chrono;
+ 
++namespace
++{
++    /**
++     * @brief Rice patch: the active or inactive config, with the outline colours of the window's output.
++     */
++    ShapeCorners::WindowConfig configFor(const ShapeCorners::Window &window, const bool active)
++    {
++        auto config = active ? ShapeCorners::WindowConfig::activeWindowConfig()
++                             : ShapeCorners::WindowConfig::inactiveWindowConfig();
++#if QT_VERSION_MAJOR >= 6
++        if (const auto *const output = window.w->screen()) {
++            config.applyOutputColors(output->name(), active);
++        }
++#endif
++        return config;
++    }
++} // namespace
++
+ ShapeCorners::Animation::Animation() = default;
+ 
+ void ShapeCorners::Animation::update(Window &window)
+@@ -31,8 +51,8 @@ void ShapeCorners::Animation::update(Window &window)
+     }
+ 
+     // Fetch the current active and inactive configs from the palette once per update.
+-    const auto activeConfig   = WindowConfig::activeWindowConfig();
+-    const auto inactiveConfig = WindowConfig::inactiveWindowConfig();
++    const auto activeConfig   = configFor(window, true);
++    const auto inactiveConfig = configFor(window, false);
+ 
+     // If not animating, skip update.
+     if (!window.isAnimating) {
+@@ -89,10 +109,10 @@ void ShapeCorners::Animation::setActiveWindowChanged(Window *window)
+     // If animation is disabled, just set the config and skip animation settings
+     if (Config::animationDuration() == 0) {
+         if (currentActiveWindow != nullptr) {
+-            currentActiveWindow->currentConfig = WindowConfig::activeWindowConfig();
++            currentActiveWindow->currentConfig = configFor(*currentActiveWindow, true);
+         }
+         if (lastActiveWindow != nullptr) {
+-            lastActiveWindow->currentConfig = WindowConfig::inactiveWindowConfig();
++            lastActiveWindow->currentConfig = configFor(*lastActiveWindow, false);
+         }
+         return;
+     }
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 1a9a4e9..f4a6c63 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -18,19 +18,19 @@ set(effect_SRCS
+ )
+ 
+ kconfig_add_kcfg_files(effect_SRCS Config.kcfgc)
+-kcoreaddons_add_plugin(kwin4_effect_shapecorners SOURCES ${effect_SRCS} INSTALL_NAMESPACE "${KWIN_NAMESPACE_PREFIX}/effects/plugins/")
++kcoreaddons_add_plugin(kwin4_effect_shapecorners_rice SOURCES ${effect_SRCS} INSTALL_NAMESPACE "${KWIN_NAMESPACE_PREFIX}/effects/plugins/")
+ 
+-target_link_libraries(kwin4_effect_shapecorners
++target_link_libraries(kwin4_effect_shapecorners_rice
+     Qt${QT_MAJOR_VERSION}::DBus
+     KF${QT_MAJOR_VERSION}::ConfigGui
+ )
+ if(${QT_MAJOR_VERSION} EQUAL 6)
+-    target_link_libraries(kwin4_effect_shapecorners
++    target_link_libraries(kwin4_effect_shapecorners_rice
+             ${KWIN_LIB_NAME}::kwin
+             Qt${QT_MAJOR_VERSION}::CorePrivate
+     )
+ else()
+-    target_link_libraries(kwin4_effect_shapecorners
++    target_link_libraries(kwin4_effect_shapecorners_rice
+             KWinEffects::kwineffects
+             KWinEffects::kwinglutils
+     )
+@@ -41,7 +41,7 @@ list(GET _kwin_ver_list 0 _kwin_ver_major)
+ list(GET _kwin_ver_list 1 _kwin_ver_minor)
+ list(GET _kwin_ver_list 2 _kwin_ver_patch)
+ math(EXPR _kwin_ver_num "(${_kwin_ver_major} << 16) | (${_kwin_ver_minor} << 8) | ${_kwin_ver_patch}")
+-target_compile_definitions(kwin4_effect_shapecorners PRIVATE KWIN_PLUGIN_VERSION_NUM=${_kwin_ver_num})
++target_compile_definitions(kwin4_effect_shapecorners_rice PRIVATE KWIN_PLUGIN_VERSION_NUM=${_kwin_ver_num})
+ 
+ option(DEBUG_INCLUSIONS "Add debug logs for inclusion & exclusion lists" OFF)
+ option(DEBUG_MAXIMIZED "Add debug logs for maximized windows" OFF)
+@@ -53,17 +53,17 @@ endif ()
+ if (DEBUG_INCLUSIONS OR DEBUG_MAXIMIZED)
+     message("-- Debug: Switched to debug mode because of other flags.")
+     set(CMAKE_BUILD_TYPE "Debug")
+-    target_compile_definitions(kwin4_effect_shapecorners PRIVATE QT_DEBUG)
++    target_compile_definitions(kwin4_effect_shapecorners_rice PRIVATE QT_DEBUG)
+ endif ()
+ 
+ if (DEBUG_INCLUSIONS)
+     message("-- Debug: Inclusion & exclusion debug logs are enabled.")
+-    target_compile_definitions(kwin4_effect_shapecorners PRIVATE DEBUG_INCLUSIONS)
++    target_compile_definitions(kwin4_effect_shapecorners_rice PRIVATE DEBUG_INCLUSIONS)
+ endif (DEBUG_INCLUSIONS)
+ 
+ if (DEBUG_MAXIMIZED)
+     message("-- Debug: Maximized debug logs are enabled.")
+-    target_compile_definitions(kwin4_effect_shapecorners PRIVATE DEBUG_MAXIMIZED)
++    target_compile_definitions(kwin4_effect_shapecorners_rice PRIVATE DEBUG_MAXIMIZED)
+ endif (DEBUG_MAXIMIZED)
+ 
+ add_subdirectory(kcm)
+diff --git a/src/Effect.cpp b/src/Effect.cpp
+index 0578b98..6f97454 100644
+--- a/src/Effect.cpp
++++ b/src/Effect.cpp
+@@ -27,6 +27,7 @@
+ #include "Config.h"
+ #include "Utils.h"
+ #include "Window.h"
++#include "WindowConfig.h"
+ #include "WindowManager.h"
+ #if QT_VERSION_MAJOR >= 6
+ #include <core/output.h>
+@@ -116,6 +117,7 @@ void ShapeCorners::Effect::reconfigure(const ReconfigureFlags flags)
+ 
+     // Reload configuration settings.
+     Config::self()->read();
++    WindowConfig::reloadOutputColors();
+ 
+     if (!m_animation) {
+         m_animation = std::make_unique<Animation>();
+diff --git a/src/WindowConfig.cpp b/src/WindowConfig.cpp
+index 546d922..0cc4ba2 100644
+--- a/src/WindowConfig.cpp
++++ b/src/WindowConfig.cpp
+@@ -1,4 +1,7 @@
+ #include "WindowConfig.h"
++#include <KConfigGroup>
++#include <KSharedConfig>
++#include <QHash>
+ #include <QPalette>
+ #include <QWidget>
+ #include "Config.h"
+@@ -75,6 +78,20 @@ namespace
+             outline.angle  = 0.0F;
+         }
+     }
++
++    /**
++     * @brief Rice patch: the outline colours set for one output.
++     */
++    struct OutputColors {
++        QColor outline;
++        QColor outline2;
++        QColor inactive;
++    };
++
++    /**
++     * @brief Rice patch: output name -> its outline colours (filled by WindowConfig::reloadOutputColors).
++     */
++    QHash<QString, OutputColors> s_outputColors;
+ } // namespace
+ 
+ namespace ShapeCorners
+@@ -283,3 +300,46 @@ void ShapeCorners::WindowConfig::clamp(const WindowConfig &direction, const Wind
+     secondOutline.clamp(direction.secondOutline, destination.secondOutline);
+     outerOutline.clamp(direction.outerOutline, destination.outerOutline);
+ }
++
++void ShapeCorners::WindowConfig::reloadOutputColors()
++{
++    s_outputColors.clear();
++    const auto cfg = KSharedConfig::openConfig(QStringLiteral("kwinrc"), KConfig::NoGlobals);
++    cfg->reparseConfiguration();
++    const auto        base   = cfg->group(QStringLiteral("Round-Corners"));
++    const static auto prefix = QStringLiteral("Output ");
++    for (const auto &name : base.groupList()) {
++        if (!name.startsWith(prefix)) {
++            continue;
++        }
++        const auto group = base.group(name);
++        s_outputColors.insert(name.mid(prefix.size()),
++                              OutputColors{.outline  = group.readEntry("OutlineColor", Config::outlineColor()),
++                                           .outline2 = group.readEntry("OutlineColor2", Config::outlineColor2()),
++                                           .inactive = group.readEntry("InactiveOutlineColor",
++                                                                       Config::inactiveOutlineColor())});
++    }
++}
++
++void ShapeCorners::WindowConfig::applyOutputColors(const QString &output, const bool active)
++{
++    const auto colors = s_outputColors.constFind(output);
++    if (colors == s_outputColors.constEnd()) {
++        return;
++    }
++    if (active) {
++        if (Config::activeOutlineUsePalette()) {
++            return;
++        }
++        outline.color1 = FloatColor(colors->outline);
++        outline.color1.setAlpha(Config::activeOutlineAlpha());
++        outline.color2 = Config::outlineIsGradient() ? FloatColor(colors->outline2) : outline.color1;
++    } else {
++        if (Config::inactiveOutlineUsePalette()) {
++            return;
++        }
++        outline.color1 = FloatColor(colors->inactive);
++        outline.color1.setAlpha(Config::inactiveOutlineAlpha());
++        outline.color2 = outline.color1;
++    }
++}
+diff --git a/src/WindowConfig.h b/src/WindowConfig.h
+index d90ca94..f01d9b5 100644
+--- a/src/WindowConfig.h
++++ b/src/WindowConfig.h
+@@ -11,6 +11,8 @@
+ 
+ #include "FloatColor.h"
+ 
++#include <QString>
++
+ namespace ShapeCorners
+ {
+     /**
+@@ -134,6 +136,21 @@ namespace ShapeCorners
+          */
+         static WindowConfig inactiveWindowConfig();
+ 
++        /**
++         * @brief Rice patch: re-reads the per-output outline colours from kwinrc, groups
++         * [Round-Corners][Output <name>] with OutlineColor, OutlineColor2 and InactiveOutlineColor,
++         * so a window's border can follow the wallpaper of the screen it is on.
++         */
++        static void reloadOutputColors();
++
++        /**
++         * @brief Rice patch: replaces the outline colours with the ones set for this output, if any.
++         * Thickness, alpha, gradient angle and the palette options keep their global settings.
++         * @param output The output (screen) name, e.g. "DP-3".
++         * @param active Whether this is the config of the active window.
++         */
++        void applyOutputColors(const QString &output, bool active);
++
+         /**
+          * @brief Adds two WindowConfig objects.
+          * @param other The other WindowConfig.
+diff --git a/src/kcm/KCM.cpp b/src/kcm/KCM.cpp
+index 2215a50..2761a34 100644
+--- a/src/kcm/KCM.cpp
++++ b/src/kcm/KCM.cpp
+@@ -202,7 +202,7 @@ void ShapeCorners::KCM::save()
+     KCModule::save();
+ 
+     // Notify KWin to reload the effect configuration via DBus
+-    const auto                 dbusName = QStringLiteral("kwin4_effect_shapecorners");
++    const auto                 dbusName = QStringLiteral("kwin4_effect_shapecorners_rice");
+     OrgKdeKwinEffectsInterface interface(QStringLiteral("org.kde.KWin"), QStringLiteral("/Effects"),
+                                          QDBusConnection::sessionBus());
+     interface.reconfigureEffect(dbusName);
+diff --git a/src/kcm/metadata.json b/src/kcm/metadata.json
+index f429ad4..1fe84d6 100644
+--- a/src/kcm/metadata.json
++++ b/src/kcm/metadata.json
+@@ -7,6 +7,6 @@
+         ]
+     },
+     "X-KDE-ParentComponents": [
+-        "kwin4_effect_shapecorners"
++        "kwin4_effect_shapecorners_rice"
+     ]
+ }
+diff --git a/src/metadata.json b/src/metadata.json
+index ad2d369..ab41500 100644
+--- a/src/metadata.json
++++ b/src/metadata.json
+@@ -15,7 +15,7 @@
+         "Description[ru]": "Эффект, который формирует/скругляет углы окон с помощью настроенных контуров и теней.",
+         "EnabledByDefault": true,
+         "License": "GPL",
+-        "Name": "Rounded Corners (formerly ShapeCorners)",
++        "Name": "Rounded Corners (Rice: per-screen outline colours)",
+         "Name[ru]": "Закругленные углы",
+         "ServiceTypes": [
+             "KWin/Effect"

@@ -1,0 +1,5 @@
+src/
+pkg/
+kde-rounded-corners/
+*.pkg.tar.zst
+*.log

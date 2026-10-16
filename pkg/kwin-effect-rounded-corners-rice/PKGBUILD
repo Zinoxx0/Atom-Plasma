@@ -1,0 +1,34 @@
+# Local package (plasma-rice): matinlotfali/KDE-Rounded-Corners with one patch, per-output outline
+# colours read from kwinrc [Round-Corners][Output <name>], so each window's border follows the
+# wallpaper of the screen it is on (rice.py apply_kwin writes them). Built under its own plugin id,
+# kwin4_effect_shapecorners_rice, so KWin can swap it in without a restart.
+# Rebuild after KWin updates: cd ~/.config/plasma-rice/pkg/kwin-effect-rounded-corners-rice && makepkg -sfci
+pkgname=kwin-effect-rounded-corners-rice
+_commit=c1178d94ff2ec0db8d4d9a9782a3eb06aec13ce6
+pkgver=0.10.0.r11.gc1178d9
+pkgrel=1
+pkgdesc="Rounds the corners of your windows, outline colours per screen (plasma-rice patch)"
+url="https://github.com/matinlotfali/KDE-Rounded-Corners"
+license=("GPL-3.0-only")
+arch=('x86_64')
+depends=('kwin')
+makedepends=('cmake' 'extra-cmake-modules' 'git' 'ninja' 'vulkan-headers')
+provides=("kwin-effect-rounded-corners=${pkgver%%.g*}")
+conflicts=('kwin-effect-rounded-corners' 'kwin-effect-rounded-corners-git')
+source=("kde-rounded-corners::git+$url.git#commit=$_commit" "per-output.patch")
+sha256sums=('SKIP' '7f96447f41dbd90d954496a3b4cef803cf1c3ff276758dce9fa689a2921a9e30')
+
+prepare() {
+  cd kde-rounded-corners
+  sed -E -e 's&\bQUIET\b&REQUIRED&' -i cmake/qtversion.cmake    # ensure Qt6
+  patch -Np1 -i "$srcdir/per-output.patch"
+}
+
+build() {
+  cmake -B build -S kde-rounded-corners -G Ninja -Wno-dev -DCMAKE_BUILD_TYPE=Release
+  cmake --build build
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+}
