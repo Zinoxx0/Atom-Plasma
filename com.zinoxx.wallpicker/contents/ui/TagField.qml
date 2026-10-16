@@ -3,16 +3,20 @@ import QtQuick.Layouts
 import "Rice"
 import "Rice/Color.js" as C
 
-// Rounded text field for wallhaven tags, in the same style as the Rice pills.
+// Rounded text field (wallhaven tags, preset names), in the same style as the Rice pills.
 Rectangle {
     id: field
     required override property RicePalette palette
     property alias text: input.text
+    property alias maximumLength: input.maximumLength
+    property string glyph: "sell"           // Material Symbols icon at the start
     property string placeholder: ""
     property color accent: palette.tertiary
     property color onAccent: palette.col("on_tertiary")    // text on the accent (selection)
     property bool busy: false
     signal accepted()
+    signal escaped()
+    function focusText() { input.forceActiveFocus() }
 
     readonly property bool hovered: hover.containsMouse || clear.containsMouse
     implicitHeight: 34
@@ -36,7 +40,7 @@ Rectangle {
         anchors.rightMargin: Tokens.space.sm + 2
         spacing: Tokens.space.sm
         Text {
-            text: "sell"
+            text: field.glyph
             color: input.activeFocus ? field.accent : field.palette.muted
             font.family: Tokens.font.icons
             font.pixelSize: 17
@@ -59,6 +63,7 @@ Rectangle {
                 readOnly: field.busy
                 activeFocusOnTab: true
                 onAccepted: field.accepted()
+                Keys.onEscapePressed: event => { field.escaped(); event.accepted = true }
             }
             Text {
                 anchors.fill: parent

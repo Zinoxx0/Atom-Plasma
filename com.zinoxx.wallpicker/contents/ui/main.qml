@@ -13,7 +13,8 @@ import "Rice/Color.js" as C
 // HyDE-style wallpaper selector: a grid of ~/Pictures/Wallpapers; clicking one
 // runs ~/.config/plasma-rice/rice.py, which sets it on the chosen screen(s) and
 // re-themes the desktop from it. Scroll on the panel icon to step through this
-// screen's wallpapers.
+// screen's wallpapers. Presets keep every screen's wallpaper under a short name
+// (rice.py preset), to flip between whole looks.
 PlasmoidItem {
     id: root
 
@@ -28,6 +29,8 @@ PlasmoidItem {
     property string status: ""
     property bool loaded: false
     property var fresh: []          // file names brought by the last "Get more" (badged in the grid)
+    property var presets: []        // [{name, screens: {output: image}, theme, thumbs: {output: thumb}}]
+    property bool naming: false     // the preset name field is out
 
     readonly property string screenName: Screen.name   // output this bar is on
     onScreenNameChanged: reload()
@@ -73,11 +76,18 @@ PlasmoidItem {
                 const names = (parts[1] ?? "").split("\n").filter(s => s.length);
                 root.current = (parts[2] ?? "").trim();
                 try { root.screens = JSON.parse(parts[3]) } catch (e) {}
+                try { root.presets = JSON.parse(parts[4]) } catch (e) {}
                 root.syncModel(names);
                 root.walls = names;
                 root.loaded = true;
             } else if (kind === "apply") {
                 root.busy = ""; root.pending = "";
+                root.reload();
+            } else if (kind === "psave") {
+                const name = out.trim();
+                root.status = name ? "Saved preset “" + name + "”" : "Couldn't save the preset";
+                root.reload();
+            } else if (kind === "pdelete") {
                 root.reload();
             } else if (kind === "fetch") {
                 root.busy = "";
@@ -97,7 +107,8 @@ PlasmoidItem {
         sh.connectSource('echo "$HOME"; printf "\\n@@\\n"; python3 "$HOME/.config/plasma-rice/rice.py" thumbs; '
             + 'find "$HOME/Pictures/Wallpapers" -maxdepth 1 -type f \\( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" \\) -printf "%f\\n" | sort; '
             + 'printf "\\n@@\\n"; readlink -f "$HOME/.local/state/rice/wallpaper"; '
-            + 'printf "\\n@@\\n"; python3 "$HOME/.config/plasma-rice/rice.py" screens #list ' + Date.now());
+            + 'printf "\\n@@\\n"; python3 "$HOME/.config/plasma-rice/rice.py" screens; '
+            + 'printf "\\n@@\\n"; python3 "$HOME/.config/plasma-rice/rice.py" presets #list ' + Date.now());
     }
     // scr: "all", "focused" or an output name; defaults to the popup's target
     function apply(arg, scr) {
@@ -119,11 +130,37 @@ PlasmoidItem {
         }
         sh.connectSource('python3 "$HOME/.config/plasma-rice/wallhaven.py" 6 ' + q(t) + ' #fetch ' + Date.now());
     }
+    // presets: names up to 10 characters (rice.py trims them the same way)
+    function savePreset(name) {
+        const n = String(name ?? "").trim().slice(0, 10);
+        naming = false;
+        if (!n) return;
+        sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" preset save ' + q(n) + ' #psave ' + Date.now());
+    }
+    function loadPreset(name) {
+        if (busy) return;
+        busy = "apply"; pending = "preset:" + name; status = "";
+        sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" preset load ' + q(name) + ' #apply ' + Date.now());
+    }
+    function deletePreset(name) {
+        status = "Deleted preset “" + name + "”";
+        sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" preset delete ' + q(name) + ' #pdelete ' + Date.now());
+    }
+    // on screen right now: every connected screen it knows shows its wallpaper, and the theme is its
+    function presetIsOn(pr) {
+        const known = screens.filter(s => pr.screens[s.name] !== undefined);
+        return known.length > 0 && known.every(s => s.image === pr.screens[s.name]) && current === pr.theme;
+    }
+    // its thumbnails, left to right like the screens
+    function presetThumbs(pr) {
+        const order = screens.map(s => s.name);
+        return Object.keys(pr.thumbs || {}).sort((a, b) => order.indexOf(a) - order.indexOf(b)).map(o => pr.thumbs[o]);
+    }
     function forgetTags(t) { Plasmoid.configuration.tagHistory = Plasmoid.configuration.tagHistory.filter(h => h !== t) }
     function openFolder() { Qt.openUrlExternally("file://" + home + "/Pictures/Wallpapers") }
 
     Component.onCompleted: reload()
-    onExpandedChanged: if (root.expanded) reload()
+    onExpandedChanged: if (root.expanded) reload(); else naming = false
     // rice.py re-themes by switching the colour scheme: a wallpaper changed from elsewhere
     readonly property color themeAccent: Kirigami.Theme.highlightColor
     onThemeAccentChanged: reload()
@@ -349,6 +386,138 @@ PlasmoidItem {
                         color: pal.muted
                         font.family: Tokens.font.ui
                         font.pixelSize: Tokens.size.label
+                    }
+                }
+
+                // presets: the wallpaper of every screen under a name; click to bring the look back,
+                // right-click to delete. Saving asks for a name (10 characters at most).
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Tokens.space.sm
+                    Flow {
+                        Layout.fillWidth: true
+                        spacing: Tokens.space.xs + 2
+                        visible: root.presets.length > 0
+                        Repeater {
+                            model: root.presets
+                            Rectangle {
+                                id: pc
+                                required property var modelData
+                                readonly property bool isOn: root.presetIsOn(modelData)
+                                readonly property bool applying: root.busy === "apply" && root.pending === "preset:" + modelData.name
+                                readonly property bool hot: pcMouse.containsMouse || activeFocus
+                                implicitHeight: 34
+                                implicitWidth: pcRow.implicitWidth + 2 * Tokens.space.sm
+                                radius: Tokens.radius.sm
+                                color: isOn ? C.alpha(pal.primary, pcMouse.pressed ? 0.26 : 0.18)
+                                     : C.alpha(pal.fg, pcMouse.pressed ? 0.14 : hot ? 0.09 : 0.05)
+                                border.width: 1
+                                border.color: isOn ? pal.primary : hot ? C.alpha(pal.primary, 0.6) : C.alpha(pal.fg, Tokens.alpha.outline)
+                                Behavior on color { ColorAnimation { duration: Tokens.fast } }
+                                Behavior on border.color { ColorAnimation { duration: Tokens.fast } }
+
+                                activeFocusOnTab: true
+                                Keys.onReturnPressed: root.loadPreset(modelData.name)
+                                Keys.onEnterPressed: root.loadPreset(modelData.name)
+                                Keys.onSpacePressed: root.loadPreset(modelData.name)
+                                Keys.onDeletePressed: root.deletePreset(modelData.name)
+
+                                Row {
+                                    id: pcRow
+                                    anchors.centerIn: parent
+                                    spacing: Tokens.space.sm
+                                    Row {           // its screens' wallpapers, overlapping like a fanned deck
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        spacing: -10
+                                        Repeater {
+                                            model: root.presetThumbs(pc.modelData)
+                                            Kirigami.ShadowedImage {
+                                                required property string modelData
+                                                required property int index
+                                                z: 10 - index
+                                                width: 32; height: 20
+                                                radius: 4
+                                                color: C.alpha(pal.fg, 0.08)
+                                                border.width: 1.5
+                                                border.color: pal.surface
+                                                source: "file://" + modelData
+                                                sourceSize.width: 96
+                                                fillMode: Image.PreserveAspectCrop
+                                                asynchronous: true
+                                            }
+                                        }
+                                    }
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: pc.modelData.name
+                                        color: pc.isOn || pc.hot ? pal.fg : pal.fgDim
+                                        font.family: Tokens.font.ui
+                                        font.weight: Font.DemiBold
+                                        font.pixelSize: Tokens.size.label
+                                    }
+                                    Busy {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        visible: pc.applying
+                                        width: 14; height: 14
+                                        running: pc.applying
+                                        color: pal.primary
+                                    }
+                                }
+                                FocusRing { radius: pc.radius }
+                                PlasmaCore.ToolTipArea {
+                                    anchors.fill: parent
+                                    mainText: pc.modelData.name
+                                    subText: (pc.isOn ? "On screen now" : "Click to bring this look back") + " · right-click to delete"
+                                    MouseArea {
+                                        id: pcMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: mouse => {
+                                            if (mouse.button === Qt.RightButton) root.deletePreset(pc.modelData.name)
+                                            else if (!pc.isOn) root.loadPreset(pc.modelData.name)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Text {          // nothing saved yet
+                        Layout.fillWidth: true
+                        visible: root.presets.length === 0 && !root.naming
+                        text: "Presets keep the wallpaper of every screen, to come back to a look"
+                        elide: Text.ElideRight
+                        color: pal.muted
+                        font.family: Tokens.font.ui
+                        font.pixelSize: Tokens.size.label
+                    }
+                    Item { Layout.fillWidth: true; visible: root.presets.length === 0 && root.naming }
+                    TagField {
+                        id: presetField
+                        Layout.preferredWidth: 190
+                        visible: root.naming
+                        palette: pal
+                        glyph: "bookmark"
+                        maximumLength: 10
+                        placeholder: "Name, 10 letters max"
+                        accent: pal.primary
+                        onAccent: pal.onPrimary
+                        onAccepted: root.savePreset(text)
+                        onEscaped: root.naming = false
+                    }
+                    Pill {
+                        palette: pal
+                        size: 34
+                        icon: root.naming ? "check" : "bookmark_add"
+                        text: root.naming ? "Save" : "Save preset"
+                        tooltip: root.naming ? "" : "Keep the wallpaper of every screen under a name"
+                        onClicked: {
+                            if (root.naming) { root.savePreset(presetField.text); return }
+                            presetField.text = "";
+                            root.naming = true;
+                            Qt.callLater(presetField.focusText);
+                        }
                     }
                 }
 
