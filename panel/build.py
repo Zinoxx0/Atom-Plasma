@@ -77,15 +77,21 @@ def argb(c, alpha):
     return "#%02x%s" % (round(alpha * 255), c.lstrip("#"))
 
 
-def island_style(p, acc, states=True):
+def island_style(p, acc, states=True, fg=False):
     """Obsidian glass: a dark body, a breath lighter at the top, a white sheen along the top
     edge, a hairline outline in the island's accent and a soft neutral shadow. Text and
     icons keep their own colours. Hovering brightens the outline; an open popup lights it
     fully and adds a faint accent glow; attention turns it red. states=False: no state
-    changes (islands holding several widgets, which would light up only the hovered part)."""
+    changes (islands holding several widgets, which would light up only the hovered part).
+    On a light screen (palette `_scheme` light) the same recipe makes white frost: a brighter top
+    sheen and a softer shadow. fg=True: Colorizer recolours the island's text and symbolic icons to
+    the screen's text colour (stock widgets, the tray and the clock, which otherwise follow the
+    global colour scheme; ours already read their screen's palette, and Colorizer would flatten
+    their accent-coloured text)."""
     ws = json.loads(PRESET.read_text())["globalSettings"]["widgets"]
     w = ws["normal"]
     bg = p["background"]
+    light = p.get("_scheme") == "light"
 
     def color(c, alpha):
         return {"enabled": True, "sourceType": 0, "custom": c, "alpha": alpha}
@@ -99,7 +105,11 @@ def island_style(p, acc, states=True):
         o["backgroundColor"]["gradient"] = {"orientation": 1, "stops": [
             {"color": argb(top, 0.80), "position": 0},
             {"color": argb(mix(bg, "#ffffff", lift / 2), 0.72), "position": 1}]}
-        o["foregroundColor"]["enabled"] = False
+        if fg:
+            o["foregroundColor"].update(enabled=True, sourceType=0, custom=p["on_surface"], alpha=1,
+                                        saturationEnabled=False, lightnessEnabled=False)
+        else:
+            o["foregroundColor"]["enabled"] = False
         o["radius"] = {"enabled": True, "corner": {k: ISLAND_RADIUS for k in ("topLeft", "topRight", "bottomRight", "bottomLeft")}}
         o["margin"] = {"enabled": True, "side": {"left": 0, "right": 0, "top": 4, "bottom": 4}}
         o["spacing"] = 6
@@ -107,9 +117,9 @@ def island_style(p, acc, states=True):
         o["border"]["color"].update(color(acc, edge))
         o["borderSecondary"].update(enabled=True, customSides=True)
         o["borderSecondary"]["custom"]["widths"] = {"left": 0, "right": 0, "top": 1, "bottom": 0}
-        o["borderSecondary"]["color"].update(color("#ffffff", sheen))
+        o["borderSecondary"]["color"].update(color("#ffffff", min(1.0, sheen * 8) if light else sheen))
         o["shadow"]["background"].update(enabled=True, size=glow[1] if glow else 12, xOffset=0, yOffset=glow[2] if glow else 4)
-        o["shadow"]["background"]["color"].update(color(glow[0], glow[3]) if glow else color("#000000", 0.38))
+        o["shadow"]["background"]["color"].update(color(glow[0], glow[3]) if glow else color("#000000", 0.16 if light else 0.38))
         o["shadow"]["foreground"]["enabled"] = False
         return o
 
@@ -137,7 +147,8 @@ def island_overrides(p, panel):
         acc = mix(p["primary"], p.get("tertiary", p["primary"]), t)
         pad = max((PADS.get(w, 0) for _, w in group), default=0) if len(group) == 1 else 0
         name = f"Island {n}"
-        overrides[name] = island_style(p, acc, states=len(group) == 1)
+        stock = all(not w.startswith("com.zinoxx.") for _, w in group)
+        overrides[name] = island_style(p, acc, states=len(group) == 1, fg=stock)
         if pad:
             for o in overrides[name].values():
                 o["margin"] = {"enabled": True, "side": dict(o["margin"]["side"], left=pad, right=pad)}

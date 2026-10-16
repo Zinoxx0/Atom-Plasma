@@ -81,7 +81,7 @@ Item {
             }
         }
     }
-    FocusRing { radius: body.radius }
+    FocusRing { radius: body.radius; ink: pill.palette.edge }
     // the tooltip area wraps the mouse area: hover reaches both (as a sibling on top it would
     // take the hover for itself)
     PlasmaCore.ToolTipArea {

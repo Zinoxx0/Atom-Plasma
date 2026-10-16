@@ -10,7 +10,7 @@ Rectangle {
     radius: Tokens.radius.md
     color: C.alpha(palette.surfaceHigh, Tokens.alpha.card)
     border.width: 1
-    border.color: C.alpha("#ffffff", Tokens.alpha.outline)
+    border.color: C.alpha(palette.edge, Tokens.alpha.outline)
 
     Rectangle {
         visible: card.accent.a > 0

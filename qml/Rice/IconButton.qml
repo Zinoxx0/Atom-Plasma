@@ -58,7 +58,7 @@ Item {
             font.pixelSize: Tokens.size.label
         }
     }
-    FocusRing { radius: face.radius }
+    FocusRing { radius: face.radius; ink: btn.palette.edge }
     // the tooltip area wraps the mouse area: as a sibling on top it would take the hover for itself
     PlasmaCore.ToolTipArea {
         anchors.fill: parent

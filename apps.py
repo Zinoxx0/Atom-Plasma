@@ -734,6 +734,7 @@ def zen_userjs(p, current):
         "zen.theme.accent-color": p["primary"],
         "browser.display.background_color.dark": p["background"],
         "layout.css.prefers-color-scheme.content-override": 0,
+        "ui.systemUsesDarkTheme": 1,       # Zen stays dark when a light wallpaper turns the desktop light
         "svg.context-properties.content.enabled": True,
     }
     block = [ZEN_BEGIN] + [f"user_pref({json.dumps(k)}, {json.dumps(v)});" for k, v in prefs.items()] + [ZEN_END]

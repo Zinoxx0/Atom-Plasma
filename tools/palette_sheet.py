@@ -93,7 +93,7 @@ def main():
     rows = []
     for img in imgs:
         a = palette.analyse(img)
-        rows.append(row(img, palette.build_v2(a), a))
+        rows.append(row(img, palette.build_v2(a, {"light_ui": True}), a))
     sheet = Image.new("RGB", (1500, len(rows) * (ROW_H + 4)), (255, 255, 255))
     for i, r in enumerate(rows):
         sheet.paste(r, (0, i * (ROW_H + 4)))

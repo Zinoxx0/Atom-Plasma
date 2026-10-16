@@ -9,5 +9,6 @@
     "DP-3": 1.1
   },
   "top_scale": 1.2,
-  "icon_theme": "Tela-circle-dracula-dark"
+  "icon_theme": "Tela-circle-dracula-dark",
+  "light_ui": true
 }

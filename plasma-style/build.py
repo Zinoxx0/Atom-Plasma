@@ -27,9 +27,17 @@ A = TOKENS["alpha"]
 
 WHITE, BLACK = "#ffffff", "#000000"
 BG = "ColorScheme-Background"
-# popups and tooltips: one fixed neutral dark. The scheme background is the last-picked wallpaper's colour,
+# Two variants (build(variant)): "dark" = Rice, neutral dark glass with white ink; "light" = Rice-Light,
+# white frost with black ink, for when the theme-driving wallpaper is light (palette v2 `_scheme`).
+# popups and tooltips: one fixed neutral body. The scheme background is the last-picked wallpaper's colour,
 # which tinted popups on the other screens (plum over a blue screen)
-NEUTRAL = "#12131a"
+VARIANTS = {
+    "dark": dict(dir="Rice", name="Rice", NEUTRAL="#12131a", INK=WHITE, TICK="#14151b", LIGHT=False, SHADOW=1.0),
+    "light": dict(dir="Rice-Light", name="Rice Light", NEUTRAL="#f4f5f8", INK=BLACK, TICK="#ffffff", LIGHT=True,
+                  SHADOW=0.55),
+}
+NEUTRAL, INK, TICK, LIGHT, SHADOW = "#12131a", WHITE, "#14151b", False, 1.0
+SHEEN = WHITE           # the wash at the top of frames: a white sheen in both variants
 
 STYLE = """<style type="text/css" id="current-color-scheme">
   .ColorScheme-Text { color:#c0caf5; }
@@ -131,8 +139,8 @@ def frame(prefix, ox, oy, r, layers, wash=0.0, margins=None, insets=None, mask=F
     if wash:
         wash_id = gid()
         DEFS.append(f'<linearGradient id="{wash_id}" x1="0" y1="0" x2="0" y2="1">'
-                    f'<stop offset="0" style="stop-color:{WHITE};stop-opacity:{wash}"/>'
-                    f'<stop offset="0.5" style="stop-color:{WHITE};stop-opacity:0"/></linearGradient>')
+                    f'<stop offset="0" style="stop-color:{SHEEN};stop-opacity:{wash}"/>'
+                    f'<stop offset="0.5" style="stop-color:{SHEEN};stop-opacity:0"/></linearGradient>')
     for name, (x, y, w, h) in pieces(ox, oy, r).items():
         g = [bounds(x, y, w, h)]
         corner = name in CORNERS
@@ -147,7 +155,7 @@ def frame(prefix, ox, oy, r, layers, wash=0.0, margins=None, insets=None, mask=F
                 g.append(f'{shape} {paint(colour, op)}/>')
                 if wash_id and d == 0:
                     if name.startswith("top"):
-                        g.append(f'{shape} style="fill:{WHITE};fill-opacity:{wash}"/>')
+                        g.append(f'{shape} style="fill:{SHEEN};fill-opacity:{wash}"/>')
                     elif name in ("left", "center", "right"):
                         g.append(f'{shape} style="fill:url(#{wash_id})"/>')
             else:
@@ -202,6 +210,7 @@ def overlay(prefix, ox, oy, r, layers):
 
 
 def shadow_tiles(prefix, ox, oy, r, size, alpha, dy=0):
+    alpha *= SHADOW
     """Soft shadow around a rounded rect: radial corners + linear sides.
     `dy` pushes the shadow down (smaller top padding, larger bottom)."""
     p = (prefix + "-shadow-") if prefix else "shadow-"
@@ -278,7 +287,12 @@ def write(rel, elements, w=600, h=600):
 # glass body in the scheme's background, a white hairline a touch brighter along the top (the bar
 # islands' sheen), and a faint white wash fading down from the top
 def glass(op, outline=(0.16, A["outline"], 0.07), wash=0.035):
-    return dict(layers=[fill(NEUTRAL, op), ring(WHITE, outline)], wash=wash)
+    if LIGHT:
+        # frost: a dark hairline heavier toward the bottom (light from above), a bright inner line
+        # along the top and a stronger white wash
+        return dict(layers=[fill(NEUTRAL, op * 0.94), ring(INK, (0.07, 0.11, 0.15)), ring(SHEEN, (0.9, 0.25, 0.0), 1, 1)],
+                    wash=0.5)
+    return dict(layers=[fill(NEUTRAL, op), ring(INK, outline)], wash=wash)
 
 
 ON = 0.86        # "on" fills (meters, slider track, checked marks): neutral-bright, never the accent
@@ -286,7 +300,11 @@ TRACK = 0.12     # their empty track
 FOCUS = 0.55     # keyboard focus rings
 
 
-def build():
+def build(variant="dark"):
+    global OUT, NEUTRAL, INK, TICK, LIGHT, SHADOW
+    v = VARIANTS[variant]
+    OUT = OUT.parent / v["dir"]
+    NEUTRAL, INK, TICK, LIGHT, SHADOW = v["NEUTRAL"], v["INK"], v["TICK"], v["LIGHT"], v["SHADOW"]
     if OUT.exists():
         shutil.rmtree(OUT)
     OUT.mkdir(parents=True)
@@ -323,7 +341,7 @@ def build():
             g = [bounds(x, y, w, h)]
             line_y = (y + h - 1) if prefix == "header" else y
             if (prefix == "header" and name in ("bottom",)) or (prefix == "footer" and name == "top"):
-                g.append(f'<rect x="{x}" y="{line_y}" width="{w}" height="1" {paint(WHITE, 0.08)}/>')
+                g.append(f'<rect x="{x}" y="{line_y}" width="{w}" height="1" {paint(INK, 0.08)}/>')
             els.append(f'<g id="{prefix}-{name}">{"".join(g)}</g>')
     els += ['<rect id="hint-top-margin" x="300" y="0" width="4" height="6" style="fill-opacity:0"/>',
             '<rect id="hint-bottom-margin" x="306" y="0" width="4" height="6" style="fill-opacity:0"/>',
@@ -335,7 +353,7 @@ def build():
     els = []
     for i, (prefix, op, bop) in enumerate((("normal", 0.0, 0.0), ("hover", 0.06, 0.07),
                                            ("selected", 0.11, 0.14), ("selected+hover", 0.15, 0.18))):
-        layers = [fill(WHITE, op), ring(WHITE, bop)] if op else []
+        layers = [fill(INK, op), ring(INK, bop)] if op else []
         els += frame(prefix, i * 80, 0, sm, layers, margins=(SP["xs"], SP["sm"], SP["xs"], SP["sm"]))
     write("widgets/viewitem", els)
 
@@ -343,20 +361,20 @@ def build():
     els = []
     for i, (prefix, op, bop) in enumerate((("normal", 0.0, 0.0), ("hover", 0.06, 0.07),
                                            ("pressed", 0.12, 0.14), ("section", 0.04, 0.0))):
-        layers = ([fill(WHITE, op)] + ([ring(WHITE, bop)] if bop else [])) if op else []
+        layers = ([fill(INK, op)] + ([ring(INK, bop)] if bop else [])) if op else []
         els += frame(prefix, i * 80, 0, sm, layers, margins=(SP["xs"], SP["sm"], SP["xs"], SP["sm"]))
-    els.append(f'<rect id="separator" x="0" y="200" width="40" height="1" {paint(WHITE, 0.08)}/>')
+    els.append(f'<rect id="separator" x="0" y="200" width="40" height="1" {paint(INK, 0.08)}/>')
     write("widgets/listitem", els)
 
     # Task manager buttons (Glimpse replaced the stock one; kept neutral for anything that uses it)
     els = []
     for i, (prefix, layers) in enumerate((
             ("normal", []),
-            ("hover", [fill(WHITE, 0.06), ring(WHITE, 0.10)]),
-            ("focus", [fill(WHITE, 0.12), ring(WHITE, 0.20)]),
+            ("hover", [fill(INK, 0.06), ring(INK, 0.10)]),
+            ("focus", [fill(INK, 0.12), ring(INK, 0.20)]),
             ("attention", [fill("ColorScheme-NeutralText", 0.22), ring("ColorScheme-NeutralText", 0.6)]),
             ("minimized", []),
-            ("progress", [fill(WHITE, 0.18)]))):
+            ("progress", [fill(INK, 0.18)]))):
         els += frame(prefix, i * 80, 0, sm, layers, margins=(4, 6, 4, 6) if prefix == "normal" else None)
     write("widgets/tasks", els, 900, 400)
 
@@ -380,40 +398,40 @@ def build():
     # Corners are xs: CheckBox draws its 16 px box with the "normal" button frame.
     btn = (SP["xs"] + 2,) * 4
     els = []
-    els += overlay("hover", 360, 0, xs, [fill(WHITE, 0.04), ring(WHITE, 0.26)])
+    els += overlay("hover", 360, 0, xs, [fill(INK, 0.04), ring(INK, 0.26)])
     for i, (prefix, layers, margins) in enumerate((
-            ("normal", [fill(WHITE, 0.06), ring(WHITE, (0.20, 0.13, 0.10))], btn),
-            ("pressed", [fill(WHITE, 0.13), ring(WHITE, 0.18)], btn),
-            ("toolbutton-hover", [fill(WHITE, A["hover"]), ring(WHITE, 0.10)], (SP["xs"],) * 4),
-            ("toolbutton-pressed", [fill(WHITE, A["press"]), ring(WHITE, 0.14)], (SP["xs"],) * 4))):
+            ("normal", [fill(INK, 0.06), ring(INK, (0.20, 0.13, 0.10))], btn),
+            ("pressed", [fill(INK, 0.13), ring(INK, 0.18)], btn),
+            ("toolbutton-hover", [fill(INK, A["hover"]), ring(INK, 0.10)], (SP["xs"],) * 4),
+            ("toolbutton-pressed", [fill(INK, A["press"]), ring(INK, 0.14)], (SP["xs"],) * 4))):
         els += frame(prefix, (i % 3) * 120, (i // 3) * 120, xs, layers, margins=margins)
     for i, prefix in enumerate(("focus", "toolbutton-focus")):
         # 2 px outside the button: the frame is that much bigger, its corner concentric
-        els += frame(prefix, i * 120, 260, xs + 2, [ring(WHITE, FOCUS, 1.5)], margins=(2, 2, 2, 2))
+        els += frame(prefix, i * 120, 260, xs + 2, [ring(INK, FOCUS, 1.5)], margins=(2, 2, 2, 2))
     write("widgets/button", els, 600, 400)
 
     # Text fields (KRunner, search boxes): a slightly lifted well. focus = typing (brighter edge),
     # focusframe = reached with the keyboard (plus a ring outside)
     le = (SP["xs"] + 2, SP["sm"], SP["xs"] + 2, SP["sm"])
-    els = frame("base", 0, 0, sm, [fill(WHITE, 0.05), ring(WHITE, (0.14, 0.10, 0.08))], margins=le)
-    els += overlay("hover", 120, 0, sm, [ring(WHITE, 0.22)])
-    els += overlay("focus", 240, 0, sm, [fill(WHITE, 0.02), ring(WHITE, 0.34)])
-    els += frame("focusframe", 360, 0, sm + 2, [fill(WHITE, 0.02, 2), ring(WHITE, 0.34, 1, 2), ring(WHITE, FOCUS, 1.5)],
+    els = frame("base", 0, 0, sm, [fill(INK, 0.05), ring(INK, (0.14, 0.10, 0.08))], margins=le)
+    els += overlay("hover", 120, 0, sm, [ring(INK, 0.22)])
+    els += overlay("focus", 240, 0, sm, [fill(INK, 0.02), ring(INK, 0.34)])
+    els += frame("focusframe", 360, 0, sm + 2, [fill(INK, 0.02, 2), ring(INK, 0.34, 1, 2), ring(INK, FOCUS, 1.5)],
                  margins=(2, 2, 2, 2))
     els.append('<rect id="hint-focus-over-base" x="500" y="300" width="2" height="2" style="fill-opacity:0"/>')
     write("widgets/lineedit", els, 600, 400)
 
     # Meters (the OSD, notification progress, the battery): 6 px pills, neutral-bright fill
     for rel in ("widgets/bar_meter_horizontal", "widgets/bar_meter_vertical"):
-        els = frame("bar-inactive", 0, 0, 3, [fill(WHITE, TRACK)])
-        els += frame("bar-active", 40, 0, 3, [fill(WHITE, ON)])
+        els = frame("bar-inactive", 0, 0, 3, [fill(INK, TRACK)])
+        els += frame("bar-active", 40, 0, 3, [fill(INK, ON)])
         els.append('<rect id="hint-bar-size" x="100" y="0" width="6" height="6" style="fill-opacity:0"/>')
         write(rel, els, 200, 100)
 
     # Slider: a 4 px track, the filled part neutral-bright, a white knob with a hairline and a soft
     # shadow; hover adds a halo, focus a ring
-    els = frame("groove", 0, 0, 2, [fill(WHITE, TRACK)])
-    els += frame("groove-highlight", 40, 0, 2, [fill(WHITE, ON)])
+    els = frame("groove", 0, 0, 2, [fill(INK, TRACK)])
+    els += frame("groove-highlight", 40, 0, 2, [fill(INK, ON)])
     els.append('<rect id="hint-handle-size" x="100" y="0" width="18" height="18" style="fill-opacity:0"/>')
     for j, orient in enumerate(("horizontal", "vertical")):
         y = 60 + j * 40
@@ -421,17 +439,17 @@ def build():
                 f'<circle cx="9" cy="{y + 9}" r="8" {paint("#f4f5f8", 1)}/>'
                 f'<circle cx="9" cy="{y + 9}" r="7.5" style="fill:none;stroke:{BLACK};stroke-opacity:0.28;stroke-width:1"/></g>',
                 f'<g id="{orient}-slider-hover">{bounds(40, y - 4, 26, 26)}'
-                f'<circle cx="53" cy="{y + 9}" r="11.5" style="fill:none;stroke:{WHITE};stroke-opacity:0.16;stroke-width:3"/></g>',
+                f'<circle cx="53" cy="{y + 9}" r="11.5" style="fill:none;stroke:{INK};stroke-opacity:0.16;stroke-width:3"/></g>',
                 f'<g id="{orient}-slider-focus">{bounds(80, y - 3, 24, 24)}'
-                f'<circle cx="92" cy="{y + 9}" r="11" style="fill:none;stroke:{WHITE};stroke-opacity:{FOCUS};stroke-width:1.5"/></g>',
+                f'<circle cx="92" cy="{y + 9}" r="11" style="fill:none;stroke:{INK};stroke-opacity:{FOCUS};stroke-width:1.5"/></g>',
                 f'<g id="{orient}-slider-shadow">{bounds(120, y - 4, 26, 26)}{soft_shadow(133, y + 10, 12, 0.32)}</g>']
     write("widgets/slider", els, 200, 200)
 
     # Scroll bars: a slim 6 px pill, a faint track only while hovered
-    els = frame("slider", 0, 0, 3, [fill(WHITE, 0.26)], insets=(4, 4, 4, 4))
-    els += frame("mouseover-slider", 40, 0, 3, [fill(WHITE, 0.46)], insets=(4, 4, 4, 4))
+    els = frame("slider", 0, 0, 3, [fill(INK, 0.26)], insets=(4, 4, 4, 4))
+    els += frame("mouseover-slider", 40, 0, 3, [fill(INK, 0.46)], insets=(4, 4, 4, 4))
     for j, orient in enumerate(("horizontal", "vertical")):
-        els += frame(f"background-{orient}", 80 + j * 50, 0, 5, [fill(WHITE, 0.05)], insets=(2, 2, 2, 2))
+        els += frame(f"background-{orient}", 80 + j * 50, 0, 5, [fill(INK, 0.05)], insets=(2, 2, 2, 2))
     els.append('<rect id="hint-scrollbar-size" x="200" y="0" width="6" height="6" style="fill-opacity:0"/>')
     write("widgets/scrollbar", els, 300, 200)
 
@@ -442,16 +460,16 @@ def build():
         cap_l, cap_r = f"M9,{y} A9,9 0 0 0 9,{y + 18} Z", f"M21,{y} A9,9 0 0 1 21,{y + 18} Z"
         line_l = f"M9,{y} A9,9 0 0 0 9,{y + 18} L9,{y + 17} A8,8 0 0 1 9,{y + 1} Z"
         line_r = f"M21,{y} A9,9 0 0 1 21,{y + 18} L21,{y + 17} A8,8 0 0 0 21,{y + 1} Z"
-        h = (lambda d: f'<path d="{d}" {paint(WHITE, hair)}/>') if hair else (lambda d: "")
-        hc = (f'<rect x="10" y="{y}" width="10" height="1" {paint(WHITE, hair)}/>'
-              f'<rect x="10" y="{y + 17}" width="10" height="1" {paint(WHITE, hair)}/>') if hair else ""
-        return [f'<g id="{prefix}-left">{bounds(0, y, 9, 18)}<path d="{cap_l}" {paint(WHITE, op)}/>{h(line_l)}</g>',
-                f'<g id="{prefix}-center">{bounds(10, y, 10, 18)}<rect x="10" y="{y}" width="10" height="18" {paint(WHITE, op)}/>{hc}</g>',
-                f'<g id="{prefix}-right">{bounds(21, y, 9, 18)}<path d="{cap_r}" {paint(WHITE, op)}/>{h(line_r)}</g>']
+        h = (lambda d: f'<path d="{d}" {paint(INK, hair)}/>') if hair else (lambda d: "")
+        hc = (f'<rect x="10" y="{y}" width="10" height="1" {paint(INK, hair)}/>'
+              f'<rect x="10" y="{y + 17}" width="10" height="1" {paint(INK, hair)}/>') if hair else ""
+        return [f'<g id="{prefix}-left">{bounds(0, y, 9, 18)}<path d="{cap_l}" {paint(INK, op)}/>{h(line_l)}</g>',
+                f'<g id="{prefix}-center">{bounds(10, y, 10, 18)}<rect x="10" y="{y}" width="10" height="18" {paint(INK, op)}/>{hc}</g>',
+                f'<g id="{prefix}-right">{bounds(21, y, 9, 18)}<path d="{cap_r}" {paint(INK, op)}/>{h(line_r)}</g>']
 
     els = pill3("inactive", 0, TRACK, 0.10) + pill3("active", 30, ON, 0)
     knob = {  # id: (fill colour, alpha, hairline alpha)
-        "handle": ("#f4f5f8", 0.78, 0.0), "handle-active": (BG, 1.0, 0.0),
+        "handle": ("#f4f5f8", 0.78, 0.22 if LIGHT else 0.0), "handle-active": (BG, 1.0, 0.0),
         "handle-hover": ("#ffffff", 1.0, 0.35), "handle-pressed": ("#e4e6ec", 1.0, 0.35)}
     for k, (kid, (colour, op, hair)) in enumerate(knob.items()):
         x = 40 + k * 24
@@ -459,50 +477,52 @@ def build():
                    + (f'<circle cx="{x + 9}" cy="69" r="6.5" style="fill:none;stroke:{BLACK};stroke-opacity:{hair};stroke-width:1"/>' if hair else "")
                    + '</g>')
     els.append(f'<g id="handle-focus">{bounds(40, 90, 26, 26)}'
-               f'<circle cx="53" cy="103" r="11.5" style="fill:none;stroke:{WHITE};stroke-opacity:{FOCUS};stroke-width:1.5"/></g>')
+               f'<circle cx="53" cy="103" r="11.5" style="fill:none;stroke:{INK};stroke-opacity:{FOCUS};stroke-width:1.5"/></g>')
     els.append(f'<g id="handle-shadow">{bounds(80, 90, 26, 26)}{soft_shadow(93, 104, 11, 0.22)}</g>')
     els.append('<rect id="hint-bar-size" x="150" y="0" width="36" height="18" style="fill-opacity:0"/>')
     write("widgets/switch", els, 200, 140)
 
     # Check marks. The check box is the 16 px "normal" button; checked, a bright rounded square
     # with a dark tick covers it
-    els = [f'<g id="checkbox">{bounds(0, 0, 16, 16)}<rect x="0" y="0" width="16" height="16" rx="{xs}" {paint(WHITE, ON)}/>'
-           f'<path d="M4.2,8.4 L6.9,11 L11.9,5.4" style="fill:none;stroke:#14151b;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></g>',
-           f'<g id="radiobutton">{bounds(0, 20, 16, 16)}<circle cx="8" cy="28" r="8" {paint(WHITE, ON)}/>'
-           f'<circle cx="8" cy="28" r="3" style="fill:#14151b"/></g>']
+    els = [f'<g id="checkbox">{bounds(0, 0, 16, 16)}<rect x="0" y="0" width="16" height="16" rx="{xs}" {paint(INK, ON)}/>'
+           f'<path d="M4.2,8.4 L6.9,11 L11.9,5.4" style="fill:none;stroke:{TICK};stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></g>',
+           f'<g id="radiobutton">{bounds(0, 20, 16, 16)}<circle cx="8" cy="28" r="8" {paint(INK, ON)}/>'
+           f'<circle cx="8" cy="28" r="3" style="fill:{TICK}"/></g>']
     write("widgets/checkmarks", els, 40, 40)
 
     # Radio buttons: the same language, round
-    els = [f'<g id="normal">{bounds(0, 0, 16, 16)}<circle cx="8" cy="8" r="8" {paint(WHITE, 0.06)}/>'
-           f'<circle cx="8" cy="8" r="7.5" style="fill:none;stroke:{WHITE};stroke-opacity:0.18;stroke-width:1"/></g>',
-           f'<g id="checked">{bounds(20, 0, 16, 16)}<circle cx="28" cy="8" r="8" {paint(WHITE, ON)}/></g>',
-           f'<g id="hover">{bounds(40, 0, 16, 16)}<circle cx="48" cy="8" r="7.5" style="fill:none;stroke:{WHITE};stroke-opacity:0.34;stroke-width:1"/></g>',
-           f'<g id="focus">{bounds(60, -2, 20, 20)}<circle cx="70" cy="8" r="9.25" style="fill:none;stroke:{WHITE};stroke-opacity:{FOCUS};stroke-width:1.5"/></g>',
+    els = [f'<g id="normal">{bounds(0, 0, 16, 16)}<circle cx="8" cy="8" r="8" {paint(INK, 0.06)}/>'
+           f'<circle cx="8" cy="8" r="7.5" style="fill:none;stroke:{INK};stroke-opacity:0.18;stroke-width:1"/></g>',
+           f'<g id="checked">{bounds(20, 0, 16, 16)}<circle cx="28" cy="8" r="8" {paint(INK, ON)}/></g>',
+           f'<g id="hover">{bounds(40, 0, 16, 16)}<circle cx="48" cy="8" r="7.5" style="fill:none;stroke:{INK};stroke-opacity:0.34;stroke-width:1"/></g>',
+           f'<g id="focus">{bounds(60, -2, 20, 20)}<circle cx="70" cy="8" r="9.25" style="fill:none;stroke:{INK};stroke-opacity:{FOCUS};stroke-width:1.5"/></g>',
            f'<g id="shadow">{bounds(90, -3, 22, 22)}{soft_shadow(101, 9, 10, 0.18)}</g>',
-           '<circle id="symbol" cx="130" cy="8" r="3" style="fill:#14151b"/>',
+           f'<circle id="symbol" cx="130" cy="8" r="3" style="fill:{TICK}"/>',
            '<rect id="hint-size" x="150" y="0" width="16" height="16" style="fill-opacity:0"/>']
     write("widgets/radiobutton", els, 200, 40)
 
     # Busy indicator: a neutral arc on a faint track (BusyIndicator rotates it)
     els = [f'<g id="busywidget">{bounds(0, 0, 36, 36)}'
-           f'<circle cx="18" cy="18" r="15" style="fill:none;stroke:{WHITE};stroke-opacity:{TRACK};stroke-width:3"/>'
-           f'<path d="M18,3 A15,15 0 0 1 33,18" style="fill:none;stroke:{WHITE};stroke-opacity:{ON};stroke-width:3;stroke-linecap:round"/></g>']
+           f'<circle cx="18" cy="18" r="15" style="fill:none;stroke:{INK};stroke-opacity:{TRACK};stroke-width:3"/>'
+           f'<path d="M18,3 A15,15 0 0 1 33,18" style="fill:none;stroke:{INK};stroke-opacity:{ON};stroke-width:3;stroke-linecap:round"/></g>']
     write("widgets/busywidget", els, 40, 40)
 
     (OUT / "metadata.json").write_text(json.dumps({
         "KPlugin": {
             "Authors": [{"Name": "zinoxx"}],
             "Description": "Rounded, translucent, neutral glass. Generated by ~/.config/plasma-rice/plasma-style/build.py",
-            "Id": "Rice", "License": "MIT", "Name": "Rice", "Version": "1.1",
+            "Id": v["dir"], "License": "MIT", "Name": v["name"], "Version": "1.1",
         },
         "X-Plasma-API": "5.0",
     }, indent=2))
     (OUT / "plasmarc").write_text(
-        "[ContrastEffect]\nenabled=true\ncontrast=0.35\nintensity=0.9\nsaturation=1.9\n\n"
+        ("[ContrastEffect]\nenabled=true\ncontrast=0.25\nintensity=1.8\nsaturation=1.6\n\n" if LIGHT else
+         "[ContrastEffect]\nenabled=true\ncontrast=0.35\nintensity=0.9\nsaturation=1.9\n\n") +
         "[BlurBehindEffect]\nenabled=true\n\n"
         "[AdaptiveTransparency]\nenabled=true\n")
     print("built", OUT)
 
 
 if __name__ == "__main__":
-    build()
+    for variant in VARIANTS:
+        build(variant)

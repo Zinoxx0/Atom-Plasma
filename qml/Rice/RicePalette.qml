@@ -54,7 +54,11 @@ Item {
     // green "on track" or a red warning still reads as itself but belongs to the wallpaper. col()
     // still answers with the raw palette.
     readonly property real harmony: 0.10
-    function tuned(name) { return C.mix(col(name), col("primary"), harmony) }
+    // on a light screen the hues (made for dark backgrounds and terminals) are deepened so they read on frost
+    function tuned(name) {
+        const c = C.rgb(C.mix(col(name), col("primary"), harmony))
+        return light ? Qt.hsla(c.hslHue, Math.min(1, c.hslSaturation * 1.15), Math.min(c.hslLightness, 0.40), 1) : c
+    }
     property color red: tuned("red")
     property color orange: tuned("orange")
     property color yellow: tuned("yellow")

@@ -373,9 +373,10 @@ def build_v2(a, settings=None, ov=None):
 
     # ---- status and terminal colours: Tokyo Night's, nudged toward the accent. Terminals stay
     # dark in every mood, so these are dark-background colours; ok/warn/bad follow the scheme.
+    _, pc, _ = to_oklch(p["primary"])
     for name in ("red", "orange", "yellow", "green", "teal", "cyan", "blue", "magenta"):
         L, C, h = to_oklch(TOKYO[name])
-        d = ((ph - h + 180) % 360) - 180
+        d = ((ph - h + 180) % 360) - 180 if pc >= 0.03 else 0     # a grey primary has no hue to lean to
         h2 = (h + max(-12, min(12, d * 0.25))) % 360
         p[name] = oklch(L, C, h2)
         p[f"{name}_bright"] = oklch(min(0.93, L + 0.06), C * 0.9, h2)

@@ -85,7 +85,7 @@ Item {
             Behavior on color { ColorAnimation { duration: Tokens.fast } }
         }
     }
-    FocusRing { radius: body.radius }
+    FocusRing { radius: body.radius; ink: chip.palette.edge }
     PlasmaCore.ToolTipArea {
         anchors.fill: parent
         mainText: chip.tooltip

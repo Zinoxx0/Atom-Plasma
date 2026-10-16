@@ -36,8 +36,9 @@ Writes / applies:
     apps.py                                     VS Code, btop, MangoHud, Zen themes
 Settings: ~/.config/plasma-rice/settings.json (scheme, tokyo_tint, depth, candy, wallhaven_queries,
 bar_scale for the size of a bar's widgets, top_scale for the Glimpse band at the top,
-icon_theme;
-each is one factor for every screen or {output: factor}).
+icon_theme, light_ui: light wallpapers turn the desktop light (frosted Plasma Style "Rice-Light", a light
+KDE scheme, white-frost islands and popups; terminals and apps keep a dark twin palette);
+each size is one factor for every screen or {output: factor}).
 The current-wallpaper symlink is ~/.local/state/rice/wallpaper.
 """
 import fcntl
@@ -125,10 +126,18 @@ def write_if_changed(path, text):
 
 def kde_scheme(p, name):
     c = palette.rgb_csv
+    if p.get("_scheme") == "light":
+        # the status/link hues are made for dark backgrounds (terminals): deepen them for light windows
+        def ink(col):
+            L, C, H = palette.to_oklch(col)
+            return palette.oklch(min(L, 0.52), max(C, 0.10), H)
+    else:
+        def ink(col):
+            return col
     fg = dict(
         ForegroundNormal=p["on_surface"], ForegroundInactive=p["on_surface_variant"],
-        ForegroundActive=p["primary"], ForegroundLink=p["blue"], ForegroundVisited=p["magenta"],
-        ForegroundNegative=p["red"], ForegroundNeutral=p["yellow"], ForegroundPositive=p["green"],
+        ForegroundActive=p["primary"], ForegroundLink=ink(p["blue"]), ForegroundVisited=ink(p["magenta"]),
+        ForegroundNegative=ink(p["red"]), ForegroundNeutral=ink(p["yellow"]), ForegroundPositive=ink(p["green"]),
         DecorationFocus=p["primary"], DecorationHover=p["primary"],
     )
     groups = {
@@ -304,6 +313,18 @@ def run(*cmd):
     return subprocess.run(cmd, check=False, capture_output=True, text=True)
 
 
+STYLE = {"dark": "Rice", "light": "Rice-Light"}    # Plasma Style variants (plasma-style/build.py)
+
+
+def apply_style(p):
+    """The Plasma Style matching the theme-driving screen: dark glass, or white frost when it is light.
+    Stock popups (tray, clock, notifications) follow it; our own popups paint their own screen's surface."""
+    name = STYLE.get(p.get("_scheme"), "Rice")
+    current = run("kreadconfig6", "--file", "plasmarc", "--group", "Theme", "--key", "name").stdout.strip()
+    if current != name:
+        run("plasma-apply-desktoptheme", name)
+
+
 def apply_scheme(p):
     schemes = HOME / ".local/share/color-schemes"
     current = run("kreadconfig6", "--file", "kdeglobals", "--group", "General", "--key", "ColorScheme").stdout.strip()
@@ -470,6 +491,14 @@ def palette_for(img, cfg):
     return p
 
 
+def dark_twin(p, img, cfg):
+    """Terminals, VS Code, Zen, btop and the prompt stay dark in every mood: for a light palette,
+    the same wallpaper drawn the dark way (graphite/soft, palette.build_v2 without light_ui)."""
+    if p.get("_scheme") != "light" or not img:
+        return p
+    return with_meta(palette_for(img, dict(cfg, light_ui=False)), img)
+
+
 def with_meta(p, img):
     return dict(p, _wallpaper=str(img), _thumb=str(thumb(img)))
 
@@ -518,7 +547,11 @@ def rim(glass_img, p):
     out = []
     for i in range(RIM_STOPS):
         L, C, H = palette.to_oklch("#%02x%02x%02x" % cols.getpixel((i, 0)))
-        if mood in ("void", "graphite") or (mood == "light" and C < 0.03):
+        if mood == "light":     # graphite, which reads on the black strip and on the white frost
+            out.append(palette.oklch(0.60, 0.006, 255) if C < 0.03 else
+                       palette.oklch(0.62, min(0.14, max(0.08, C * 1.6)), palette.hue_toward(H, ph, 0.25)))
+            continue
+        if mood in ("void", "graphite"):
             out.append(palette.oklch(min(0.92, max(0.80, L + 0.3)), 0.008, 255))   # starlight / silver
             continue
         H = palette.hue_toward(ph if C < 0.03 else H, ph, 0.25)
@@ -704,17 +737,19 @@ def main():
     apply_screens(ss, cfg, p)
 
     write_if_changed(STATE / "palette.json", json.dumps(p, indent=2) + "\n")
-    write_if_changed(HOME / ".config/alacritty/plasma-rice.toml", alacritty(p))
-    render_templates(p)
+    tp = dark_twin(p, img, cfg)        # terminals and apps
+    write_if_changed(HOME / ".config/alacritty/plasma-rice.toml", alacritty(tp))
+    render_templates(tp)
     write_if_changed(HOME / ".local/share/plasma/look-and-feel/com.zinoxx.rice/contents/splash/palette.js",
                      ".pragma library\n// Written by ~/.config/plasma-rice/rice.py\n"
                      f"var wallpaper = {json.dumps(str(img))};\n"
                      f"var colors = {json.dumps({k: v for k, v in p.items() if not k.startswith('_')})};\n")
+    apply_style(p)
     apply_scheme(p)
     apply_kwin(p)
-    apply_konsole(p)
-    icons.apply(p["primary"], cfg.get("icon_theme", "Papirus-Rice"))
-    apps.apply(p)
+    apply_konsole(tp)
+    icons.apply(tp["primary"], cfg.get("icon_theme", "Papirus-Rice"))
+    apps.apply(tp)
 
     if arg != "restore":
         where = one["label"] if one and len(ss) > 1 else "all screens" if len(ss) > 1 else ""

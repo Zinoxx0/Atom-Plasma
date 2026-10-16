@@ -12,6 +12,7 @@ Item {
     property real radius: 0          // the item's own corner radius; the ring stays concentric
     property real gap: 2
     property bool shown: target !== null && target.activeFocus
+    property color ink: "#ffffff"   // pass the palette's edge (black on a light screen)
 
     anchors.fill: target
     opacity: shown ? 1 : 0
@@ -25,6 +26,6 @@ Item {
         radius: ring.radius > 0 ? ring.radius + reach : 0
         color: "transparent"
         border.width: 1.5
-        border.color: C.alpha("#ffffff", 0.55)
+        border.color: C.alpha(ring.ink, 0.55)
     }
 }
