@@ -11,6 +11,14 @@
                              presets: every screen's wallpaper (and the one that drives the
                              theme) under a short name, to switch whole looks at once
     rice.py presets          JSON list of the presets, with thumbnails (for the picker)
+    rice.py theme show       JSON for the Theme page: a screen's mood, wallpaper swatches, accents
+                             (auto and current) and its overrides
+    rice.py theme set [--mood M|auto] [--primary HEX] [--secondary HEX] [--tertiary HEX]
+                      [--intensity F]
+                             hand-picked colours for a screen (--screen, default focused; or all),
+                             re-themed live. They last until a new wallpaper is picked on that
+                             screen, unless saved: `preset save` keeps them (a preset is a theme)
+    rice.py theme reset      back to the wallpaper's own colours
 
     --screen all|focused|<output>   which screens get the wallpaper (default: focused,
                                     the one KWin reports as active; kglobalaccel caches
@@ -65,6 +73,9 @@ CACHE = HOME / ".cache/rice"
 THUMBS = CACHE / "thumbs-plasma"
 CURRENT = STATE / "wallpaper"
 PRESETS = STATE / "presets.json"
+OVERRIDES = STATE / "overrides.json"    # {output: {mood, primary, secondary, tertiary, intensity}}
+LEAD = STATE / "theme-screen"           # the output whose wallpaper drives the global theme
+OV_KEYS = ("mood", "primary", "secondary", "tertiary", "intensity")
 PRESET_LEN = 10     # names stay short: they're chips in the picker
 EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 
@@ -477,26 +488,94 @@ def set_images(targets, img):
     build.shell(SET_JS % json.dumps({str(d): f"file://{img}" for s in targets for d in s["desktops"]}))
 
 
-def palette_for(img, cfg):
+def palette_for(img, cfg, ov=None):
     """palette v2 (the wallpaper's own colours and character: palette.analyse + build_v2), cached per
-    image and settings (a pick touches up to three screens)."""
-    key = hashlib.sha1(json.dumps(["v2", str(img), img.stat().st_mtime, cfg], sort_keys=True).encode()).hexdigest()[:16]
+    image, settings and overrides (a pick touches up to three screens)."""
+    ov = ov or {}
+    key = hashlib.sha1(json.dumps(["v2", str(img), img.stat().st_mtime, cfg, ov], sort_keys=True).encode()).hexdigest()[:16]
     f = CACHE / "palettes" / f"{key}.json"
     try:
         return json.loads(f.read_text())
     except (OSError, ValueError):
         pass
-    p = palette.build_v2(palette.analyse(img), cfg)
+    p = palette.build_v2(palette.analyse(img), cfg, ov)
     write_if_changed(f, json.dumps(p))
     return p
 
 
-def dark_twin(p, img, cfg):
+def overrides():
+    try:
+        return json.loads(OVERRIDES.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def save_overrides(ovs):
+    write_if_changed(OVERRIDES, json.dumps({o: v for o, v in ovs.items() if v}, indent=2) + "\n")
+
+
+def lead_screen(ss):
+    """The screen whose wallpaper drives the global theme: the last one picked on."""
+    names = [s["name"] for s in ss]
+    try:
+        name = LEAD.read_text().strip()
+    except OSError:
+        name = ""
+    if name in names:
+        return name
+    try:
+        cur = str(CURRENT.resolve(strict=True))
+    except OSError:
+        cur = ""
+    return next((s["name"] for s in ss if s["image"] and str(Path(s["image"]).resolve()) == cur), names[0] if names else "")
+
+
+def theme_args(args):
+    """--mood/--primary/... from `theme set` into an overrides dict ("auto" or "" drops a key)."""
+    out = {}
+    for k in OV_KEYS:
+        flag = "--" + k
+        if flag in args:
+            i = args.index(flag)
+            v = args[i + 1] if i + 1 < len(args) else ""
+            if k == "mood":
+                if v not in palette.MOODS + ("auto", ""):
+                    sys.exit(f"mood is one of {', '.join(palette.MOODS)} or auto")
+            elif k == "intensity":
+                try:
+                    v = max(0.3, min(1.5, float(v)))
+                except ValueError:
+                    sys.exit("intensity is a number, 1 = the wallpaper's own")
+            elif v and not (len(v) == 7 and v.startswith("#") and all(c in "0123456789abcdefABCDEF" for c in v[1:])):
+                sys.exit(f"{flag} takes a #rrggbb colour")
+            out[k] = v.lower() if isinstance(v, str) else v
+    return out
+
+
+def theme_show(s, cfg):
+    """What the Theme page needs for one screen."""
+    img = Path(s["image"]) if s["image"] else None
+    if not img or not img.is_file():
+        return {"screen": s["name"], "image": ""}
+    ov = overrides().get(s["name"], {})
+    auto = palette_for(img, cfg)
+    cur = palette_for(img, cfg, ov) if ov else auto
+    roles = ("primary", "secondary", "tertiary")
+    return {"screen": s["name"], "image": str(img), "thumb": str(thumb(img)),
+            "mood": cur["_mood"], "scheme": cur["_scheme"], "autoMood": auto["_mood"],
+            "detected": cur["_analysis"]["mood"], "moods": list(palette.MOODS), "lightUi": bool(cfg.get("light_ui")),
+            "swatches": cur["_swatches"], "overrides": ov,
+            "auto": {r: auto[r] for r in roles}, "current": {r: cur[r] for r in roles},
+            "surface": cur["background"], "fg": cur["on_surface"]}
+
+
+def dark_twin(p, img, cfg, ov=None):
     """Terminals, VS Code, Zen, btop and the prompt stay dark in every mood: for a light palette,
     the same wallpaper drawn the dark way (graphite/soft, palette.build_v2 without light_ui)."""
     if p.get("_scheme") != "light" or not img:
         return p
-    return with_meta(palette_for(img, dict(cfg, light_ui=False)), img)
+    ov = {k: v for k, v in (ov or {}).items() if k != "mood"}
+    return with_meta(palette_for(img, dict(cfg, light_ui=False), ov), img)
 
 
 def with_meta(p, img):
@@ -568,11 +647,12 @@ def scale_for(setting, output):
 
 
 def apply_screens(ss, cfg, fallback):
-    """Each screen's palette, for the widgets on its bar, and its bar's island colours."""
+    """Each screen's palette (with its overrides), for the widgets on its bar, and its bar's island colours."""
     pals = {}
+    ovs = overrides()
     for s in ss:
         img = Path(s["image"]) if s["image"] else None
-        p = with_meta(palette_for(img, cfg), img) if img else fallback
+        p = with_meta(palette_for(img, cfg, ovs.get(s["name"])), img) if img else fallback
         g = glass(img, s)
         p = dict(p, _glass=g, _glassBand=GLASS_BAND, _rim=rim(g, p),
                  _scale=scale_for(cfg.get("bar_scale"), s["name"]),         # size of that bar's widgets
@@ -629,6 +709,12 @@ def preset_save(name, ss):
         theme = ""
     entry = {"name": name, "screens": walls_now,
              "theme": theme if theme in walls_now.values() else next(iter(walls_now.values()))}
+    ovs = {o: v for o, v in overrides().items() if o in walls_now and v}
+    if ovs:
+        entry["overrides"] = ovs                # hand-picked colours: a preset is a whole theme
+    lead = lead_screen(ss)
+    if walls_now.get(lead) == entry["theme"]:
+        entry["lead"] = lead
     ps = presets()
     old = find_preset(ps, name)
     if old:
@@ -648,9 +734,10 @@ def preset_delete(name):
 
 
 def preset_prepare(name, ss):
-    """Puts a preset's wallpapers on every screen but the one that drives the theme and returns
-    (that image, that screen), which main() then picks and themes from like any other pick.
-    Screens the preset doesn't know (or whose image is gone) keep what they have."""
+    """Puts a preset's wallpapers on every screen but the one that drives the theme, and its
+    hand-picked colours (or none) in place, and returns (that image, that screen), which main()
+    then picks and themes from like any other pick. Screens the preset doesn't know (or whose
+    image is gone) keep what they have."""
     p = find_preset(presets(), name)
     if not p:
         sys.exit(f"no preset named {name!r}")
@@ -658,7 +745,9 @@ def preset_prepare(name, ss):
     usable = {o: img for o, img in p["screens"].items() if o in have and Path(img).is_file()}
     if not usable:
         sys.exit(f"none of {p['name']!r}'s wallpapers are on a connected screen any more")
-    lead = next((o for o, img in usable.items() if img == p["theme"]), next(iter(usable)))
+    lead = p.get("lead") if p.get("lead") in usable else \
+        next((o for o, img in usable.items() if img == p["theme"]), next(iter(usable)))
+    save_overrides({o: v for o, v in p.get("overrides", {}).items() if o in have})
     for o, img in usable.items():
         if o != lead and have[o]["image"] != img:
             set_images([have[o]], Path(img))
@@ -689,6 +778,28 @@ def main():
         print(json.dumps([dict(p, thumbs={o: str(thumb(Path(img))) for o, img in p["screens"].items()
                                            if Path(img).is_file()}) for p in presets()]))
         return
+    if arg == "theme":
+        sub = args[1] if len(args) > 1 else "show"
+        ss, cfg = screens(), settings()
+        if target == "focused":
+            target = run("qdbus6", "org.kde.KWin", "/KWin", "org.kde.KWin.activeOutputName").stdout.strip() or "all"
+        pickd = [s for s in ss if target in ("all", s["name"])] or ss[:1]
+        if sub == "show":
+            print(json.dumps(theme_show(pickd[0], cfg) if target != "all" else [theme_show(s, cfg) for s in ss]))
+            return
+        if sub not in ("set", "reset"):
+            sys.exit("rice.py theme show|set|reset")
+        ovs = overrides()
+        for s in pickd:
+            if sub == "reset":
+                ovs.pop(s["name"], None)
+            else:
+                cur = dict(ovs.get(s["name"], {}), **theme_args(args))
+                ovs[s["name"]] = {k: v for k, v in cur.items() if v not in ("", "auto", None)}
+        save_overrides(ovs)
+        arg, target = "restore", "all"       # re-theme everything from the wallpapers as they are
+        args = [arg]
+
     preset = ""
     if arg == "preset":
         sub, preset = (args[1:3] + ["", ""])[:2]
@@ -715,6 +826,12 @@ def main():
         sys.exit(f"no screen named {target!r} (have: {', '.join(s['name'] for s in ss)})")
 
     one = chosen[0] if len(chosen) == 1 else None
+    if arg != "restore" and chosen:
+        if not preset:      # a new wallpaper: back to its own colours (a loaded preset brings its own)
+            save_overrides({o: v for o, v in overrides().items() if o not in {s["name"] for s in chosen}})
+        focused = run("qdbus6", "org.kde.KWin", "/KWin", "org.kde.KWin.activeOutputName").stdout.strip()
+        lead = one["name"] if one else next((s["name"] for s in chosen if s["name"] == focused), chosen[0]["name"])
+        write_if_changed(LEAD, lead + "\n")
     img = pick(arg, cur=Path(one["image"]).resolve() if one and one["image"] else None,
                taken={Path(s["image"]).resolve() for s in ss if s["image"]})
     cfg = settings()
@@ -732,12 +849,13 @@ def main():
             run("plasma-apply-wallpaperimage", str(img))
         set_lockscreen(img)
 
-    p = with_meta(palette_for(img, cfg), img)
+    lead_ov = overrides().get(lead_screen(ss), {}) if ss else {}
+    p = with_meta(palette_for(img, cfg, lead_ov), img)
     # per-screen palettes first: the widgets re-read theirs when the colour scheme changes below
     apply_screens(ss, cfg, p)
 
     write_if_changed(STATE / "palette.json", json.dumps(p, indent=2) + "\n")
-    tp = dark_twin(p, img, cfg)        # terminals and apps
+    tp = dark_twin(p, img, cfg, lead_ov)        # terminals and apps
     write_if_changed(HOME / ".config/alacritty/plasma-rice.toml", alacritty(tp))
     render_templates(tp)
     write_if_changed(HOME / ".local/share/plasma/look-and-feel/com.zinoxx.rice/contents/splash/palette.js",
