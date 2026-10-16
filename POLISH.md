@@ -118,3 +118,23 @@ stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-
 c23/c90/c96 present and islands styled; Glimpse band (edge open, glass, per-screen icon states); launcher, logout,
 lock, Klassy titlebars + per-screen borders, Darkly apps, Krohnkite started once. If an effect fails: rebuild it
 (paru clone dir or pkg/ dir: makepkg -sfci). Rollback: snapper 104/105 (pre-6.8).
+
+## Pass 2: dynamic + harmonized (started 2026-10-16 15:40, orchestrator alone; user away, free hand)
+User asked (15:30): UI "not dynamic enough"; launcher hero must follow the wallpaper with a manual choice; better
+accents across the UI; the top band's glow line should follow the wallpaper. Answers: accents HARMONIZED; hero gets a
+small pencil in its top corner -> "Pick from wallpapers", "Adjust manually" (pan/zoom the current image), "Browse
+image"; move the wallpaper picker INSIDE the launcher (minimalism, user's "perhaps", my call: do it); scope = all.
+Root cause found first (fixed b18d6e5): widgets never re-read palettes on Plasma 6.8 (RicePalette now watches the file).
+TODO (tick as done, commit each):
+- [ ] A1 colour transitions: RicePalette role colours glide ~400 ms on change (not on first load)
+- [ ] A2 band glow line sampled from the wallpaper's top edge (rice.py `_rim` stops) + slow light drift while open
+- [ ] A3 launcher hero: pencil menu (pick from wallpapers / adjust pan+zoom / browse / follow wallpaper), per screen
+- [ ] B1 harmonized semantics: RicePalette ok/warn/bad = status hues blended toward primary; rings use primary->tertiary
+- [ ] B2 session popup: neutral tiles, accent on hover, warm glow for restart/shutdown, wallpaper strip header
+- [ ] B3 popups: faint accent aurora at the top of every popup (PopupIn), from the screen palette
+- [ ] C1 launcher grid uses all 6 columns (now 3 used, right half empty); C2 category chips scroll with edge fades;
+      C3 pinned tiles tinted by app colour with the band's glow
+- [ ] D1 sysstats: CPU/RAM/GPU history tabs with gradient fills + top 3 processes
+- [ ] W1 wallpaper picker inside the launcher (a Wallpapers view; Meta+Shift+W opens it; wheel on the Orbit emblem
+      steps this screen's wallpaper); remove the wallpicker widget from the bars (keep the plasmoid for rollback)
+- [ ] E1 presets red/blue/green/pastel/dark: screenshot every surface on each; fix what looks off
