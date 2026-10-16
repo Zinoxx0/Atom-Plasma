@@ -5,10 +5,11 @@ import QtQuick.Window
 import "Rice"
 import "palette.js" as P
 
-// Plasma rice splash, one per screen. It starts as the boot screen ended (Plymouth "rice", built by
-// ~/.config/plasma-rice/boot.py): the same neutral surface, Clawd, the comet ring and a label, at the
-// same offsets (boot.py LAYOUT). Then this screen's own wallpaper fades in under it as the session
-// loads, and the ring's track fills with progress, so the desktop arrives instead of popping in.
+// Atom Plasma splash, one per screen. It starts as the boot screen ended (Plymouth "rice", built by
+// ~/.config/plasma-rice/boot.py): the same neutral surface, the white Orbit mark, the comet ring and a
+// label, at the same offsets (boot.py LAYOUT). Then this screen's own wallpaper fades in under it as the
+// session loads, and the ring's track fills with progress, so the desktop arrives instead of popping in;
+// as it does, the mark opens into its halo, as the launcher does.
 Rectangle {
     id: root
     color: "#0c0d12"                            // boot.py BOOT.base
@@ -19,7 +20,7 @@ Rectangle {
     // boot.py's unit (device height / 1080) in logical px, so Clawd and the ring keep their device size
     readonly property real unit: height / 1080
 
-    onStageChanged: if (stage == 5) outro.start()
+    onStageChanged: if (stage == 5) { mark.open = true; outro.start() }
 
     RicePalette { id: pal; output: root.output }
     Account { id: me }
@@ -60,15 +61,18 @@ Rectangle {
         transform: Translate { id: rise; y: 8 * root.unit }
         Component.onCompleted: intro.start()
 
-        Clawd {
-            id: clawd
+        // the launcher's Orbit mark, all white (boot.py renders the same one for Plymouth): its
+        // satellites swing round now and then while the session loads
+        Emblem {
+            id: mark
             anchors.horizontalCenter: parent.horizontalCenter
             y: parent.height / 2 + (-70 * root.unit) - height / 2
-            px: 9 * root.unit
-            interactive: false
-            mood: "happy"
-            daypart: "day"
-            Timer { interval: 1600; running: content.opacity > 0; repeat: true; onTriggered: clawd.hop() }
+            scale: 4.2 * root.unit                 // boot.py LAYOUT mark_scale
+            c1: "#ffffff"; c2: "#ffffff"; c3: "#ffffff"; c4: "#ffffff"; glow: "#ffffff"
+            Timer {
+                interval: 1300; running: content.opacity > 0 && !mark.open; repeat: true
+                onTriggered: mark.hovered = !mark.hovered
+            }
         }
 
         Item {                                  // comet ring: the boot spinner, plus a track that fills
