@@ -7,7 +7,11 @@
     MangoHud  ~/.config/MangoHud/MangoHud.conf (MangoHud reloads it live)
     Zen       userChrome.css / userContent.css / user.js in each Zen profile (applied on Zen's next start)
 
+    fastfetch ~/.config/fastfetch/config.jsonc from templates/fastfetch.jsonc
+
     apps.py install-vscode    build the VS Code theme extension and install it
+    apps.py setup             one-shot, not palette-driven: Dolphin's toolbar and view, Darkly's glass
+    apps.py konsole-chrome    Konsole without menu bar or toolbars, tabs as pills (cheap; for login)
 """
 import json
 import subprocess
@@ -37,12 +41,133 @@ def write_if_changed(path, text):
     return True
 
 
-def term(p):
-    """ANSI colours, same mapping as rice.ansi (Konsole / Alacritty)."""
-    t = {n: (p[n], p[n + "_bright"]) for n in ("red", "green", "yellow", "blue", "magenta", "cyan")}
-    t["black"] = (p["surface_high"], p["outline"])
-    t["white"] = (p["on_surface_variant"], p["on_surface"])
+ANSI = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"]
+CLAIM = 35      # degrees: how close a wallpaper accent must be to an ANSI hue to take its slot
+APART = 15      # ...and how far it must stay from every other slot (blue and cyan sit only ~22 apart)
+
+
+def _hue_gap(a, b):
+    return abs((a - b + 180) % 360 - 180)
+
+
+def ansi(p):
+    """ANSI colours as (normal, bright, faint) per slot, for Konsole, Alacritty and VS Code's terminal.
+
+    After HyDE's kitty mapping (blacks and whites from the surface ladder, the colours from the
+    wallpaper's accents, brights lifted), with one difference: HyDE hands red/green/yellow to
+    whatever accents the wallpaper has, so an error can come out teal. Here each accent claims
+    only the ANSI hue it already resembles (within CLAIM degrees), so the terminal wears the
+    wallpaper's exact colours where they fit and red still reads as red everywhere else."""
+    lch, oklch = palette.to_oklch, palette.oklch
+    slots = {n: lch(p[n]) for n in ANSI[1:7]}
+    claimed = {}
+    for role in ("primary", "tertiary", "secondary"):
+        _, c, h = lch(p[role])
+        if c < 0.05:                    # a grey accent has no colour to lend
+            continue
+        hues = {n: claimed[n][1] if n in claimed else slots[n][2] for n in slots}
+        for n in sorted((n for n in slots if n not in claimed), key=lambda s: _hue_gap(h, slots[s][2])):
+            if _hue_gap(h, slots[n][2]) > CLAIM:
+                break
+            if all(_hue_gap(h, hues[m]) >= APART for m in slots if m != n):
+                claimed[n] = (c, h)
+                break
+    t = {}
+    for n, (L, C, H) in slots.items():
+        if n in claimed:
+            C, H = max(claimed[n][0], C * 0.75), claimed[n][1]   # keep the slot's lightness tier
+        normal = oklch(L, C, H) if n in claimed else p[n]
+        t[n] = (normal, oklch(min(0.93, L + 0.07), C, H), oklch(L - 0.12, C * 0.9, H))
+    # bright black is the ghost text (autosuggestions, comments): lifted to sit between outline and muted
+    t["black"] = (p["surface_high"], mix(p["outline"], p["muted"], 0.5), p["surface_container"])
+    t["white"] = (p["on_surface_variant"], p["on_surface"], p["muted"])
     return t
+
+
+def term(p):
+    """ANSI (normal, bright) pairs for VS Code's terminal."""
+    return {n: v[:2] for n, v in ansi(p).items()}
+
+
+# ---------------------------------------------------------------- KDE config files
+def _kesc(v):
+    """A value as KConfig writes it (what kwriteconfig6 would leave in the file)."""
+    v = str(v).lower() if isinstance(v, bool) else str(v)
+    v = v.replace("\\", "\\\\").replace("\n", "\\n").replace("\t", "\\t")
+    return "\\s" + v[1:] if v.startswith(" ") else v
+
+
+def kde_read(path):
+    """{(group, ...): {key: raw value}} of a KDE config file (raw = still escaped)."""
+    out, cur = {}, None
+    try:
+        lines = Path(path).read_text().splitlines()
+    except OSError:
+        return out
+    for line in lines:
+        s = line.strip()
+        if s.startswith("[") and s.endswith("]"):
+            cur = out.setdefault(tuple(s[1:-1].split("][")), {})
+        elif cur is not None and "=" in s and not s.startswith("#"):
+            k, v = s.split("=", 1)
+            cur[k.strip()] = v
+    return out
+
+
+def kde_set(name, groups):
+    """Set keys in a KDE config file, running kwriteconfig6 (which locks the file, so it can't race the
+    app that owns it) only for the keys that differ. groups: {group or (group, subgroup): {key: value}};
+    None deletes a key. name: a file in ~/.config or an absolute path. Returns True if anything changed."""
+    path = Path(name) if Path(name).is_absolute() else HOME / ".config" / name
+    have = kde_read(path)
+    changed = False
+    for g, keys in groups.items():
+        g = g if isinstance(g, tuple) else (g,)
+        cur = have.get(g, {})
+        for k, v in keys.items():
+            if (v is None and k not in cur) or (v is not None and cur.get(k) == _kesc(v)):
+                continue
+            cmd = ["kwriteconfig6", "--file", str(path)]
+            for part in g:
+                cmd += ["--group", part]
+            cmd += ["--key", k] + (["--delete"] if v is None else
+                                   [str(v).lower() if isinstance(v, bool) else str(v)])
+            subprocess.run(cmd, check=False)
+            changed = True
+    return changed
+
+
+def konsole_chrome():
+    """Konsole's window chrome: no menu bar or toolbars, tabs only when needed, styled by rice-tabs.css
+    (written by rice.py). A Konsole started before a change writes its old settings and window state
+    back when it closes, so rice.py runs this every time and `apps.py konsole-chrome` fits login.
+    Toolbar visibility lives in the saved window state, which every window rewrites on close."""
+    kde_set("konsolerc", {
+        "MainWindow": {"MenuBar": "Disabled", "ToolBarsMovable": "Disabled"},
+        "TabBar": {"TabBarVisibility": "ShowTabBarWhenNeeded", "TabBarUseUserStyleSheet": True,
+                   "TabBarUserStyleSheetFile": (HOME / ".local/share/konsole/rice-tabs.css").as_uri(),
+                   # no close button inside the pills (middle-click or Ctrl+Shift+W closes a tab),
+                   # no Search Tabs bolt in the corner
+                   "CloseTabOnMiddleMouseButton": True, "CloseTabButton": "None",
+                   "SearchTabsButton": "HideSearchTabsButton", "ExpandTabWidth": False},
+    })
+    staterc = HOME / ".local/state/konsolestaterc"
+    state = kde_read(staterc).get(("MainWindow",), {}).get("State")
+    if state:
+        kde_set(staterc, {"MainWindow": {"State": qt_toolbars_hidden(state, ("mainToolBar", "sessionToolbar"))}})
+
+
+def qt_toolbars_hidden(state_b64, names):
+    """A QMainWindow saveState() blob (base64) with the named toolbars marked hidden. Each toolbar is
+    stored as its objectName (QString: UTF-16BE) followed by a flags byte whose low bit means shown."""
+    import base64
+    state = bytearray(base64.b64decode(state_b64))
+    for name in names:
+        enc = name.encode("utf-16-be")
+        i = state.find(len(enc).to_bytes(4, "big") + enc)
+        if i >= 0:
+            state[i + 4 + len(enc)] &= 0xFE
+    return base64.b64encode(bytes(state)).decode()
 
 
 # ---------------------------------------------------------------- VS Code
@@ -635,9 +760,112 @@ def apply_zen(p):
         write_if_changed(uj, zen_userjs(p, uj.read_text() if uj.exists() else ""))
 
 
+# ---------------------------------------------------------------- fastfetch
+FASTFETCH_LOGO = "wallpaper"    # "wallpaper": a rounded square of it, "clawd": the text art in ~/.config/fastfetch
+
+
+def fastfetch_logo(p):
+    """The current wallpaper as a rounded square (radius lg at the size it's shown), named after the image
+    so fastfetch's own image cache never shows a stale one."""
+    import hashlib
+    img = Path(p.get("_wallpaper", ""))
+    if FASTFETCH_LOGO != "wallpaper" or not img.is_file():
+        return None
+    d = HOME / ".cache/rice/fastfetch"
+    out = d / f"logo-{hashlib.sha1(f'{img}:{img.stat().st_mtime}'.encode()).hexdigest()[:10]}.png"
+    if not out.exists():
+        d.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["magick", f"{img}[0]", "-resize", "400x400^", "-gravity", "center", "-extent", "400x400",
+                        "(", "-size", "400x400", "xc:none", "-fill", "white", "-draw", "roundrectangle 0,0,399,399,40,40", ")",
+                        "-compose", "DstIn", "-composite", str(out)], check=False, timeout=30)
+        for old in d.glob("logo-*.png"):
+            if old != out:
+                old.unlink(missing_ok=True)
+    return out if out.exists() else None
+
+
+def accent3(p):
+    """The palette colour furthest in hue from both primary and tertiary (red is kept for errors)."""
+    hue = lambda n: palette.to_oklch(p[n])[2]   # noqa: E731
+    return max(("teal", "cyan", "blue", "magenta", "green", "yellow", "orange"),
+               key=lambda n: min(_hue_gap(hue(n), hue("primary")), _hue_gap(hue(n), hue("tertiary"))))
+
+
+def fill(text, p, extra=None):
+    """{{name}} -> #hex, {{name:rgb}} -> r;g;b (for {#38;2;...} codes); extra values win over the palette."""
+    import re
+    vals = dict(p, **(extra or {}))
+
+    def sub(m):
+        v = vals.get(m.group(1))
+        if v is None:
+            return m.group(0)
+        return palette.rgb_csv(v).replace(",", ";") if m.group(2) == "rgb" else str(v)
+    return re.sub(r"\{\{(\w+)(?::(rgb))?\}\}", sub, text)
+
+
+def apply_fastfetch(p):
+    src = (HERE / "templates/fastfetch.jsonc").read_text()
+    body = "\n".join(line for line in src.splitlines() if not line.startswith("//"))
+    logo = fastfetch_logo(p)
+    text = fill(body, p, {"logo": logo or HOME / ".config/fastfetch/clawd.txt", "logo_type": "kitty" if logo else "file-raw",
+                          "logo_width": 20 if logo else 44, "accent3": p[accent3(p)]})
+    write_if_changed(HOME / ".config/fastfetch/config.jsonc",
+                     "// Generated by ~/.config/plasma-rice/apps.py from templates/fastfetch.jsonc. Do not edit.\n" + text)
+
+
+# ---------------------------------------------------------------- one-shot app settings
+# Not palette-driven, so rice.py doesn't rewrite them on every wallpaper (a setting the user changes
+# in the app stays changed); `apps.py setup` applies them again, e.g. after a reset.
+DOLPHIN_TOOLBAR = """    <ToolBar noMerge="1" name="mainToolBar" ToolButtonStyle="icononly" >
+        <text context="@title:menu">Main Toolbar</text>
+        <Action name="go_back" />
+        <Action name="go_forward" />
+        <Action name="url_navigators" />
+        <Action name="toggle_search" />
+        <Action name="view_settings" />
+        <Action name="hamburger_menu" />
+    </ToolBar>"""
+
+
+def dolphin_ui():
+    """Dolphin's own dolphinui.rc with the rice toolbar: back/forward, the path, then search, view mode
+    and the menu (split view stays on F3 and in the menu). The built-in file is a zstd-compressed Qt
+    resource inside the binary; the copy keeps its version, so a Dolphin update that bumps it wins."""
+    import re
+    blob, best = Path("/usr/bin/dolphin").read_bytes(), (-1, "")
+    i = blob.find(b"\x28\xb5\x2f\xfd")
+    while i >= 0:
+        xml = subprocess.run(["zstd", "-dcq"], input=blob[i:i + 400000], capture_output=True).stdout.decode(errors="replace")
+        m = re.search(r'<gui name="dolphin" version="(\d+)"', xml)
+        if m and 'ToolBar noMerge="1" name="mainToolBar" >' in xml and int(m.group(1)) > best[0]:
+            best = (int(m.group(1)), xml)   # the desktop file (a phone layout with a bottom toolbar ships too)
+        i = blob.find(b"\x28\xb5\x2f\xfd", i + 1)
+    if best[0] < 0:
+        return None
+    return re.sub(r'    <ToolBar noMerge="1" name="mainToolBar" >.*?</ToolBar>', DOLPHIN_TOOLBAR, best[1], count=1, flags=re.S)
+
+
+def setup():
+    ui = dolphin_ui()
+    if ui:
+        write_if_changed(HOME / ".local/share/kxmlgui5/dolphin/dolphinui.rc", ui)
+    kde_set("dolphinrc", {
+        "General": {"ShowStatusBar": "Small", "ShowZoomSlider": False,
+                    "ShowSelectionToggle": False},
+        "IconsMode": {"PreviewSize": 96, "IconSize": 64},
+    })
+    kde_set("darklyrc", {"Style": {
+        # the file view stays readable over a bright wallpaper; the sidebar shows more of the glass
+        "DolphinViewOpacity": 72, "DolphinSidebarOpacity": 55,
+        # the current tab gets a neutral lift, not a solid accent fill (accents are for state)
+        "TabUseHighlightColor": False,
+    }})
+
+
 # ---------------------------------------------------------------- entry points
 def apply(p):
-    for fn in (apply_vscode, apply_btop, apply_mangohud, apply_zen):
+    for fn in (apply_vscode, apply_btop, apply_mangohud, apply_zen, apply_fastfetch):
         try:
             fn(p)
         except Exception as e:  # one broken app must not stop the rest of the re-theme
@@ -648,5 +876,9 @@ if __name__ == "__main__":
     pal = json.loads((HOME / ".local/state/rice/palette.json").read_text())
     if sys.argv[1:] == ["install-vscode"]:
         install_vscode(pal)
+    elif sys.argv[1:] == ["setup"]:
+        setup()
+    elif sys.argv[1:] == ["konsole-chrome"]:
+        konsole_chrome()
     else:
         apply(pal)

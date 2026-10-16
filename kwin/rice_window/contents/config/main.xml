@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+                          http://www.kde.org/standards/kcfg/1.0/kcfg.xsd" >
+    <kcfgfile name=""/>
+    <group name="">
+        <!-- ms at normal animation speed (scaled by the system speed) -->
+        <entry name="InDuration" type="UInt"><default>200</default></entry>
+        <entry name="OutDuration" type="UInt"><default>160</default></entry>
+        <entry name="InScale" type="Double"><default>0.96</default></entry>
+        <entry name="OutScale" type="Double"><default>0.98</default></entry>
+    </group>
+</kcfg>

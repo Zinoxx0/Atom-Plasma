@@ -1,81 +1,85 @@
 # Template: rendered to ~/.config/starship.toml by ~/.config/plasma-rice/rice.py ({{name}} = palette colour)
+# Two-line frame: a rounded pill for where you are (os + path, the accent), a quiet pill for git,
+# language versions as plain text, a rule to the clock on the right; the prompt on the line below.
 "$schema" = 'https://starship.rs/config-schema.json'
 
+add_newline = true
+command_timeout = 400
+scan_timeout = 20
+
 format = """
-[░▒▓]({{tertiary}})\
-$os\
-[](bg:{{primary}} fg:{{tertiary}})\
-$directory\
-[](fg:{{primary}} bg:{{surface_highest}})\
-$git_branch\
-$git_status\
-[](fg:{{surface_highest}} bg:{{surface_high}})\
-$nodejs\
-$bun\
-$rust\
-$golang\
-$php\
-[](fg:{{surface_high}} bg:{{surface_container}})\
-$time\
-[ ](fg:{{surface_container}})\
-\n$character"""
+[╭─](fg:{{outline}})\
+[](fg:{{primary}})$os$directory[](fg:{{primary}})\
+$git_branch$git_status\
+$nodejs$bun$rust$golang$python\
+$cmd_duration\
+$fill\
+$time
+[╰─](fg:{{outline}})$character"""
+
+[os]
+disabled = false
+style = "bg:{{primary}} fg:{{on_primary}}"
+format = "[$symbol ]($style)"
 
 [directory]
-style = "fg:{{on_primary}} bg:{{primary}}"
-format = "[ $path ]($style)"
+style = "bg:{{primary}} fg:{{on_primary}} bold"
+read_only = " 󰌾"
+read_only_style = "bg:{{primary}} fg:{{on_primary}}"
+format = "[$path]($style)[$read_only]($read_only_style)"
 truncation_length = 3
 truncation_symbol = "…/"
+truncate_to_repo = true
 
 [directory.substitutions]
-"Documents" = "󰈙 "
-"Downloads" = " "
-"Music" = " "
-"Pictures" = " "
+"Documents" = "󰈙"
+"Downloads" = ""
+"Music" = "󰝚"
+"Pictures" = ""
 
 [git_branch]
 symbol = ""
-style = "bg:{{surface_highest}}"
-format = '[[ $symbol $branch ](fg:{{primary}} bg:{{surface_highest}})]($style)'
+format = " [](fg:{{surface_high}})[$symbol $branch](bg:{{surface_high}} fg:{{tertiary}})[](fg:{{surface_high}})"
 
 [git_status]
-style = "bg:{{surface_highest}}"
-format = '[[($all_status$ahead_behind )](fg:{{primary}} bg:{{surface_highest}})]($style)'
+format = "[( $all_status$ahead_behind)](fg:{{yellow}})"
 
 [nodejs]
 symbol = ""
-style = "bg:{{surface_high}}"
-format = '[[ $symbol ($version) ](fg:{{primary}} bg:{{surface_high}})]($style)'
+format = " [$symbol $version](fg:{{muted}})"
 
 [bun]
-symbol = ""
-style = "bg:{{surface_high}}"
-format = '[[ $symbol ($version) ](fg:{{primary}} bg:{{surface_high}})]($style)'
+format = " [bun $version](fg:{{muted}})"
 
 [rust]
 symbol = ""
-style = "bg:{{surface_high}}"
-format = '[[ $symbol ($version) ](fg:{{primary}} bg:{{surface_high}})]($style)'
+format = " [$symbol $version](fg:{{muted}})"
 
 [golang]
 symbol = ""
-style = "bg:{{surface_high}}"
-format = '[[ $symbol ($version) ](fg:{{primary}} bg:{{surface_high}})]($style)'
+format = " [$symbol $version](fg:{{muted}})"
 
-[php]
-symbol = ""
-style = "bg:{{surface_high}}"
-format = '[[ $symbol ($version) ](fg:{{primary}} bg:{{surface_high}})]($style)'
+[python]
+symbol = ""
+format = " [$symbol $version( $virtualenv)](fg:{{muted}})"
+
+[cmd_duration]
+min_time = 2000
+format = " [󰔟 $duration](fg:{{yellow}})"
+
+[fill]
+symbol = "─"
+style = "fg:{{surface_highest}}"
 
 [time]
 disabled = false
-time_format = "%R" # Hour:Minute Format
-style = "bg:{{surface_container}}"
-format = '[[  $time ](fg:{{on_surface_variant}} bg:{{surface_container}})]($style)'
+time_format = "%R"
+format = "[](fg:{{surface_container}})[󰥔 $time](bg:{{surface_container}} fg:{{on_surface_variant}})[](fg:{{surface_container}})"
 
-[os]
-style = "bg:{{tertiary}} fg:{{on_tertiary}}"
-format = "[ $symbol ]($style)"
-disabled = false
+[character]
+success_symbol = "[❯](bold fg:{{primary}})"
+error_symbol = "[❯](bold fg:{{red}})"
+vimcmd_symbol = "[❮](bold fg:{{tertiary}})"
 
 [os.symbols]
 Windows = "󰍲"

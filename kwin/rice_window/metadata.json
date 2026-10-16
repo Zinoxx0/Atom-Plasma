@@ -1,0 +1,16 @@
+{
+    "KPackageStructure": "KWin/Effect",
+    "KPlugin": {
+        "Authors": [{ "Name": "zinoxx (plasma-rice), after Vlad Zahorodnii's Scale" }],
+        "Category": "Window Open/Close Animation",
+        "Description": "Windows fade in from a slightly smaller size and fade out shrinking a little",
+        "EnabledByDefault": false,
+        "Icon": "preferences-system-windows-effect-scale",
+        "Id": "rice_window",
+        "License": "GPL",
+        "Name": "Rice window motion"
+    },
+    "X-KDE-Ordering": 60,
+    "X-KWin-Exclusive-Category": "toplevel-open-close-animation",
+    "X-Plasma-API": "javascript"
+}
