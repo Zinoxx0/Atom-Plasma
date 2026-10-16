@@ -137,7 +137,11 @@ TODO (tick as done, commit each):
 - [x] D1 sysstats: CPU/RAM/GPU history tabs with gradient fills + top 3 processes
 - [x] W1 wallpaper picker inside the launcher (a Wallpapers view; Meta+Shift+W opens it; wheel on the Orbit emblem
       steps this screen's wallpaper); remove the wallpicker widget from the bars (keep the plasmoid for rollback)
-- [ ] E1 presets red/blue/green/pastel/dark: screenshot every surface on each; fix what looks off
+- [x] E1 presets red/blue/green/pastel/dark: screenshot every surface on each; fix what looks off
 Progress (17:20): A1-D1 and W1 done and committed (8ed7e7e, 4383a39, 36beded, f23169a, d398e90). Found on the way:
 Plasma 6.8 stopped passing scheme switches to widgets (b18d6e5); `Behavior on onPrimary` and a `palette` property
 crash plasmashell; GridView with a width-bound cellWidth + centring leftMargin counted 3 of 6 columns. Next: E1.
+Done (17:30): E1 on blue / pale green / near-white / near-black / orange wallpapers (shots/e1-*): bars, band, popups and
+launcher all follow each palette and stay readable; restored the user's look (preset "spy"). Idle: 12.1 W, plasmashell
+2.4 %, KWin 12.4 % (shots/pass2/perf.txt). Known trade-off: on light wallpapers the band's lower glass reads grey-brown
+(it stays a dark bezel by design).
