@@ -152,4 +152,20 @@ accents, terminals stay dark); black -> VOID + starlight; manual colours are tem
 (presets become themes); bias modern/neon, pastel only for calm wallpapers (pastel surfaces: my call).
 Phases: 1 engine + offline palette sheet (check-in) / 2 dark moods live / 3 light mode / 4 overrides + Themes +
 Theme page / 5 sweep + tests.
-- [x] P1 engine (palette.py analyse/mood/build_v2) + tools/palette_sheet.py (sheet: ~/.cache/rice/shots/pass3/sheet.png; check-in pending)
+- [x] P1 engine (palette.py analyse/mood/build_v2) + tools/palette_sheet.py (sheet: ~/.cache/rice/shots/pass3/sheet.png; user: "looks awesome")
+- [x] P2 dark moods live (8ce8196): rice.py palette_for = build_v2; RicePalette exposes mood/light/glow/edge, status from
+      the palette, harmony 0.10; glows (Aurora, Glimpse haze/tiles, launcher pins) scale with `_glow`. Spy = neon blood red.
+- [x] P3 light mode (2b9eaad): Plasma Style variants Rice / Rice-Light (build.py, dark byte-identical), rice.py apply_style
+      follows the theme-driving screen; dark_twin palette for terminals/VS Code/Zen/btop/prompt; light KDE scheme inks;
+      Colorizer white-frost islands + fg override on stock islands (tray, clock); PopupIn repaints a popup with its
+      screen's surface when it differs from the global chrome; Glimpse drawer frosts (bezel strip stays black); rim
+      graphite on light; RicePalette deepens status hues on light; Zen pinned dark (ui.systemUsesDarkTheme).
+      Tested live: mixed (laptop white, others spy), HDMI white + theme spy, all white (shots p3-mix-pops, p3-light-pops).
+- [x] P4 overrides + themes + Theme page (b66b354 + launcher): overrides.json per output, `rice.py theme show|set|reset`,
+      theme-screen file = the screen driving the theme; presets save/load overrides + lead (a preset is a theme). Launcher:
+      WallpaperPane is the "Theme" page with Wallpapers | Colours tabs (ColoursTab.qml: mood chips, 3 accent cards, wallpaper
+      swatches, H/S/L sliders + hex, intensity, preview island, Discard/Automatic + Apply); wording preset -> theme.
+- [ ] P5 sweep: user check of the Colours tab; idle 11.5 W GPU / plasmashell 3.1 % / KWin 3.3 % (with audio playing).
+Gotchas: Colorizer's fg override sets `color` on every Text/Icon of an island (would flatten our accent text, so only
+stock islands get it); `palette.edge` inside a FocusRing resolves to FocusRing's own Item.palette (qualify with the
+root id); a light KDE scheme makes the portal report light (Zen/web would follow: pinned dark).
