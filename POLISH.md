@@ -20,7 +20,7 @@ not cold or cyberpunk.
 | 0.2 | Safety net (git x3, backup tarball) | orchestrator | done 2026-10-14 |
 | 0.3 | Baseline screenshots + perf | orchestrator | done 2026-10-14 (~/.cache/rice/shots/baseline) |
 | 0.4 | Design tokens + shared QML module | orchestrator | done 2026-10-15 (tokens.py, qml/Rice, token sheet) |
-| 0.5 | Plasma 6.8 upgrade (own step when it lands) | orchestrator | arrived 2026-10-16 14:01 via the user's cachy-update (repo part OK, snapper 105/106); rebuilding AUR plugins (darkly, klassy, better-blur-dx, panel-colorizer, kara, rounded-corners-rice), then reboot + verify |
+| 0.5 | Plasma 6.8 upgrade (own step when it lands) | orchestrator | arrived 2026-10-16 14:01 via the user's cachy-update (repo part OK, snapper 105/106); AUR plugins rebuilt against 6.8 and installed (darkly, klassy, better-blur-dx, panel-colorizer, rounded-corners-rice; snapper 108); kara fails on 6.8 (X11 taskmanager headers gone) and is unused; AUR apps updated (snapper 118). Next: reboot, then verify |
 | 1 | Shell surfaces (Plasma Style, bars, popups) | agent A | integrated 2026-10-16 (commits 8354c03, 9a39a11); check-in pending |
 | 2 | Glimpse opened band v2 | agent B | integrated 2026-10-15 (commit in plasmoids repo); check-in raised |
 | 3 | Launcher, logout, lock | agent A | integrated 2026-10-16 (a90a187, 94e8301; kdeglobals LookAndFeelPackage=com.zinoxx.rice); live check pending |
@@ -113,9 +113,8 @@ stray appletsrc group, Panel 2, island padding from tokens, clock px), M0 check-
   LookAndFeelPackage=org.kde.breezedark.desktop.
 
 ## Next step
-(2026-10-16 12:25) PROJECT COMPLETE. Reboot at 12:18 verified from logs: kernel `quiet splash`, no Plymouth errors,
-greeter up with Tela icons (its only message, GreeterState.qml:79 LoginState, is compiled stock code), splash ran
-2.7 s, panels on 0 1 2 with all three Colorizers, rice_window/rice_popups/blur/corners/magiclamp loaded (glide off),
-Krohnkite started once, Konsole toolbars hidden after login. Only the user saw the screens themselves: any visual
-notes from them become new small tasks. Leftover ideas (not started): real blur behind the Glimpse band (needs a
-compiled plugin), Plasma 6.8 upgrade step when it lands (milestone 0.5).
+(2026-10-16) After the reboot into Plasma 6.8: `plasmashell --version`/`kwin_wayland --version` = 6.8; journal for KWin effect load errors
+(better_blur_dx, kwin4_effect_shapecorners_rice, rice_window/rice_popups JS) and plasmashell QML errors; Colorizer services
+c23/c90/c96 present and islands styled; Glimpse band (edge open, glass, per-screen icon states); launcher, logout,
+lock, Klassy titlebars + per-screen borders, Darkly apps, Krohnkite started once. If an effect fails: rebuild it
+(paru clone dir or pkg/ dir: makepkg -sfci). Rollback: snapper 104/105 (pre-6.8).
