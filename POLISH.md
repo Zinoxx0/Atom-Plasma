@@ -126,15 +126,18 @@ small pencil in its top corner -> "Pick from wallpapers", "Adjust manually" (pan
 image"; move the wallpaper picker INSIDE the launcher (minimalism, user's "perhaps", my call: do it); scope = all.
 Root cause found first (fixed b18d6e5): widgets never re-read palettes on Plasma 6.8 (RicePalette now watches the file).
 TODO (tick as done, commit each):
-- [ ] A1 colour transitions: RicePalette role colours glide ~400 ms on change (not on first load)
-- [ ] A2 band glow line sampled from the wallpaper's top edge (rice.py `_rim` stops) + slow light drift while open
-- [ ] A3 launcher hero: pencil menu (pick from wallpapers / adjust pan+zoom / browse / follow wallpaper), per screen
-- [ ] B1 harmonized semantics: RicePalette ok/warn/bad = status hues blended toward primary; rings use primary->tertiary
-- [ ] B2 session popup: neutral tiles, accent on hover, warm glow for restart/shutdown, wallpaper strip header
-- [ ] B3 popups: faint accent aurora at the top of every popup (PopupIn), from the screen palette
-- [ ] C1 launcher grid uses all 6 columns (now 3 used, right half empty); C2 category chips scroll with edge fades;
+- [x] A1 colour transitions: RicePalette role colours glide ~400 ms on change (not on first load)
+- [x] A2 band glow line sampled from the wallpaper's top edge (rice.py `_rim` stops) + slow light drift while open
+- [x] A3 launcher hero: pencil menu (pick from wallpapers / adjust pan+zoom / browse / follow wallpaper), per screen
+- [x] B1 harmonized semantics: RicePalette ok/warn/bad = status hues blended toward primary; rings use primary->tertiary
+- [x] B2 session popup: neutral tiles, accent on hover, warm glow for restart/shutdown, wallpaper strip header
+- [x] B3 popups: faint accent aurora at the top of every popup (PopupIn), from the screen palette
+- [x] C1 launcher grid uses all 6 columns (now 3 used, right half empty); C2 category chips scroll with edge fades;
       C3 pinned tiles tinted by app colour with the band's glow
-- [ ] D1 sysstats: CPU/RAM/GPU history tabs with gradient fills + top 3 processes
-- [ ] W1 wallpaper picker inside the launcher (a Wallpapers view; Meta+Shift+W opens it; wheel on the Orbit emblem
+- [x] D1 sysstats: CPU/RAM/GPU history tabs with gradient fills + top 3 processes
+- [x] W1 wallpaper picker inside the launcher (a Wallpapers view; Meta+Shift+W opens it; wheel on the Orbit emblem
       steps this screen's wallpaper); remove the wallpicker widget from the bars (keep the plasmoid for rollback)
 - [ ] E1 presets red/blue/green/pastel/dark: screenshot every surface on each; fix what looks off
+Progress (17:20): A1-D1 and W1 done and committed (8ed7e7e, 4383a39, 36beded, f23169a, d398e90). Found on the way:
+Plasma 6.8 stopped passing scheme switches to widgets (b18d6e5); `Behavior on onPrimary` and a `palette` property
+crash plasmashell; GridView with a width-bound cellWidth + centring leftMargin counted 3 of 6 columns. Next: E1.
