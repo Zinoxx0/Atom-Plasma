@@ -28,6 +28,10 @@
       <label>Screens the wallpaper view applies to: "all" or an output name</label>
       <default>all</default>
     </entry>
+    <entry name="wallFocus" type="String">
+      <label>The screen the Theme page shows while it edits every screen (wallTarget "all")</label>
+      <default></default>
+    </entry>
     <entry name="tags" type="String">
       <label>Tags of the last "Get more" (comma-separated)</label>
       <default></default>

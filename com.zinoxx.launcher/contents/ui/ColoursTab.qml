@@ -6,55 +6,80 @@ import "Rice"
 import "Rice/Color.js" as C
 
 // The Theme page's Colours tab: what rice.py made of a screen's wallpaper (its mood and three
-// accents) and hand-picked replacements, to mismatch on purpose. Edits preview here; Apply re-themes
-// live (rice.py theme set), Back to automatic drops them (theme reset). They last until a new
-// wallpaper is picked on that screen, unless kept in a theme (the bookmark button above).
+// accents) and hand-picked replacements, to mismatch on purpose. Edits are live, like picking a
+// wallpaper: a click, a slider let go or a typed hex re-themes the target right away (rice.py theme
+// set, one run at a time, the latest values winning); undo() steps back, automatic() returns to
+// the wallpaper's own colours. They last until a new wallpaper is picked there, unless saved in a
+// theme (Save look). Rows hang off the page's label rail (`rail`).
 Item {
     id: ct
     required property RicePalette pal
     property string screen: ""              // the screen whose colours are shown
-    property string target: "all"           // what Apply / Back to automatic touch: an output or "all"
+    property string target: "all"           // where edits go: an output or "all"
+    property real rail: 76                  // width of the page's label column
     readonly property bool shown: visible
+    signal changed()                        // a run finished: the page refreshes its screens and themes
 
     property var theme: null                // rice.py theme show
-    property var edits: ({})                // pending: {mood, primary, secondary, tertiary, intensity}
-    property string role: "primary"         // the accent being edited
+    property var draft: ({})                // values shown while they're on their way
+    property var queued: ({})               // values not sent yet
+    property var history: []                // earlier hand-picked states of this screen, for undo
     property bool busy: false
-    property string status: ""
+    property string error: ""
+    property string role: "primary"         // the accent being edited
 
     readonly property var roles: ["primary", "secondary", "tertiary"]
     readonly property var names: ({ primary: "Primary", secondary: "Secondary", tertiary: "Tertiary" })
     readonly property var moodNames: ({ neon: "Neon", soft: "Soft", light: "Light", void: "Void", graphite: "Graphite" })
+    readonly property var keys: ["mood", "primary", "secondary", "tertiary", "intensity"]
     readonly property var saved: theme ? theme.overrides : ({})
-    function val(k) { return edits[k] !== undefined ? edits[k] : saved[k] }
+    function val(k) { return draft[k] !== undefined ? draft[k] : saved[k] }
     function accent(r) {
-        const e = edits[r]
-        return e === "auto" && theme ? theme.auto[r] : e ? e : theme ? theme.current[r] : pal.col(r)
+        const d = draft[r]
+        return d === "auto" && theme ? theme.auto[r] : d ? d : theme ? theme.current[r] : pal.col(r)
     }
     function isCustom(r) { const v = val(r); return v !== undefined && v !== "" && v !== "auto" }
     readonly property string mood: { const m = val("mood"); return m && m !== "auto" ? m : "auto" }
-    readonly property real intensity: val("intensity") !== undefined ? Number(val("intensity")) : 1
-    readonly property bool dirty: Object.keys(edits).length > 0
-    readonly property bool custom: Object.keys(saved).length > 0
+    readonly property real intensity: { const v = val("intensity"); return v !== undefined && v !== "auto" ? Number(v) : 1 }
+    readonly property bool custom: Object.keys(saved).length > 0 || Object.keys(draft).some(k => draft[k] !== "auto")
+    readonly property bool canUndo: history.length > 0 && !busy
 
     function q(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'" }
-    function set(k, v) { const e = Object.assign({}, edits); e[k] = v; edits = e }
     function hex(c) { return String(Qt.lighter(c, 1)).slice(0, 7) }
     function load() {
+        if (!busy) error = ""
         sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" theme show --screen ' + q(screen || "focused") + ' #tshow ' + Date.now())
     }
-    function apply() {
-        if (!dirty || busy) return
+    // show it now; send() (or a drag let go) sends it
+    function edit(k, v) {
+        const d = Object.assign({}, draft); d[k] = v; draft = d
+        const qd = Object.assign({}, queued); qd[k] = v; queued = qd
+    }
+    function send() { sendTimer.restart() }
+    Timer { id: sendTimer; interval: 150; onTriggered: ct.flush() }
+    function flush() {
+        if (busy || Object.keys(queued).length === 0) return
+        history = history.concat([Object.assign({}, saved)]).slice(-20)
+        run(queued)
+    }
+    function run(values) {
         let a = ""
-        for (const k of ["mood", "primary", "secondary", "tertiary", "intensity"])
-            if (edits[k] !== undefined) a += " --" + k + " " + q(String(edits[k]))
-        busy = true; status = ""
+        for (const k of keys) if (values[k] !== undefined) a += " --" + k + " " + q(String(values[k]))
+        queued = ({}); busy = true; error = ""
         sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" theme set --screen ' + q(target) + a + ' #tset ' + Date.now())
     }
-    function reset() {
-        if (busy) return
-        if (dirty) { edits = ({}); return }     // first, just the pending edits
-        busy = true; status = ""
+    function undo() {
+        if (!canUndo) return
+        const prev = history[history.length - 1]
+        history = history.slice(0, -1)
+        const v = {}
+        for (const k of keys) v[k] = prev[k] !== undefined ? prev[k] : "auto"
+        draft = Object.assign({}, v); run(v)
+    }
+    function automatic() {
+        if (busy || !custom) return
+        history = history.concat([Object.assign({}, saved)]).slice(-20)
+        draft = ({}); queued = ({}); busy = true; error = ""
         sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" theme reset --screen ' + q(target) + ' #tset ' + Date.now())
     }
 
@@ -65,223 +90,79 @@ Item {
         onNewData: (source, data) => {
             const out = data["stdout"] ?? ""
             if (source.indexOf("#tshow") >= 0) {
-                try { ct.theme = JSON.parse(out) } catch (e) { ct.theme = null }
+                try { ct.theme = JSON.parse(out) } catch (e) {}      // keep the last good one
+                if (!ct.busy && Object.keys(ct.queued).length === 0) ct.draft = ({})
             } else if (source.indexOf("#tset") >= 0) {
                 ct.busy = false
-                ct.edits = ({})
-                ct.status = (data["exit code"] ?? 0) === 0 ? "" : "rice.py: " + String(data["stderr"] ?? "").trim().split("\n").pop()
-                ct.load()
+                if ((data["exit code"] ?? 0) !== 0) ct.error = String(data["stderr"] ?? "").trim().split("\n").pop()
+                if (Object.keys(ct.queued).length) ct.run(ct.queued)    // edits made meanwhile
+                else { ct.load(); ct.changed() }
             }
             disconnectSource(source)
         }
     }
     onShownChanged: if (shown) load()
     Component.onCompleted: if (shown) load()
-    onScreenChanged: { edits = ({}); if (shown) load() }
+    onScreenChanged: { draft = ({}); queued = ({}); history = []; if (shown) load() }
 
     // the colour being edited, as HSL; the hue is remembered while the colour is grey
     readonly property color cur: accent(role)
     property real hueMemo: 0
     readonly property real hh: cur.hslHue >= 0 ? cur.hslHue : hueMemo
     onCurChanged: if (cur.hslHue >= 0) hueMemo = cur.hslHue
-    function setHsl(h, s, l) { set(role, hex(Qt.hsla(h, s, l, 1))) }
+    function setHsl(h, s, l) { edit(role, hex(Qt.hsla(h, s, l, 1))) }
+
+    component RailLabel: Text {
+        Layout.preferredWidth: ct.rail
+        Layout.alignment: Qt.AlignVCenter
+        color: ct.pal.muted
+        font.family: Tokens.font.ui
+        font.weight: Font.DemiBold
+        font.pixelSize: Tokens.size.small
+    }
+    component Value: Text {
+        Layout.preferredWidth: 44
+        horizontalAlignment: Text.AlignRight
+        color: ct.pal.fgDim
+        font.family: Tokens.font.mono
+        font.pixelSize: Tokens.size.small
+    }
 
     ColumnLayout {
         anchors.fill: parent
         spacing: Tokens.space.md
 
-        // mood: the wallpaper's character as read, or forced
+        // ---- the look as a whole: mood and intensity
         RowLayout {
             Layout.fillWidth: true
-            spacing: Tokens.space.xs + 2
-            Text {
-                text: "Mood"
-                color: ct.pal.muted
-                font.family: Tokens.font.ui
-                font.weight: Font.DemiBold
-                font.pixelSize: Tokens.size.label
-                Layout.rightMargin: Tokens.space.xs
-            }
-            Repeater {
-                model: ["auto"].concat(ct.theme ? ct.theme.moods : [])
-                Chip {
-                    required property string modelData
-                    palette: ct.pal
-                    interactive: true
-                    size: 26
-                    selected: ct.mood === modelData
-                    tint: ct.pal.primary
-                    text: modelData === "auto" ? "Auto · " + (ct.theme ? ct.moodNames[ct.theme.detected] ?? ct.theme.detected : "…")
-                                               : ct.moodNames[modelData]
-                    tooltip: ({ auto: "What the wallpaper reads as", neon: "Vivid accents at the edge of the gamut",
-                                soft: "Calm, pastel accents", light: "Light frosted desktop, silver accents",
-                                void: "True black, cold starlight", graphite: "Neutral greys, silver accents" })[modelData]
-                    onClicked: ct.set("mood", modelData)
-                }
-            }
-            Item { Layout.fillWidth: true }
-        }
-
-        // the three accents: click one to edit it
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Tokens.space.sm
-            Repeater {
-                model: ct.roles
-                Rectangle {
-                    id: card
-                    required property string modelData
-                    readonly property color c: ct.accent(modelData)
-                    readonly property bool selected: ct.role === modelData
-                    readonly property bool onLight: c.hslLightness > 0.6
-                    Layout.fillWidth: true
-                    implicitHeight: 58
-                    radius: Tokens.radius.md
-                    color: c
-                    Behavior on color { ColorAnimation { duration: Tokens.fast } }
-                    border.width: selected ? 2 : 1
-                    border.color: selected ? ct.pal.fg : C.alpha(ct.pal.edge, 0.16)
-                    Rectangle {     // a soft sheen, like glass
-                        anchors.fill: parent
-                        anchors.margins: 1
-                        radius: parent.radius - 1
-                        gradient: Gradient {
-                            GradientStop { position: 0; color: Qt.rgba(1, 1, 1, 0.22) }
-                            GradientStop { position: 0.55; color: "transparent" }
-                        }
-                    }
-                    Column {
-                        anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: Tokens.space.md }
-                        spacing: 1
-                        Text {
-                            text: ct.names[card.modelData]
-                            color: card.onLight ? "#14151b" : "#ffffff"
-                            font.family: Tokens.font.ui
-                            font.weight: Font.Bold
-                            font.pixelSize: Tokens.size.label
-                        }
-                        Text {
-                            text: ct.hex(card.c) + (ct.isCustom(card.modelData) ? "  ·  custom" : "")
-                            color: card.onLight ? Qt.rgba(0.08, 0.08, 0.1, 0.7) : Qt.rgba(1, 1, 1, 0.75)
-                            font.family: Tokens.font.mono
-                            font.pixelSize: Tokens.size.small
-                        }
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: ct.role = card.modelData
-                    }
-                }
-            }
-        }
-
-        // the editor for the chosen accent: the wallpaper's own colours, then hue/saturation/lightness and hex
-        GridLayout {
-            Layout.fillWidth: true
-            columns: 3
-            columnSpacing: Tokens.space.md
-            rowSpacing: Tokens.space.xs + 2
-
-            Text { text: "Wallpaper"; color: ct.pal.muted; font.family: Tokens.font.ui; font.pixelSize: Tokens.size.small }
-            Row {
-                Layout.columnSpan: 2
+            spacing: 0
+            RailLabel { text: "Mood" }
+            Flow {
+                Layout.fillWidth: true
                 spacing: Tokens.space.xs + 2
                 Repeater {
-                    model: ct.theme ? [ct.theme.auto[ct.role]].concat(ct.theme.swatches) : []
-                    Rectangle {
-                        id: sw
+                    model: ["auto"].concat(ct.theme ? ct.theme.moods : [])
+                    Chip {
                         required property string modelData
-                        required property int index
-                        width: 26; height: 26; radius: 13
-                        color: modelData
-                        border.width: ct.hex(ct.cur) === modelData.toLowerCase() ? 2 : 1
-                        border.color: ct.hex(ct.cur) === modelData.toLowerCase() ? ct.pal.fg : C.alpha(ct.pal.edge, 0.2)
-                        scale: swMouse.containsMouse ? 1.12 : 1
-                        Behavior on scale { NumberAnimation { duration: Tokens.fast; easing.type: Tokens.enter } }
-                        Text {      // the first one is what rice.py picked for this accent
-                            anchors.centerIn: parent
-                            visible: sw.index === 0
-                            text: "auto_awesome"
-                            color: C.rgb(sw.modelData).hslLightness > 0.6 ? "#14151b" : "#ffffff"
-                            font.family: Tokens.font.icons
-                            font.pixelSize: 14
-                        }
-                        PlasmaCore.ToolTipArea {
-                            anchors.fill: parent
-                            mainText: sw.index === 0 ? "Automatic" : "From the wallpaper"
-                            subText: sw.modelData
-                            MouseArea {
-                                id: swMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: ct.set(ct.role, sw.index === 0 ? "auto" : sw.modelData)
-                            }
-                        }
+                        palette: ct.pal
+                        interactive: true
+                        size: 26
+                        selected: ct.mood === modelData
+                        tint: ct.pal.primary
+                        text: modelData === "auto" ? "Auto · " + (ct.theme ? ct.moodNames[ct.theme.detected] ?? ct.theme.detected : "…")
+                                                   : ct.moodNames[modelData]
+                        tooltip: ({ auto: "What the wallpaper reads as", neon: "Vivid accents at the edge of the gamut",
+                                    soft: "Calm, pastel accents", light: "Light frosted desktop, silver accents",
+                                    void: "True black, cold starlight", graphite: "Neutral greys, silver accents" })[modelData]
+                        onClicked: if (ct.mood !== modelData) { ct.edit("mood", modelData); ct.send() }
                     }
                 }
             }
-
-            Text { text: "Hue"; color: ct.pal.muted; font.family: Tokens.font.ui; font.pixelSize: Tokens.size.small }
-            ColourSlider {
-                Layout.fillWidth: true
-                palette: ct.pal
-                channel: "h"; h: ct.hh; s: ct.cur.hslSaturation; l: ct.cur.hslLightness
-                value: ct.hh
-                onMoved: v => ct.setHsl(v, Math.max(ct.cur.hslSaturation, 0.05), ct.cur.hslLightness)
-            }
-            Text { text: Math.round(ct.hh * 360) + "°"; color: ct.pal.fgDim; font.family: Tokens.font.mono; font.pixelSize: Tokens.size.small; Layout.preferredWidth: 72 }
-
-            Text { text: "Saturation"; color: ct.pal.muted; font.family: Tokens.font.ui; font.pixelSize: Tokens.size.small }
-            ColourSlider {
-                Layout.fillWidth: true
-                palette: ct.pal
-                channel: "s"; h: ct.hh; s: ct.cur.hslSaturation; l: ct.cur.hslLightness
-                value: ct.cur.hslSaturation
-                onMoved: v => ct.setHsl(ct.hh, v, ct.cur.hslLightness)
-            }
-            Text { text: Math.round(ct.cur.hslSaturation * 100) + "%"; color: ct.pal.fgDim; font.family: Tokens.font.mono; font.pixelSize: Tokens.size.small }
-
-            Text { text: "Lightness"; color: ct.pal.muted; font.family: Tokens.font.ui; font.pixelSize: Tokens.size.small }
-            ColourSlider {
-                Layout.fillWidth: true
-                palette: ct.pal
-                channel: "l"; h: ct.hh; s: ct.cur.hslSaturation; l: ct.cur.hslLightness
-                value: ct.cur.hslLightness
-                onMoved: v => ct.setHsl(ct.hh, ct.cur.hslSaturation, v)
-            }
-            // hex, typed
-            Rectangle {
-                Layout.preferredWidth: 72
-                implicitHeight: 24
-                radius: height / 2
-                color: C.alpha(ct.pal.fg, hexIn.activeFocus ? 0.09 : 0.05)
-                border.width: 1
-                border.color: hexIn.activeFocus ? ct.pal.primary : C.alpha(ct.pal.edge, Tokens.alpha.outline)
-                TextInput {
-                    id: hexIn
-                    anchors.fill: parent
-                    anchors.leftMargin: Tokens.space.sm
-                    verticalAlignment: TextInput.AlignVCenter
-                    text: ct.hex(ct.cur)
-                    color: ct.pal.fg
-                    selectionColor: ct.pal.primary
-                    selectedTextColor: ct.pal.onPrimary
-                    font.family: Tokens.font.mono
-                    font.pixelSize: Tokens.size.small
-                    maximumLength: 7
-                    validator: RegularExpressionValidator { regularExpression: /#?[0-9a-fA-F]{0,6}/ }
-                    onAccepted: {
-                        const t = text.replace("#", "")
-                        if (t.length === 6) ct.set(ct.role, "#" + t.toLowerCase())
-                        else text = ct.hex(ct.cur)
-                    }
-                    onActiveFocusChanged: if (!activeFocus) text = Qt.binding(() => ct.hex(ct.cur))
-                }
-            }
-
-            Text { text: "Intensity"; color: ct.pal.muted; font.family: Tokens.font.ui; font.pixelSize: Tokens.size.small }
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 0
+            RailLabel { text: "Intensity" }
             ColourSlider {
                 Layout.fillWidth: true
                 palette: ct.pal
@@ -289,104 +170,233 @@ Item {
                 from: Qt.hsla(ct.hh, 0.08, 0.5, 1)
                 to: ct.accent("primary")
                 value: (ct.intensity - 0.3) / 1.2
-                onMoved: v => ct.set("intensity", Math.round((0.3 + v * 1.2) * 100) / 100)
+                onMoved: v => ct.edit("intensity", Math.round((0.3 + v * 1.2) * 100) / 100)
+                onReleased: ct.send()
             }
-            Text { text: Math.round(ct.intensity * 100) + "%"; color: ct.pal.fgDim; font.family: Tokens.font.mono; font.pixelSize: Tokens.size.small }
+            Value { text: Math.round(ct.intensity * 100) + "%" }
         }
 
-        Item { Layout.fillHeight: true }
-
-        // a preview of the edits on a bar island and the band's glow line, then the actions
+        // ---- the three accents: pick one, edit it in the card under them
         RowLayout {
             Layout.fillWidth: true
-            spacing: Tokens.space.sm
-            Rectangle {
-                id: preview
+            spacing: 0
+            RailLabel { text: "Accents" }
+            RowLayout {
                 Layout.fillWidth: true
-                implicitHeight: 40
-                radius: Tokens.radius.md
-                color: ct.theme ? ct.theme.surface : ct.pal.surface
-                border.width: 1
-                border.color: C.alpha(ct.accent("primary"), 0.5)
-                readonly property color fg: ct.theme ? ct.theme.fg : ct.pal.fg
-                Row {
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: Tokens.space.md
-                    spacing: Tokens.space.sm
-                    Ring {
-                        width: 24; height: 24
-                        value: 62; shown: 62; instant: true
-                        thickness: 4
-                        from: ct.accent("primary")
-                        to: ct.accent("tertiary")
-                        track: C.alpha(preview.fg, 0.14)
-                        showText: false
-                    }
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "62%"
-                        color: preview.fg
-                        font.family: Tokens.font.ui
-                        font.weight: Font.DemiBold
-                        font.pixelSize: Tokens.size.body
-                    }
+                spacing: Tokens.space.sm
+                Repeater {
+                    model: ct.roles
                     Rectangle {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: chipText.implicitWidth + 16; height: 22; radius: 11
-                        color: C.alpha(ct.accent("secondary"), 0.22)
-                        border.width: 1
-                        border.color: C.alpha(ct.accent("secondary"), 0.6)
-                        Text {
-                            id: chipText
-                            anchors.centerIn: parent
-                            text: ct.mood === "auto" ? (ct.theme ? ct.moodNames[ct.theme.mood] ?? "" : "") : ct.moodNames[ct.mood]
-                            color: preview.fg
-                            font.family: Tokens.font.ui
-                            font.pixelSize: Tokens.size.small
+                        id: acc
+                        required property string modelData
+                        readonly property color c: ct.accent(modelData)
+                        readonly property bool selected: ct.role === modelData
+                        readonly property bool hot: accMouse.containsMouse
+                        Layout.fillWidth: true
+                        implicitHeight: 44
+                        radius: Tokens.radius.md
+                        color: selected ? C.alpha(c, 0.16) : C.alpha(ct.pal.fg, hot ? 0.07 : 0.04)
+                        border.width: selected ? 1.5 : 1
+                        border.color: selected ? c : C.alpha(ct.pal.edge, Tokens.alpha.outline)
+                        Behavior on color { ColorAnimation { duration: Tokens.fast } }
+                        Row {
+                            anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: Tokens.space.sm }
+                            spacing: Tokens.space.sm
+                            Rectangle {
+                                width: 26; height: 26; radius: 13
+                                color: acc.c
+                                border.width: ct.isCustom(acc.modelData) ? 2 : 0
+                                border.color: ct.pal.fg
+                                Behavior on color { ColorAnimation { duration: Tokens.fast } }
+                            }
+                            Column {
+                                anchors.verticalCenter: parent.verticalCenter
+                                Text {
+                                    text: ct.names[acc.modelData]
+                                    color: acc.selected ? ct.pal.fg : ct.pal.fgDim
+                                    font.family: Tokens.font.ui
+                                    font.weight: Font.DemiBold
+                                    font.pixelSize: Tokens.size.label
+                                }
+                                Text {
+                                    text: ct.hex(acc.c)
+                                    color: ct.pal.muted
+                                    font.family: Tokens.font.mono
+                                    font.pixelSize: Tokens.size.caption
+                                }
+                            }
+                        }
+                        MouseArea {
+                            id: accMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: ct.role = acc.modelData
                         }
                     }
                 }
-                Rectangle {     // the top band's glow line
-                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: Tokens.radius.md; rightMargin: Tokens.radius.md }
-                    height: 2
-                    gradient: Gradient {
-                        orientation: Gradient.Horizontal
-                        GradientStop { position: 0; color: "transparent" }
-                        GradientStop { position: 0.2; color: ct.accent("primary") }
-                        GradientStop { position: 0.8; color: ct.accent("tertiary") }
-                        GradientStop { position: 1; color: "transparent" }
-                    }
-                }
-            }
-            Pill {
-                palette: ct.pal
-                icon: ct.dirty ? "undo" : "auto_awesome"
-                text: ct.dirty ? "Discard" : "Automatic"
-                tooltip: ct.dirty ? "Forget these edits" : "Back to the wallpaper's own colours"
-                accent: ct.pal.secondary
-                onAccent: ct.pal.col("on_secondary")
-                enabled: ct.dirty || ct.custom
-                opacity: enabled ? 1 : 0.4
-                busy: ct.busy && !ct.dirty
-                onClicked: ct.reset()
-            }
-            Pill {
-                palette: ct.pal
-                icon: "check"
-                text: "Apply"
-                tooltip: ct.target === "all" ? "Re-theme every screen with these colours" : "Re-theme this screen with these colours"
-                enabled: ct.dirty
-                opacity: enabled ? 1 : 0.4
-                busy: ct.busy && ct.dirty
-                onClicked: ct.apply()
             }
         }
+
+        // ---- the editor for the chosen accent
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.leftMargin: ct.rail
+            implicitHeight: editor.implicitHeight + 2 * Tokens.space.md
+            radius: Tokens.radius.md
+            color: C.alpha(ct.pal.fg, 0.04)
+            border.width: 1
+            border.color: C.alpha(ct.cur, 0.45)
+            Rectangle {     // the accent's own wash at the top
+                anchors.fill: parent
+                anchors.margins: 1
+                radius: parent.radius - 1
+                gradient: Gradient {
+                    GradientStop { position: 0; color: C.alpha(ct.cur, 0.14) }
+                    GradientStop { position: 0.6; color: "transparent" }
+                }
+            }
+            GridLayout {
+                id: editor
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: Tokens.space.md }
+                columns: 3
+                columnSpacing: Tokens.space.md
+                rowSpacing: Tokens.space.sm
+
+                // which accent, where it comes from, and its hex (type one in)
+                Text {
+                    text: ct.names[ct.role]
+                    color: ct.pal.fg
+                    font.family: Tokens.font.display
+                    font.weight: Font.Bold
+                    font.pixelSize: Tokens.size.title
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: ct.isCustom(ct.role) ? "Hand-picked" : "From the wallpaper"
+                    color: ct.pal.muted
+                    font.family: Tokens.font.ui
+                    font.pixelSize: Tokens.size.small
+                }
+                Rectangle {
+                    Layout.preferredWidth: 84
+                    implicitHeight: 26
+                    radius: height / 2
+                    color: C.alpha(ct.pal.fg, hexIn.activeFocus ? 0.09 : 0.05)
+                    border.width: 1
+                    border.color: hexIn.activeFocus ? ct.cur : C.alpha(ct.pal.edge, Tokens.alpha.outline)
+                    Row {
+                        anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: 6 }
+                        spacing: 6
+                        Rectangle { width: 14; height: 14; radius: 7; color: ct.cur; anchors.verticalCenter: parent.verticalCenter }
+                        TextInput {
+                            id: hexIn
+                            width: 56
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: ct.hex(ct.cur)
+                            color: ct.pal.fg
+                            selectionColor: ct.pal.primary
+                            selectedTextColor: ct.pal.onPrimary
+                            font.family: Tokens.font.mono
+                            font.pixelSize: Tokens.size.small
+                            maximumLength: 7
+                            validator: RegularExpressionValidator { regularExpression: /#?[0-9a-fA-F]{0,6}/ }
+                            onAccepted: {
+                                const t = text.replace("#", "")
+                                if (t.length === 6) { ct.edit(ct.role, "#" + t.toLowerCase()); ct.send() }
+                                text = Qt.binding(() => ct.hex(ct.cur))
+                            }
+                            onActiveFocusChanged: if (!activeFocus) text = Qt.binding(() => ct.hex(ct.cur))
+                        }
+                    }
+                }
+
+                Text { text: "Wallpaper"; color: ct.pal.muted; font.family: Tokens.font.ui; font.pixelSize: Tokens.size.small }
+                Row {
+                    Layout.columnSpan: 2
+                    spacing: Tokens.space.xs + 2
+                    Repeater {
+                        // first: back to what rice.py picks for this accent; then the wallpaper's own colours
+                        model: ct.theme ? ["auto"].concat(ct.theme.swatches) : []
+                        Rectangle {
+                            id: sw
+                            required property string modelData
+                            readonly property bool isAuto: modelData === "auto"
+                            readonly property color c: isAuto ? (ct.theme ? ct.theme.auto[ct.role] : "#808080") : modelData
+                            readonly property bool on: isAuto ? !ct.isCustom(ct.role) : ct.isCustom(ct.role) && ct.hex(ct.cur) === modelData.toLowerCase()
+                            width: 24; height: 24; radius: 12
+                            color: c
+                            border.width: on ? 2 : 1
+                            border.color: on ? ct.pal.fg : C.alpha(ct.pal.edge, 0.2)
+                            scale: swMouse.containsMouse ? 1.12 : 1
+                            Behavior on scale { NumberAnimation { duration: Tokens.fast; easing.type: Tokens.enter } }
+                            Text {
+                                anchors.centerIn: parent
+                                visible: sw.isAuto
+                                text: "auto_awesome"
+                                color: sw.c.hslLightness > 0.6 ? "#14151b" : "#ffffff"
+                                font.family: Tokens.font.icons
+                                font.pixelSize: 13
+                            }
+                            PlasmaCore.ToolTipArea {
+                                anchors.fill: parent
+                                mainText: sw.isAuto ? "Automatic" : "From the wallpaper"
+                                subText: sw.isAuto ? "What the wallpaper gives this accent: " + ct.hex(sw.c) : sw.modelData
+                                MouseArea {
+                                    id: swMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: { ct.edit(ct.role, sw.isAuto ? "auto" : sw.modelData); ct.send() }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Text { text: "Hue"; color: ct.pal.muted; font.family: Tokens.font.ui; font.pixelSize: Tokens.size.small }
+                ColourSlider {
+                    Layout.fillWidth: true
+                    palette: ct.pal
+                    channel: "h"; h: ct.hh; s: ct.cur.hslSaturation; l: ct.cur.hslLightness
+                    value: ct.hh
+                    onMoved: v => ct.setHsl(v, Math.max(ct.cur.hslSaturation, 0.05), ct.cur.hslLightness)
+                    onReleased: ct.send()
+                }
+                Value { text: Math.round(ct.hh * 360) + "°" }
+
+                Text { text: "Saturation"; color: ct.pal.muted; font.family: Tokens.font.ui; font.pixelSize: Tokens.size.small }
+                ColourSlider {
+                    Layout.fillWidth: true
+                    palette: ct.pal
+                    channel: "s"; h: ct.hh; s: ct.cur.hslSaturation; l: ct.cur.hslLightness
+                    value: ct.cur.hslSaturation
+                    onMoved: v => ct.setHsl(ct.hh, v, ct.cur.hslLightness)
+                    onReleased: ct.send()
+                }
+                Value { text: Math.round(ct.cur.hslSaturation * 100) + "%" }
+
+                Text { text: "Lightness"; color: ct.pal.muted; font.family: Tokens.font.ui; font.pixelSize: Tokens.size.small }
+                ColourSlider {
+                    Layout.fillWidth: true
+                    palette: ct.pal
+                    channel: "l"; h: ct.hh; s: ct.cur.hslSaturation; l: ct.cur.hslLightness
+                    value: ct.cur.hslLightness
+                    onMoved: v => ct.setHsl(ct.hh, ct.cur.hslSaturation, v)
+                    onReleased: ct.send()
+                }
+                Value { text: Math.round(ct.cur.hslLightness * 100) + "%" }
+            }
+        }
+
+        Item { Layout.fillHeight: true }
         Text {
             Layout.fillWidth: true
-            text: ct.status || (ct.dirty && ct.edits.mood !== undefined ? "A new mood re-picks the accents you haven't set by hand."
-                  : "Hand-picked colours last until a new wallpaper; keep them with “Save theme”.")
+            Layout.leftMargin: ct.rail
+            visible: ct.error !== ""
+            text: "Couldn't apply: " + ct.error
             elide: Text.ElideRight
-            color: ct.status ? ct.pal.bad : ct.pal.muted
+            color: ct.pal.bad
             font.family: Tokens.font.ui
             font.pixelSize: Tokens.size.small
         }

@@ -16,6 +16,7 @@ Item {
     property color to: "#ffffff"
     property real value: 0              // 0..1
     signal moved(real value)
+    signal released()                   // the drag ended (or a scroll step): time to commit
 
     implicitHeight: 22
     // the colour at t along the track; the hue track keeps enough colour to read as a rainbow
@@ -73,8 +74,12 @@ Item {
         function at(x) { return Math.max(0, Math.min(1, (x - sl.height / 2) / Math.max(1, sl.width - sl.height))) }
         onPressed: mouse => sl.moved(at(mouse.x))
         onPositionChanged: mouse => { if (pressed) sl.moved(at(mouse.x)) }
+        onReleased: sl.released()
     }
     WheelHandler {
-        onWheel: event => sl.moved(Math.max(0, Math.min(1, sl.value + (event.angleDelta.y > 0 ? 0.01 : -0.01))))
+        onWheel: event => {
+            sl.moved(Math.max(0, Math.min(1, sl.value + (event.angleDelta.y > 0 ? 0.01 : -0.01))))
+            sl.released()
+        }
     }
 }

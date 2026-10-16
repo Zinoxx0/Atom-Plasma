@@ -9,12 +9,14 @@ import org.kde.kirigami as Kirigami
 import "Rice"
 import "Rice/Color.js" as C
 
-// The Theme page, inside the launcher. Wallpapers: a grid of ~/Pictures/Wallpapers; clicking one runs
-// ~/.config/plasma-rice/rice.py, which sets it on the chosen screen(s) and re-themes the desktop
-// from it; "Get more" asks wallhaven for new ones. Colours (ColoursTab): the mood and accents rice.py
-// read from the wallpaper, to change by hand. Screen chips pick the target; themes keep every
-// screen's wallpaper and hand-picked colours under a short name. In "hero" mode it only picks the
-// launcher's hero image.
+// The Theme page, inside the launcher, laid out from the widest scope down: Themes (whole looks:
+// every screen's wallpaper and hand-picked colours under a short name), Screens (the desk map: which
+// screen is edited, or all of them), then that screen's look in two tabs. Wallpaper: a grid of
+// ~/Pictures/Wallpapers; clicking one runs ~/.config/plasma-rice/rice.py, which sets it and
+// re-themes from it; Discover asks wallhaven for more. Colours (ColoursTab): the mood and accents,
+// changed live. Everything applies at once; "Save look" keeps it (it stands out while the look on
+// screen isn't saved). Labels sit in one left rail. In "hero" mode it only picks the launcher's
+// hero image.
 Item {
     id: wp
     property var cfg                        // the launcher's Plasmoid.configuration
@@ -40,8 +42,28 @@ Item {
     property bool naming: false     // the theme name field is out
     property string tab: "walls"    // "walls" | "colours"
 
-    readonly property string target: screens.some(s => s.name === cfg.wallTarget) ? cfg.wallTarget : "all"
-    readonly property var targetScreen: screens.find(s => s.name === target) ?? null
+    // which screen the page edits, and whether edits go to every screen (the desk map's chain)
+    readonly property bool linked: cfg.wallTarget === "all" || !screens.some(s => s.name === cfg.wallTarget)
+    readonly property string focusName: {
+        const has = n => screens.some(s => s.name === n)
+        if (!linked) return cfg.wallTarget
+        if (has(cfg.wallFocus)) return cfg.wallFocus
+        return has(Screen.name) ? Screen.name : (screens.length ? screens[0].name : "")
+    }
+    readonly property string target: linked ? "all" : focusName
+    readonly property var focusScreen: screens.find(s => s.name === focusName) ?? null
+    readonly property var targetScreen: linked ? null : focusScreen
+    function pickScreen(name) { cfg.wallFocus = name; cfg.wallTarget = name; Qt.callLater(grid.showCurrent) }
+    function toggleLink() {
+        if (linked) cfg.wallTarget = focusName
+        else { cfg.wallFocus = focusName; cfg.wallTarget = "all" }
+    }
+    // the look on screen matches no saved theme: Save look stands out
+    readonly property bool unsaved: loaded && !presets.some(pr => presetIsOn(pr))
+    property bool discover: false   // the wallhaven search is open
+    readonly property real rail: 76 // the label column every row hangs off
+    readonly property string context: !loaded ? "" : linked ? "Editing every screen together"
+        : focusScreen ? "Editing the " + focusScreen.label + " screen" + (focusScreen.lead ? " · its look drives apps and terminals" : "") : ""
     readonly property bool heroMode: mode === "hero"
 
     function q(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'" }
@@ -96,6 +118,10 @@ Item {
                 wp.reload()
             } else if (kind === "pdelete") {
                 wp.reload()
+            } else if (kind === "state") {
+                const parts = out.split("\n@@\n")
+                try { wp.screens = JSON.parse(parts[0]) } catch (e) {}
+                try { wp.presets = JSON.parse(parts[1]) } catch (e) {}
             } else if (kind === "fetch") {
                 wp.busy = ""
                 try {
@@ -153,11 +179,29 @@ Item {
         status = "Deleted theme “" + name + "”"
         sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" preset delete ' + q(name) + ' #pdelete ' + Date.now())
     }
-    // on screen right now: every connected screen it knows shows its wallpaper, and the theme is its
+    // on screen right now: every connected screen it knows shows its wallpaper with the same
+    // hand-picked colours, and the theme is its
+    function ovKey(m) {
+        return JSON.stringify(Object.keys(m).sort().map(o => [o, Object.keys(m[o]).sort().map(k => [k, m[o][k]])]))
+    }
     function presetIsOn(pr) {
         const known = screens.filter(s => pr.screens[s.name] !== undefined)
-        return known.length > 0 && known.every(s => s.image === pr.screens[s.name]) && current === pr.theme
+        if (!(known.length > 0 && known.every(s => s.image === pr.screens[s.name]) && current === pr.theme)) return false
+        const now = {}, kept = {}
+        for (const s of known) {
+            if (s.overrides && Object.keys(s.overrides).length) now[s.name] = s.overrides
+            if (pr.overrides && pr.overrides[s.name] && Object.keys(pr.overrides[s.name]).length) kept[s.name] = pr.overrides[s.name]
+        }
+        return ovKey(now) === ovKey(kept)
     }
+    // screens and themes again (after a colour change: accents, custom marks, Save look)
+    function refreshState() {
+        sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" screens; printf "\\n@@\\n"; '
+            + 'python3 "$HOME/.config/plasma-rice/rice.py" presets #state ' + Date.now())
+    }
+    Timer { id: statusTimer; interval: 5000; onTriggered: wp.status = "" }
+    onStatusChanged: if (status) statusTimer.restart()
+    onDiscoverChanged: if (discover) Qt.callLater(() => tagField.focusText())
     function presetThumbs(pr) {     // left to right like the screens
         const order = screens.map(s => s.name)
         return Object.keys(pr.thumbs || {}).sort((a, b) => order.indexOf(a) - order.indexOf(b)).map(o => pr.thumbs[o])
@@ -168,11 +212,20 @@ Item {
 
     Keys.onEscapePressed: wp.back()
 
+    component RailLabel: Text {
+        Layout.preferredWidth: wp.rail
+        Layout.alignment: Qt.AlignVCenter
+        color: pal.muted
+        font.family: Tokens.font.ui
+        font.weight: Font.DemiBold
+        font.pixelSize: Tokens.size.small
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: Tokens.space.md
 
-        // header: back, what this view does, this screen's palette as candy dots
+        // header: back, the page, and what it's editing right now (or what just happened)
         RowLayout {
             Layout.fillWidth: true
             spacing: Tokens.space.sm
@@ -195,161 +248,28 @@ Item {
                 }
                 Text {
                     Layout.fillWidth: true
-                    text: wp.heroMode ? "Pick the picture behind the clock · hover to preview"
-                        : !wp.loaded ? "" : wp.status || ((wp.tab === "colours" ? "Accents" : wp.walls.length + " wallpapers") + " · "
-                          + (wp.targetScreen ? "for " + wp.targetScreen.label : "for every screen"))
+                    text: wp.heroMode ? "Pick the picture behind the clock · hover to preview" : wp.status || wp.context
                     elide: Text.ElideRight
-                    color: pal.muted
+                    color: wp.status ? pal.fg : pal.muted
                     font.family: Tokens.font.ui
                     font.pixelSize: Tokens.size.label
                 }
             }
-            // Wallpapers | Colours
-            Rectangle {
-                visible: !wp.heroMode
-                implicitWidth: tabs.implicitWidth + 6
-                implicitHeight: 34
-                radius: height / 2
-                color: C.alpha(pal.fg, 0.05)
-                border.width: 1
-                border.color: C.alpha(pal.edge, Tokens.alpha.outline)
-                Row {
-                    id: tabs
-                    anchors.centerIn: parent
-                    spacing: 2
-                    Repeater {
-                        model: [{ id: "walls", icon: "wallpaper", text: "Wallpapers" }, { id: "colours", icon: "palette", text: "Colours" }]
-                        Rectangle {
-                            id: tb
-                            required property var modelData
-                            readonly property bool on: wp.tab === modelData.id
-                            width: tbRow.implicitWidth + 2 * Tokens.space.md
-                            height: 28
-                            radius: height / 2
-                            color: on ? pal.primary : tbMouse.containsMouse ? C.alpha(pal.fg, 0.08) : "transparent"
-                            Behavior on color { ColorAnimation { duration: Tokens.fast } }
-                            Row {
-                                id: tbRow
-                                anchors.centerIn: parent
-                                spacing: Tokens.space.xs + 2
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: tb.modelData.icon
-                                    color: tb.on ? pal.onPrimary : pal.fgDim
-                                    font.family: Tokens.font.icons
-                                    font.pixelSize: 16
-                                }
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: tb.modelData.text
-                                    color: tb.on ? pal.onPrimary : pal.fg
-                                    font.family: Tokens.font.ui
-                                    font.weight: Font.DemiBold
-                                    font.pixelSize: Tokens.size.label
-                                }
-                            }
-                            MouseArea {
-                                id: tbMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: wp.tab = tb.modelData.id
-                            }
-                        }
-                    }
-                }
+            Busy {
+                visible: wp.busy !== "" || colours.busy
+                running: visible
+                width: 18; height: 18
+                color: pal.primary
             }
         }
 
-        // target screens: All, then one chip per screen (left to right) showing what's on it
+        // themes: whole looks (every screen's wallpaper and hand-picked colours). Click to bring one
+        // back, right-click to delete; Save look names the look on screen (10 characters at most)
         RowLayout {
             Layout.fillWidth: true
-            spacing: Tokens.space.sm
-            visible: !wp.heroMode && wp.screens.length > 1
-            Repeater {
-                id: screenChips
-                model: wp.screens.length > 1 ? [{ name: "all", label: "All", thumb: "", main: false }].concat(wp.screens) : []
-                Rectangle {
-                    id: scr
-                    required property var modelData
-                    required property int index
-                    readonly property bool selected: wp.target === modelData.name
-                    readonly property bool hot: scrHover.containsMouse || activeFocus
-                    Layout.fillWidth: true
-                    implicitHeight: 40
-                    implicitWidth: scrRow.implicitWidth + 2 * Tokens.space.sm + 2
-                    radius: Tokens.radius.sm
-                    color: selected ? C.alpha(pal.primary, scrHover.pressed ? 0.26 : 0.18)
-                         : C.alpha(pal.fg, scrHover.pressed ? 0.14 : hot ? 0.09 : 0.05)
-                    border.width: 1
-                    border.color: selected ? pal.primary : hot ? C.alpha(pal.primary, 0.6) : C.alpha(pal.fg, Tokens.alpha.outline)
-                    Behavior on color { ColorAnimation { duration: Tokens.fast } }
-                    Behavior on border.color { ColorAnimation { duration: Tokens.fast } }
-
-                    function choose() { wp.cfg.wallTarget = modelData.name; Qt.callLater(grid.showCurrent) }
-                    activeFocusOnTab: true
-                    Keys.onReturnPressed: choose()
-                    Keys.onEnterPressed: choose()
-                    Keys.onSpacePressed: choose()
-                    Keys.onLeftPressed: if (index > 0) screenChips.itemAt(index - 1).forceActiveFocus(Qt.TabFocusReason)
-                    Keys.onRightPressed: if (index < screenChips.count - 1) screenChips.itemAt(index + 1).forceActiveFocus(Qt.TabFocusReason)
-
-                    RowLayout {
-                        id: scrRow
-                        anchors.centerIn: parent
-                        spacing: Tokens.space.sm
-                        Item {
-                            implicitWidth: 36; implicitHeight: 22
-                            Kirigami.ShadowedImage {
-                                anchors.fill: parent
-                                visible: scr.modelData.thumb !== ""
-                                radius: Tokens.radius.xs
-                                color: C.alpha(pal.fg, 0.08)
-                                source: scr.modelData.thumb ? "file://" + scr.modelData.thumb : ""
-                                sourceSize.width: 96
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                            }
-                            Text {
-                                anchors.centerIn: parent
-                                visible: scr.modelData.name === "all"
-                                text: "view_column"
-                                color: scr.selected ? pal.primary : pal.fgDim
-                                font.family: Tokens.font.icons
-                                font.pixelSize: 20
-                            }
-                        }
-                        Text {
-                            text: scr.modelData.label
-                            color: pal.fg
-                            font.family: Tokens.font.ui
-                            font.weight: Font.DemiBold
-                            font.pixelSize: Tokens.size.label
-                        }
-                    }
-                    FocusRing { ink: pal.edge; radius: scr.radius }
-                    MouseArea {
-                        id: scrHover
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: scr.choose()
-                    }
-                }
-            }
-        }
-
-        // actions, and themes (every screen's wallpaper and hand-picked colours under a name: click to
-        // bring the look back, right-click to delete; saving asks for a name, 10 characters at most)
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Tokens.space.sm
             visible: !wp.heroMode
-            Pill { palette: pal; visible: wp.tab === "walls"; icon: "shuffle"; tooltip: "Shuffle"; busy: wp.busy === "apply" && wp.pending === "random"; onClicked: wp.apply("random") }
-            Pill { palette: pal; visible: wp.tab === "walls"; icon: "skip_previous"; tooltip: "Previous"; onClicked: wp.apply("prev") }
-            Pill { palette: pal; visible: wp.tab === "walls"; icon: "skip_next"; tooltip: "Next"; onClicked: wp.apply("next") }
-            Pill { palette: pal; visible: wp.tab === "walls"; icon: "folder_open"; tooltip: "Open the wallpaper folder"; accent: pal.secondary; onAccent: pal.col("on_secondary"); onClicked: wp.openFolder() }
-            Rectangle { visible: wp.tab === "walls"; implicitWidth: 1; implicitHeight: 22; color: C.alpha(pal.fg, 0.12) }
+            spacing: 0
+            RailLabel { text: "Themes" }
             ListView {
                 id: presetList
                 Layout.fillWidth: true
@@ -376,9 +296,9 @@ Item {
                     width: pcRow.implicitWidth + 2 * Tokens.space.sm
                     radius: Tokens.radius.sm
                     color: isOn ? C.alpha(pal.primary, pcMouse.pressed ? 0.26 : 0.18)
-                         : C.alpha(pal.fg, pcMouse.pressed ? 0.14 : hot ? 0.09 : 0.05)
+                         : C.alpha(pal.fg, pcMouse.pressed ? 0.12 : hot ? 0.08 : 0.04)
                     border.width: 1
-                    border.color: isOn ? pal.primary : hot ? C.alpha(pal.primary, 0.6) : C.alpha(pal.fg, Tokens.alpha.outline)
+                    border.color: isOn ? pal.primary : hot ? C.alpha(pal.primary, 0.5) : "transparent"
                     Behavior on color { ColorAnimation { duration: Tokens.fast } }
                     Behavior on border.color { ColorAnimation { duration: Tokens.fast } }
                     activeFocusOnTab: true
@@ -418,6 +338,14 @@ Item {
                             font.weight: Font.DemiBold
                             font.pixelSize: Tokens.size.label
                         }
+                        Text {          // keeps hand-picked colours too
+                            visible: !!pc.modelData.overrides
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "palette"
+                            color: pal.muted
+                            font.family: Tokens.font.icons
+                            font.pixelSize: 14
+                        }
                         Busy {
                             anchors.verticalCenter: parent.verticalCenter
                             visible: pc.applying
@@ -430,8 +358,8 @@ Item {
                     PlasmaCore.ToolTipArea {
                         anchors.fill: parent
                         mainText: pc.modelData.name
-                        subText: (pc.modelData.overrides ? "Wallpapers and colours · " : "")
-                               + (pc.isOn ? "On screen now" : "Click to bring this theme back") + " · right-click to delete"
+                        subText: (pc.modelData.overrides ? "Wallpapers and hand-picked colours · " : "Wallpapers · ")
+                               + (pc.isOn ? "on screen now" : "click to bring it back") + " · right-click to delete"
                         MouseArea {
                             id: pcMouse
                             anchors.fill: parent
@@ -446,7 +374,15 @@ Item {
                     }
                 }
             }
-            Item { Layout.fillWidth: true; visible: wp.presets.length === 0 && !wp.naming }
+            Text {
+                Layout.fillWidth: true
+                visible: wp.presets.length === 0 && !wp.naming
+                text: "Keep the look on your screens to come back to it"
+                elide: Text.ElideRight
+                color: pal.muted
+                font.family: Tokens.font.ui
+                font.pixelSize: Tokens.size.label
+            }
             TagField {
                 id: presetField
                 Layout.fillWidth: true
@@ -454,94 +390,266 @@ Item {
                 palette: pal
                 glyph: "bookmark"
                 maximumLength: 10
-                placeholder: "Theme name, 10 letters max"
+                placeholder: "Name this look, 10 letters max"
                 accent: pal.primary
                 onAccent: pal.onPrimary
                 onAccepted: wp.savePreset(text)
                 onEscaped: wp.naming = false
             }
+            Item { implicitWidth: Tokens.space.sm }
             Pill {
                 palette: pal
                 icon: wp.naming ? "check" : "bookmark_add"
-                text: wp.naming ? "Save" : (wp.presets.length ? "" : "Save theme")
-                tooltip: wp.naming ? "" : "Save theme: every screen's wallpaper and colours under a name"
+                text: wp.naming ? "Save" : "Save look"
+                accent: wp.unsaved || wp.naming ? pal.primary : pal.fgDim
+                onAccent: wp.unsaved || wp.naming ? pal.onPrimary : pal.surfaceLowest
+                tooltip: wp.naming ? "" : wp.unsaved ? "This look isn't saved yet: keep every screen's wallpaper and colours as a theme"
+                                                     : "This look is saved · save it again under another name"
                 onClicked: {
                     if (wp.naming) { wp.savePreset(presetField.text); return }
                     presetField.text = ""
                     wp.naming = true
                     Qt.callLater(presetField.focusText)
                 }
-            }
-        }
-
-        // get more: describe what you want, wallhaven.py finds the best matches you don't have yet
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Tokens.space.sm
-            visible: !wp.heroMode && wp.tab === "walls"
-            TagField {
-                id: tagField
-                Layout.fillWidth: true
-                palette: pal
-                text: wp.cfg.tags
-                placeholder: "Describe what you want: modern, clean, aesthetic…"
-                accent: pal.tertiary
-                onAccent: pal.col("on_tertiary")
-                busy: wp.busy === "fetch"
-                onAccepted: wp.fetch(text)
-                onEscaped: wp.back()
-            }
-            Pill {
-                palette: pal
-                size: tagField.implicitHeight
-                icon: "cloud_download"
-                text: "Get more"
-                accent: pal.tertiary
-                onAccent: pal.col("on_tertiary")
-                busy: wp.busy === "fetch"
-                onClicked: wp.fetch(tagField.text)
-            }
-        }
-        // recent searches: click to get more of the same, right-click to forget
-        ListView {
-            id: recentTags
-            Layout.fillWidth: true
-            implicitHeight: 26
-            orientation: ListView.Horizontal
-            spacing: Tokens.space.xs + 2
-            clip: true
-            boundsBehavior: Flickable.StopAtBounds
-            visible: !wp.heroMode && wp.tab === "walls" && wp.cfg.tagHistory.length > 0
-            model: wp.cfg.tagHistory
-            layer.enabled: contentWidth > width
-            layer.effect: EdgeFade { view: recentTags }
-            delegate: Chip {
-                id: recent
-                required property string modelData
-                anchors.verticalCenter: parent ? parent.verticalCenter : undefined
-                palette: pal
-                interactive: true
-                bold: false
-                size: 24
-                text: modelData
-                tint: pal.tertiary
-                tooltip: "Get more like this · right-click to forget"
-                onClicked: mouse => {
-                    if (mouse.button === Qt.RightButton) { wp.forgetTags(recent.modelData); return }
-                    tagField.text = recent.modelData
-                    wp.fetch(recent.modelData)
+                Rectangle {     // unsaved
+                    visible: wp.unsaved && !wp.naming
+                    anchors { right: parent.right; top: parent.top; margins: -1 }
+                    width: 8; height: 8; radius: 4
+                    color: pal.primary
+                    border.width: 1.5
+                    border.color: pal.surfaceLowest
                 }
             }
         }
 
-        // Colours: the target screen's mood and accents, editable
+        // screens: the desk map picks the screen to edit; the chain edits all of them together
+        RowLayout {
+            Layout.fillWidth: true
+            visible: !wp.heroMode && wp.screens.length > 1
+            spacing: 0
+            RailLabel { text: "Screens" }
+            DeskMap {
+                Layout.preferredHeight: 56
+                Layout.preferredWidth: implicitWidth
+                Layout.maximumWidth: 360
+                pal: pal
+                screens: wp.screens
+                focusName: wp.focusName
+                linked: wp.linked
+                onPicked: name => wp.pickScreen(name)
+            }
+            Item { implicitWidth: Tokens.space.md }
+            Chip {
+                palette: pal
+                interactive: true
+                size: 28
+                icon: wp.linked ? "link" : "link_off"
+                text: "All screens"
+                selected: wp.linked
+                tint: pal.primary
+                tooltip: wp.linked ? "Wallpapers and colours go to every screen · click a screen to edit it alone"
+                                   : "Edit every screen together"
+                onClicked: wp.toggleLink()
+            }
+            Item { Layout.fillWidth: true }
+            Row {           // the star's meaning
+                spacing: 3
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "star"
+                    color: pal.muted
+                    font.family: Tokens.font.icons
+                    font.pixelSize: 13
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "drives apps"
+                    color: pal.muted
+                    font.family: Tokens.font.ui
+                    font.pixelSize: Tokens.size.caption
+                }
+            }
+        }
+
+        // the look of the chosen screen: tabs, and each tab's own tools on the right
+        Item {
+            Layout.fillWidth: true
+            implicitHeight: 34
+            visible: !wp.heroMode
+            Rectangle {     // the tabs' baseline
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: 1
+                color: C.alpha(pal.edge, 0.08)
+            }
+            Row {
+                anchors { left: parent.left; bottom: parent.bottom }
+                spacing: Tokens.space.lg
+                Repeater {
+                    model: [{ id: "walls", text: "Wallpaper" }, { id: "colours", text: "Colours" }]
+                    Item {
+                        id: tb
+                        required property var modelData
+                        readonly property bool on: wp.tab === modelData.id
+                        width: tbText.implicitWidth
+                        height: 34
+                        Text {
+                            id: tbText
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.verticalCenterOffset: -1
+                            text: tb.modelData.text
+                            color: tb.on || tbMouse.containsMouse ? pal.fg : pal.fgDim
+                            font.family: Tokens.font.ui
+                            font.weight: tb.on ? Font.Bold : Font.DemiBold
+                            font.pixelSize: Tokens.size.body
+                            Behavior on color { ColorAnimation { duration: Tokens.fast } }
+                        }
+                        Rectangle {
+                            anchors.bottom: parent.bottom
+                            width: parent.width
+                            height: 2
+                            radius: 1
+                            color: pal.primary
+                            opacity: tb.on ? 1 : 0
+                            Behavior on opacity { NumberAnimation { duration: Tokens.fast } }
+                        }
+                        MouseArea {
+                            id: tbMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: wp.tab = tb.modelData.id
+                        }
+                    }
+                }
+            }
+            Row {           // Wallpaper: step through the library, the folder, Discover
+                visible: wp.tab === "walls"
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter; verticalCenterOffset: -2 }
+                spacing: 2
+                IconButton { palette: pal; size: 30; icon: "shuffle"; tooltip: "Shuffle"; onClicked: wp.apply("random") }
+                IconButton { palette: pal; size: 30; icon: "skip_previous"; tooltip: "Previous"; onClicked: wp.apply("prev") }
+                IconButton { palette: pal; size: 30; icon: "skip_next"; tooltip: "Next"; onClicked: wp.apply("next") }
+                IconButton { palette: pal; size: 30; icon: "folder_open"; tooltip: "Open the wallpaper folder"; onClicked: wp.openFolder() }
+                Item { width: Tokens.space.xs; height: 1 }
+                Chip {
+                    anchors.verticalCenter: parent.verticalCenter
+                    palette: pal
+                    interactive: true
+                    size: 28
+                    icon: "travel_explore"
+                    text: "Discover"
+                    selected: wp.discover
+                    tint: pal.tertiary
+                    tooltip: "Find new wallpapers on wallhaven"
+                    onClicked: wp.discover = !wp.discover
+                }
+            }
+            Row {           // Colours: undo, back to the wallpaper's own
+                visible: wp.tab === "colours"
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter; verticalCenterOffset: -2 }
+                spacing: Tokens.space.xs + 2
+                Chip {
+                    palette: pal
+                    interactive: true
+                    size: 28
+                    icon: "undo"
+                    text: "Undo"
+                    enabled: colours.canUndo
+                    opacity: enabled ? 1 : 0.4
+                    tint: pal.fgDim
+                    onClicked: colours.undo()
+                }
+                Chip {
+                    palette: pal
+                    interactive: true
+                    size: 28
+                    icon: "auto_awesome"
+                    text: "Automatic"
+                    enabled: colours.custom && !colours.busy
+                    opacity: enabled ? 1 : 0.4
+                    tint: pal.secondary
+                    tooltip: "Back to the wallpaper's own colours"
+                    onClicked: colours.automatic()
+                }
+            }
+        }
+
+        // Discover: describe what you want, wallhaven.py finds the best matches you don't have yet;
+        // recent searches below (click to get more of the same, right-click to forget)
+        ColumnLayout {
+            Layout.fillWidth: true
+            visible: !wp.heroMode && wp.tab === "walls" && wp.discover
+            spacing: Tokens.space.sm
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Tokens.space.sm
+                TagField {
+                    id: tagField
+                    Layout.fillWidth: true
+                    palette: pal
+                    text: wp.cfg.tags
+                    placeholder: "Describe what you want: modern, clean, aesthetic…"
+                    accent: pal.tertiary
+                    onAccent: pal.col("on_tertiary")
+                    busy: wp.busy === "fetch"
+                    onAccepted: wp.fetch(text)
+                    onEscaped: wp.discover = false
+                }
+                Pill {
+                    palette: pal
+                    size: tagField.implicitHeight
+                    icon: "cloud_download"
+                    text: "Get more"
+                    accent: pal.tertiary
+                    onAccent: pal.col("on_tertiary")
+                    busy: wp.busy === "fetch"
+                    onClicked: wp.fetch(tagField.text)
+                }
+            }
+            ListView {
+                id: recentTags
+                Layout.fillWidth: true
+                implicitHeight: 26
+                orientation: ListView.Horizontal
+                spacing: Tokens.space.xs + 2
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                visible: wp.cfg.tagHistory.length > 0
+                model: wp.cfg.tagHistory
+                layer.enabled: contentWidth > width
+                layer.effect: EdgeFade { view: recentTags }
+                delegate: Chip {
+                    id: recent
+                    required property string modelData
+                    anchors.verticalCenter: parent ? parent.verticalCenter : undefined
+                    palette: pal
+                    interactive: true
+                    bold: false
+                    size: 24
+                    text: modelData
+                    tint: pal.tertiary
+                    tooltip: "Get more like this · right-click to forget"
+                    onClicked: mouse => {
+                        if (mouse.button === Qt.RightButton) { wp.forgetTags(recent.modelData); return }
+                        tagField.text = recent.modelData
+                        wp.fetch(recent.modelData)
+                    }
+                }
+            }
+        }
+
+        // Colours: the chosen screen's mood and accents, live
         ColoursTab {
+            id: colours
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: !wp.heroMode && wp.tab === "colours"
             pal: pal
-            screen: wp.target === "all" ? Screen.name : wp.target
+            rail: wp.rail
+            screen: wp.focusName
             target: wp.target
+            onChanged: wp.refreshState()
         }
 
         // the grid (with its loading and empty states)
