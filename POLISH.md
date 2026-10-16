@@ -152,4 +152,4 @@ accents, terminals stay dark); black -> VOID + starlight; manual colours are tem
 (presets become themes); bias modern/neon, pastel only for calm wallpapers (pastel surfaces: my call).
 Phases: 1 engine + offline palette sheet (check-in) / 2 dark moods live / 3 light mode / 4 overrides + Themes +
 Theme page / 5 sweep + tests.
-- [ ] P1 engine (palette.py analyse/mood/build_v2) + tools/palette_sheet.py
+- [x] P1 engine (palette.py analyse/mood/build_v2) + tools/palette_sheet.py (sheet: ~/.cache/rice/shots/pass3/sheet.png; check-in pending)
