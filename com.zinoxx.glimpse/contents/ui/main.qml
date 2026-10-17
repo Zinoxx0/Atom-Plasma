@@ -598,6 +598,7 @@ PlasmoidItem {
             screen: modelData
             x: modelData.virtualX               // keep Qt's idea of the position on this screen,
             y: modelData.virtualY               // or it re-homes the window to another one
+            onScreenChanged: if (modelData.name && screen?.name !== modelData.name) screen = modelData     // see ShelfWindow
             transientParent: null
             visible: !root.fsMode
             color: "transparent"
@@ -661,6 +662,7 @@ PlasmoidItem {
             screen: modelData
             x: modelData.virtualX
             y: modelData.virtualY
+            onScreenChanged: if (modelData.name && screen?.name !== modelData.name) screen = modelData
             transientParent: null
             visible: !root.fsMode
             color: "transparent"
@@ -710,6 +712,7 @@ PlasmoidItem {
             screen: modelData
             x: modelData.virtualX
             y: modelData.virtualY
+            onScreenChanged: if (modelData.name && screen?.name !== modelData.name) screen = modelData
             transientParent: null
             visible: true
             color: "transparent"

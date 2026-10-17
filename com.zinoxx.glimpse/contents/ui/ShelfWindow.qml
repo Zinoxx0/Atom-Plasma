@@ -16,6 +16,10 @@ Window {
     screen: modelData
     x: modelData.virtualX                   // keep Qt's idea of the position on this screen,
     y: modelData.virtualY                   // or it re-homes the window to another one
+    // KWin also says a surface entered the neighbouring screen when a fractional scale rounds its edge
+    // over the seam (HDMI-A-1 next to DP-3); Qt then moves the window there and the next map
+    // (after a fullscreen window) would open the band on that screen
+    onScreenChanged: if (modelData.name && screen?.name !== modelData.name) screen = modelData
     transientParent: null
     visible: false
     color: "transparent"

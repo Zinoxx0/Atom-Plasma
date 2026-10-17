@@ -20,6 +20,9 @@ Window {
     screen: modelData
     x: modelData.virtualX                   // keep Qt's idea of the position on this screen,
     y: modelData.virtualY                   // or it re-homes the window to another one
+    // KWin can report a stray enter for the neighbouring screen (fractional scales round the edge over
+    // the seam) and Qt follows it; without this, the next show would put the surface on that screen
+    onScreenChanged: if (modelData.name && screen?.name !== modelData.name) screen = modelData
     transientParent: null                   // not the desktop's: it would decide the output
     width: placed ? placed.w : 1
     height: placed ? placed.h : 1
