@@ -33,7 +33,10 @@ PlasmoidItem {
     RiceShell {
         id: sh
         onNewData: (source, data) => {
-            if (source.indexOf("#mode") >= 0 && String(data["stdout"] ?? "").trim() === "walls") root.openWallpapers("desktop")
+            if (source.indexOf("#mode") >= 0) {      // the note names the Theme page's tab to open on
+                const tab = String(data["stdout"] ?? "").trim()
+                if (["walls", "colours", "lights"].indexOf(tab) >= 0) root.openWallpapers("desktop", tab)
+            }
             disconnectSource(source)
         }
     }
@@ -42,7 +45,12 @@ PlasmoidItem {
     // what the right side shows: the apps, or the wallpapers (to set them, or to pick the hero)
     property string view: "apps"
     property string wallMode: "desktop"
-    function openWallpapers(mode) { wallMode = mode; view = "walls" }
+    function openWallpapers(mode, tab) {
+        wallMode = mode; view = "walls"
+        if (tab && walls.item) walls.item.tab = tab
+        else openTab = tab || ""
+    }
+    property string openTab: ""         // a tab asked for before the Theme page was first built
     // Meta+Shift+W (~/.local/share/applications/net.local.rice-wallpapers.desktop) leaves a note,
     // then opens the launcher: read it once per opening
     onExpandedChanged: {
@@ -1213,7 +1221,7 @@ PlasmoidItem {
                     Behavior on opacity { NumberAnimation { duration: Tokens.base; easing.type: Tokens.move } }
                     transform: Translate { x: root.view === "walls" ? 0 : root.px(16); Behavior on x { NumberAnimation { duration: Tokens.slow; easing.type: Tokens.move } } }
                     onEnabledChanged: if (enabled && item) Qt.callLater(() => item.forceActiveFocus())
-                    onLoaded: item.forceActiveFocus()
+                    onLoaded: { if (root.openTab) item.tab = root.openTab; root.openTab = ""; item.forceActiveFocus() }
                     sourceComponent: WallpaperPane {
                         cfg: root.cfg
                         mode: root.wallMode

@@ -10,12 +10,12 @@ import "Rice/Color.js" as C
 
 // The Theme page, inside the launcher, laid out from the widest scope down: Themes (whole looks:
 // every screen's wallpaper and hand-picked colours under a short name), Screens (the desk map: which
-// screen is edited, or all of them), then that screen's look in two tabs. Wallpaper: a grid of
+// screen is edited, or all of them), then that screen's look in tabs. Wallpaper: a grid of
 // ~/Pictures/Wallpapers; clicking one runs ~/.config/plasma-rice/rice.py, which sets it and
 // re-themes from it; Discover asks wallhaven for more. Colours (ColoursTab): the mood and accents,
-// changed live. Everything applies at once; "Save look" keeps it (it stands out while the look on
-// screen isn't saved). Labels sit in one left rail. In "hero" mode it only picks the launcher's
-// hero image.
+// changed live. Lighting (LightingTab): the keyboards' RGB, by hand or in a screen's accents.
+// Everything applies at once; "Save look" keeps it (it stands out while the look on screen isn't
+// saved). Labels sit in one left rail. In "hero" mode it only picks the launcher's hero image.
 Item {
     id: wp
     property var cfg                        // the launcher's Plasmoid.configuration
@@ -39,7 +39,7 @@ Item {
     property bool loaded: false
     property var fresh: []          // file names brought by the last "Get more" (badged in the grid)
     property bool naming: false     // the theme name field is out
-    property string tab: "walls"    // "walls" | "colours"
+    property string tab: "walls"    // "walls" | "colours" | "lights"
 
     // which screen the page edits, and whether edits go to every screen (the desk map's chain)
     readonly property bool linked: cfg.wallTarget === "all" || !screens.some(s => s.name === cfg.wallTarget)
@@ -253,7 +253,7 @@ Item {
                 }
             }
             Busy {
-                visible: wp.busy !== "" || colours.busy
+                visible: wp.busy !== "" || colours.busy || lights.busy
                 running: visible
                 width: 18; height: 18
                 color: pal.primary
@@ -483,7 +483,7 @@ Item {
                 anchors { left: parent.left; bottom: parent.bottom }
                 spacing: Tokens.space.lg
                 Repeater {
-                    model: [{ id: "walls", text: "Wallpaper" }, { id: "colours", text: "Colours" }]
+                    model: [{ id: "walls", text: "Wallpaper" }, { id: "colours", text: "Colours" }, { id: "lights", text: "Lighting" }]
                     Item {
                         id: tb
                         required property var modelData
@@ -570,6 +570,21 @@ Item {
                     onClicked: colours.automatic()
                 }
             }
+            Row {           // Lighting: every keyboard off, or back on
+                visible: wp.tab === "lights"
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter; verticalCenterOffset: -2 }
+                Chip {
+                    palette: pal
+                    interactive: true
+                    size: 28
+                    icon: "power_settings_new"
+                    text: lights.anyOn ? "All off" : "All on"
+                    enabled: lights.devices.some(d => d.ready) && !lights.busy
+                    opacity: enabled ? 1 : 0.4
+                    tint: pal.fgDim
+                    onClicked: lights.allPower(!lights.anyOn)
+                }
+            }
         }
 
         // Discover: describe what you want, wallhaven.py finds the best matches you don't have yet;
@@ -647,6 +662,17 @@ Item {
             screen: wp.focusName
             target: wp.target
             onChanged: wp.refreshState()
+        }
+
+        // Lighting: the keyboards, by hand or in a screen's accents
+        LightingTab {
+            id: lights
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            visible: !wp.heroMode && wp.tab === "lights"
+            pal: pal
+            rail: wp.rail
+            screens: wp.screens
         }
 
         // the grid (with its loading and empty states)
