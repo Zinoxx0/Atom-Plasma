@@ -417,12 +417,16 @@ def apply(cfg, only=None, force=False, force_level=False, keep_level=()):
 
 
 # ---------------------------------------------------------------- screens off
-def screens_off():
+def connectors():
+    return [c for c in Path("/sys/class/drm").glob("card*-*") if (c / "dpms").exists()]
+
+
+def screens_off(conns=None):
     """Every connected display is powered down. DRM's sysfs keeps each connector's DPMS state current
     (KWin's atomic commits update it on both GPUs; a connector also reads "disabled" while off, so only
     "connected" picks the screens)."""
     states = []
-    for c in Path("/sys/class/drm").glob("card*-*"):
+    for c in conns if conns is not None else connectors():
         try:
             if (c / "status").read_text().strip() == "connected":
                 states.append((c / "dpms").read_text().strip())
@@ -497,12 +501,17 @@ def wake():
 
 
 def watch():
-    """Once a second: are the screens off? While they're on, also keep asusd's brightness step (every 5 s).
+    """Once a second: are the screens off? While they're on, also keep asusd's brightness step (every 5 s,
+    over one open D-Bus connection: no process per sample). The connectors are listed again every 30 s.
     A rgb-dark.json left by a session that ended dark is woken on the first tick."""
+    import dbus     # only here: the CLI commands stay quick to start
+    props, conns = None, []
     laptop_level, tick = None, 0
     while True:
         try:
-            off = screens_off()
+            if tick % 30 == 0:
+                conns = connectors()
+            off = screens_off(conns)
             if off != DARK.exists():
                 with locked():
                     if off:
@@ -510,8 +519,12 @@ def watch():
                     else:
                         wake()
             if not off and tick % 5 == 0:
-                laptop_level = asus_level()
+                if props is None:
+                    props = dbus.Interface(dbus.SystemBus().get_object("xyz.ljones.Asusd", "/xyz/ljones/aura/tuf"),
+                                           "org.freedesktop.DBus.Properties")
+                laptop_level = int(props.Get("xyz.ljones.Aura", "Brightness"))
         except Exception as e:      # asusd restarting, a keyboard unplugged mid-command: try again next tick
+            props = None
             print(f"rgb.py: watch: {e}", file=sys.stderr)
         tick += 1
         time.sleep(1)
