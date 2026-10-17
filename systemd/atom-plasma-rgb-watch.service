@@ -1,0 +1,13 @@
+# Atom Plasma: the keyboards go dark while every screen is off and come back as they were (rgb.py watch).
+[Unit]
+Description=Atom Plasma keyboard lighting: dark while the screens are off
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/python3 %h/.config/plasma-rice/rgb.py watch
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

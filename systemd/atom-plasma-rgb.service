@@ -1,0 +1,8 @@
+# Atom Plasma: light the Razer keyboard as ~/.local/state/rice/rgb.json says when it connects (at login
+# too). Started by /etc/udev/rules.d/70-atom-plasma-rgb.rules (SYSTEMD_USER_WANTS); see rgb.py.
+[Unit]
+Description=Atom Plasma keyboard lighting
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.config/plasma-rice/rgb.py apply --device razer --force

@@ -44,6 +44,7 @@ Writes / applies:
                                                 settings icon_theme is Papirus-Rice)
     look-and-feel/com.zinoxx.rice splash palette
     apps.py                                     VS Code, btop, MangoHud, Zen themes
+    rgb.py apply                                keyboards on Automatic (laptop, Razer) light up in the accents
 Settings: ~/.config/plasma-rice/settings.json (scheme, tokyo_tint, depth, candy, wallhaven_queries,
 bar_scale for the size of a bar's widgets, top_scale for the Glimpse band at the top,
 icon_theme, desk_media (the screen whose desktop clock carries the music card and Clawd; default the
@@ -737,6 +738,13 @@ def apply_screens(ss, cfg, fallback):
                 write_if_changed(seen, key)
 
 
+def apply_rgb():
+    """Keyboards on Automatic follow the new accents (rgb.py writes only those whose colours changed).
+    In the background: a keyboard is no reason to make the theme wait."""
+    subprocess.Popen([sys.executable, str(HERE / "rgb.py"), "apply"], stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, start_new_session=True)
+
+
 def stage_login(p, img):
     """The login screen follows the theme: its wallpaper, colours and Plasma Style are staged for the copier
     that `boot.py login` installs (a system unit; the greeter can't read ~). Skipped until it's installed."""
@@ -955,6 +963,7 @@ def main():
     apply_konsole(tp)
     icons.apply(tp["primary"], cfg.get("icon_theme", "Papirus-Rice"))
     apps.apply(tp)
+    apply_rgb()
 
     if arg != "restore":
         where = one["label"] if one and len(ss) > 1 else "all screens" if len(ss) > 1 else ""
