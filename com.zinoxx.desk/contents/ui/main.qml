@@ -91,6 +91,20 @@ PlasmoidItem {
     readonly property bool asking: checkIn.asking
     readonly property string askMsg: checkIn.msg
     function askDone() { checkIn.done() }
+    // an important update the update check found (update-check.py): Clawd holds a bubble and the
+    // message sits under the clock, until a click on the bubble or the update is installed
+    ClaudeAsk {
+        id: cachy
+        active: root.desk.clawd === true
+        file: "update.json"
+        ackCommand: 'python3 "$HOME/.config/plasma-rice/update-check.py" --ack'
+    }
+    readonly property bool updating: cachy.asking
+    readonly property string updateTitle: updating ? String(cachy.ask.title ?? "Important Cachy update!") : ""
+    readonly property string updateMsg: cachy.msg
+    function updateDone() { cachy.done() }
+    // a double click on Clawd: Claude Code in a new terminal (KIO starts it in its own scope)
+    function summonClaude() { sh.connectSource("kstart --application net.local.claude #claude") }
     readonly property string activity: claude.activity
     // rain or snow outside (Open-Meteo / WMO weather codes): an umbrella, a scarf
     readonly property string sky: {

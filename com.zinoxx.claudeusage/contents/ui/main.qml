@@ -49,6 +49,12 @@ PlasmoidItem {
     readonly property bool asking: checkIn.asking
     Plasmoid.status: asking ? PlasmaCore.Types.NeedsAttentionStatus : PlasmaCore.Types.ActiveStatus
     function ackAsk() { checkIn.done() }
+    // a double click on Clawd: Claude Code in a new terminal (KIO starts it in its own scope, so it
+    // outlives plasmashell)
+    function summonClaude() {
+        root.expanded = false;
+        sh.connectSource("kstart --application net.local.claude #claude");
+    }
     Timer {   // limit notifications (80% / 95%), once per window
         interval: 60000; running: true; repeat: true; triggeredOnStart: true
         onTriggered: sh.connectSource("python3 '" + root.codeDir + "alerts.py'")
@@ -191,6 +197,7 @@ PlasmoidItem {
                 pal: root.palValues
                 hovered: compact.containsMouse
                 onAlertClicked: root.expanded = true        // the popup has the message and Done
+                onSummoned: root.summonClaude()
                 Layout.alignment: Qt.AlignVCenter
                 Layout.topMargin: 2
             }
@@ -333,6 +340,7 @@ PlasmoidItem {
                             alert: root.asking
                             pal: root.palValues
                             animate: root.expanded
+                            onSummoned: root.summonClaude()
                         }
                     }
                     badge: Chip {
