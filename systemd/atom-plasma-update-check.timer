@@ -1,0 +1,11 @@
+# Atom Plasma: runs the update check every hour (the check itself decides when a new look is due).
+[Unit]
+Description=Atom Plasma update check, hourly
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

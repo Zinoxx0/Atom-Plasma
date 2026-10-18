@@ -10,12 +10,17 @@ import Qt.labs.folderlistmodel
 // RicePalette.qml), so it costs nothing while nothing changes.
 //
 //   ClaudeAsk { id: checkIn }      checkIn.asking, checkIn.msg; checkIn.done() marks it done
+//
+// Other notices of the same shape use it too, with their own `file` and `ackCommand`: the important
+// update the update check found (update-check.py, update.json).
 Item {
     id: ca
     visible: false
 
     property bool active: true
-    property var ask: null                      // {id, msg, since, ack}
+    property string file: "ask.json"
+    property string ackCommand: 'sh "$HOME/.config/plasma-rice/ask.sh" --ack'
+    property var ask: null                      // {id, msg, since, ack} (+ the notice's own fields)
     readonly property bool asking: ask !== null && !(Number(ask.ack) > 0)
     readonly property string msg: asking ? String(ask.msg ?? "") : ""
 
@@ -27,20 +32,20 @@ Item {
             if (!x.responseText) { ca.ask = null; return }                  // cleared
             try { ca.ask = JSON.parse(x.responseText) } catch (e) {}       // half written: the next change reads it
         }
-        x.open("GET", ca.dir + "/ask.json")
+        x.open("GET", ca.dir + "/" + ca.file)
         x.send()
     }
     function done() {
         if (!ask) return
         ask = Object.assign({}, ask, { ack: Math.floor(Date.now() / 1000) })
-        sh.connectSource('sh "$HOME/.config/plasma-rice/ask.sh" --ack #ack')
+        sh.connectSource(ca.ackCommand + " #ack")
     }
     RiceShell { id: sh }
 
     // (the folder stays set: an empty FolderListModel folder means the current directory)
     FolderListModel {
         folder: ca.dir
-        nameFilters: ["ask.json"]
+        nameFilters: [ca.file]
         showDirs: false
         onDataChanged: if (ca.active) reread.restart()
         onRowsInserted: if (ca.active) reread.restart()

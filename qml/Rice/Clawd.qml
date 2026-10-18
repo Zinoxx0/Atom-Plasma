@@ -8,7 +8,8 @@ import QtQuick.Window
 // juggles subagents, sweeps up a compaction, waits for you with a "?", hops with a tick when done),
 // the time of day, the season and (on the desktop) the weather. Hover it and it greets you and
 // follows the pointer with its eyes; click it for one of a dozen little acts, never the same one
-// twice in a row (four quick clicks make it dizzy).
+// twice in a row (four quick clicks make it dizzy). A double click calls `summoned` (the widgets open
+// Claude Code in a terminal).
 //
 // The art is drawn in grid cells (22 x 10; hats, bubbles and props poke out around it) and scaled by
 // `px`, snapped to whole device pixels (`unit`) so every cell is the same size on fractional scales.
@@ -36,6 +37,7 @@ Item {
     property real sand: 1           // limited: share of the wait still to go (hourglass)
     property bool alert: false      // Claude asked for a check-in (ask.sh): big "!" badge
     signal alertClicked()           // clicked while the "!" is up (no act: the widget shows or settles it)
+    signal summoned()               // double-clicked (not part of a faster spree): open Claude Code
     property var pal: ({})
     property real px: 8
     property bool interactive: true // hover greets, a click plays an act
@@ -960,5 +962,18 @@ Item {
         onEntered: root.greet()
         onPositionChanged: mouse => root.lookAt(mouse.x / width)
         onClicked: root.poke()
+        // a handled double click swallows its second click, so it still counts as a poke (four quick
+        // clicks stay dizzy). It summons only as a lone pair: a third click soon after cancels it
+        property var taps: []
+        onPressed: {
+            const t = Date.now()
+            taps = taps.filter(c => t - c < 700).concat([t])
+            summon.stop()
+        }
+        onDoubleClicked: {
+            root.poke()
+            if (taps.length === 2) summon.restart()
+        }
     }
+    Timer { id: summon; interval: 320; onTriggered: root.summoned() }
 }
