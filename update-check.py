@@ -308,7 +308,10 @@ def main():
         log("the flagged updates are installed: notice cleared")
     state = load(DIR / "state.json", {})
     now = time.time()
-    if now - state.get("last_ok", 0) < settings()["every_days"] * 86400 - 1800 or now - state.get("last_try", 0) < 6 * 3600:
+    due = max(state.get("last_ok", 0) + settings()["every_days"] * 86400 - 1800, state.get("last_try", 0) + 6 * 3600)
+    if now < due:
+        if sys.stdout.isatty():                     # run by hand: say why nothing happens
+            print(f"Not due yet: the next check is in {(due - now) / 3600:.0f} h. --force checks now.")
         return
     if usage_peak() >= 80:                          # don't spend the user's last bit of Claude usage
         log("Claude usage is high: the check waits")
