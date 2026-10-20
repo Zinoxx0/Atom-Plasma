@@ -339,7 +339,7 @@ print(JSON.stringify(out));
 PANELS_JS = r"""
 var out = [];
 panels().forEach(function (p) {
-    if (p.screen < 0) return;
+    if (p.screen < 0 || p.screen >= screenCount) return;     // its screen is unplugged
     var g = screenGeometry(p.screen), pc = null, clock = null, widgets = [];
     p.widgets().forEach(function (w) {
         if (w.type === "%(colorizer)s") pc = w.id;

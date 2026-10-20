@@ -5,6 +5,8 @@
     rice.py next|prev        step through ~/Pictures/Wallpapers
     rice.py random           pick a random one
     rice.py restore          re-apply the current wallpaper's theme
+    rice.py screens-changed  after screens are plugged in or out: each screen's palette, the desktop
+                             clock that carries Clawd, the bars' islands and clock sizes, window borders
     rice.py thumbs           (re)build picker thumbnails
     rice.py screens          JSON list of screens and their wallpapers (for the picker)
     rice.py preset save|load|delete <name>
@@ -47,8 +49,8 @@ Writes / applies:
     rgb.py apply                                keyboards on Automatic (laptop, Razer) light up in the accents
 Settings: ~/.config/plasma-rice/settings.json (scheme, tokyo_tint, depth, candy, wallhaven_queries,
 bar_scale for the size of a bar's widgets, top_scale for the Glimpse band at the top,
-icon_theme, desk_media (the screen whose desktop clock carries the music card and Clawd; default the
-biggest), weather {"city": ...} (weather.py), light_ui: light wallpapers turn the desktop light (frosted Plasma Style "Rice-Light", a light
+icon_theme, desk_media (the screen whose desktop clock carries the music card and Clawd; by default the
+only screen, else one beside the main bar's), clock_size (the bar clock's points, per screen), weather {"city": ...} (weather.py), light_ui: light wallpapers turn the desktop light (frosted Plasma Style "Rice-Light", a light
 KDE scheme, white-frost islands and popups; terminals and apps keep a dark twin palette);
 each size is one factor for every screen or {output: factor}).
 The current-wallpaper symlink is ~/.local/state/rice/wallpaper.
@@ -432,7 +434,9 @@ def apply_kwin(p):
 DESKTOPS_JS = r"""
 var out = [];
 desktops().forEach(function (d) {
-    if (d.screen < 0) return;
+    // a desktop keeps its screen index while that screen is unplugged, and screenGeometry() answers
+    // an index past the last screen with screen 0's place
+    if (d.screen < 0 || d.screen >= screenCount) return;
     var g = screenGeometry(d.screen);
     d.currentConfigGroup = ["Wallpaper", "org.kde.image", "General"];
     out.push({id: d.id, screen: d.screen, x: g.x, y: g.y,
@@ -686,18 +690,57 @@ def current_theme(ss, ovs):
 
 
 def media_screen(ss, cfg):
-    """The screen whose clock carries the music card and Clawd: settings desk_media, else the biggest."""
+    """The screen whose clock carries the music card and Clawd: settings desk_media while it's plugged in;
+    else the only screen; else one beside the main bar's screen (with two, the other one; with more, the
+    biggest of those touching it)."""
     names = [s["name"] for s in ss]
     if cfg.get("desk_media") in names:
         return cfg["desk_media"]
-    return max(ss, key=lambda s: (s.get("w") or 0) * (s.get("h") or 0))["name"] if ss else ""
+    if not ss:
+        return ""
+    area = lambda s: (s.get("w") or 0) * (s.get("h") or 0)
+    main = next((s for s in ss if s["main"]), None)
+    others = [s for s in ss if s is not main]
+    if not main or not others:
+        return max(ss, key=area)["name"]
+
+    def gap(s):
+        dx = max(s["x"] - (main["x"] + main["w"]), main["x"] - (s["x"] + s["w"]), 0)
+        dy = max(s["y"] - (main["y"] + main["h"]), main["y"] - (s["y"] + s["h"]), 0)
+        return max(dx, dy)
+    near = [s for s in others if gap(s) <= 2] or [min(others, key=gap)]     # positions are rounded
+    return max(near, key=area)["name"]
 
 
-def scale_for(setting, output):
+def scale_for(setting, output, default=1):
     """A size factor from settings.json: one number for every screen, or {output: factor}."""
     if isinstance(setting, (int, float)):
         return setting
-    return (setting or {}).get(output, 1)
+    return (setting or {}).get(output, default)
+
+
+CLOCK_JS = r"""
+var want = %s;
+panels().forEach(function (p) {
+    var pt = want[String(p.id)];
+    if (!pt) return;
+    p.widgets("org.kde.plasma.digitalclock").forEach(function (w) {
+        w.currentConfigGroup = ["Appearance"];
+        if (Number(w.readConfig("fontSize")) !== pt) w.writeConfig("fontSize", pt);
+    });
+});
+"""
+
+
+def size_clocks(bars, names, cfg):
+    """Each bar's clock in its screen's size (settings clock_size, points): a bar moves to another
+    screen when screens are unplugged (the main bar always sits on screen 0)."""
+    want = {str(b["panel"]): pt for b in bars if (pt := scale_for(cfg.get("clock_size"), names.get(b["screen"]), None))}
+    if want:
+        try:
+            build.shell(CLOCK_JS % json.dumps(want))
+        except subprocess.CalledProcessError:
+            pass
 
 
 def apply_screens(ss, cfg, fallback):
@@ -721,6 +764,7 @@ def apply_screens(ss, cfg, fallback):
         bars = build.panels()
     except (subprocess.CalledProcessError, ValueError):
         return
+    size_clocks(bars, {s["screen"]: s["name"] for s in ss}, cfg)
     for bar in bars:
         if bar["screen"] in pals:
             p = pals[bar["screen"]]
@@ -867,6 +911,16 @@ def main():
             except (OSError, ValueError, KeyError):
                 s["accent"] = ""
         print(json.dumps(ss))
+        return
+    if arg == "screens-changed":     # plugged in or out: palettes, bars and borders follow (com.zinoxx.desk asks)
+        try:
+            p = json.loads((STATE / "palette.json").read_text())
+        except (OSError, ValueError):
+            return
+        lock = open(STATE / "rice.lock", "w")
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        apply_screens(screens(), settings(), p)
+        apply_kwin(p)
         return
     if arg == "presets":
         print(json.dumps([dict(p, thumbs={o: str(thumb(Path(img))) for o, img in p["screens"].items()
