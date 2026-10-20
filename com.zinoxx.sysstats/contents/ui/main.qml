@@ -116,7 +116,7 @@ PlasmoidItem {
         RowLayout {
             id: row
             anchors.centerIn: parent
-            spacing: Tokens.space.md * root.uiScale
+            spacing: Tokens.space.sm * root.uiScale
             Repeater {
                 // fixed count: `stats` is a new array on every sensor update, and using it as the
                 // model destroyed and rebuilt (blank, then sweeping from 0) every ring each time
@@ -125,7 +125,7 @@ PlasmoidItem {
                     id: cell
                     required property int index
                     readonly property var stat: root.stats[index]
-                    spacing: Tokens.space.sm * root.uiScale
+                    spacing: Tokens.space.xs * root.uiScale
                     Item {
                         implicitWidth: 22 * root.uiScale; implicitHeight: implicitWidth
                         Ring {
@@ -148,15 +148,16 @@ PlasmoidItem {
                     }
                     Text {
                         id: pct
-                        text: Math.round(cell.stat.value) + "%"
+                        // a full 100 drops its sign: "100" fits in the room kept for "00%", so the
+                        // panel islands never shift, and 1% doesn't trail two empty digits
+                        text: Math.round(cell.stat.value) >= 100 ? "100" : Math.round(cell.stat.value) + "%"
                         color: pal.fg
                         font.family: Tokens.font.ui
                         font.weight: Font.DemiBold
                         font.pixelSize: Math.round(Tokens.size.label * root.uiScale)
                         font.features: { "tnum": 1 }
-                        // room for "100%" so the panel islands don't shift
                         Layout.minimumWidth: Math.ceil(widest.advanceWidth)
-                        TextMetrics { id: widest; font: pct.font; text: "100%" }
+                        TextMetrics { id: widest; font: pct.font; text: "00%" }
                     }
                 }
             }

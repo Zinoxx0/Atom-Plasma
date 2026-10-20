@@ -118,6 +118,49 @@ PlasmoidItem {
         : now.getMonth() === 11 && now.getDate() <= 26 ? "xmas"
         : (now.getMonth() === 11 && now.getDate() === 31) || (now.getMonth() === 0 && now.getDate() === 1) ? "newyear" : ""
 
+    // ---- screens plugged in or out: rice.py moves the music card and Clawd (`_desk`), gives each bar its
+    // new screen's colours and clock size and re-borders the windows. Only the main screen's desktop asks,
+    // once the screens have settled; also once at start (the screens may differ from the last session).
+    readonly property string screenSetup: {
+        const all = Qt.application.screens
+        let out = []
+        for (let i = 0; i < all.length; i++) out.push(all[i].name + "@" + all[i].virtualX + "," + all[i].virtualY)
+        return screenName + " " + out.join(" ")
+    }
+    onScreenSetupChanged: rescreen.restart()
+    Timer {
+        id: rescreen
+        interval: 3000
+        running: true
+        onTriggered: if (Plasmoid.containment?.screen === 0)
+            sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" screens-changed #screens')
+    }
+
+    // ---- the desktop icons start under Glimpse's strip: Plasma only keeps them clear of its own panels, and
+    // the strip (a layer-shell window with an exclusive zone) clipped their top. This applet shares the
+    // containment's layout with the icon layer (the desktop's FolderViewLayerLoader), so it moves that layer
+    // down by the strip (Glimpse's stripHeight, 8 by default, x top_scale) and a small gap. The opened band
+    // may still cover them.
+    readonly property int iconInset: Math.round(8 * pal.topScale) + Tokens.space.xs
+    property Item iconLayer: null
+    function findIconLayer() {
+        for (let p = root.parent; p; p = p.parent) {
+            for (let i = 0; i < p.children.length; i++) {
+                const c = p.children[i]
+                if (c.view !== undefined && c.model !== undefined && c.ready !== undefined) return c
+            }
+        }
+        return null
+    }
+    Timer {
+        // the applet is put into the layout after it loads, so look until it's there
+        interval: 500; running: root.iconLayer === null; repeat: true; triggeredOnStart: true
+        onTriggered: {
+            root.iconLayer = root.findIconLayer()
+            if (root.iconLayer) root.iconLayer.anchors.topMargin = Qt.binding(() => root.iconInset)
+        }
+    }
+
     // ---- music: the card on one screen, the status line on the others
     Music { id: music }
     readonly property var player: music

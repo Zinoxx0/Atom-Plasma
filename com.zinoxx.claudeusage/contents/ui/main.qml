@@ -178,7 +178,7 @@ PlasmoidItem {
         RowLayout {
             id: row
             anchors.centerIn: parent
-            spacing: Tokens.space.md * root.uiScale
+            spacing: Tokens.space.sm * root.uiScale
             Clawd {
                 id: mini
                 px: 2 * root.uiScale
@@ -208,7 +208,7 @@ PlasmoidItem {
                     required property int index
                     readonly property var info: index === 0 ? root.session : root.weekly
                     readonly property bool hot: info.pct >= 90
-                    spacing: Tokens.space.sm * root.uiScale
+                    spacing: Tokens.space.xs * root.uiScale
                     Ring {
                         implicitWidth: 15 * root.uiScale; implicitHeight: implicitWidth
                         thickness: 3 * root.uiScale
