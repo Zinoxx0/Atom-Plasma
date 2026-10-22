@@ -7,12 +7,13 @@ import "palette.js" as P
 
 // Atom Plasma splash, one per screen. It starts as the boot screen ended (Plymouth "rice", built by
 // ~/.config/plasma-rice/boot.py): the same neutral surface, the white Orbit mark, the comet ring and a
-// label, at the same offsets (boot.py LAYOUT). Then this screen's own wallpaper fades in under it as the
+// label, at the same offsets (the design tokens' bootLayout, which boot.py reads too). Then this screen's own wallpaper fades in under it as the
 // session loads, and the ring's track fills with progress, so the desktop arrives instead of popping in;
 // as it does, the mark opens into its halo, as the launcher does.
 Rectangle {
     id: root
-    color: "#0c0d12"                            // boot.py BOOT.base
+    color: Tokens.boot.base                     // the boot surface (design tokens, as boot.py draws it)
+    readonly property var lay: Tokens.bootLayout    // Plymouth's layout at 1080p (boot.py draws the same)
 
     property int stage
     property string output: Screen.name         // which screen's wallpaper (a render can set it)
@@ -51,7 +52,7 @@ Rectangle {
             blurEnabled: true; blur: 1.0; blurMax: 64
             saturation: 0.15
         }
-        Rectangle { anchors.fill: parent; color: Qt.alpha("#0c0d12", 0.55) }   // keeps the content legible
+        Rectangle { anchors.fill: parent; color: Qt.alpha(Tokens.boot.base, 0.55) }   // keeps the content legible
     }
 
     Item {
@@ -66,8 +67,8 @@ Rectangle {
         Emblem {
             id: mark
             anchors.horizontalCenter: parent.horizontalCenter
-            y: parent.height / 2 + (-70 * root.unit) - height / 2
-            scale: 4.2 * root.unit                 // boot.py LAYOUT mark_scale
+            y: parent.height / 2 + (root.lay.mark_y * root.unit) - height / 2
+            scale: root.lay.mark_scale * root.unit
             c1: "#ffffff"; c2: "#ffffff"; c3: "#ffffff"; c4: "#ffffff"; glow: "#ffffff"
             Timer {
                 interval: 1300; running: content.opacity > 0 && !mark.open; repeat: true
@@ -77,20 +78,20 @@ Rectangle {
 
         Item {                                  // comet ring: the boot spinner, plus a track that fills
             id: ring
-            width: 40 * root.unit; height: width
+            width: root.lay.ring * root.unit; height: width
             anchors.horizontalCenter: parent.horizontalCenter
-            y: parent.height / 2 + 36 * root.unit - height / 2
+            y: parent.height / 2 + root.lay.ring_y * root.unit - height / 2
             Shape {
                 anchors.fill: parent
                 preferredRendererType: Shape.CurveRenderer
                 ShapePath {
                     strokeColor: Qt.alpha("#e6e8f0", 0.32)
-                    strokeWidth: 3 * root.unit
+                    strokeWidth: root.lay.ring_w * root.unit
                     fillColor: "transparent"
                     capStyle: ShapePath.RoundCap
                     PathAngleArc {
                         centerX: ring.width / 2; centerY: ring.height / 2
-                        radiusX: ring.width / 2 - 3 * root.unit; radiusY: radiusX
+                        radiusX: ring.width / 2 - root.lay.ring_w * root.unit; radiusY: radiusX
                         startAngle: -90
                         sweepAngle: 360 * fill.value
                     }
@@ -114,7 +115,7 @@ Rectangle {
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            y: parent.height / 2 + 76 * root.unit
+            y: parent.height / 2 + root.lay.label_y * root.unit
             text: "Welcome back, " + me.displayName
             color: "#e6e8f0"
             opacity: 0.9
