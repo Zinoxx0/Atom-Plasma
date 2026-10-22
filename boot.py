@@ -13,6 +13,7 @@ Plymouth theme means rebuilding the initramfs.
     boot.py login                Plasma Login greeter: follows the theme from then on (installs a small
                                  system unit that copies what rice.py stages: wallpaper, colours, Plasma
                                  Style), Inter, GREETER_ICONS / GREETER_CURSOR (system-wide if needed)
+    boot.py greeter-sync         reinstalls only that copier and its (sandboxed) units
     boot.py preview              renders in ~/.cache/rice/shots/agent-c/boot/, nothing installed
 
 One fixed boot surface (BOOT: the neutral dark of the Plasma Style's popups) carries Limine and
@@ -538,9 +539,16 @@ set -eu
 SRC=%(stage)s
 G=%(greeter)s
 [ "$(realpath -e "$SRC")" = "$SRC" ] || exit 0            # the folder itself, not a link somewhere else
-take() {    # plain files only (no links): the greeter user gets to read what's copied
+OWNER=$(stat -c %%u "$SRC"); GROUP=$(stat -c %%g "$SRC")   # the user who stages it
+take() {    # plain files only, READ AS THAT USER: root never opens a path the user controls, so swapping a
+            # file for a link between the check and the copy gets nothing the user couldn't read anyway
     [ -f "$SRC/$1" ] && [ ! -L "$SRC/$1" ] || return 0
-    install -o plasmalogin -g plasmalogin -m "$3" "$SRC/$1" "$2.new" && mv -f "$2.new" "$2"
+    tmp=$(mktemp "$2.XXXXXX")
+    if setpriv --reuid="$OWNER" --regid="$GROUP" --clear-groups cat -- "$SRC/$1" > "$tmp"; then
+        chown plasmalogin:plasmalogin "$tmp" && chmod "$3" "$tmp" && mv -f "$tmp" "$2"
+    else
+        rm -f "$tmp"
+    fi
 }
 install -d -o plasmalogin -g plasmalogin -m 755 "$G/wallpapers"
 install -d -o plasmalogin -g plasmalogin -m 700 "$G/.config"
@@ -554,6 +562,27 @@ Description=Atom Plasma: give the login screen the theme's wallpaper and colours
 [Service]
 Type=oneshot
 ExecStart=%(sync)s
+# root only to write into the greeter's home (the stage is read as its owner, see the script)
+CapabilityBoundingSet=CAP_CHOWN CAP_FOWNER CAP_DAC_OVERRIDE CAP_SETUID CAP_SETGID
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/plasmalogin
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateNetwork=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
 """
 UNIT_PATH = """[Unit]
 Description=Atom Plasma: follow the theme on the login screen
@@ -610,17 +639,23 @@ def stage_greeter(img, style="Rice"):
     return changed
 
 
-def apply_login(p):
-    """Plasma Login greeter: installs the copier that keeps it on the theme's wallpaper and colours (see
-    STAGE), points the greeter at the copied wallpaper, installs the Plasma Styles, icons and cursor it
-    needs system-wide, and copies the current look once."""
-    stage_greeter(Path(p["_wallpaper"]), "Rice-Light" if p.get("_scheme") == "light" else "Rice")
+def install_greeter_sync():
+    """The root copier and its units: the part of `login` that keeps the greeter on the theme (`boot.py
+    greeter-sync` reinstalls just this, e.g. after a change to SYNC_SH or the unit)."""
     sudo("install", "-d", "-m", "755", str(SYNC.parent))
     sudo_write(SYNC, SYNC_SH % {"stage": STAGE, "greeter": GREETER, "home": HOME}, mode="755")
     sudo_write("/etc/systemd/system/atom-plasma-greeter.service", UNIT_SERVICE % {"sync": SYNC})
     sudo_write("/etc/systemd/system/atom-plasma-greeter.path", UNIT_PATH % {"stage": STAGE})
     sudo("systemctl", "daemon-reload")
     sudo("systemctl", "enable", "--now", "atom-plasma-greeter.path")
+
+
+def apply_login(p):
+    """Plasma Login greeter: installs the copier that keeps it on the theme's wallpaper and colours (see
+    STAGE), points the greeter at the copied wallpaper, installs the Plasma Styles, icons and cursor it
+    needs system-wide, and copies the current look once."""
+    stage_greeter(Path(p["_wallpaper"]), "Rice-Light" if p.get("_scheme") == "light" else "Rice")
+    install_greeter_sync()
 
     walls = GREETER / "wallpapers"
     sudo("sh", "-c", f'rm -f "{walls}"/rice-login.png "{walls}"/rice-login.jpeg')     # older copies
@@ -747,6 +782,8 @@ def main():
         return apply_limine(p, dry="--dry-run" in args)
     if what == "login":
         return apply_login(p)
+    if what == "greeter-sync":
+        return install_greeter_sync()
     if what == "plymouth":
         return apply_plymouth(rebuild="--rebuild" in args)
     sys.exit(__doc__)
