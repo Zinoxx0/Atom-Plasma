@@ -1,13 +1,15 @@
-"""Papirus-Rice: Papirus-Dark with folder icons in the Papirus colour closest to
-the wallpaper accent. Lives in ~/.local/share/icons, so no root is needed
+"""The icon theme. settings.json icon_theme is made active; when it's Papirus-Rice (an option, not the
+current pick: Tela-circle-dracula-dark is), that theme is built here: Papirus-Dark with folder icons in
+the Papirus colour closest to the wallpaper accent, in ~/.local/share/icons, so no root is needed
 (papirus-folders would rewrite /usr/share/icons instead)."""
 import json
 import re
-import subprocess
 from collections import Counter
 from pathlib import Path
 
-import palette
+from . import palette, util
+
+CHANGE_ICONS = Path("/usr/lib/plasma-changeicons")    # Plasma's own tool: switches the theme and tells running apps
 
 SRC = Path("/usr/share/icons/Papirus")
 DST = Path.home() / ".local/share/icons/Papirus-Rice"
@@ -65,10 +67,14 @@ def index_theme():
 
 def use_theme(theme):
     """Make `theme` the active icon theme (plasma-changeicons also tells running apps)."""
-    now = subprocess.run(["kreadconfig6", "--file", "kdeglobals", "--group", "Icons", "--key", "Theme"],
-                         capture_output=True, text=True).stdout.strip()
-    if now != theme:
-        subprocess.run(["/usr/lib/plasma-changeicons", theme], capture_output=True, check=False)
+    now = util.run("kreadconfig6", "--file", "kdeglobals", "--group", "Icons", "--key", "Theme").stdout.strip()
+    if now == theme:
+        return
+    if CHANGE_ICONS.exists():
+        util.run(str(CHANGE_ICONS), theme)
+    else:       # moved by a Plasma update: set it in kdeglobals (apps pick it up when they restart)
+        util.warn("%s is gone: setting the icon theme in kdeglobals only", CHANGE_ICONS)
+        util.run("kwriteconfig6", "--file", "kdeglobals", "--group", "Icons", "--key", "Theme", theme)
 
 
 def apply(accent, theme="Papirus-Rice"):
@@ -99,6 +105,5 @@ def apply(accent, theme="Papirus-Rice"):
     # drop the icon cache and tell running apps to reload icons
     for cache in Path.home().joinpath(".cache").glob("icon-cache.kcache"):
         cache.unlink(missing_ok=True)
-    subprocess.run(["dbus-send", "--session", "--type=signal", "/KIconLoader",
-                    "org.kde.KIconLoader.iconChanged", "int32:0"], check=False)
+    util.run("dbus-send", "--session", "--type=signal", "/KIconLoader", "org.kde.KIconLoader.iconChanged", "int32:0")
     return color, True

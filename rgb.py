@@ -34,6 +34,7 @@ Settings: ~/.local/state/rice/rgb.json; while the screens are off, rgb-dark.json
 """
 import contextlib
 import fcntl
+import functools
 import json
 import os
 import subprocess
@@ -41,14 +42,11 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import palette  # noqa: E402
+from atom import palette, util
+from atom.util import CACHE, STATE
 
-HOME = Path.home()
-HERE = Path(__file__).resolve().parent
-STATE = HOME / ".local/state/rice"
 SETTINGS = STATE / "rgb.json"
-SEEN = HOME / ".cache/rice/rgb"         # <id>.json: what each keyboard was last sent
+SEEN = CACHE / "rgb"                    # <id>.json: what each keyboard was last sent
 LEAD = STATE / "theme-screen"
 DARK = STATE / "rgb-dark.json"          # the screens are off: each keyboard's brightness from before
 UNIT = "atom-plasma-rgb.service"
@@ -108,10 +106,7 @@ def load():
 
 
 def save(cfg):
-    SETTINGS.parent.mkdir(parents=True, exist_ok=True)
-    tmp = SETTINGS.with_suffix(".tmp")
-    tmp.write_text(json.dumps(cfg, indent=2) + "\n")
-    tmp.replace(SETTINGS)
+    util.save_json(SETTINGS, cfg)
 
 
 def is_hex(v):
@@ -208,10 +203,16 @@ def frame(colours, rows, cols):
 
 
 # ---------------------------------------------------------------- laptop: asusd
-def asus_present():
+@functools.cache
+def aura_path():
+    """asusd's keyboard lighting object (/xyz/ljones/aura/<model>: tuf here), or "" without asusd."""
     r = subprocess.run(["busctl", "--system", "--list", "tree", "xyz.ljones.Asusd"],
                        capture_output=True, text=True, check=False)
-    return any(line.startswith("/xyz/ljones/aura/") for line in r.stdout.split())
+    return next((line for line in r.stdout.split() if line.startswith("/xyz/ljones/aura/")), "")
+
+
+def asus_present():
+    return bool(aura_path())
 
 
 def asus_name():
@@ -224,7 +225,9 @@ def asus_name():
 
 def asus_level():
     """asusd's brightness step now (0..3; the Fn keys change it too), or None."""
-    r = subprocess.run(["busctl", "--system", "get-property", "xyz.ljones.Asusd", "/xyz/ljones/aura/tuf",
+    if not aura_path():
+        return None
+    r = subprocess.run(["busctl", "--system", "get-property", "xyz.ljones.Asusd", aura_path(),
                         "xyz.ljones.Aura", "Brightness"], capture_output=True, text=True, check=False)
     try:
         return int(r.stdout.split()[1])
@@ -520,7 +523,8 @@ def watch():
                         wake()
             if not off and tick % 5 == 0:
                 if props is None:
-                    props = dbus.Interface(dbus.SystemBus().get_object("xyz.ljones.Asusd", "/xyz/ljones/aura/tuf"),
+                    aura_path.cache_clear()     # asusd may have restarted
+                    props = dbus.Interface(dbus.SystemBus().get_object("xyz.ljones.Asusd", aura_path() or "/xyz/ljones/aura"),
                                            "org.freedesktop.DBus.Properties")
                 laptop_level = int(props.Get("xyz.ljones.Aura", "Brightness"))
         except Exception as e:      # asusd restarting, a keyboard unplugged mid-command: try again next tick

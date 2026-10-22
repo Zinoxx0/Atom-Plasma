@@ -1,0 +1,143 @@
+"""KDE's own configuration: reading and writing its config files, the colour scheme the theme generates
+(RiceA/RiceB), the Plasma Style variant and the lock screen's wallpaper."""
+from pathlib import Path
+
+from . import palette, util
+from .util import HOME
+
+
+def _kesc(v):
+    """A value as KConfig writes it (what kwriteconfig6 would leave in the file)."""
+    v = str(v).lower() if isinstance(v, bool) else str(v)
+    v = v.replace("\\", "\\\\").replace("\n", "\\n").replace("\t", "\\t")
+    return "\\s" + v[1:] if v.startswith(" ") else v
+
+
+def kde_read(path):
+    """{(group, ...): {key: raw value}} of a KDE config file (raw = still escaped)."""
+    out, cur = {}, None
+    try:
+        lines = Path(path).read_text().splitlines()
+    except OSError:
+        return out
+    for line in lines:
+        s = line.strip()
+        if s.startswith("[") and s.endswith("]"):
+            cur = out.setdefault(tuple(s[1:-1].split("][")), {})
+        elif cur is not None and "=" in s and not s.startswith("#"):
+            k, v = s.split("=", 1)
+            cur[k.strip()] = v
+    return out
+
+
+def kde_dump(groups):
+    """kde_read()'s shape back to a config file's text: [group][subgroup] headers, one blank line between."""
+    return "\n".join("".join(f"[{g}]" for g in (name if isinstance(name, tuple) else (name,))) + "\n"
+                     + "".join(f"{k}={v}\n" for k, v in keys.items()) for name, keys in groups.items())
+
+
+def kde_set(name, groups):
+    """Set keys in a KDE config file, running kwriteconfig6 (which locks the file, so it can't race the
+    app that owns it) only for the keys that differ. groups: {group or (group, subgroup): {key: value}};
+    None deletes a key. name: a file in ~/.config or an absolute path. Returns True if anything changed."""
+    path = Path(name) if Path(name).is_absolute() else HOME / ".config" / name
+    have = kde_read(path)
+    changed = False
+    for g, keys in groups.items():
+        g = g if isinstance(g, tuple) else (g,)
+        cur = have.get(g, {})
+        for k, v in keys.items():
+            if (v is None and k not in cur) or (v is not None and cur.get(k) == _kesc(v)):
+                continue
+            cmd = ["kwriteconfig6", "--file", str(path)]
+            for part in g:
+                cmd += ["--group", part]
+            cmd += ["--key", k] + (["--delete"] if v is None else
+                                   [str(v).lower() if isinstance(v, bool) else str(v)])
+            util.run(*cmd)
+            changed = True
+    return changed
+
+
+STYLE = {"dark": "Rice", "light": "Rice-Light"}    # Plasma Style variants (plasma-style/build.py)
+
+
+def apply_style(p):
+    """The Plasma Style matching the theme-driving screen: dark glass, or white frost when it is light.
+    Stock popups (tray, clock, notifications) follow it; our own popups paint their own screen's surface."""
+    name = STYLE.get(p.get("_scheme"), "Rice")
+    current = util.run("kreadconfig6", "--file", "plasmarc", "--group", "Theme", "--key", "name").stdout.strip()
+    if current != name:
+        util.run("plasma-apply-desktoptheme", name)
+
+
+def apply_scheme(p):
+    schemes = HOME / ".local/share/color-schemes"
+    current = util.run("kreadconfig6", "--file", "kdeglobals", "--group", "General", "--key", "ColorScheme").stdout.strip()
+    try:        # unchanged (a colour edit on another screen): leave the apps alone, no repaint
+        if current in ("RiceA", "RiceB") and (schemes / f"{current}.colors").read_text() == kde_scheme(p, current):
+            return
+    except OSError:
+        pass
+    name = "RiceB" if current == "RiceA" else "RiceA"
+    util.write_if_changed(schemes / f"{name}.colors", kde_scheme(p, name))
+    util.run("plasma-apply-colorscheme", name)
+
+
+def kde_scheme(p, name):
+    c = palette.rgb_csv
+    if p.get("_scheme") == "light":
+        # the status/link hues are made for dark backgrounds (terminals): deepen them for light windows
+        def ink(col):
+            L, C, H = palette.to_oklch(col)
+            return palette.oklch(min(L, 0.52), max(C, 0.10), H)
+    else:
+        def ink(col):
+            return col
+    fg = dict(
+        ForegroundNormal=p["on_surface"], ForegroundInactive=p["on_surface_variant"],
+        ForegroundActive=p["primary"], ForegroundLink=ink(p["blue"]), ForegroundVisited=ink(p["magenta"]),
+        ForegroundNegative=ink(p["red"]), ForegroundNeutral=ink(p["yellow"]), ForegroundPositive=ink(p["green"]),
+        DecorationFocus=p["primary"], DecorationHover=p["primary"],
+    )
+    groups = {
+        "Window": (p["surface"], p["surface_low"]),
+        "View": (p["background"], p["surface"]),
+        "Button": (p["surface_high"], p["surface_container"]),
+        "Header": (p["background"], p["surface"]),
+        "Header][Inactive": (p["background"], p["surface"]),
+        "Tooltip": (p["surface_container"], p["surface_high"]),
+        "Complementary": (p["surface_lowest"], p["background"]),
+    }
+    out = [f"# Generated by ~/.config/plasma-rice/rice.py from {p.get('_wallpaper', '')}. Do not edit.",
+           "[ColorEffects:Disabled]", "Color=56,56,56", "ColorAmount=0", "ColorEffect=0",
+           "ContrastAmount=0.65", "ContrastEffect=1", "IntensityAmount=0.1", "IntensityEffect=2", "",
+           "[ColorEffects:Inactive]", "ChangeSelectionColor=true", "Color=112,111,110", "ColorAmount=0.025",
+           "ColorEffect=2", "ContrastAmount=0.1", "ContrastEffect=2", "Enable=false",
+           "IntensityAmount=0", "IntensityEffect=0", ""]
+    for g, (bg, alt) in groups.items():
+        out.append(f"[Colors:{g}]")
+        out += [f"BackgroundNormal={c(bg)}", f"BackgroundAlternate={c(alt)}"]
+        out += [f"{k}={c(v)}" for k, v in fg.items()]
+        out.append("")
+    sel = dict(fg, ForegroundNormal=p["on_primary"], ForegroundInactive=p["on_primary"],
+               ForegroundActive=p["on_primary"], ForegroundLink=p["on_primary"])
+    out.append("[Colors:Selection]")
+    out += [f"BackgroundNormal={c(p['primary'])}", f"BackgroundAlternate={c(p['primary_dim'])}"]
+    out += [f"{k}={c(v)}" for k, v in sel.items()]
+    out += ["", "[General]", f"ColorScheme={name}", f"Name=Atom Plasma ({name[-1]})", "accentActiveTitlebar=false",
+            "accentInactiveTitlebar=false", "shadeSortColumn=true", "TitlebarIsAccentColored=false", "",
+            "[KDE]", "contrast=4", "",
+            "[WM]",
+            f"activeBackground={c(p['background'])}", f"activeBlend={c(p['primary'])}",
+            f"activeForeground={c(p['on_surface'])}",
+            f"inactiveBackground={c(p['background'])}", f"inactiveBlend={c(p['outline_variant'])}",
+            f"inactiveForeground={c(p['muted'])}", ""]
+    return "\n".join(out)
+
+
+def set_lockscreen(img):
+    util.run("kwriteconfig6", "--file", "kscreenlockerrc", "--group", "Greeter", "--group", "Wallpaper",
+        "--group", "org.kde.image", "--group", "General", "--key", "Image", f"file://{img}")
+    util.run("kwriteconfig6", "--file", "kscreenlockerrc", "--group", "Greeter", "--group", "Wallpaper",
+        "--group", "org.kde.image", "--group", "General", "--key", "PreviewImage", f"file://{img}")

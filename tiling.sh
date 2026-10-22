@@ -10,34 +10,39 @@
 # ("DP-3:8"): Krohnkite 0.9.9.2's FloatingLayout id has a trailing space
 # ("FloatingLayout "), so "DP-3:floating" never matches and the screen comes
 # up tiled.
+here=$(dirname "$(readlink -f "$0")")
 kwin() { qdbus6 org.kde.kglobalaccel /component/kwin org.kde.kglobalaccel.Component.invokeShortcut "$1"; }
 note() { notify-send -a "Tiling" -i "$1" -h string:x-canonical-private-synchronous:tiling "$2" "$3"; }
 entries() { kreadconfig6 --file kwinrc --group Script-krohnkite --key screenDefaultLayout | tr ',' '\n' | grep -v '^$'; }
 
-# FloatingLayout's index in Krohnkite's layout list: the enabled layouts (order > 0) sorted by their
-# order setting, as Krohnkite builds it
+# FloatingLayout's index in Krohnkite's layout list: the enabled layouts (order > 0) sorted by their order
+# setting, as Krohnkite builds it. The layouts and their default orders come from Krohnkite's own config
+# file, so an update that adds or reorders layouts is followed; kwinrc holds the user's changes.
 float_index() {
-    for kd in tile:1 monocle:2 threeColumn:3 spiral:4 quarter:5 stacked:6 columns:7 spread:8 \
-              floating:9 stair:10 binaryTree:11 cascade:12; do
-        k=${kd%%:*}; d=${kd#*:}
-        echo "$(kreadconfig6 --file kwinrc --group Script-krohnkite --key "${k}LayoutOrder" --default "$d") $k"
-    done | awk '$1 > 0' | sort -s -n -k1,1 | awk '$2 == "floating" { print NR - 1; exit }'
+    python3 - <<'PY' 2>/dev/null
+import subprocess, xml.etree.ElementTree as ET
+from pathlib import Path
+xml = Path.home() / ".local/share/kwin/scripts/krohnkite/contents/config/main.xml"
+ns = "{http://www.kde.org/standards/kcfg/1.0}"
+layouts = []
+for e in ET.parse(xml).getroot().iter(ns + "entry"):
+    name = e.get("name", "")
+    if name.endswith("LayoutOrder"):
+        default = e.findtext(ns + "default", "0").strip()
+        order = subprocess.run(["kreadconfig6", "--file", "kwinrc", "--group", "Script-krohnkite", "--key", name,
+                                "--default", default], capture_output=True, text=True).stdout.strip()
+        if int(order or 0) > 0:
+            layouts.append((int(order), name))
+names = [n for _, n in sorted(layouts, key=lambda t: t[0])]       # stable, like Krohnkite's sort
+print(names.index("floatingLayoutOrder"))
+PY
 }
 
-# the screen Krohnkite acts on: the focused window's (KWin's activeOutputName follows the mouse instead)
+# the screen Krohnkite acts on: the focused window's (KWin's activeOutputName follows the mouse instead),
+# asked of KWin with a one-shot script that answers over D-Bus (kwin-run.py)
 focused_output() {
-    tag="tiling-$$-$(date +%s%N)"; js="${XDG_RUNTIME_DIR:-/tmp}/$tag.js"; since="$(date +%s.%N)"
-    printf 'print("%s " + (workspace.activeWindow ? workspace.activeWindow.output.name : workspace.activeScreen.name));\n' "$tag" > "$js"
-    qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.loadScript "$js" "$tag" >/dev/null
-    qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.start >/dev/null
-    o=""
-    for _ in 1 2 3 4 5 6 7 8 9 10; do
-        o="$(journalctl --user --since "@$since" -o cat 2>/dev/null | grep -m1 "$tag " | awk '{ print $NF }')"
-        [ -n "$o" ] && break
-        sleep 0.05
-    done
-    qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.unloadScript "$tag" >/dev/null
-    rm -f "$js"
+    o=$(printf 'answer(workspace.activeWindow ? workspace.activeWindow.output.name : workspace.activeScreen.name);\n' \
+        | python3 "$here/kwin-run.py" --answer 2>/dev/null)
     [ -n "$o" ] || o="$(qdbus6 org.kde.KWin /KWin org.kde.KWin.activeOutputName)"
     echo "$o"
 }

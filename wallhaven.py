@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch new wallpapers from wallhaven.cc into ~/Pictures/Wallpapers.
+"""Fetch new wallpapers from wallhaven.cc into the collection (settings wallpaper_dir, else Pictures/Wallpapers).
 
     wallhaven.py [--dry-run] [count] [tags]
 
@@ -30,9 +30,9 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-WALLDIR = Path.home() / "Pictures/Wallpapers"
-SEEN = Path.home() / ".cache/rice/wallhaven-seen.json"
+from atom import util
+
+SEEN = util.CACHE / "wallhaven-seen.json"
 API = "https://wallhaven.cc/api/v1/search?"
 UA = {"User-Agent": "plasma-rice/1.0"}
 DEFAULT_QUERIES = ["landscape", "scenery", "night city", "sky", "sunset", "mountains", "lake"]
@@ -60,13 +60,6 @@ VIBES = {
 def get(url):
     with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=30) as r:
         return r.read()
-
-
-def settings():
-    try:
-        return json.loads((HERE / "settings.json").read_text())
-    except (OSError, ValueError):
-        return {}
 
 
 class Search:
@@ -118,7 +111,8 @@ def main():
     dry = "--dry-run" in args
     args = [a for a in args if a != "--dry-run"]
     count = int(args[0]) if args else 6
-    cfg = settings()
+    cfg = util.settings()
+    WALLDIR = util.wallpaper_dir(cfg)
     query = args[1].strip() if len(args) > 1 else ""
     if not query:
         query = random.choice(cfg.get("wallhaven_queries") or DEFAULT_QUERIES)

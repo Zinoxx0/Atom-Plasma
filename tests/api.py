@@ -1,55 +1,39 @@
 """The functions the tests check, by name, wherever they live: when code moves, only this file changes,
 and the saved outputs in tests/golden/ must still match."""
-import importlib.util
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path[:0] = [str(ROOT), str(ROOT / "panel")]
+sys.path.insert(0, str(ROOT))
 
-import apps  # noqa: E402
-import boot  # noqa: E402
-import build as panel  # noqa: E402
-import layout  # noqa: E402
-import palette  # noqa: E402
 import rgb  # noqa: E402
-import rice  # noqa: E402
-import tokens  # noqa: E402
-
-
-def _load(name, path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
-style = _load("plasma_style_build", ROOT / "plasma-style/build.py")
+from atom import (apps, boot, kde, layout, palette, panel, screens, style, terminals,  # noqa: E402
+                  theme, tokens, util, vscode, walls)
 
 # palette
 analyse = palette.analyse
 mood_of = palette.mood_of
 build_v2 = palette.build_v2
 MOODS = palette.MOODS
-# apps and terminals
-ansi = apps.ansi
-vscode = apps.vscode
+# apps and terminals (the terminal look as designed, not as settings.json has it today)
+ansi = terminals.ansi
+vscode = vscode.vscode
 btop = apps.btop
-mangohud = apps.mangohud
+mangohud = lambda p: apps.mangohud(p, "/usr/share/fonts/TTF/JetBrainsMonoNerdFont-SemiBold.ttf")  # noqa: E731
 zen_chrome = apps.zen_chrome
 zen_content = apps.zen_content
 zen_userjs = apps.zen_userjs
-kde_scheme = rice.kde_scheme
-konsole = rice.konsole
-konsole_tabs = rice.konsole_tabs
-alacritty = rice.alacritty
+kde_scheme = kde.kde_scheme
+konsole = lambda p: terminals.konsole(p, terminals.LOOK)  # noqa: E731
+konsole_tabs = lambda p: terminals.konsole_tabs(p, terminals.LOOK)  # noqa: E731
+alacritty = lambda p: terminals.alacritty(p, terminals.LOOK)  # noqa: E731
 # placement and screens
 place = layout.place
-rim = rice.rim
-media_screen = rice.media_screen
-scale_for = rice.scale_for
-theme_args = rice.theme_args
-unusable = rice.unusable
+rim = screens.rim
+media_screen = screens.media_screen
+scale_for = screens.scale_for
+theme_args = theme.theme_args
+unusable = walls.unusable
 # design tokens, boot, bar islands, keyboards
 tokens_qml = tokens.qml
 limine_conf = boot.limine_conf
@@ -62,27 +46,21 @@ key_frame = rgb.frame
 
 def render_templates(p, out_dir):
     """rice.py's templates (starship, the shell colours) for palette `p`, written into out_dir."""
-    saved = dict(rice.TEMPLATES)
+    saved = dict(theme.TEMPLATES)
     try:
-        for name in rice.TEMPLATES:
-            rice.TEMPLATES[name] = Path(out_dir) / name
-        rice.render_templates(p)
+        for name in theme.TEMPLATES:
+            theme.TEMPLATES[name] = Path(out_dir) / name
+        theme.render_templates(p)
     finally:
-        rice.TEMPLATES.clear()
-        rice.TEMPLATES.update(saved)
+        theme.TEMPLATES.clear()
+        theme.TEMPLATES.update(saved)
 
 
 def fill(text, p, extra=None):
-    """The fastfetch template filler ({{name}}, {{name:rgb}}, extra values)."""
-    return apps.fill(text, p, extra)
+    """The template filler ({{name}}, {{name.rgb}}; extra values win over the palette)."""
+    return util.fill(text, dict(p, **(extra or {})))
 
 
 def build_style(variant, out_dir):
     """The Plasma Style `variant` (dark | light), generated into out_dir/<its folder>."""
-    saved = style.OUT
-    try:
-        style.OUT = Path(out_dir) / "Rice"
-        style.build(variant)
-        return style.OUT
-    finally:
-        style.OUT = saved
+    return style.build(variant, out_dir)

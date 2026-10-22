@@ -3,7 +3,7 @@
 # (~/.local/share/kio/servicemenus/rice.desktop)
 #   here  set it as this screen's wallpaper and re-theme from it (the screen Dolphin is on)
 #   all   the same on every screen
-#   add   copy the images into ~/Pictures/Wallpapers, for the wallpaper picker
+#   add   copy the images into the wallpaper collection (rice.py wallpaper-dir), for the picker
 set -eu
 cmd=${1:-}; shift || true
 rice="$HOME/.config/plasma-rice/rice.py"
@@ -11,7 +11,7 @@ case "$cmd" in
     here) exec "$rice" "$1" --screen focused ;;
     all)  exec "$rice" "$1" --screen all ;;
     add)
-        dir="$HOME/Pictures/Wallpapers"
+        dir=$("$rice" wallpaper-dir)
         mkdir -p "$dir"
         n=0; skipped=""
         for f; do

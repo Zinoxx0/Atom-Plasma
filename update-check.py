@@ -29,8 +29,9 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-STATE = Path.home() / ".local/state/rice"
+from atom import util
+
+STATE = util.STATE
 NOTICE = STATE / "update.json"
 DIR = STATE / "update-check"
 REPORT = DIR / "report.md"
@@ -93,25 +94,15 @@ Reply with:
 
 
 def settings():
-    try:
-        cfg = json.loads((HERE / "settings.json").read_text()).get("update_check") or {}
-    except (OSError, ValueError):
-        cfg = {}
+    cfg = util.settings().get("update_check") or {}
     return {"every_days": float(cfg.get("every_days", 2)), "model": cfg.get("model", "sonnet")}
 
 
-def load(path, default=None):
-    try:
-        return json.loads(path.read_text())
-    except (OSError, ValueError):
-        return default
+load = util.load_json
 
 
 def save(path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, indent=1, ensure_ascii=False))
-    tmp.replace(path)
+    util.save_json(path, data, indent=1)
 
 
 def log(*a):

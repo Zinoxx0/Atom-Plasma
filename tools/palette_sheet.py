@@ -12,10 +12,10 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import palette  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))     # a tool one folder down
+from atom import palette, util  # noqa: E402
 
-FONT = "/usr/share/fonts/inter/Inter.ttc"
+FONT = util.font("Inter")[0]
 ROW_H, PAD = 170, 16
 
 

@@ -1,6 +1,0 @@
-# Used by ~/.config/plasma-rice/palette.py only (JSON output, no templates).
-[config]
-prefer = "saturation"
-fallback_color = "#7aa2f7"
-
-[templates]

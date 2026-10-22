@@ -14,10 +14,10 @@ import sys
 import time
 import urllib.parse
 import urllib.request
-from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-CACHE = Path.home() / ".cache/rice"
+from atom import util
+
+CACHE = util.CACHE
 OUT = CACHE / "weather.json"
 PLACE = CACHE / "weather-place.json"
 MAX_AGE = 15 * 60
@@ -46,10 +46,7 @@ def place(city):
 
 
 def fetch():
-    try:
-        cfg = json.loads((HERE / "settings.json").read_text())
-    except (OSError, ValueError):
-        cfg = {}
+    cfg = util.settings()
     p = place((cfg.get("weather") or {}).get("city", "Lisbon"))
     q = {"latitude": p["lat"], "longitude": p["lon"], "timezone": "auto", "forecast_days": 2,
          "current": "temperature_2m,apparent_temperature,weather_code,is_day",
@@ -66,9 +63,7 @@ def fetch():
            "now": {"temp": round(cur["temperature_2m"]), "feels": round(cur["apparent_temperature"]),
                    "code": cur["weather_code"], "day": cur["is_day"]},
            "hi": round(day["temperature_2m_max"][0]), "lo": round(day["temperature_2m_min"][0]), "hours": hours}
-    tmp = OUT.with_suffix(".tmp")
-    tmp.write_text(json.dumps(out))
-    tmp.replace(OUT)
+    util.write_if_changed(OUT, json.dumps(out))
     return out
 
 

@@ -1,5 +1,5 @@
 // Template: rendered to ~/.config/fastfetch/config.jsonc by ~/.config/plasma-rice/apps.py.
-// {{name}} = palette colour as #hex, {{name:rgb}} = r;g;b for fastfetch's {#38;2;...} colour codes,
+// {{name}} = palette colour as #hex, {{name.rgb}} = r;g;b for fastfetch's {#38;2;...} colour codes,
 // {{logo}} / {{logo_type}} = the logo apps.py picked (a rounded square of the wallpaper over the kitty
 // image protocol, which Konsole speaks; Clawd as text art otherwise), {{accent3}} = the palette colour
 // furthest in hue from primary and tertiary, so the three sections never blur together.
@@ -19,24 +19,24 @@
     "percent": { "color": { "green": "{{green}}", "yellow": "{{yellow}}", "red": "{{red}}" } }
   },
   "modules": [
-    { "type": "title", "format": "{#1;38;2;{{primary:rgb}}}{user-name}{#0;38;2;{{muted:rgb}}} @ {#1;38;2;{{tertiary:rgb}}}{host-name}" },
+    { "type": "title", "format": "{#1;38;2;{{primary.rgb}}}{user-name}{#0;38;2;{{muted.rgb}}} @ {#1;38;2;{{tertiary.rgb}}}{host-name}" },
     "break",
-    { "type": "custom", "format": "{#38;2;{{outline:rgb}}}╭─ {#1;38;2;{{primary:rgb}}}system {#0;38;2;{{outline:rgb}}}───────────────────────────" },
-    { "type": "os",       "key": "{#38;2;{{outline:rgb}}}│ {#38;2;{{primary:rgb}}}󰣇  os",     "format": "{pretty-name}" },
-    { "type": "kernel",   "key": "{#38;2;{{outline:rgb}}}│ {#38;2;{{primary:rgb}}}  kernel", "format": "{release}" },
-    { "type": "uptime",   "key": "{#38;2;{{outline:rgb}}}│ {#38;2;{{primary:rgb}}}󰅐  uptime" },
-    { "type": "packages", "key": "{#38;2;{{outline:rgb}}}│ {#38;2;{{primary:rgb}}}󰏖  pkgs" },
-    { "type": "custom", "format": "{#38;2;{{outline:rgb}}}├─ {#1;38;2;{{tertiary:rgb}}}desktop {#0;38;2;{{outline:rgb}}}──────────────────────────" },
-    { "type": "de",       "key": "{#38;2;{{outline:rgb}}}│ {#38;2;{{tertiary:rgb}}}  de" },
-    { "type": "wm",       "key": "{#38;2;{{outline:rgb}}}│ {#38;2;{{tertiary:rgb}}}  wm" },
-    { "type": "terminal", "key": "{#38;2;{{outline:rgb}}}│ {#38;2;{{tertiary:rgb}}}  term" },
-    { "type": "shell",    "key": "{#38;2;{{outline:rgb}}}│ {#38;2;{{tertiary:rgb}}}  shell" },
-    { "type": "custom", "format": "{#38;2;{{outline:rgb}}}├─ {#1;38;2;{{accent3:rgb}}}hardware {#0;38;2;{{outline:rgb}}}─────────────────────────" },
-    { "type": "cpu",      "key": "{#38;2;{{outline:rgb}}}│ {#38;2;{{accent3:rgb}}}  cpu",    "format": "{name}" },
-    { "type": "gpu",      "key": "{#38;2;{{outline:rgb}}}│ {#38;2;{{accent3:rgb}}}󰢮  gpu",    "format": "{name}" },
-    { "type": "memory",   "key": "{#38;2;{{outline:rgb}}}│ {#38;2;{{accent3:rgb}}}󰍛  mem" },
-    { "type": "disk",     "key": "{#38;2;{{outline:rgb}}}│ {#38;2;{{accent3:rgb}}}󰋊  disk",   "folders": "/", "format": "{size-used} / {size-total} ({size-percentage})" },
-    { "type": "custom", "format": "{#38;2;{{outline:rgb}}}╰────────────────────────────────────" },
+    { "type": "custom", "format": "{#38;2;{{outline.rgb}}}╭─ {#1;38;2;{{primary.rgb}}}system {#0;38;2;{{outline.rgb}}}───────────────────────────" },
+    { "type": "os",       "key": "{#38;2;{{outline.rgb}}}│ {#38;2;{{primary.rgb}}}󰣇  os",     "format": "{pretty-name}" },
+    { "type": "kernel",   "key": "{#38;2;{{outline.rgb}}}│ {#38;2;{{primary.rgb}}}  kernel", "format": "{release}" },
+    { "type": "uptime",   "key": "{#38;2;{{outline.rgb}}}│ {#38;2;{{primary.rgb}}}󰅐  uptime" },
+    { "type": "packages", "key": "{#38;2;{{outline.rgb}}}│ {#38;2;{{primary.rgb}}}󰏖  pkgs" },
+    { "type": "custom", "format": "{#38;2;{{outline.rgb}}}├─ {#1;38;2;{{tertiary.rgb}}}desktop {#0;38;2;{{outline.rgb}}}──────────────────────────" },
+    { "type": "de",       "key": "{#38;2;{{outline.rgb}}}│ {#38;2;{{tertiary.rgb}}}  de" },
+    { "type": "wm",       "key": "{#38;2;{{outline.rgb}}}│ {#38;2;{{tertiary.rgb}}}  wm" },
+    { "type": "terminal", "key": "{#38;2;{{outline.rgb}}}│ {#38;2;{{tertiary.rgb}}}  term" },
+    { "type": "shell",    "key": "{#38;2;{{outline.rgb}}}│ {#38;2;{{tertiary.rgb}}}  shell" },
+    { "type": "custom", "format": "{#38;2;{{outline.rgb}}}├─ {#1;38;2;{{accent3.rgb}}}hardware {#0;38;2;{{outline.rgb}}}─────────────────────────" },
+    { "type": "cpu",      "key": "{#38;2;{{outline.rgb}}}│ {#38;2;{{accent3.rgb}}}  cpu",    "format": "{name}" },
+    { "type": "gpu",      "key": "{#38;2;{{outline.rgb}}}│ {#38;2;{{accent3.rgb}}}󰢮  gpu",    "format": "{name}" },
+    { "type": "memory",   "key": "{#38;2;{{outline.rgb}}}│ {#38;2;{{accent3.rgb}}}󰍛  mem" },
+    { "type": "disk",     "key": "{#38;2;{{outline.rgb}}}│ {#38;2;{{accent3.rgb}}}󰋊  disk",   "folders": "/", "format": "{size-used} / {size-total} ({size-percentage})" },
+    { "type": "custom", "format": "{#38;2;{{outline.rgb}}}╰────────────────────────────────────" },
     "break",
     { "type": "colors", "symbol": "circle", "paddingLeft": 2 }
   ]

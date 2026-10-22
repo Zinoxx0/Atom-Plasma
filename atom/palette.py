@@ -1,21 +1,12 @@
-"""Wallpaper -> palette for the Plasma rice.
+"""Wallpaper -> palette for Atom Plasma (palette v2).
 
-matugen picks the wallpaper's colours (Material You); this module then pulls the
-result into a darker, Tokyo Night shaped palette:
-
-  * surfaces use Tokyo Night's lightness ladder (deep navy-black), tinted with
-    a blend of the wallpaper hue and Tokyo Night's indigo
-  * accents keep the wallpaper's hues but get candy-level lightness/chroma
-  * terminal colours are Tokyo Night's, nudged a little toward the wallpaper
-
-Everything is done in OKLCH so lightness steps look even.
+analyse() reads the wallpaper itself in OKLab: mean lightness and chroma, how much of it is vivid, its
+hue and k colour clusters. mood_of() names its character (neon / soft / light / void / graphite) and
+build_v2() draws the rice palette from it: accents from the wallpaper's own hues at the mood's
+lightness, a surface ladder, Tokyo Night's terminal colours nudged toward the accent. Everything is
+done in OKLCH so lightness steps look even.
 """
-import json
 import math
-import subprocess
-from pathlib import Path
-
-HERE = Path(__file__).resolve().parent
 
 TOKYO = {
     "bg": "#1a1b26", "fg": "#c0caf5", "comment": "#565f89",
@@ -43,15 +34,19 @@ def rgb_hex(rgb):
     return "#" + "".join(f"{round(max(0, min(1, c)) * 255):02x}" for c in rgb)
 
 
-def to_oklch(h):
-    r, g, b = (_lin(c) for c in hex_rgb(h))
+def _oklab(r, g, b):
+    """Linear sRGB (0..1) -> OKLab (L, a, b)."""
     l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b
     m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b
     s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b
     l, m, s = (math.copysign(abs(v) ** (1 / 3), v) for v in (l, m, s))
-    L = 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s
-    a = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s
-    bb = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s
+    return (0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+            1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+            0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s)
+
+
+def to_oklch(h):
+    L, a, bb = _oklab(*(_lin(c) for c in hex_rgb(h)))
     return L, math.hypot(a, bb), math.degrees(math.atan2(bb, a)) % 360
 
 
@@ -81,6 +76,13 @@ def mix(a, b, t):
     return rgb_hex(tuple(_gam(x + (y - x) * t) for x, y in zip(ra, rb)))
 
 
+def mix_srgb(a, b, t):
+    """Mix two hex colours in sRGB (gamma) space, as the bar islands always have: a little darker
+    midway than mix(), which blends in linear light."""
+    a, b = (tuple(int(c.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4)) for c in (a, b))
+    return "#%02x%02x%02x" % tuple(round(x + (y - x) * t) for x, y in zip(a, b))
+
+
 def hue_toward(h, target, t):
     d = ((target - h + 180) % 360) - 180
     return (h + d * t) % 360
@@ -88,65 +90,6 @@ def hue_toward(h, target, t):
 
 def rgb_csv(h):
     return ",".join(str(round(c * 255)) for c in hex_rgb(h))
-
-
-# ---------------------------------------------------------------- palette
-def matugen(image, scheme):
-    out = subprocess.run(
-        ["matugen", "image", str(image), "-m", "dark", "-t", scheme,
-         "-c", str(HERE / "matugen.toml"), "-j", "hex", "--dry-run"],
-        check=True, capture_output=True, text=True).stdout
-    return {k: v["default"]["color"] for k, v in json.loads(out)["colors"].items()}
-
-
-def build(m, settings):
-    """m: matugen colours (name -> hex). Returns the rice palette (name -> hex)."""
-    tint = settings.get("tokyo_tint", 0.6)       # 0 = pure wallpaper hue, 1 = pure Tokyo Night
-    depth = settings.get("depth", 0.0)            # extra darkness for surfaces (OKLCH L)
-    candy = settings.get("candy", 1.0)            # accent chroma multiplier
-
-    _, src_c, src_h = to_oklch(m["primary"])
-    surf_h = hue_toward(src_h, TOKYO_HUE, tint)
-    # grey wallpapers stay neutral-ish; colourful ones get a richer tint
-    surf_c = 0.012 + 0.022 * min(1.0, src_c / 0.09)
-
-    p = {}
-    ladder = {
-        "surface_lowest": 0.155, "background": 0.185, "surface": 0.205,
-        "surface_low": 0.222, "surface_container": 0.240, "surface_high": 0.272,
-        "surface_highest": 0.305, "outline_variant": 0.370, "outline": 0.520,
-    }
-    for name, L in ladder.items():
-        c = surf_c * (1.6 if name.startswith("outline") else 1.0)
-        p[name] = oklch(L - depth, c, surf_h)
-    p["on_surface"] = oklch(0.900, 0.030, surf_h)
-    p["on_surface_variant"] = oklch(0.760, 0.040, surf_h)
-    p["muted"] = oklch(0.580, 0.050, surf_h)
-
-    # accents: wallpaper hues, Tokyo Night brightness
-    for role, L, Cmin in (("primary", 0.780, 0.110), ("secondary", 0.800, 0.070),
-                          ("tertiary", 0.790, 0.100)):
-        _, c, h = to_oklch(m[role])
-        C = max(c, Cmin) * candy
-        p[role] = oklch(L, C, h)
-        p[f"{role}_container"] = oklch(0.360, C * 0.55, h)
-        p[f"on_{role}"] = oklch(0.220, C * 0.35, h)
-        p[f"on_{role}_container"] = oklch(0.900, C * 0.35, h)
-        p[f"{role}_dim"] = oklch(0.640, C * 0.85, h)
-
-    # terminal / status colours: Tokyo Night, harmonised a little toward the accent
-    _, _, acc_h = to_oklch(p["primary"])
-    for name in ("red", "orange", "yellow", "green", "teal", "cyan", "blue", "magenta"):
-        L, C, h = to_oklch(TOKYO[name])
-        d = ((acc_h - h + 180) % 360) - 180
-        h2 = (h + max(-12, min(12, d * 0.25))) % 360
-        p[name] = oklch(L, C, h2)
-        p[f"{name}_bright"] = oklch(min(0.93, L + 0.06), C * 0.9, h2)
-        p[f"{name}_dim"] = oklch(L - 0.12, C * 0.9, h2)
-    p["error"] = p["red"]
-    p["claude"] = "#d97757"
-    p["shadow"] = "#000000"
-    return p
 
 
 # ================================================================ v2: colours with the wallpaper's character
@@ -166,14 +109,7 @@ def build(m, settings):
 
 def _lab(r, g, b):
     """sRGB 0..255 -> OKLab."""
-    r, g, b = (_lin(c / 255) for c in (r, g, b))
-    l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b
-    m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b
-    s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b
-    l, m, s = (math.copysign(abs(v) ** (1 / 3), v) for v in (l, m, s))
-    return (0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
-            1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
-            0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s)
+    return _oklab(*(_lin(c / 255) for c in (r, g, b)))
 
 
 def _lab_hex(L, a, b):
@@ -228,7 +164,8 @@ def mood_of(a):
     return "soft"
 
 
-def _hue_dist(a, b):
+def hue_dist(a, b):
+    """Degrees between two hues (0..180)."""
     return abs((a - b + 180) % 360 - 180)
 
 
@@ -255,11 +192,11 @@ def _accent_hues(a):
     # a wallpaper whose colour mostly points one way reads as that hue (a navy-and-magenta one as
     # violet), even if its biggest cluster sits off to one side
     if a.get("consistency", 0) >= 0.55:
-        lead = dict(min(chromatic, key=lambda c: _hue_dist(c["H"], a["hue"])), H=a["hue"])
-        chromatic = [lead] + [c for c in chromatic if _hue_dist(c["H"], a["hue"]) >= 30]
+        lead = dict(min(chromatic, key=lambda c: hue_dist(c["H"], a["hue"])), H=a["hue"])
+        chromatic = [lead] + [c for c in chromatic if hue_dist(c["H"], a["hue"]) >= 30]
     picks = [chromatic[0]]
     for c in chromatic[1:]:
-        if all(_hue_dist(c["H"], p["H"]) >= 30 for p in picks) and c["w"] >= 0.04:
+        if all(hue_dist(c["H"], p["H"]) >= 30 for p in picks) and c["w"] >= 0.04:
             picks.append(c)
         if len(picks) == 3:
             break
