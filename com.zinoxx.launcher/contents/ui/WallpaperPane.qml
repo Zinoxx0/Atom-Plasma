@@ -11,7 +11,7 @@ import "Rice/Color.js" as C
 // The Theme page, inside the launcher, laid out from the widest scope down: Themes (whole looks:
 // every screen's wallpaper and hand-picked colours under a short name), Screens (the desk map: which
 // screen is edited, or all of them), then that screen's look in tabs. Wallpaper: a grid of
-// ~/Pictures/Wallpapers; clicking one runs ~/.config/plasma-rice/rice.py, which sets it and
+// the collection (rice.py page); clicking one runs ~/.config/plasma-rice/rice.py, which sets it and
 // re-themes from it; Discover asks wallhaven for more. Colours (ColoursTab): the mood and accents,
 // changed live. Lighting (LightingTab): the keyboards' RGB, by hand or in a screen's accents.
 // Everything applies at once; "Save look" keeps it (it stands out while the look on screen isn't
@@ -28,11 +28,13 @@ Item {
     signal back()
     RicePalette { id: pal; output: Screen.name }   // its own: ready before anything below is built
 
-    property string home: ""
-    property var walls: []          // file names in ~/Pictures/Wallpapers
+    property string dir: ""         // the wallpaper collection (settings wallpaper_dir)
+    property var walls: []          // its file names
+    property var thumbs: ({})       // file name -> thumbnail path
     property string current: ""     // last wallpaper picked (drives the global theme)
-    property var screens: []        // [{name, label, main, image, thumb}] left to right, from rice.py screens
-    property var presets: []        // [{name, screens: {output: image}, theme, thumbs: {output: thumb}}]
+    property var screens: []        // [{name, label, main, image, thumb, lead, overrides, accent}] left to right
+    property var presets: []        // [{name, screens: {output: image}, theme, thumbs: {output: thumb}, current}]
+    property int presetLen: 10      // theme names stay this short (rice.py's rule)
     property string busy: ""        // "" | "apply" | "fetch"
     property string pending: ""     // path (or "preset:<name>") being applied
     property string status: ""
@@ -65,10 +67,9 @@ Item {
         : focusScreen ? "Editing the " + focusScreen.label + " screen" + (focusScreen.lead ? " · its look drives apps and terminals" : "") : ""
     readonly property bool heroMode: mode === "hero"
 
-    function q(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'" }
-    function pathOf(name) { return home + "/Pictures/Wallpapers/" + name }
+    function pathOf(name) { return dir + "/" + name }
     function fileName(p) { return p ? p.split("/").pop() : "" }
-    function thumb(name) { return "file://" + home + "/.cache/rice/thumbs-plasma/" + name.replace(/\.[^.]+$/, "") + ".jpg" }
+    function thumb(name) { return thumbs[name] ? "file://" + thumbs[name] : "" }
     // already showing on every screen the view targets (then a click does nothing)
     function isCurrent(path) {
         if (heroMode) return path === heroCurrent
@@ -91,23 +92,43 @@ Item {
             if (i >= wallModel.count || wallModel.get(i).name !== names[i]) wallModel.insert(i, { name: names[i] })
     }
 
+    // rice.py page: everything this page shows, in one go (the wallpapers rice.py can use, their
+    // thumbnails, the screens, the themes and which one is on screen)
+    function takePage(out, all) {
+        let pg
+        try { pg = JSON.parse(out) } catch (e) { return false }
+        screens = pg.screens
+        presets = pg.presets
+        if (!all) return true
+        dir = pg.dir
+        current = pg.current
+        presetLen = pg.presetLen || 10
+        const th = {}
+        for (const w of pg.walls) th[w.name] = w.thumb
+        thumbs = th
+        const names = pg.walls.map(w => w.name)
+        syncModel(names)
+        walls = names
+        loaded = true
+        return true
+    }
+    function rice(args) { return ["python3", sh.home + "/.config/plasma-rice/rice.py"].concat(args) }
+    // what a command said when it failed: its last line (rice.py names the steps it couldn't apply)
+    function failure(data) {
+        return (data["exit code"] ?? 0) !== 0 ? String(data["stderr"] ?? "").trim().split("\n").pop() : ""
+    }
+
     RiceShell {
         id: sh
         onNewData: (source, data) => {
             const out = data["stdout"] ?? ""
-            const kind = (source.match(/#(\w+) \d+$/) || [])[1]     // the tags in a fetch could contain anything
+            const kind = (source.match(/#(\w+)(?: \d+)?$/) || [])[1]
             if (kind === "list") {
-                const parts = out.split("\n@@\n")
-                wp.home = (parts[0] ?? "").trim()
-                const names = (parts[1] ?? "").split("\n").filter(s => s.length)
-                wp.current = (parts[2] ?? "").trim()
-                try { wp.screens = JSON.parse(parts[3]) } catch (e) {}
-                try { wp.presets = JSON.parse(parts[4]) } catch (e) {}
-                wp.syncModel(names)
-                wp.walls = names
-                wp.loaded = true
+                wp.takePage(out, true)
             } else if (kind === "apply") {
                 wp.busy = ""; wp.pending = ""
+                const err = wp.failure(data)
+                if (err) wp.status = err
                 wp.reload()
             } else if (kind === "psave") {
                 const name = out.trim()
@@ -116,9 +137,7 @@ Item {
             } else if (kind === "pdelete") {
                 wp.reload()
             } else if (kind === "state") {
-                const parts = out.split("\n@@\n")
-                try { wp.screens = JSON.parse(parts[0]) } catch (e) {}
-                try { wp.presets = JSON.parse(parts[1]) } catch (e) {}
+                wp.takePage(out, false)
             } else if (kind === "fetch") {
                 wp.busy = ""
                 try {
@@ -133,18 +152,13 @@ Item {
             disconnectSource(source)
         }
     }
-    function reload() {
-        // rice.py walls: the wallpapers it can use (its own list of formats), thumbnails built
-        sh.connectSource('echo "$HOME"; printf "\\n@@\\n"; python3 "$HOME/.config/plasma-rice/rice.py" walls; '
-            + 'printf "\\n@@\\n"; readlink -f "$HOME/.local/state/rice/wallpaper"; '
-            + 'printf "\\n@@\\n"; python3 "$HOME/.config/plasma-rice/rice.py" screens; '
-            + 'printf "\\n@@\\n"; python3 "$HOME/.config/plasma-rice/rice.py" presets #list ' + Date.now())
-    }
-    // scr: "all", "focused" or an output name; defaults to the view's target
+    function reload() { sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" page #list') }
+    // scr: "all", "focused" or an output name; defaults to the view's target. (exec: the arguments
+    // change every time, so they go in a file and the command keeps a fixed name: RiceShell)
     function apply(arg, scr) {
         if (busy) return
         busy = "apply"; pending = arg; status = ""
-        sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" ' + q(arg) + ' --screen ' + q(scr || target) + ' #apply ' + Date.now())
+        sh.exec("apply", rice([arg, "--screen", scr || target]))
     }
     // tags: "modern, clean, aesthetic"; each click brings the next best matches (wallhaven.py)
     function fetch(tags) {
@@ -155,47 +169,31 @@ Item {
             cfg.tags = t
             cfg.tagHistory = [t].concat(cfg.tagHistory.filter(h => h.toLowerCase() !== t.toLowerCase())).slice(0, 6)
         }
-        sh.connectSource('python3 "$HOME/.config/plasma-rice/wallhaven.py" 6 ' + q(t) + ' #fetch ' + Date.now())
+        sh.exec("fetch", ["python3", sh.home + "/.config/plasma-rice/wallhaven.py", "6", t])
     }
     function forgetTags(t) { cfg.tagHistory = cfg.tagHistory.filter(h => h !== t) }
-    function openFolder() { Qt.openUrlExternally("file://" + home + "/Pictures/Wallpapers") }
+    function openFolder() { Qt.openUrlExternally("file://" + dir) }
 
-    // presets: names up to 10 characters (rice.py trims them the same way)
+    // presets: names up to presetLen characters (rice.py trims them the same way)
     function savePreset(name) {
-        const n = String(name ?? "").trim().slice(0, 10)
+        const n = String(name ?? "").trim().slice(0, presetLen)
         naming = false
         if (!n) return
-        sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" preset save ' + q(n) + ' #psave ' + Date.now())
+        sh.exec("psave", rice(["preset", "save", n]))
     }
     function loadPreset(name) {
         if (busy) return
         busy = "apply"; pending = "preset:" + name; status = ""
-        sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" preset load ' + q(name) + ' #apply ' + Date.now())
+        sh.exec("apply", rice(["preset", "load", name]))
     }
     function deletePreset(name) {
         status = "Deleted theme “" + name + "”"
-        sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" preset delete ' + q(name) + ' #pdelete ' + Date.now())
+        sh.exec("pdelete", rice(["preset", "delete", name]))
     }
-    // on screen right now: every connected screen it knows shows its wallpaper with the same
-    // hand-picked colours, and the theme is its
-    function ovKey(m) {
-        return JSON.stringify(Object.keys(m).sort().map(o => [o, Object.keys(m[o]).sort().map(k => [k, m[o][k]])]))
-    }
-    function presetIsOn(pr) {
-        const known = screens.filter(s => pr.screens[s.name] !== undefined)
-        if (!(known.length > 0 && known.every(s => s.image === pr.screens[s.name]) && current === pr.theme)) return false
-        const now = {}, kept = {}
-        for (const s of known) {
-            if (s.overrides && Object.keys(s.overrides).length) now[s.name] = s.overrides
-            if (pr.overrides && pr.overrides[s.name] && Object.keys(pr.overrides[s.name]).length) kept[s.name] = pr.overrides[s.name]
-        }
-        return ovKey(now) === ovKey(kept)
-    }
+    // on screen right now (rice.py decides: the same wallpapers, hand-picked colours and theme screen)
+    function presetIsOn(pr) { return pr.current === true }
     // screens and themes again (after a colour change: accents, custom marks, Save look)
-    function refreshState() {
-        sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" screens; printf "\\n@@\\n"; '
-            + 'python3 "$HOME/.config/plasma-rice/rice.py" presets #state ' + Date.now())
-    }
+    function refreshState() { sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" page #state') }
     Timer { id: statusTimer; interval: 5000; onTriggered: wp.status = "" }
     onStatusChanged: if (status) statusTimer.restart()
     onDiscoverChanged: if (discover) Qt.callLater(() => tagField.focusText())
@@ -754,7 +752,7 @@ Item {
                             anchors.fill: parent
                             radius: Tokens.radius.md
                             color: "transparent"
-                            source: wp.home ? wp.thumb(cell.name) : ""
+                            source: wp.thumb(cell.name)
                             sourceSize.width: 480
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
@@ -837,7 +835,7 @@ Item {
 
                 function showCurrent() {
                     const want = wp.heroMode ? wp.heroCurrent : wp.targetScreen ? wp.targetScreen.image : wp.current
-                    const i = wp.walls.findIndex(n => wp.home + "/Pictures/Wallpapers/" + n === want)
+                    const i = wp.walls.findIndex(n => wp.pathOf(n) === want)
                     if (i >= 0) positionViewAtIndex(i, GridView.Contain)
                 }
                 Connections {
@@ -877,7 +875,7 @@ Item {
                 }
             }
 
-            // empty: nothing in ~/Pictures/Wallpapers yet
+            // empty: nothing in the collection yet
             ColumnLayout {
                 anchors.centerIn: parent
                 visible: wp.loaded && wallModel.count === 0
@@ -899,7 +897,7 @@ Item {
                 }
                 Text {
                     Layout.alignment: Qt.AlignHCenter
-                    text: "Drop images in ~/Pictures/Wallpapers, or get some from wallhaven."
+                    text: "Drop images in " + wp.dir.replace(/^\/home\/[^/]+/, "~") + ", or get some from wallhaven."
                     color: pal.fgDim
                     font.family: Tokens.font.ui
                     font.pixelSize: Tokens.size.label

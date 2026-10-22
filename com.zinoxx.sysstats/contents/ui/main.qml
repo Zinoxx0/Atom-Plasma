@@ -33,11 +33,19 @@ PlasmoidItem {
     Sensors.Sensor { id: mem;     sensorId: "memory/physical/usedPercent"; updateRateLimit: root.rate }
     Sensors.Sensor { id: memUsed; sensorId: "memory/physical/used";        updateRateLimit: root.rate }
     Sensors.Sensor { id: memTot;  sensorId: "memory/physical/total";       updateRateLimit: 60000 }
-    Sensors.Sensor { id: gpu;     sensorId: "gpu/gpu0/usage";              updateRateLimit: root.rate }
-    Sensors.Sensor { id: gpuTemp; sensorId: "gpu/gpu0/temperature";        updateRateLimit: root.rate }
-    Sensors.Sensor { id: igpu;    sensorId: "gpu/gpu1/usage";              updateRateLimit: root.rate
+    // which GPU is which, by name: ksystemstats numbers them in the order they're found, which a kernel or
+    // driver change can swap. The NVIDIA gets the clock weighting below, the other one the median.
+    Sensors.Sensor { id: name0; sensorId: "gpu/gpu0/name"; updateRateLimit: 60000 }
+    Sensors.Sensor { id: name1; sensorId: "gpu/gpu1/name"; updateRateLimit: 60000 }
+    function isNvidia(s) { return /nvidia|geforce|quadro/i.test(String(s.value ?? "")) }
+    readonly property bool swapped: isNvidia(name1) && !isNvidia(name0)
+    readonly property string dgpu: "gpu/" + (swapped ? "gpu1" : "gpu0")
+    readonly property string other: "gpu/" + (swapped ? "gpu0" : "gpu1")
+    Sensors.Sensor { id: gpu;     sensorId: root.dgpu + "/usage";          updateRateLimit: root.rate }
+    Sensors.Sensor { id: gpuTemp; sensorId: root.dgpu + "/temperature";    updateRateLimit: root.rate }
+    Sensors.Sensor { id: igpu;    sensorId: root.other + "/usage";         updateRateLimit: root.rate
                      onValueChanged: root.igpuRecent = root.igpuRecent.concat([root.num(igpu)]).slice(-3) }
-    Sensors.Sensor { id: gpuClock; sensorId: "gpu/gpu0/coreFrequency";     updateRateLimit: root.rate
+    Sensors.Sensor { id: gpuClock; sensorId: root.dgpu + "/coreFrequency"; updateRateLimit: root.rate
                      onValueChanged: root.gpuTopClock = Math.max(root.gpuTopClock, root.num(gpuClock)) }
 
     function num(s) { const v = Number(s.value); return isFinite(v) ? v : 0 }
@@ -91,7 +99,7 @@ PlasmoidItem {
     Timer { interval: 2000; running: root.expanded; repeat: true; triggeredOnStart: true; onTriggered: root.readTop() }
     onTabChanged: { topProcs = []; readTop() }
     function openMonitor() {
-        sh.connectSource("setsid -f plasma-systemmonitor >/dev/null 2>&1 #run " + Date.now());
+        sh.connectSource("setsid -f plasma-systemmonitor >/dev/null 2>&1 #run");
         root.expanded = false;
     }
 

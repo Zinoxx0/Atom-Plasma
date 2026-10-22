@@ -26,6 +26,56 @@ PlasmoidItem {
 
     readonly property var cfg: Plasmoid.configuration
 
+    // ------------------------------------------------------------------ settings every bar shares
+    // The strip and the band look and behave the same on every screen (positions are learned by heart),
+    // so these live in ~/.local/state/rice/glimpse.json: an edit in one bar's Glimpse settings is written
+    // there, and every bar takes it from there (the desk reads the strip's height from it too, to keep the
+    // desktop icons clear of the strip). Pinned apps stay per bar.
+    readonly property var sharedKeys: ["showStrip", "stripHeight", "dwellDelay", "order", "glimpseStyle", "showNames",
+                                       "thumbnails", "showMedia", "launcherMark"]
+    WatchedJson {
+        id: shared
+        path: sh.home + "/.local/state/rice/glimpse.json"
+        onChanged: root.takeShared()
+    }
+    property bool sharedReady: false
+    function takeShared() {
+        const v = shared.value
+        if (v)
+            for (const k of sharedKeys)
+                if (v[k] !== undefined && cfg[k] !== v[k]) cfg[k] = v[k]
+        sharedReady = true
+        publishShared()         // nothing to write if this bar already agrees
+    }
+    // read once at start, even when there's no file yet (then this bar's settings start it)
+    Timer { interval: 1500; running: true; onTriggered: root.takeShared() }
+    function publishShared() { if (sharedReady) publish.restart() }
+    Timer { id: publish; interval: 400; onTriggered: root.writeShared() }
+    function writeShared() {
+        const o = {}
+        for (const k of sharedKeys) o[k] = cfg[k]
+        if (shared.value && sharedKeys.every(k => shared.value[k] === o[k])) return
+        const x = new XMLHttpRequest()
+        try {
+            x.open("PUT", "file://" + shared.path)
+            x.send(JSON.stringify(o, null, 1) + "\n")
+        } catch (e) {
+            console.warn("glimpse: can't share settings (QML_XHR_ALLOW_FILE_WRITE is off):", e)
+        }
+    }
+    Connections {
+        target: Plasmoid.configuration
+        function onShowStripChanged() { root.publishShared() }
+        function onStripHeightChanged() { root.publishShared() }
+        function onDwellDelayChanged() { root.publishShared() }
+        function onOrderChanged() { root.publishShared() }
+        function onGlimpseStyleChanged() { root.publishShared() }
+        function onShowNamesChanged() { root.publishShared() }
+        function onThumbnailsChanged() { root.publishShared() }
+        function onShowMediaChanged() { root.publishShared() }
+        function onLauncherMarkChanged() { root.publishShared() }
+    }
+
     // ------------------------------------------------------------------ palette and sizes
     // this screen's wallpaper palette (rice.py), which also names the pre-blurred wallpaper band
     // used as the glass backdrop
@@ -124,7 +174,7 @@ PlasmoidItem {
         filterByVirtualDesktop: false
         filterByActivity: false
         filterHidden: false
-        onDataChanged: root.scheduleScan()
+        onDataChanged: (topLeft, bottomRight, roles) => { if (root.relevant(roles)) root.scheduleScan() }
         onRowsInserted: { root.scheduleScan(); root.scheduleRepublish() }
         onRowsRemoved: { root.scheduleScan(); root.scheduleRepublish() }
         onModelReset: { root.scheduleScan(); root.scheduleRepublish() }
@@ -132,72 +182,29 @@ PlasmoidItem {
         onLayoutChanged: root.scheduleRepublish()
         onRowsMoved: root.scheduleRepublish()
     }
-    KItemModels.KSortFilterProxyModel {
-        id: recentWindows
-        sourceModel: allTasks
-        filterRowCallback: (row, parent) => allTasks.data(allTasks.index(row, 0, parent), TaskManager.AbstractTasksModel.IsWindow) === true
+    // the data scan() and the icons read: a change to anything else (a window's title, above all: browsers
+    // and terminals retitle all the time) needs no scan, except a title while thumbnails (which show it) are out
+    readonly property var scanRoles: {
+        const R = TaskManager.AbstractTasksModel
+        return [R.IsWindow, R.IsMinimized, R.IsActive, R.IsDemandingAttention, R.AppId, R.LauncherUrlWithoutIcon,
+                R.ScreenGeometry, R.Geometry, R.IsFullScreen, R.IsMaximized, R.IsGroupParent, R.WinIdList]
+    }
+    function relevant(roles) {
+        return !roles || roles.length === 0 || roles.some(r => scanRoles.indexOf(r) >= 0)
+            || (thumbTile !== null && roles.indexOf(Qt.DisplayRole) >= 0)
     }
 
-    // the resting strip: one pill per window, by app name, then by when it opened: a window keeps
-    // its place when it changes screen or title, so positions can be learned by heart
-    TaskManager.TasksModel {
-        id: alphaTasks
-        groupMode: TaskManager.TasksModel.GroupDisabled
-        sortMode: TaskManager.TasksModel.SortAlpha
-        filterByScreen: false
-        filterByVirtualDesktop: false
-        filterByActivity: false
-        filterHidden: false
-    }
-    KItemModels.KSortFilterProxyModel {
-        id: alphaWindows
-        sourceModel: alphaTasks
-        filterRowCallback: (row, parent) => alphaTasks.data(alphaTasks.index(row, 0, parent), TaskManager.AbstractTasksModel.IsWindow) === true
-    }
-
-    // the opened band: one icon per app (an app with several windows is a group), in the same order
-    function appFilter(model) {
-        return (row, parent) => {
-            const i = model.index(row, 0, parent)
-            return model.data(i, TaskManager.AbstractTasksModel.IsWindow) === true
-                || model.data(i, TaskManager.AbstractTasksModel.IsGroupParent) === true
+    // the windows (resting strip) and apps (opened band) in the chosen order: one set of models, made
+    // only for the order in use (by name or most recent first; "by screen" has its own, per screen)
+    property OrderedTasks ordered: null
+    Instantiator {
+        model: root.cfg.order === "screen" ? 0 : 1
+        delegate: OrderedTasks {
+            sortMode: root.cfg.order === "recent" ? TaskManager.TasksModel.SortLastActivated : TaskManager.TasksModel.SortAlpha
+            onAppsMoved: roles => { if (root.relevant(roles)) root.scheduleScan() }
         }
-    }
-    TaskManager.TasksModel {
-        id: alphaAppTasks
-        groupMode: TaskManager.TasksModel.GroupApplications
-        groupInline: false
-        sortMode: TaskManager.TasksModel.SortAlpha
-        filterByScreen: false
-        filterByVirtualDesktop: false
-        filterByActivity: false
-        filterHidden: false
-        // a window joining or leaving a group changes no row here: re-read the icons' state
-        onDataChanged: root.scheduleScan()
-        onRowsInserted: root.scheduleScan()
-        onRowsRemoved: root.scheduleScan()
-    }
-    KItemModels.KSortFilterProxyModel {
-        id: alphaApps
-        sourceModel: alphaAppTasks
-        filterRowCallback: root.appFilter(alphaAppTasks)
-    }
-    TaskManager.TasksModel {
-        id: recentAppTasks
-        groupMode: TaskManager.TasksModel.GroupApplications
-        groupInline: false
-        sortMode: TaskManager.TasksModel.SortLastActivated
-        filterByScreen: false
-        filterByVirtualDesktop: false
-        filterByActivity: false
-        filterHidden: false
-        onRowsInserted: root.scheduleScan()
-        onRowsRemoved: root.scheduleScan()
-    }
-    KItemModels.KSortFilterProxyModel {
-        id: recentApps
-        sourceModel: recentAppTasks
-        filterRowCallback: root.appFilter(recentAppTasks)
+        onObjectAdded: (index, object) => root.ordered = object
+        onObjectRemoved: root.ordered = null
     }
 
     // one window list per screen, left to right (only for the "by screen" order)
@@ -221,9 +228,8 @@ PlasmoidItem {
         screenTasks = list
     }
     // windows: the strip's pills; apps: the opened band's icons
-    readonly property var groups: cfg.order === "recent" ? [{ screen: null, windows: recentWindows, apps: recentApps }]
-        : cfg.order === "screen" ? screenTasks.map(st => ({ screen: st.screenInfo, windows: st.windows, apps: st.apps }))
-        : [{ screen: null, windows: alphaWindows, apps: alphaApps }]
+    readonly property var groups: cfg.order === "screen" ? screenTasks.map(st => ({ screen: st.screenInfo, windows: st.windows, apps: st.apps }))
+        : ordered ? [{ screen: null, windows: ordered.windows, apps: ordered.apps }] : []
     // first group with windows: later non-empty groups get a hairline divider in front
     readonly property int firstGroup: {
         for (let i = 0; i < groups.length; i++)
@@ -391,7 +397,7 @@ PlasmoidItem {
             console.warn("glimpse: cannot move window", id, "to", screenName)
             return
         }
-        sh.connectSource("sh '" + helper + "' bring '" + id + "' '" + screenName + "' #run" + Date.now())
+        sh.exec("bring", ["sh", helper, "bring", id, screenName])      // (a window id each time: RiceShell.exec)
     }
     // the click rules, on one window
     function actOn(model, idx) {

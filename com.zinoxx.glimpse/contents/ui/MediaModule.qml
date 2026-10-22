@@ -1,6 +1,5 @@
 import QtQuick
 import org.kde.kirigami as Kirigami
-import org.kde.plasma.private.mpris as Mpris
 import "Rice"
 import "Rice/Color.js" as C
 
@@ -13,37 +12,17 @@ Item {
     property bool open: false               // the band is open
     property real pop: 0                    // the band's icons fade in; this follows along
 
-    Mpris.Mpris2Model { id: mpris }
-    readonly property var player: mpris.currentPlayer
-    readonly property int status: player ? player.playbackStatus : Mpris.PlaybackStatus.Unknown
-    readonly property bool playing: status === Mpris.PlaybackStatus.Playing
-    readonly property string track: player ? player.track : ""
-    readonly property string artist: player ? player.artist : ""
-    readonly property string artUrl: player ? player.artUrl : ""
-    readonly property string appIcon: player ? (player.iconName || player.desktopEntry || "") : ""
-    readonly property real length: player ? player.length : 0          // µs
-    readonly property bool present: !!player && status > Mpris.PlaybackStatus.Stopped && track !== ""
-
-    // position: MPRIS only reports it on seeks, so count the seconds ourselves while open
-    property real position: 0
-    function syncPosition() {
-        if (!player) return
-        player.updatePosition()
-        position = player.position
-    }
-    Connections {
-        target: media.player
-        function onPositionChanged() { media.position = media.player.position }
-    }
-    onOpenChanged: if (open) syncPosition()
-    onPlayerChanged: syncPosition()
-    onTrackChanged: syncPosition()
-    Timer {
-        interval: 1000
-        repeat: true
-        running: media.open && media.playing && media.length > 0
-        onTriggered: media.position = Math.min(media.length, media.position + 1e6 * (media.player ? media.player.rate || 1 : 1))
-    }
+    NowPlaying { id: now; ticking: media.open; step: 1000 }     // (counts the progress only while open)
+    readonly property var player: now.player
+    readonly property int status: now.status
+    readonly property bool playing: now.playing
+    readonly property string track: now.track
+    readonly property string artist: now.artist
+    readonly property string artUrl: now.artUrl
+    readonly property string appIcon: now.appIcon
+    readonly property real length: now.length          // µs
+    readonly property bool present: now.present
+    readonly property real position: now.position
 
     function esc(t) { return String(t ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") }
     readonly property int h: g.barH - 8

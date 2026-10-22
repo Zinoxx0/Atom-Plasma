@@ -7,6 +7,7 @@ import org.kde.plasma.core as PlasmaCore
 import org.kde.kirigami as Kirigami
 import "Rice"
 import "Rice/Color.js" as C
+import "Rice/SessionActions.js" as Session
 
 // wlogout-style session menu. Log out / restart / shut down open the rice logout screen
 // (org.kde.LogoutPrompt), the one confirmation every launcher uses, so a stray click can't
@@ -19,14 +20,8 @@ PlasmoidItem {
     readonly property real uiScale: pal.uiScale
     property real uptime: 0
 
-    readonly property var actions: [
-        // tone: the colour a tile lights up in (calm ones the screen's accent, the ones that end the session warm)
-        { id: "lock",     icon: "lock",               label: "Lock",      tone: "primary",   cmd: "loginctl lock-session" },
-        { id: "sleep",    icon: "bedtime",            label: "Sleep",     tone: "tertiary",  cmd: "systemctl suspend" },
-        { id: "logout",   icon: "logout",             label: "Log out",   tone: "secondary", cmd: "qdbus6 org.kde.LogoutPrompt /LogoutPrompt org.kde.LogoutPrompt.promptLogout" },
-        { id: "reboot",   icon: "restart_alt",        label: "Restart",   tone: "warn",      cmd: "qdbus6 org.kde.LogoutPrompt /LogoutPrompt org.kde.LogoutPrompt.promptReboot" },
-        { id: "shutdown", icon: "power_settings_new", label: "Shut down", tone: "bad",       cmd: "qdbus6 org.kde.LogoutPrompt /LogoutPrompt org.kde.LogoutPrompt.promptShutDown" },
-    ]
+    // lock, sleep, log out, restart, shut down: the one list the launcher's hero card uses too
+    readonly property var actions: Session.pick()
 
     RiceShell {
         id: sh
@@ -41,7 +36,7 @@ PlasmoidItem {
 
     function trigger(a) {
         root.expanded = false;
-        sh.connectSource(a.cmd + " #run " + Date.now());
+        sh.connectSource(a.cmd + " #run");     // a fixed set of commands: fixed names (RiceShell)
     }
 
     function upText(s) {

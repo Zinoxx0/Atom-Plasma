@@ -29,7 +29,8 @@ Item {
 
     readonly property var roles: ["primary", "secondary", "tertiary"]
     readonly property var names: ({ primary: "Primary", secondary: "Secondary", tertiary: "Tertiary" })
-    readonly property var moodNames: ({ neon: "Neon", soft: "Soft", light: "Light", void: "Void", graphite: "Graphite" })
+    // a mood's name as shown (the moods themselves come from rice.py: theme.moods)
+    function moodName(m) { return m ? m[0].toUpperCase() + m.slice(1) : "" }
     readonly property var keys: ["mood", "primary", "secondary", "tertiary", "intensity"]
     readonly property var saved: theme ? theme.overrides : ({})
     function val(k) { return draft[k] !== undefined ? draft[k] : saved[k] }
@@ -43,11 +44,11 @@ Item {
     readonly property bool custom: Object.keys(saved).length > 0 || Object.keys(draft).some(k => draft[k] !== "auto")
     readonly property bool canUndo: history.length > 0 && !busy
 
-    function q(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'" }
+    function rice(args) { return ["python3", sh.home + "/.config/plasma-rice/rice.py"].concat(args) }
     function hex(c) { return String(Qt.lighter(c, 1)).slice(0, 7) }
     function load() {
         if (!busy) error = ""
-        sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" theme show --screen ' + q(screen || "focused") + ' #tshow ' + Date.now())
+        sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" theme show --screen ' + sh.q(screen || "focused") + ' #tshow')
     }
     // show it now; send() (or a drag let go) sends it
     function edit(k, v) {
@@ -62,10 +63,10 @@ Item {
         run(queued)
     }
     function run(values) {
-        let a = ""
-        for (const k of keys) if (values[k] !== undefined) a += " --" + k + " " + q(String(values[k]))
+        const a = []
+        for (const k of keys) if (values[k] !== undefined) a.push("--" + k, String(values[k]))
         queued = ({}); busy = true; error = ""
-        sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" theme set --screen ' + q(target) + a + ' #tset ' + Date.now())
+        sh.exec("tset", rice(["theme", "set", "--screen", target].concat(a)))      // (changing arguments: RiceShell.exec)
     }
     function undo() {
         if (!canUndo) return
@@ -79,7 +80,7 @@ Item {
         if (busy || !custom) return
         history = history.concat([Object.assign({}, saved)]).slice(-20)
         draft = ({}); queued = ({}); busy = true; error = ""
-        sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" theme reset --screen ' + q(target) + ' #tset ' + Date.now())
+        sh.exec("tset", rice(["theme", "reset", "--screen", target]))
     }
 
     RiceShell {
@@ -146,8 +147,8 @@ Item {
                         size: 26
                         selected: ct.mood === modelData
                         tint: ct.pal.primary
-                        text: modelData === "auto" ? "Auto · " + (ct.theme ? ct.moodNames[ct.theme.detected] ?? ct.theme.detected : "…")
-                                                   : ct.moodNames[modelData]
+                        text: modelData === "auto" ? "Auto · " + (ct.theme ? ct.moodName(ct.theme.detected) : "…")
+                                                   : ct.moodName(modelData)
                         tooltip: ({ auto: "What the wallpaper reads as", neon: "Vivid accents at the edge of the gamut",
                                     soft: "Calm, pastel accents", light: "Light frosted desktop, silver accents",
                                     void: "True black, cold starlight", graphite: "Neutral greys, silver accents" })[modelData]

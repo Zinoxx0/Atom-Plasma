@@ -14,34 +14,15 @@ PlasmoidItem {
 
     RicePalette { id: pal; output: Screen.name }
     readonly property var palValues: pal.values     // Clawd takes the raw palette (it has its own `pal`)
-    property var usage: null
     readonly property real uiScale: pal.uiScale
-    property real now: Date.now() / 1000
 
     // ---------- data ----------
-    readonly property string codeDir: Qt.resolvedUrl("../code/").toString().replace("file://", "")
-
-    RiceShell {
-        id: sh
-        onNewData: (source, data) => {
-            if (source.endsWith("#usage")) {
-                try { root.usage = JSON.parse(data["stdout"] ?? "") } catch (e) { root.usage = null }
-            }
-            disconnectSource(source);
-        }
-    }
-    function refresh() {
-        root.now = Date.now() / 1000;
-        sh.connectSource('cat "$HOME/.cache/claude-usage.json" 2>/dev/null #usage');
-    }
-    Timer {
-        interval: 10000; running: true; repeat: true; triggeredOnStart: true
-        onTriggered: root.refresh()
-    }
-    Timer {
-        interval: root.expanded ? 1000 : 30000; running: true; repeat: true
-        onTriggered: root.now = Date.now() / 1000
-    }
+    // the limits, watched (no polling); the 80% / 95% notifications come from ~/.claude/statusline.sh
+    // when the data changes (contents/code/alerts.py)
+    ClaudeUsage { id: limits; fast: root.expanded }
+    readonly property var usage: limits.usage
+    readonly property real now: limits.now
+    RiceShell { id: sh }
     // a check-in Claude asked for (~/.config/plasma-rice/ask.sh): a big "!" over Clawd until "Done"
     // (or until Claude clears it); ClaudeAsk watches the file, no polling
     ClaudeAsk { id: checkIn }
@@ -55,28 +36,15 @@ PlasmoidItem {
         root.expanded = false;
         sh.connectSource("kstart --application net.local.claude #claude");
     }
-    Timer {   // limit notifications (80% / 95%), once per window
-        interval: 60000; running: true; repeat: true; triggeredOnStart: true
-        onTriggered: sh.connectSource("python3 '" + root.codeDir + "alerts.py'")
-    }
 
-    function windowInfo(key, length) {
-        const w = usage?.[key] ?? {};
-        const reset = Number(w.resets_at ?? 0);
-        const expired = reset > 0 && reset <= now;
-        const pct = expired ? 0 : Number(w.used_percentage ?? 0);
-        const start = reset - length;
-        const pace = reset > 0 && !expired ? Math.max(0, Math.min(100, (now - start) / length * 100)) : -1;
-        return { pct: pct, reset: reset, expired: expired, pace: pace };
-    }
-    readonly property var session: windowInfo("five_hour", 5 * 3600)
-    readonly property var weekly: windowInfo("seven_day", 7 * 86400)
-    readonly property bool hasData: usage !== null
-    readonly property real updatedAgo: hasData ? now - Number(usage.updated ?? 0) : 1e9
-    readonly property bool stale: updatedAgo > 30 * 60
-    readonly property real peak: Math.max(session.pct, weekly.pct)
+    readonly property var session: limits.session
+    readonly property var weekly: limits.weekly
+    readonly property bool hasData: limits.hasData
+    readonly property real updatedAgo: limits.updatedAgo
+    readonly property bool stale: limits.stale
+    readonly property real peak: limits.peak
     // how full the usage is shows as how tired Clawd looks (Clawd.usage), not as a mood
-    readonly property string mood: peak >= 100 ? "limited" : (stale || !hasData) ? "sleep" : "happy"
+    readonly property string mood: limits.mood
 
     // ---------- Clawd's situation ----------
     readonly property var clock: new Date(now * 1000)
@@ -88,21 +56,14 @@ PlasmoidItem {
         : clock.getMonth() === 11 && clock.getDate() <= 26 ? "xmas"
         : (clock.getMonth() === 11 && clock.getDate() === 31) || (clock.getMonth() === 0 && clock.getDate() === 1) ? "newyear" : ""
     // the status line rewrites the cache on every Claude Code update
-    readonly property bool working: hasData && updatedAgo < 180
+    readonly property bool working: limits.working
     // what Claude Code is doing right now (its hooks write it, ClaudeActivity watches)
     ClaudeActivity { id: claude }
     readonly property string activity: claude.activity
-    readonly property bool warm: session.pace >= 0 && session.pct >= 25 && session.pct > session.pace + 15
-    // a party for 15 min when a window that was half used or more resets
-    property real partyUntil: 0
-    property real lastSession: -1
-    property real lastWeekly: -1
-    onSessionChanged: { if (lastSession >= 50 && session.pct < 5) partyUntil = now + 900; lastSession = session.pct }
-    onWeeklyChanged: { if (lastWeekly >= 50 && weekly.pct < 5) partyUntil = now + 900; lastWeekly = weekly.pct }
-    readonly property bool celebrate: now < partyUntil && mood !== "limited"
-    // limited: the window that ran out, and how much of the wait is left (Clawd's hourglass)
-    readonly property var limitWin: session.pct >= 100 ? session : weekly
-    readonly property real sand: Math.max(0, Math.min(1, (limitWin.reset - now) / (session.pct >= 100 ? 5 * 3600 : 7 * 86400)))
+    readonly property bool warm: limits.warm
+    readonly property bool celebrate: limits.celebrate      // a window that was half used or more just reset
+    readonly property var limitWin: limits.limitWin
+    readonly property real sand: limits.sand
 
     readonly property string moodText: {
         if (celebrate) return "Fresh limits! Let's go.";

@@ -32,7 +32,6 @@ Item {
     // LED-friendly picks for Manual, after the screen's own accents
     readonly property var picks: ["#ff3355", "#ff8a1f", "#ffd21f", "#3dff6e", "#1fffd2", "#2e8bff", "#8a3dff", "#ff3dc8", "#ffffff"]
 
-    function q(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'" }
     function hex(c) { return String(Qt.lighter(c, 1)).slice(0, 7) }
     // a setting as shown: the draft first, then what rgb.py has
     function sv(d, k) {
@@ -68,7 +67,7 @@ Item {
     }
 
     function load() {
-        sh.connectSource('python3 "$HOME/.config/plasma-rice/rgb.py" status #lstatus ' + Date.now())
+        sh.connectSource('python3 "$HOME/.config/plasma-rice/rgb.py" status #lstatus')
     }
     function edit(k, v, d) {
         const id = (d ?? dev).id
@@ -83,10 +82,10 @@ Item {
         if (id === undefined) return
         const values = queued[id]
         const qd = Object.assign({}, queued); delete qd[id]; queued = qd
-        let a = ""
-        for (const k in values) a += " --" + k + " " + q(String(values[k]))
+        const a = []
+        for (const k in values) a.push("--" + k, String(values[k]))
         busy = true; error = ""
-        sh.connectSource('python3 "$HOME/.config/plasma-rice/rgb.py" set ' + q(id) + a + ' #lset ' + Date.now())
+        sh.exec("lset", ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", id].concat(a))     // (changing arguments: RiceShell.exec)
     }
     function allPower(on) {
         for (const d of devices) if (d.ready) edit("on", on, d)

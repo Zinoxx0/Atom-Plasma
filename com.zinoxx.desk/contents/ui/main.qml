@@ -51,14 +51,10 @@ PlasmoidItem {
 
     // ---- weather (weather.py caches and throttles: three desktops asking cost one fetch)
     property var weather: null
-    // ---- Claude usage, for Clawd
-    property var usage: null
     RiceShell {
         id: sh
         onNewData: (source, data) => {
-            const out = data["stdout"] ?? ""
-            if (source.indexOf("#weather") >= 0) { try { root.weather = JSON.parse(out) } catch (e) {} }
-            else if (source.indexOf("#usage") >= 0) { try { root.usage = JSON.parse(out) } catch (e) { root.usage = null } }
+            if (source.indexOf("#weather") >= 0) { try { root.weather = JSON.parse(data["stdout"] ?? "") } catch (e) {} }
             disconnectSource(source)
         }
     }
@@ -66,23 +62,13 @@ PlasmoidItem {
         interval: 15 * 60 * 1000; running: true; repeat: true; triggeredOnStart: true
         onTriggered: sh.connectSource('python3 "$HOME/.config/plasma-rice/weather.py" #weather')
     }
-    Timer {
-        interval: 30000; running: root.desk.clawd === true; repeat: true; triggeredOnStart: true
-        onTriggered: sh.connectSource('cat "$HOME/.cache/claude-usage.json" 2>/dev/null #usage')
-    }
 
-    // ---- Clawd's situation (the bar's Claude widget, in short)
-    readonly property real nowSec: now.getTime() / 1000
-    function pctOf(key) {
-        const w = usage?.[key] ?? {}
-        const reset = Number(w.resets_at ?? 0)
-        return reset > 0 && reset <= nowSec ? 0 : Number(w.used_percentage ?? 0)
-    }
-    readonly property real updatedAgo: usage ? nowSec - Number(usage.updated ?? 0) : 1e9
-    readonly property real peak: Math.max(pctOf("five_hour"), pctOf("seven_day"))
+    // ---- Clawd's situation: the bar's Claude widget's, watched only where Clawd is shown
+    ClaudeUsage { id: limits; active: root.desk.clawd === true }
+    readonly property real peak: limits.peak
     // how full the usage is shows as how tired Clawd looks (Clawd.usage), not as a mood
-    readonly property string mood: peak >= 100 ? "limited" : (!usage || updatedAgo > 30 * 60) ? "sleep" : "happy"
-    readonly property bool working: usage !== null && updatedAgo < 180
+    readonly property string mood: limits.mood
+    readonly property bool working: limits.working
     // what Claude Code is doing (its hooks), watched only where Clawd is shown
     ClaudeActivity { id: claude; active: root.desk.clawd === true }
     // a check-in from Claude (ask.sh): the "!" over the desktop Clawd and its message under the clock,
@@ -139,9 +125,11 @@ PlasmoidItem {
     // ---- the desktop icons start under Glimpse's strip: Plasma only keeps them clear of its own panels, and
     // the strip (a layer-shell window with an exclusive zone) clipped their top. This applet shares the
     // containment's layout with the icon layer (the desktop's FolderViewLayerLoader), so it moves that layer
-    // down by the strip (Glimpse's stripHeight, 8 by default, x top_scale) and a small gap. The opened band
-    // may still cover them.
-    readonly property int iconInset: Math.round(8 * pal.topScale) + Tokens.space.xs
+    // down by the strip (Glimpse's stripHeight, which every bar shares in ~/.local/state/rice/glimpse.json,
+    // x top_scale) and a small gap. The opened band may still cover them.
+    WatchedJson { id: glimpse; path: sh.home + "/.local/state/rice/glimpse.json" }
+    readonly property int stripHeight: glimpse.value?.showStrip === false ? 0 : (glimpse.value?.stripHeight ?? 8)
+    readonly property int iconInset: Math.round(stripHeight * pal.topScale) + Tokens.space.xs
     property Item iconLayer: null
     property int iconTries: 0
     function findIconLayer() {
