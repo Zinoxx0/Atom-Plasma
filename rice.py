@@ -8,6 +8,8 @@
     rice.py screens-changed  after screens are plugged in or out: each screen's palette, the desktop
                              clock that carries Clawd, the bars' islands and clock sizes, window borders
     rice.py thumbs           (re)build picker thumbnails
+    rice.py walls            the picker's list: wallpaper file names, one per line (thumbnails built)
+    rice.py check FILE...    can these be wallpapers (format and readable)? names the ones that can't
     rice.py screens          JSON list of screens and their wallpapers (for the picker)
     rice.py preset save|load|delete <name>
                              presets: every screen's wallpaper (and the one that drives the
@@ -47,7 +49,8 @@ Writes / applies:
     look-and-feel/com.zinoxx.rice splash palette
     apps.py                                     VS Code, btop, MangoHud, Zen themes
     rgb.py apply                                keyboards on Automatic (laptop, Razer) light up in the accents
-Settings: ~/.config/plasma-rice/settings.json (scheme, tokyo_tint, depth, candy, wallhaven_queries,
+Settings: ~/.config/plasma-rice/settings.json (soft_tint: how far the soft mood's surfaces lean toward
+Tokyo Night's indigo, depth: extra darkness for dark surfaces, wallhaven_queries,
 bar_scale for the size of a bar's widgets, top_scale for the Glimpse band at the top,
 icon_theme, desk_media (the screen whose desktop clock carries the music card and Clawd; by default the
 only screen, else one beside the main bar's), clock_size (the bar clock's points, per screen), weather {"city": ...} (weather.py), light_ui: light wallpapers turn the desktop light (frosted Plasma Style "Rice-Light", a light
@@ -84,6 +87,8 @@ OVERRIDES = STATE / "overrides.json"    # {output: {mood, primary, secondary, te
 LEAD = STATE / "theme-screen"           # the output whose wallpaper drives the global theme
 OV_KEYS = ("mood", "primary", "secondary", "tertiary", "intensity")
 PRESET_LEN = 10     # names stay short: they're chips in the picker
+# what both Pillow (the palette, the layout) and ImageMagick (thumbnails, glass, the login screen) read here;
+# the Dolphin menu's MimeType (~/.local/share/kio/servicemenus/rice.desktop) offers the same
 EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
@@ -92,6 +97,44 @@ def settings():
         return json.loads((HERE / "settings.json").read_text())
     except (OSError, ValueError):
         return {}
+
+
+_lock = None
+
+
+def hold_lock():
+    """One writer at a time: a shortcut, the Theme page and a hotplug can all run rice.py at once. Taken
+    before any state is read for a change, and only once per process (a second flock on a new open of
+    the same file would wait for this one)."""
+    global _lock
+    if _lock is None:
+        STATE.mkdir(parents=True, exist_ok=True)
+        _lock = open(STATE / "rice.lock", "w")
+        fcntl.flock(_lock, fcntl.LOCK_EX)
+
+
+def unusable(img):
+    """Why `img` can't be a wallpaper here, or "" if it can."""
+    if img.suffix.lower() not in EXTS:
+        return f"isn't a supported format (only {', '.join(sorted(EXTS))})"
+    try:
+        from PIL import Image
+        with Image.open(img) as im:
+            if im.format == "JPEG":     # verify() only reads a JPEG's header: decode it, at a fraction of its size
+                im.draft("RGB", (480, 270))
+                im.load()
+            else:                       # PNG: every chunk's CRC, without decoding 20 MB of pixels
+                im.verify()
+    except Exception as e:      # missing, unreadable, not an image, truncated
+        return f"can't be read ({e})"
+    return ""
+
+
+def fail(msg):
+    """Stop before anything changed, and say why where it was asked from (a shortcut or Dolphin has no terminal)."""
+    run("notify-send", "-a", "Theme", "-i", "dialog-error", "-h", "string:x-canonical-private-synchronous:wallpaper",
+        "Theme not changed", msg)
+    sys.exit(f"rice.py: {msg}")
 
 
 def walls():
@@ -882,7 +925,7 @@ def preset_prepare(name, ss):
     if not p:
         sys.exit(f"no preset named {name!r}")
     have = {s["name"]: s for s in ss}
-    usable = {o: img for o, img in p["screens"].items() if o in have and Path(img).is_file()}
+    usable = {o: img for o, img in p["screens"].items() if o in have and not unusable(Path(img))}
     if not usable:
         sys.exit(f"none of {p['name']!r}'s wallpapers are on a connected screen any more")
     lead = p.get("lead") if p.get("lead") in usable else \
@@ -900,13 +943,25 @@ def main():
     target = "focused"
     if "--screen" in args:
         i = args.index("--screen")
-        target = args[i + 1] if i + 1 < len(args) else "all"
+        if i + 1 >= len(args) or args[i + 1].startswith("--"):
+            sys.exit("--screen takes all, focused or an output name")
+        target = args[i + 1]
         del args[i:i + 2]
     arg = args[0] if args else "random"
     STATE.mkdir(parents=True, exist_ok=True)
     if arg == "thumbs":
         for w in walls():
             thumb(w)
+        return
+    if arg == "walls":      # the picker's list (file names, thumbnails built): one list of formats, EXTS
+        for w in walls():
+            thumb(w)
+            print(w.name)
+        return
+    if arg == "check":      # servicemenu.sh: can these files be wallpapers? names the ones that can't
+        bad = [f"{f}: {why}" for f in args[1:] if (why := unusable(Path(f).expanduser()))]
+        if bad:
+            sys.exit("\n".join(bad))
         return
     if arg == "screens":
         ss = screens()
@@ -926,8 +981,7 @@ def main():
             p = json.loads((STATE / "palette.json").read_text())
         except (OSError, ValueError):
             return
-        lock = open(STATE / "rice.lock", "w")
-        fcntl.flock(lock, fcntl.LOCK_EX)
+        hold_lock()
         apply_screens(screens(), settings(), p)
         apply_kwin(p)
         return
@@ -937,15 +991,24 @@ def main():
         return
     if arg == "theme":
         sub = args[1] if len(args) > 1 else "show"
+        if sub not in ("show", "set", "reset"):
+            sys.exit("rice.py theme show|set|reset")
+        if sub != "show":
+            hold_lock()     # before overrides.json is read: a re-theme running now may be writing it
         ss, cfg = screens(), settings()
+        if not ss:
+            sys.exit("couldn't map the screens (is plasmashell running?)")
+        asked = target
         if target == "focused":
             target = run("qdbus6", "org.kde.KWin", "/KWin", "org.kde.KWin.activeOutputName").stdout.strip() or "all"
-        pickd = [s for s in ss if target in ("all", s["name"])] or ss[:1]
+        pickd = [s for s in ss if target in ("all", s["name"])]
+        if not pickd:
+            if asked != "focused":      # a name given by hand: a typo must not edit another screen
+                sys.exit(f"no screen named {target!r} (have: {', '.join(s['name'] for s in ss)})")
+            pickd = ss[:1]              # KWin's active output isn't one of the mapped screens
         if sub == "show":
             print(json.dumps(theme_show(pickd[0], cfg) if target != "all" else [theme_show(s, cfg) for s in ss]))
             return
-        if sub not in ("set", "reset"):
-            sys.exit("rice.py theme show|set|reset")
         ovs = overrides()
         for s in pickd:
             if sub == "reset":
@@ -960,18 +1023,18 @@ def main():
     preset = ""
     if arg == "preset":
         sub, preset = (args[1:3] + ["", ""])[:2]
+        if sub not in ("save", "load", "delete"):
+            sys.exit("rice.py preset save|load|delete <name>")
+        hold_lock()
         if sub == "save":
             preset_save(preset, screens())
             return
         if sub == "delete":
             preset_delete(preset)
             return
-        if sub != "load":
-            sys.exit("rice.py preset save|load|delete <name>")
 
+    hold_lock()
     tokens.write()      # qml/Rice/Tokens.qml, from the design tokens
-    lock = open(STATE / "rice.lock", "w")
-    fcntl.flock(lock, fcntl.LOCK_EX)
 
     ss = screens()
     if preset:      # load: the other screens first, then the lead one themes everything like a pick
@@ -983,14 +1046,16 @@ def main():
         sys.exit(f"no screen named {target!r} (have: {', '.join(s['name'] for s in ss)})")
 
     one = chosen[0] if len(chosen) == 1 else None
+    img = pick(arg, cur=Path(one["image"]).resolve() if one and one["image"] else None,
+               taken={Path(s["image"]).resolve() for s in ss if s["image"]})
+    if why := unusable(img):    # before anything changes: a file the palette can't read would leave a half theme
+        fail(f"{img.name} {why}")
     if arg != "restore" and chosen:
         if not preset:      # a new wallpaper: back to its own colours (a loaded preset brings its own)
             save_overrides({o: v for o, v in overrides().items() if o not in {s["name"] for s in chosen}})
         focused = run("qdbus6", "org.kde.KWin", "/KWin", "org.kde.KWin.activeOutputName").stdout.strip()
         lead = one["name"] if one else next((s["name"] for s in chosen if s["name"] == focused), chosen[0]["name"])
         write_if_changed(LEAD, lead + "\n")
-    img = pick(arg, cur=Path(one["image"]).resolve() if one and one["image"] else None,
-               taken={Path(s["image"]).resolve() for s in ss if s["image"]})
     cfg = settings()
     tmp = STATE / "wallpaper.tmp"
     tmp.unlink(missing_ok=True)

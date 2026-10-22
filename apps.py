@@ -881,13 +881,17 @@ def apply(p):
             print(f"apps.py: {fn.__name__}: {e}", file=sys.stderr)
 
 
+def palette_now():
+    return json.loads((HOME / ".local/state/rice/palette.json").read_text())
+
+
 if __name__ == "__main__":
-    pal = json.loads((HOME / ".local/state/rice/palette.json").read_text())
+    # setup and konsole-chrome need no palette (konsole-chrome runs at login, maybe before there is one)
     if sys.argv[1:] == ["install-vscode"]:
-        install_vscode(pal)
+        install_vscode(palette_now())
     elif sys.argv[1:] == ["setup"]:
         setup()
     elif sys.argv[1:] == ["konsole-chrome"]:
         konsole_chrome()
     else:
-        apply(pal)
+        apply(palette_now())

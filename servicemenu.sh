@@ -13,11 +13,15 @@ case "$cmd" in
     add)
         dir="$HOME/Pictures/Wallpapers"
         mkdir -p "$dir"
-        n=0
+        n=0; skipped=""
         for f; do
+            # only what the picker lists and the theme can read (rice.py's own list of formats)
+            "$rice" check "$f" >/dev/null 2>&1 || { skipped="$skipped${skipped:+, }$(basename "$f")"; continue; }
             [ -e "$dir/$(basename "$f")" ] && continue
             cp -- "$f" "$dir/" && n=$((n + 1))
         done
-        notify-send -a Theme -i preferences-desktop-wallpaper "Wallpapers" "Added $n to your collection" ;;
+        msg="Added $n to your collection"
+        [ -n "$skipped" ] && msg="$msg. Skipped (format not supported, or unreadable): $skipped"
+        notify-send -a Theme -i preferences-desktop-wallpaper "Wallpapers" "$msg" ;;
     *) echo "usage: $0 here|all|add FILE..." >&2; exit 2 ;;
 esac

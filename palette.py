@@ -359,7 +359,7 @@ def build_v2(a, settings=None, ov=None):
         if mood == "neon":
             sh, sc = ph, 0.038 * min(1.2, k)
         elif mood == "soft":
-            sh = hue_toward(ph, TOKYO_HUE, settings.get("tokyo_tint", 0.35))
+            sh = hue_toward(ph, TOKYO_HUE, settings.get("soft_tint", 0.35))     # settings.json soft_tint
             sc = 0.024
         else:
             sh, sc = ph, 0.005

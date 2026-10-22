@@ -21,8 +21,7 @@ Item {
     id: root
 
     // ---------- the situation (set by the widget) ----------
-    property string mood: "happy"   // happy | sleep (no session for a while) | limited (a window ran out);
-                                    // sweat / panic (older callers) read as tired / exhausted
+    property string mood: "happy"   // happy | sleep (no session for a while) | limited (a window ran out)
     property real usage: -1         // the fuller usage window, %: Clawd tires as it fills
     property bool working: false    // a Claude Code session is live (the status line keeps updating)
     property string activity: ""    // what Claude Code is doing (ClaudeActivity.qml): thinking | typing |
@@ -59,8 +58,7 @@ Item {
     readonly property bool asleep: mood === "sleep" && !celebrate && !alert
     readonly property bool sitting: mood === "limited"
     // 0 fresh, 1 sleepy (50 %), 2 tired (75 %), 3 exhausted (90 %), 4 out of energy (a window ran out)
-    readonly property int tired: sitting ? 4 : usage >= 90 ? 3 : usage >= 75 ? 2 : usage >= 50 ? 1
-                               : usage < 0 && mood === "panic" ? 3 : usage < 0 && mood === "sweat" ? 2 : 0
+    readonly property int tired: sitting ? 4 : usage >= 90 ? 3 : usage >= 75 ? 2 : usage >= 50 ? 1 : 0
     // busy with: what Claude Code is doing, else typing while a session is live
     readonly property string doing: alert || asleep || sitting || activity === "idle" ? ""
                                   : activity ? activity : working ? "typing" : ""

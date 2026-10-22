@@ -38,8 +38,8 @@ def place(city):
         pass
     r = get("https://geocoding-api.open-meteo.com/v1/search?" + urllib.parse.urlencode({"name": city, "count": 1}))
     hit = (r.get("results") or [None])[0]
-    if not hit:
-        sys.exit(f"no place called {city!r}")
+    if not hit:     # a ValueError, not an exit: main() keeps the last forecast
+        raise ValueError(f"no place called {city!r}")
     p = {"query": city, "name": hit["name"], "lat": hit["latitude"], "lon": hit["longitude"]}
     PLACE.write_text(json.dumps(p))
     return p
