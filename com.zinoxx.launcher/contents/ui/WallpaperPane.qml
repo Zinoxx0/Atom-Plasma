@@ -134,8 +134,8 @@ Item {
         }
     }
     function reload() {
-        sh.connectSource('echo "$HOME"; printf "\\n@@\\n"; python3 "$HOME/.config/plasma-rice/rice.py" thumbs; '
-            + 'find "$HOME/Pictures/Wallpapers" -maxdepth 1 -type f \\( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" \\) -printf "%f\\n" | sort; '
+        // rice.py walls: the wallpapers it can use (its own list of formats), thumbnails built
+        sh.connectSource('echo "$HOME"; printf "\\n@@\\n"; python3 "$HOME/.config/plasma-rice/rice.py" walls; '
             + 'printf "\\n@@\\n"; readlink -f "$HOME/.local/state/rice/wallpaper"; '
             + 'printf "\\n@@\\n"; python3 "$HOME/.config/plasma-rice/rice.py" screens; '
             + 'printf "\\n@@\\n"; python3 "$HOME/.config/plasma-rice/rice.py" presets #list ' + Date.now())

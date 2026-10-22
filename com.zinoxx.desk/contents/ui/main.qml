@@ -143,6 +143,7 @@ PlasmoidItem {
     // may still cover them.
     readonly property int iconInset: Math.round(8 * pal.topScale) + Tokens.space.xs
     property Item iconLayer: null
+    property int iconTries: 0
     function findIconLayer() {
         for (let p = root.parent; p; p = p.parent) {
             for (let i = 0; i < p.children.length; i++) {
@@ -153,11 +154,13 @@ PlasmoidItem {
         return null
     }
     Timer {
-        // the applet is put into the layout after it loads, so look until it's there
-        interval: 500; running: root.iconLayer === null; repeat: true; triggeredOnStart: true
+        // the applet is put into the layout after it loads, so look until it's there; 10 s at most (a
+        // desktop without icons, or a Plasma that renamed the loader, has nothing to move)
+        interval: 500; running: root.iconLayer === null && root.iconTries < 20; repeat: true; triggeredOnStart: true
         onTriggered: {
             root.iconLayer = root.findIconLayer()
             if (root.iconLayer) root.iconLayer.anchors.topMargin = Qt.binding(() => root.iconInset)
+            else if (++root.iconTries === 20) console.warn("rice desk: no desktop icon layer to move on", root.screenName)
         }
     }
 
