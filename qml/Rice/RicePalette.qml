@@ -1,6 +1,5 @@
 import QtQuick
 import QtCore
-import Qt.labs.folderlistmodel
 import org.kde.kirigami as Kirigami
 import "Color.js" as C
 
@@ -94,11 +93,12 @@ Item {
     Behavior on blue { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
     Behavior on magenta { enabled: rp.glide; ColorAnimation { duration: Tokens.ms(700); easing.type: Tokens.move } }
 
-    // The file is read with XMLHttpRequest, no process: plasmashell runs with QML_XHR_ALLOW_FILE_READ=1
-    // (~/.config/systemd/user/plasma-plasmashell.service.d/rice.conf). Without it (the logout screen,
-    // the splash) the request never answers, so after a short wait `cat` reads it through RiceShell.
-    // An unchanged file leaves `values` alone: a new object re-runs every binding on the raw palette
-    // (the desk layout, the rim stops, Clawd), and every palette re-reads at each colour scheme switch.
+    // The file is watched and read without a process (WatchedJson: inotify + XMLHttpRequest; plasmashell runs
+    // with QML_XHR_ALLOW_FILE_READ=1). rice.py replaces it on every wallpaper change, so every widget follows
+    // its screen at once. Without that variable (the logout screen, the splash) a read never answers, so
+    // after a short wait `cat` reads it through RiceShell (the screen's file, else the global palette.json).
+    // An unchanged file leaves `values` alone: a new object re-runs every binding on the raw palette (the desk
+    // layout, the rim stops, Clawd), and every palette re-reads at each colour scheme switch.
     property string raw: ""                     // the file as last taken
     function take(t) {
         if (!t || t === raw) return;
@@ -107,43 +107,30 @@ Item {
             if (j && j.primary) { raw = t; values = j; }
         } catch (e) {}
     }
-    property int reads: 0
+    WatchedJson {
+        id: file
+        path: rp.output ? String(StandardPaths.writableLocation(StandardPaths.HomeLocation)).replace(/^file:\/\//, "")
+                          + "/.local/state/rice/palette-" + rp.output + ".json" : ""
+        debounce: 120                           // one read per burst of writes
+        onChanged: rp.take(file.raw)
+    }
     function refresh() {
         if (!output) return;
-        const n = ++reads;
-        const x = new XMLHttpRequest();
-        x.onreadystatechange = () => {
-            if (x.readyState !== XMLHttpRequest.DONE || n !== rp.reads) return;
-            viaShell.stop();
-            if (x.responseText) rp.take(x.responseText);
-            else rp.shellRead();
-        };
-        x.open("GET", StandardPaths.writableLocation(StandardPaths.HomeLocation) + "/.local/state/rice/palette-" + output + ".json");
-        x.send();
+        file.read();
         viaShell.restart();
     }
     function shellRead() {
         sh.connectSource('cat "$HOME/.local/state/rice/palette-' + output + '.json" 2>/dev/null'
                          + ' || cat "$HOME/.local/state/rice/palette.json" #pal ' + output);
     }
-    Timer { id: viaShell; interval: 250; onTriggered: rp.shellRead() }
+    // no answer, or no file for this screen: the shell's way (the global palette as the fallback)
+    Timer { id: viaShell; interval: 250; onTriggered: if (!file.answered || !file.value) rp.shellRead() }
     RiceShell {
         id: sh
         onNewData: (source, data) => rp.take(data["stdout"] ?? "")
     }
-    // rice.py writes the file (to a temp name, then a rename) on every wallpaper change: a watch on
-    // its folder (inotify, no polling) sees each replace, so every widget follows its screen at once.
-    // The colour scheme switch used to be the cue, but plasmashell 6.8 no longer passes it on live.
-    FolderListModel {
-        folder: StandardPaths.writableLocation(StandardPaths.HomeLocation) + "/.local/state/rice"
-        nameFilters: rp.output ? ["palette-" + rp.output + ".json"] : []
-        showDirs: false
-        onDataChanged: reread.restart()
-        onRowsInserted: reread.restart()
-    }
-    Timer { id: reread; interval: 120; onTriggered: rp.refresh() }     // one read per burst of writes
     readonly property color themeAccent: Kirigami.Theme.highlightColor
     onThemeAccentChanged: refresh()
-    onOutputChanged: refresh()
-    Component.onCompleted: refresh()
+    onOutputChanged: viaShell.restart()         // (the watch reads the new screen's file by itself)
+    Component.onCompleted: viaShell.restart()
 }

@@ -28,7 +28,7 @@ Item {
         anchors.fill: parent
         anchors.margins: -(pin.frameMargin - 1)
         radius: pin.frameRadius - 1
-        color: pin.ricePalette ? C.alpha(pin.ricePalette.light ? pin.ricePalette.surfaceLowest : "#12131a", 0.985) : "transparent"
+        color: pin.ricePalette ? C.alpha(pin.ricePalette.light ? pin.ricePalette.surfaceLowest : Tokens.neutral.dark, 0.985) : "transparent"
         border.width: 1
         border.color: pin.ricePalette ? C.alpha(pin.ricePalette.edge, Tokens.alpha.outline) : "transparent"
     }

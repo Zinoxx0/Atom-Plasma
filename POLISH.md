@@ -187,3 +187,5 @@ root id); a light KDE scheme makes the portal report light (Zen/web would follow
 - Idle: ~12.8 W GPU, plasmashell 3.8 %, KWin 4.5 % with a Claude Code session drawing in Konsole (noisy; desk adds
   no continuous redraw).
 - Ideas left: game shelf, rig card, calendar (offered, not picked); nudging a widget by hand per wallpaper.
+
+> 2026-10-22: the agent briefs (agents/*.md) were removed in the code review (D3); they are in git history before that commit.

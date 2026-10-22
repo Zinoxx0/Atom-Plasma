@@ -18,3 +18,9 @@ RiceShell RiceShell.qml
 ClaudeActivity ClaudeActivity.qml
 Emblem Emblem.qml
 ClaudeAsk ClaudeAsk.qml
+WatchedJson WatchedJson.qml
+ClaudeUsage ClaudeUsage.qml
+NowPlaying NowPlaying.qml
+TagField TagField.qml
+AppGlow AppGlow.qml
+SessionActions SessionActions.js

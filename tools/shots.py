@@ -6,7 +6,7 @@
         popups:launcher,clock   only those popups
 
 It opens popups and windows and moves the real cursor (uinput), so it takes over the desktop
-for about a minute. Popups are captured from the main bar (panel 23, HDMI-A-1).
+for about a minute. Popups are captured from the main bar (the one on Plasma screen 0, found when it runs).
 """
 import subprocess
 import sys
@@ -16,14 +16,28 @@ from pathlib import Path
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))     # a tool one folder down
 from pointer import Pointer, outputs  # noqa: E402
+from atom import panel, screens as rice_screens  # noqa: E402
 
 HOME = Path.home()
-MAIN = "HDMI-A-1"
-# main bar widgets: (name, applet id)
-POPUPS = [("launcher", 167), ("wallpicker", 129), ("claude", 102), ("sysstats", 106),
-          ("session", 107), ("clock", 85), ("tray", 72)]
 OUT = {o["name"]: o for o in outputs()}
+# the popups to capture: (name, plugin) on the main bar; the applet ids are looked up on the bar itself
+PLUGINS = [("launcher", "com.zinoxx.launcher"), ("claude", "com.zinoxx.claudeusage"), ("sysstats", "com.zinoxx.sysstats"),
+           ("session", "com.zinoxx.session"), ("clock", "org.kde.plasma.digitalclock"), ("tray", "org.kde.plasma.systemtray")]
+
+
+def main_bar():
+    """(the main bar's output name, [(popup name, applet id)]): the bar on Plasma screen 0, wherever it is now."""
+    bar = next((b for b in panel.panels() if b["screen"] == 0), None)
+    if not bar:
+        sys.exit("no main bar (a panel with Panel Colorizer on screen 0)")
+    output = next((s["name"] for s in rice_screens.screens() if s["screen"] == 0), next(iter(OUT)))
+    ids = {w["type"]: w["id"] for w in bar["widgets"]}
+    return output, [(name, ids[plugin]) for name, plugin in PLUGINS if plugin in ids]
+
+
+MAIN, POPUPS = main_bar()
 
 
 def capture(path):

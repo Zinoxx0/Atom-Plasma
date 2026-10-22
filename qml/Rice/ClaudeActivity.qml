@@ -1,11 +1,8 @@
 import QtQuick
 import QtCore
-import Qt.labs.folderlistmodel
 
 // What Claude Code is doing right now, for Clawd: ~/.cache/clawd/activity.json, written by Claude
-// Code's hooks (~/.config/plasma-rice/clawd-hook.sh). A watch on its folder (inotify, no polling)
-// re-reads it on every write; the file is read with XMLHttpRequest (QML_XHR_ALLOW_FILE_READ=1 in
-// plasmashell's environment, see RicePalette.qml).
+// Code's hooks (~/.config/plasma-rice/clawd-hook.sh), watched and re-read on every write (WatchedJson).
 //
 //   ClaudeActivity { id: claude }      Clawd { activity: claude.activity }
 //
@@ -39,28 +36,12 @@ Item {
         return "typing"
     }
 
-    function read() {
-        const x = new XMLHttpRequest()
-        x.onreadystatechange = () => {
-            if (x.readyState !== XMLHttpRequest.DONE || !x.responseText) return
-            try {
-                const j = JSON.parse(x.responseText)
-                if (j && j.ts) { ca.now = Date.now() / 1000; ca.last = j }
-            } catch (e) {}
-        }
-        x.open("GET", StandardPaths.writableLocation(StandardPaths.GenericCacheLocation) + "/clawd/activity.json")
-        x.send()
+    WatchedJson {
+        id: file
+        path: String(StandardPaths.writableLocation(StandardPaths.GenericCacheLocation)).replace(/^file:\/\//, "") + "/clawd/activity.json"
+        active: ca.active
+        onChanged: if (file.value && file.value.ts) { ca.now = Date.now() / 1000; ca.last = file.value }
     }
-    // (the folder stays set: an empty FolderListModel folder means the current directory, which would
-    // watch the whole home folder; an inactive one just doesn't read)
-    FolderListModel {
-        folder: StandardPaths.writableLocation(StandardPaths.GenericCacheLocation) + "/clawd"
-        nameFilters: ["activity.json"]
-        showDirs: false
-        onDataChanged: if (ca.active) reread.restart()
-        onRowsInserted: if (ca.active) reread.restart()
-    }
-    Timer { id: reread; interval: 60; onTriggered: ca.read() }
     // the clock only ticks while something is going on (to let "done" and stale states expire)
     Timer {
         interval: ca.activity === "done" ? 2000 : 20000
@@ -68,6 +49,4 @@ Item {
         repeat: true
         onTriggered: ca.now = Date.now() / 1000
     }
-    Component.onCompleted: if (active) read()
-    onActiveChanged: if (active) read()
 }
