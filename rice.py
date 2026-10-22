@@ -239,6 +239,7 @@ DimValue=40
 DimWhenInactive=true
 Name={name}
 Parent=FALLBACK/
+SemanticInputClick=true
 TerminalCenter=true
 TerminalMargin={margin}
 
@@ -273,7 +274,8 @@ QTabBar::tab:selected {{
 
 def apply_konsole(p):
     """Konsole caches schemes and profiles by name, so each palette gets fresh
-    names (Rice-<hash>); running sessions on a Rice profile are switched over D-Bus.
+    names (Rice-<hash>); running sessions on a Rice profile are switched over D-Bus. SemanticInputClick: a
+    click in the command line moves the cursor there (the shell marks where it starts: shell/rice.zsh).
     Also keeps the window chrome off for good: no menu bar or toolbars (new windows read
     the saved window state, which a window rewrites when it closes), tabs only when needed."""
     d = HOME / ".local/share/konsole"
@@ -358,16 +360,23 @@ def apply_scheme(p):
 
 TEMPLATES = {  # template in ~/.config/plasma-rice/templates -> output; {{name}} = palette colour
     "starship.toml": HOME / ".config/starship.toml",
+    "shell.zsh": HOME / ".config/zsh/rice-colors.zsh",     # read by shell/rice.zsh
 }
 
 
 def render_templates(p):
+    """{{name}} = the colour as #rrggbb, {{name.rgb}} = as r;g;b (for ANSI codes)."""
     import re
+
+    def fill(m):
+        c = p.get(m.group(1))
+        if not c:
+            return m.group(0)
+        return palette.rgb_csv(c).replace(",", ";") if m.group(2) else c
     for name, out in TEMPLATES.items():
         src = HERE / "templates" / name
         if src.exists():
-            text = re.sub(r"\{\{(\w+)\}\}", lambda m: p.get(m.group(1), m.group(0)), src.read_text())
-            write_if_changed(out, text)
+            write_if_changed(out, re.sub(r"\{\{(\w+)(\.rgb)?\}\}", fill, src.read_text()))
 
 
 KWIN_EFFECTS = {   # effect id -> on; rice_* live in plasma-rice/kwin (apps.py setup links them for KWin)
