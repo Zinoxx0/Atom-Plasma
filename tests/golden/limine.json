@@ -1,0 +1,1 @@
+"timeout: 5\n# Rice Limine theme\nwallpaper: boot():/limine-rice.png\n# end Rice Limine theme\n\ncomment: hi\n\n/CachyOS\n    protocol: linux\n    path: boot():/vmlinuz#abc\n"
