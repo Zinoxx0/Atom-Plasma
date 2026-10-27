@@ -4,11 +4,12 @@ import QtQuick.Window
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import org.kde.ksysguard.sensors as Sensors
+import org.kde.plasma.plasma5support as P5Support
 import "Rice"
 import "Rice/Color.js" as C
 
-// CPU / RAM / GPU as gradient rings, in the same style as the Claude widget. The popup adds a
-// three-minute history of each (tabs) and what uses the most of it right now.
+// CPU / RAM / GPU as gradient rings, in the same style as the Claude widget, plus the battery while
+// unplugged. The popup adds a three-minute history of each (tabs) and what uses the most of it right now.
 PlasmoidItem {
     id: root
 
@@ -68,6 +69,30 @@ PlasmoidItem {
     ]
     // the screen's own colour family; past 70 / 90 % the (harmonized) warning colours take over
     function heat(v, base) { return v >= 90 ? pal.bad : v >= 70 ? pal.warn : pal[base] }
+    // the battery the other way round: under 20 / 10 % charge
+    function tint(stat, base) {
+        return stat.key !== "bat" ? heat(stat.value, base) : stat.value <= 10 ? pal.bad : stat.value <= 20 ? pal.warn : pal[base];
+    }
+
+    // the charge, as a fourth ring on the bar only while the laptop runs on battery. Plasma's power
+    // engine follows UPower's signals, so nothing is polled
+    P5Support.DataSource {
+        engine: "powermanagement"
+        connectedSources: ["Battery"]
+        onNewData: (source, data) => root.batt = data
+    }
+    property var batt: ({})
+    readonly property bool unplugged: batt["Has Battery"] === true && batt["State"] === "Discharging"
+    readonly property var battery: {
+        const v = Number(batt["Percent"]) || 0;
+        return { key: "bat", label: "Battery", value: v, from: "secondary", to: "primary",
+                 icon: v <= 10 ? "battery_alert" : v >= 95 ? "battery_full" : "battery_" + Math.round(v / 100 * 6) + "_bar",
+                 sub: leftText(Number(batt["Smoothed Remaining msec"]) || 0) };
+    }
+    function leftText(ms) {
+        const m = Math.round(ms / 60000), h = Math.floor(m / 60);
+        return m > 0 ? (h ? h + "h " : "") + m % 60 + "m left" : "";
+    }
 
     // three minutes of each, sampled every 2 s all the time (data only: nothing is drawn while the
     // popup is closed), so the graph is full the moment it opens
@@ -109,7 +134,8 @@ PlasmoidItem {
     }
 
     toolTipMainText: "System"
-    toolTipSubText: stats.map(s => s.label + " " + Math.round(s.value) + "%").join("  ·  ")
+    toolTipSubText: stats.concat(unplugged ? [battery] : []).map(s => s.label + " " + Math.round(s.value) + "%").join("  ·  ")
+                    + (unplugged && battery.sub ? " (" + battery.sub + ")" : "")
     preferredRepresentation: compactRepresentation
 
     compactRepresentation: MouseArea {
@@ -127,12 +153,14 @@ PlasmoidItem {
             spacing: Tokens.space.sm * root.uiScale
             Repeater {
                 // fixed count: `stats` is a new array on every sensor update, and using it as the
-                // model destroyed and rebuilt (blank, then sweeping from 0) every ring each time
-                model: 3
+                // model destroyed and rebuilt (blank, then sweeping from 0) every ring each time.
+                // The fourth is the battery, hidden while plugged in
+                model: 4
                 RowLayout {
                     id: cell
                     required property int index
-                    readonly property var stat: root.stats[index]
+                    readonly property var stat: index < 3 ? root.stats[index] : root.battery
+                    visible: index < 3 || root.unplugged
                     spacing: Tokens.space.xs * root.uiScale
                     Item {
                         implicitWidth: 22 * root.uiScale; implicitHeight: implicitWidth
@@ -141,15 +169,15 @@ PlasmoidItem {
                             thickness: 2.5 * root.uiScale
                             instant: true    // a 1.1 s sweep per update kept the panel redrawing
                             value: cell.stat.value
-                            from: root.heat(cell.stat.value, cell.stat.from)
-                            to: root.heat(cell.stat.value, cell.stat.to)
+                            from: root.tint(cell.stat, cell.stat.from)
+                            to: root.tint(cell.stat, cell.stat.to)
                             track: C.alpha(pal.fg, 0.14)
                             showText: false
                         }
                         Text {
                             anchors.centerIn: parent
                             text: cell.stat.icon
-                            color: root.heat(cell.stat.value, cell.stat.from)
+                            color: root.tint(cell.stat, cell.stat.from)
                             font.family: Tokens.font.icons
                             font.pixelSize: Math.round(12 * root.uiScale)
                         }
@@ -196,6 +224,8 @@ PlasmoidItem {
                     palette: pal
                     title: "System"
                     subtitle: me.host + "  ·  " + root.upText(root.uptime)
+                              + (root.unplugged ? "  ·  battery " + Math.round(root.battery.value) + "%"
+                                                  + (root.battery.sub ? ", " + root.battery.sub : "") : "")
                     trailing: IconButton {
                         palette: pal
                         icon: "monitoring"
