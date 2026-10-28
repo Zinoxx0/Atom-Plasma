@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fetch new wallpapers from wallhaven.cc into the collection (settings wallpaper_dir, else Pictures/Wallpapers).
 
-    wallhaven.py [--dry-run] [count] [tags]
+    wallhaven.py [--dry-run] [--screen focused|<output>|<display id>] [count] [tags]
 
 tags: comma-separated, e.g. "modern, clean, aesthetic". wallhaven finds nothing for
 most multi-word queries, so each tag is searched on its own and the results are
@@ -13,7 +13,8 @@ A tag with few results is helped along: vibe words ("cozy", "modern"...) are
 translated into tags wallhaven knows (VIBES), a phrase is split into its words, and
 otherwise the search widens from anime to general art (minus photography).
 
-SFW only, 16:9, at least 2560x1440, anime category first (settings
+SFW only, shaped for the screen they're for (--screen, default the focused one; shape(): its aspect ratio,
+portrait or not, and a minimum size from its resolution), anime category first (settings
 "wallhaven_categories", default "010"). Character art is left out by default
 (settings "wallhaven_exclude", default ["anime girls"]): scenery is the point,
 unless the tags ask for people (girl, boy, character...). Pictures fetched before are remembered in
@@ -62,9 +63,30 @@ def get(url):
         return r.read()
 
 
+def shape(d):
+    """wallhaven's `ratios` and `atleast` for a display: its own aspect (and the ones close enough that the
+    crop doesn't hurt), portrait for portrait screens, and a minimum size from its resolution."""
+    if d is None:
+        return "16x9", "2560x1440"
+    w, h = (d.px_h, d.px_w) if d.rotation in (2, 8) else (d.px_w, d.px_h)
+    a = w / max(1, h)
+    ratios = ("9x16,9x18,10x16" if a < 0.8 else "1x1,5x4,4x3" if a < 1.2 else "4x3,5x4,16x10" if a < 1.45
+              else "16x10,3x2,16x9" if a < 1.7 else "16x9" if a < 2.1 else "21x9,32x9,48x9")
+    long = max(w, h)
+    # the long side: the screen's own, but up to 1.5x upscaling is fine (good pictures stay findable), never
+    # above 3840 (an 8K finds next to nothing at 7680). Landscape pictures go to a shared collection that any
+    # screen may show later, so they're never below 2560; odd shapes (portrait, square, ultrawide) are for
+    # screens like this one only, so their own size is enough
+    floor = 2560 if "16x9" in ratios else min(long, 2560)
+    want = min(3840, max(long / 1.5, floor))
+    k = want / long
+    return ratios, f"{round(w * k)}x{round(h * k)}"
+
+
 class Search:
     """One wallhaven query, read a page at a time, most favourited first."""
     exclude = ""
+    ratios, atleast = "16x9", "2560x1440"       # set from the target screen (shape())
 
     def __init__(self, q, cats):
         self.q, self.cats, self.page, self.last, self.items, self.total = q, cats, 0, 1, [], 0
@@ -74,8 +96,8 @@ class Search:
         if self.page >= min(self.last, MAX_PAGES):
             return False
         self.page += 1
-        params = {"q": self.q + Search.exclude, "categories": self.cats, "purity": "100", "atleast": "2560x1440",
-                  "ratios": "16x9", "sorting": "favorites", "order": "desc", "page": self.page}
+        params = {"q": self.q + Search.exclude, "categories": self.cats, "purity": "100", "atleast": Search.atleast,
+                  "ratios": Search.ratios, "sorting": "favorites", "order": "desc", "page": self.page}
         d = json.loads(get(API + urllib.parse.urlencode(params)))
         self.items += d["data"]
         self.last = d["meta"]["last_page"]
@@ -106,10 +128,26 @@ def resolve(tag, cats):
     return [x for x in out if x.total]
 
 
+def target(key):
+    """The display the wallpapers are for (focused = KWin's active output), or None if it can't be told."""
+    from atom import displays
+    ds = displays.probe()
+    if key == "focused":
+        r = util.run("qdbus6", "org.kde.KWin", "/KWin", "org.kde.KWin.activeOutputName", quiet=True)
+        key = r.stdout.strip() if r else ""
+    return next((d for d in ds if key in (d.connector, d.id)), next((d for d in ds if d.primary), None))
+
+
 def main():
     args = sys.argv[1:]
     dry = "--dry-run" in args
     args = [a for a in args if a != "--dry-run"]
+    screen = "focused"
+    if "--screen" in args:
+        i = args.index("--screen")
+        screen = args[i + 1] if i + 1 < len(args) else "focused"
+        del args[i:i + 2]
+    Search.ratios, Search.atleast = shape(target(screen))
     count = int(args[0]) if args else 6
     cfg = util.settings()
     WALLDIR = util.wallpaper_dir(cfg)
