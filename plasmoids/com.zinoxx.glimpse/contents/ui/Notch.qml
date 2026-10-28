@@ -1,0 +1,300 @@
+import QtQuick
+import QtQuick.Shapes
+import QtQuick.Effects
+
+// The bar's silhouette and material: a band hanging from the top edge of the screen, corner to
+// corner, with concave fillets where it meets the sides (so the screen looks rounded below it, as
+// if the bezel grew) and a tab that drips from its lower edge under the hovered icon (the label).
+// solid: just the bezel colour and a faint rim (the resting strip). Otherwise a smoked-glass drawer
+// slides out from under the resting strip's solid bezel (`bezelH`, which shrinks away as it opens):
+// the screen's pre-blurred wallpaper band (rice.py) under a dark veil, a colour wash, a faint dot
+// grid, a sheen along its top edge, and a lit rim that runs along the lip and around the tab, so the
+// tab reads as part of the same edge. `glint` (0 -> 1, once per opening) runs a light along the
+// rim from `glintX` outward. light: on a light screen the drawer is white frost instead of smoked
+// glass (the bezel strip it slides from stays black), and the lights on its rim run dark.
+Item {
+    id: n
+
+    property real bandH: 6
+    property real bezelH: 6                // the resting strip's height: stays solid bezel when open
+    property real fillet: 14
+    property real glint: 1                 // 1 = done (no light on the rim)
+    property real glintX: width / 2
+    property real tabX: width / 2          // centre of the tab
+    property real tabW: 0
+    property real tabH: 0                  // 0 = no tab
+    property real tabRadius: 10
+    property bool solid: false
+    property real glass: 0
+    property url backdrop
+    property size backdropSize
+    property color bezel: "#060609"
+    property bool light: false
+    property color frost: "#f4f5f8"
+    readonly property color veilColor: light ? frost : bezel
+    readonly property color spark: light ? Qt.rgba(0.12, 0.13, 0.16, 0.85) : Qt.rgba(1, 1, 1, 0.95)
+    property color tintA: "transparent"    // colour wash, left / middle / right (alpha included)
+    property color tintB: "transparent"
+    property color tintC: "transparent"
+    property color rimA: "white"
+    property color rimB: "white"
+    // the rim's colours left to right, sampled from the wallpaper's top edge (rice.py `_rim`); without
+    // them it runs rimA -> rimB
+    property var rimStops: []
+    property bool shimmer: false           // a slow light drifting along the rim (only while open)
+    property color glow: "transparent"
+    property real glowLevel: 1              // the mood's glow (palette _glow): the haze under the lip
+    property real rimRest: 0.55            // the lit rim's strength while the band is closed
+
+    // the tab's corners shrink with it, so it can grow out of a flat edge; it stays clear of the fillets
+    readonly property real tf: Math.min(tabRadius, tabH / 2)
+    readonly property real tr: Math.min(tabRadius, tabH / 2, tabW / 2)
+    readonly property real tL: Math.max(fillet + tf, Math.min(width - fillet - tf - tabW, tabX - tabW / 2))
+    readonly property real tR: tL + tabW
+
+    // accent haze under the lip
+    Rectangle {
+        visible: !n.solid && n.glass > 0
+        y: n.bandH
+        width: n.width
+        height: 18
+        opacity: n.glass
+        gradient: Gradient {
+            GradientStop { position: 0; color: Qt.rgba(n.glow.r, n.glow.g, n.glow.b, 0.22 * n.glowLevel) }
+            GradientStop { position: 1; color: "transparent" }
+        }
+    }
+
+    // the silhouette: drawn directly when solid, otherwise the mask of the glass body
+    Item {
+        id: mask
+        anchors.fill: parent
+        visible: n.solid
+        layer.enabled: !n.solid
+        Shape {
+            anchors.fill: parent
+            preferredRendererType: Shape.CurveRenderer
+            ShapePath {
+                fillColor: n.solid ? n.bezel : "white"
+                strokeWidth: -1
+                strokeColor: "transparent"
+                startX: 0; startY: 0
+                PathLine { x: n.width; y: 0 }
+                PathLine { x: n.width; y: n.bandH + n.fillet }
+                PathQuad { x: n.width - n.fillet; y: n.bandH; controlX: n.width; controlY: n.bandH }      // right screen fillet
+                PathLine { x: n.tR + n.tf; y: n.bandH }
+                PathQuad { x: n.tR; y: n.bandH + n.tf; controlX: n.tR; controlY: n.bandH }                // tab: joins the lip
+                PathLine { x: n.tR; y: n.bandH + n.tabH - n.tr }
+                PathQuad { x: n.tR - n.tr; y: n.bandH + n.tabH; controlX: n.tR; controlY: n.bandH + n.tabH }
+                PathLine { x: n.tL + n.tr; y: n.bandH + n.tabH }
+                PathQuad { x: n.tL; y: n.bandH + n.tabH - n.tr; controlX: n.tL; controlY: n.bandH + n.tabH }
+                PathLine { x: n.tL; y: n.bandH + n.tf }
+                PathQuad { x: n.tL - n.tf; y: n.bandH; controlX: n.tL; controlY: n.bandH }
+                PathLine { x: n.fillet; y: n.bandH }
+                PathQuad { x: 0; y: n.bandH + n.fillet; controlX: 0; controlY: n.bandH }                  // left screen fillet
+                PathLine { x: 0; y: 0 }
+            }
+        }
+    }
+
+    Item {
+        id: body
+        anchors.fill: parent
+        visible: !n.solid
+        layer.enabled: !n.solid
+        layer.effect: MultiEffect {
+            maskEnabled: true
+            maskSource: mask
+            maskThresholdMin: 0.5
+            maskSpreadAtMin: 1.0
+        }
+
+        Rectangle { anchors.fill: parent; color: n.veilColor }
+        Image {
+            width: n.backdropSize.width
+            height: n.backdropSize.height
+            source: n.backdrop
+            visible: status === Image.Ready && n.glass > 0
+            smooth: true
+            cache: true
+        }
+        Rectangle {     // colour wash
+            anchors.fill: parent
+            visible: n.glass > 0
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0.0; color: n.tintA }
+                GradientStop { position: 0.55; color: n.tintB }
+                GradientStop { position: 1.0; color: n.tintC }
+            }
+        }
+        Rectangle {     // smoked glass: darkest just under the bezel, clearing a little toward the lip
+            id: veil
+            anchors.fill: parent
+            readonly property real under: n.bezelH / Math.max(1, height)
+            readonly property real lip: n.bandH / Math.max(1, height)
+            readonly property color c: n.veilColor
+            gradient: Gradient {
+                GradientStop { position: 0; color: veil.c }
+                GradientStop { position: veil.under; color: Qt.rgba(veil.c.r, veil.c.g, veil.c.b, 1 - 0.24 * n.glass) }
+                GradientStop { position: veil.lip; color: Qt.rgba(veil.c.r, veil.c.g, veil.c.b, 1 - 0.46 * n.glass) }
+                GradientStop { position: 1; color: Qt.rgba(veil.c.r, veil.c.g, veil.c.b, 1 - 0.4 * n.glass) }
+            }
+        }
+        Image {         // the dot grid: texture so the glass reads as a material, not a flat fill
+            y: n.bezelH
+            width: n.width
+            height: Math.max(0, n.height - n.bezelH)
+            source: Qt.resolvedUrl("../images/dots.png")
+            fillMode: Image.Tile
+            opacity: 0.55 * n.glass
+            visible: n.glass > 0
+        }
+        Rectangle {     // a breath of light at the top of the glass, like the bar's islands
+            y: n.bezelH
+            width: n.width
+            height: Math.max(0, (n.bandH - n.bezelH) * 0.6)
+            visible: n.glass > 0
+            gradient: Gradient {
+                GradientStop { position: 0; color: Qt.rgba(1, 1, 1, 0.05 * n.glass) }
+                GradientStop { position: 1; color: "transparent" }
+            }
+        }
+        Rectangle {     // the solid bezel the drawer slides out from (the resting strip, unchanged)
+            width: n.width
+            height: n.bezelH
+            color: n.bezel
+        }
+    }
+
+    // the drawer's top edge catching the light where it comes out from under the bezel (gone with it)
+    Rectangle {
+        visible: !n.solid && n.glass > 0 && opacity > 0
+        x: n.fillet
+        y: n.bezelH
+        width: n.width - 2 * n.fillet
+        height: 1
+        opacity: n.glass * Math.min(1, n.bezelH / 3)
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop { position: 0.0; color: "transparent" }
+            GradientStop { position: 0.08; color: Qt.rgba(1, 1, 1, 0.09) }
+            GradientStop { position: 0.92; color: Qt.rgba(1, 1, 1, 0.09) }
+            GradientStop { position: 1.0; color: "transparent" }
+        }
+    }
+
+    // the resting rim: one crisp hairline along the lip
+    Rectangle {
+        visible: n.solid
+        y: n.bandH - height
+        width: n.width
+        height: 1
+        opacity: n.rimRest
+        gradient: Gradient { id: restGrad; orientation: Gradient.Horizontal }
+    }
+
+    // the opened rim: follows the lip and goes round the tab instead of cutting across its neck
+    Shape {
+        id: rim
+        visible: !n.solid && n.height > 0
+        anchors.fill: parent
+        opacity: n.rimRest + (1 - n.rimRest) * n.glass
+        preferredRendererType: Shape.CurveRenderer
+        readonly property real w: 1 + 0.5 * n.glass
+        readonly property real h: w / 2                       // the stroke sits just inside the edge
+        readonly property bool tab: n.tabH > 2 * w
+        // without a tab every point of it collapses onto the lip line
+        readonly property real lipY: n.bandH - h
+        readonly property real cf: tab ? n.tf : 0
+        readonly property real cr: tab ? n.tr : 0
+        readonly property real jy: tab ? n.bandH + cf : lipY  // where the joints meet the sides
+        readonly property real by: tab ? n.bandH + n.tabH - h : lipY
+        readonly property real lx: tab ? n.tL + h : n.tL
+        readonly property real rx: tab ? n.tR - h : n.tR
+        ShapePath {
+            fillColor: "transparent"
+            strokeWidth: rim.w
+            strokeColor: "white"
+            capStyle: ShapePath.FlatCap
+            joinStyle: ShapePath.RoundJoin
+            strokeGradient: LinearGradient { id: openGrad; x1: 0; y1: 0; x2: n.width; y2: 0 }
+            startX: n.fillet; startY: rim.lipY
+            PathLine { x: n.tL - rim.cf; y: rim.lipY }
+            PathQuad { x: rim.lx; y: rim.jy; controlX: rim.lx; controlY: rim.lipY }
+            PathLine { x: rim.lx; y: rim.by - rim.cr }
+            PathQuad { x: n.tL + rim.cr; y: rim.by; controlX: rim.lx; controlY: rim.by }
+            PathLine { x: n.tR - rim.cr; y: rim.by }
+            PathQuad { x: rim.rx; y: rim.by - rim.cr; controlX: rim.rx; controlY: rim.by }
+            PathLine { x: rim.rx; y: rim.jy }
+            PathQuad { x: n.tR + rim.cf; y: rim.lipY; controlX: rim.rx; controlY: rim.lipY }
+            PathLine { x: n.width - n.fillet; y: rim.lipY }
+        }
+    }
+
+    // the opening light: two sparks that leave the point the pointer came in at and run out along the
+    // rim, fading as they go
+    Repeater {
+        model: !n.solid && n.glint < 1 ? 2 : 0
+        delegate: Rectangle {
+            required property int index
+            readonly property real run: Math.max(n.glintX - n.fillet, n.width - n.fillet - n.glintX)
+            width: 160
+            height: 2
+            y: n.bandH - 1.5
+            x: n.glintX + (index ? 1 : -1) * n.glint * run - width / 2
+            opacity: (1 - n.glint) * Math.min(1, n.glint * 8)
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0.0; color: "transparent" }
+                GradientStop { position: 0.5; color: n.spark }
+                GradientStop { position: 1.0; color: "transparent" }
+            }
+        }
+    }
+
+    // both rims share one set of stops: transparent at the very ends, the colours in between
+    readonly property var rimColors: rimStops && rimStops.length >= 2 ? rimStops : [rimA, rimB]
+    Component { id: stopC; GradientStop {} }
+    property var oldStops: []
+    function buildRims() {
+        const made = [];
+        for (const g of [restGrad, openGrad]) {
+            const cs = rimColors, k = cs.length;
+            const list = [stopC.createObject(g, { position: 0, color: "transparent" })];
+            for (let i = 0; i < k; i++)
+                list.push(stopC.createObject(g, { position: 0.08 + 0.84 * i / (k - 1), color: cs[i] }));
+            list.push(stopC.createObject(g, { position: 1, color: "transparent" }));
+            g.stops = list;
+            made.push(...list);
+        }
+        for (const s of oldStops) s.destroy();
+        oldStops = made;
+    }
+    onRimColorsChanged: buildRims()
+    Component.onCompleted: buildRims()
+
+    // while open: a soft light travelling slowly along the lip, left to right
+    Rectangle {
+        id: drift
+        visible: !n.solid && n.shimmer && n.glass > 0.9
+        width: 320
+        height: 2
+        y: n.bandH - 1.5
+        opacity: 0.55
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop { position: 0.0; color: "transparent" }
+            GradientStop { position: 0.5; color: Qt.rgba(n.spark.r, n.spark.g, n.spark.b, 0.8) }
+            GradientStop { position: 1.0; color: "transparent" }
+        }
+        NumberAnimation on x {
+            running: drift.visible
+            loops: Animation.Infinite
+            from: n.fillet - drift.width
+            to: n.width - n.fillet
+            duration: 6500
+            easing.type: Easing.InOutSine
+        }
+    }
+}

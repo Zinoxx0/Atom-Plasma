@@ -1,0 +1,14 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [{ "Name": "zinoxx" }],
+        "Category": "System Information",
+        "Description": "CPU, memory and GPU rings",
+        "Icon": "utilities-system-monitor",
+        "Id": "com.zinoxx.sysstats",
+        "License": "MIT",
+        "Name": "System Rings",
+        "Version": "1.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

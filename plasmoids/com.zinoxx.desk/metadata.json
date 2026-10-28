@@ -1,0 +1,18 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "zinoxx"
+            }
+        ],
+        "Category": "Date and Time",
+        "Description": "The desktop's information layer: clock, status line, weather, music and Clawd, placed in each wallpaper's quiet zone",
+        "Icon": "preferences-desktop-wallpaper",
+        "Id": "com.zinoxx.desk",
+        "License": "MIT",
+        "Name": "Atom Plasma Desk",
+        "Version": "1.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0 http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+  <kcfgfile name=""/>
+  <group name="General">
+    <entry name="heroImage" type="String">
+      <label>Image on the hero card; empty follows this screen's wallpaper</label>
+      <default></default>
+    </entry>
+    <entry name="heroFor" type="String">
+      <label>The image the position below was set for (it only applies to that one)</label>
+      <default></default>
+    </entry>
+    <entry name="heroX" type="Double">
+      <label>Horizontal focus of the hero image, 0 (left edge) to 1 (right edge)</label>
+      <default>0.5</default>
+    </entry>
+    <entry name="heroY" type="Double">
+      <label>Vertical focus of the hero image, 0 (top) to 1 (bottom)</label>
+      <default>0.5</default>
+    </entry>
+    <entry name="heroZoom" type="Double">
+      <label>Zoom of the hero image beyond filling the card</label>
+      <default>1</default>
+    </entry>
+    <entry name="wallTarget" type="String">
+      <label>Screens the wallpaper view applies to: "all" or an output name</label>
+      <default>all</default>
+    </entry>
+    <entry name="wallFocus" type="String">
+      <label>The screen the Theme page shows while it edits every screen (wallTarget "all")</label>
+      <default></default>
+    </entry>
+    <entry name="tags" type="String">
+      <label>Tags of the last "Get more" (comma-separated)</label>
+      <default></default>
+    </entry>
+    <entry name="tagHistory" type="StringList">
+      <label>Recent "Get more" tags, newest first</label>
+      <default></default>
+    </entry>
+  </group>
+</kcfg>

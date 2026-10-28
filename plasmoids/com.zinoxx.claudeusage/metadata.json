@@ -1,0 +1,14 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [{ "Name": "zinoxx" }],
+        "Category": "System Information",
+        "Description": "Claude session (5h) and weekly usage limits",
+        "Icon": "claude",
+        "Id": "com.zinoxx.claudeusage",
+        "License": "MIT",
+        "Name": "Claude Usage",
+        "Version": "2.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
