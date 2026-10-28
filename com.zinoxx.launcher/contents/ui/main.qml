@@ -11,6 +11,7 @@ import org.kde.plasma.components as PlasmaComponents
 import org.kde.plasma.extras as PlasmaExtras
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.private.kicker as Kicker
+import org.kde.plasma.plasma5support as P5Support
 import "Rice"
 import "Rice/Color.js" as C
 import "Rice/SessionActions.js" as Session
@@ -195,6 +196,34 @@ PlasmoidItem {
     // shut down go through the rice logout screen (org.kde.LogoutPrompt)
     readonly property var sessionActions: Session.pick(["lock", "sleep", "reboot", "shutdown"])
     function greeting(h) { return h < 5 ? "Up late," : h < 12 ? "Good morning," : h < 18 ? "Good afternoon," : "Good evening," }
+
+    // battery saver (plasma-rice/battery-saver.py): its switch on the hero card shows only while the
+    // laptop runs on battery. Plasma's power engine follows UPower's signals, so nothing is polled. When
+    // the charger comes back the saver ends by itself (the lights; PowerDevil picks the AC profile)
+    P5Support.DataSource {
+        engine: "powermanagement"
+        connectedSources: ["Battery"]
+        onNewData: (source, data) => root.batt = data
+    }
+    property var batt: ({})
+    readonly property bool unplugged: batt["Has Battery"] === true && batt["State"] === "Discharging"
+    readonly property bool plugged: batt["Has Battery"] === true && !!batt["State"] && batt["State"] !== "Discharging"
+    WatchedJson {
+        id: saverFile
+        path: String(StandardPaths.writableLocation(StandardPaths.HomeLocation)).replace(/^file:\/\//, "") + "/.local/state/rice/battery-saver.json"
+        onChanged: root.saverBusy = false
+    }
+    readonly property bool saverOn: !!(saverFile.value && saverFile.value.on)
+    property bool saverBusy: false          // a switch sent, until the file changes
+    property bool saverWant: false
+    readonly property bool saverShown: saverBusy ? saverWant : saverOn
+    function setSaver(on) {
+        saverWant = on; saverBusy = true; saverTimeout.restart()
+        run('python3 "$HOME/.config/plasma-rice/battery-saver.py" ' + (on ? "on" : "off"))
+    }
+    Timer { id: saverTimeout; interval: 8000; onTriggered: root.saverBusy = false }    // it was already so
+    readonly property bool saverStale: plugged && saverOn
+    onSaverStaleChanged: if (saverStale) run('python3 "$HOME/.config/plasma-rice/battery-saver.py" off --plugged')
 
     // ------------------------------------------------------------------ right-click menu
     PlasmaExtras.Menu {

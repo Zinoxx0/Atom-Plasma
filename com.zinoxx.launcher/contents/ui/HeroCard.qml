@@ -154,6 +154,94 @@ Item {
                 }
             }
         }
+        // battery saver, only while the laptop runs on battery: the whole card is the switch
+        Rectangle {
+            id: saver
+            visible: launcher.unplugged || launcher.saverOn
+            Layout.fillWidth: true
+            Layout.topMargin: launcher.px(Tokens.space.lg)
+            implicitHeight: launcher.px(48)
+            radius: Tokens.radius.md
+            readonly property bool on: launcher.saverShown
+            readonly property real charge: Number(launcher.batt["Percent"]) || 0
+            readonly property color tone: charge <= 10 ? rice.bad : charge <= 20 ? rice.warn : rice.green
+            activeFocusOnTab: true
+            color: on ? C.alpha(rice.green, saverMouse.containsMouse ? 0.26 : 0.18)
+                      : C.alpha(rice.surfaceLowest, saverMouse.containsMouse ? 0.72 : 0.5)
+            border.width: 1
+            border.color: on ? C.alpha(rice.green, 0.55)
+                        : C.alpha(rice.edge, saverMouse.containsMouse ? Tokens.alpha.outlineStrong : Tokens.alpha.outline)
+            Behavior on color { ColorAnimation { duration: Tokens.fast } }
+            Behavior on border.color { ColorAnimation { duration: Tokens.fast } }
+            function toggle() { if (!launcher.saverBusy) launcher.setSaver(!on) }
+            Keys.onSpacePressed: toggle()
+            Keys.onReturnPressed: toggle()
+            Keys.onEnterPressed: toggle()
+
+            RowLayout {
+                anchors { fill: parent; leftMargin: launcher.px(Tokens.space.md); rightMargin: launcher.px(Tokens.space.md) }
+                spacing: launcher.px(Tokens.space.sm + 2)
+                Text {
+                    text: saver.on ? "eco"
+                        : saver.charge <= 10 ? "battery_alert" : saver.charge >= 95 ? "battery_full"
+                        : "battery_" + Math.round(saver.charge / 100 * 6) + "_bar"
+                    color: saver.on ? rice.green : saver.tone
+                    font.family: Tokens.font.icons
+                    font.pixelSize: launcher.px(22)
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 0
+                    Text {
+                        Layout.fillWidth: true
+                        text: "Battery saver"
+                        elide: Text.ElideRight
+                        color: rice.fg
+                        font.family: Tokens.font.ui
+                        font.weight: Font.Bold
+                        font.pixelSize: launcher.px(Tokens.size.label)
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        readonly property int mins: Math.round((Number(launcher.batt["Smoothed Remaining msec"]) || 0) / 60000)
+                        text: Math.round(saver.charge) + "%"
+                              + (mins > 0 ? " · " + (mins >= 60 ? Math.floor(mins / 60) + "h " : "") + mins % 60 + "m left" : "")
+                        elide: Text.ElideRight
+                        color: rice.fgDim
+                        font.family: Tokens.font.ui
+                        font.pixelSize: launcher.px(Tokens.size.small)
+                        font.features: { "tnum": 1 }
+                    }
+                }
+                Rectangle {           // the switch
+                    implicitWidth: launcher.px(34); implicitHeight: launcher.px(20); radius: height / 2
+                    color: saver.on ? rice.green : C.alpha(rice.fg, 0.16)
+                    opacity: launcher.saverBusy ? 0.6 : 1
+                    Behavior on color { ColorAnimation { duration: Tokens.base } }
+                    Rectangle {
+                        width: parent.height - launcher.px(6); height: width; radius: width / 2
+                        anchors.verticalCenter: parent.verticalCenter
+                        x: saver.on ? parent.width - width - launcher.px(3) : launcher.px(3)
+                        color: saver.on ? rice.surfaceLowest : rice.fg
+                        Behavior on x { NumberAnimation { duration: Tokens.base; easing.type: Tokens.move } }
+                    }
+                }
+            }
+            FocusRing { radius: saver.radius; ink: rice.edge }
+            PlasmaCore.ToolTipArea {
+                anchors.fill: parent
+                mainText: "Battery saver"
+                subText: "Power Save profile (CPU and ASUS firmware), the keyboard lights off and the screens at 60 Hz. "
+                       + "Brightness and sleep are left alone. Ends by itself when the charger is plugged in."
+                MouseArea {
+                    id: saverMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: saver.toggle()
+                }
+            }
+        }
         RowLayout {
             id: sessionRow
             Layout.topMargin: launcher.px(Tokens.space.lg + 2)

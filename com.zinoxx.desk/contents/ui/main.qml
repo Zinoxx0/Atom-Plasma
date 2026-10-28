@@ -69,6 +69,9 @@ PlasmoidItem {
     // how full the usage is shows as how tired Clawd looks (Clawd.usage), not as a mood
     readonly property string mood: limits.mood
     readonly property bool working: limits.working
+    readonly property bool celebrate: limits.celebrate
+    readonly property bool warm: limits.warm
+    readonly property real sand: limits.sand
     // what Claude Code is doing (its hooks), watched only where Clawd is shown
     ClaudeActivity { id: claude; active: root.desk.clawd === true }
     // a check-in from Claude (ask.sh): the "!" over the desktop Clawd and its message under the clock,
@@ -100,6 +103,7 @@ PlasmoidItem {
     }
     readonly property int hour: now.getHours()
     readonly property string daypart: hour < 5 || hour >= 22 ? "night" : hour < 10 ? "morning" : hour < 18 ? "day" : "evening"
+    readonly property bool weekend: now.getDay() === 0 || now.getDay() === 6
     readonly property string season: now.getMonth() === 9 && now.getDate() >= 24 ? "halloween"
         : now.getMonth() === 11 && now.getDate() <= 26 ? "xmas"
         : (now.getMonth() === 11 && now.getDate() === 31) || (now.getMonth() === 0 && now.getDate() === 1) ? "newyear" : ""

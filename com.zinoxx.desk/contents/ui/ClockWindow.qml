@@ -262,10 +262,15 @@ DeskWindow {
         usage: cw.d.peak
         working: cw.d.working
         activity: cw.d.activity
+        celebrate: cw.d.celebrate
+        warm: cw.d.warm
+        sand: cw.d.sand
         weather: cw.d.sky
         daypart: cw.d.daypart
+        weekend: cw.d.weekend
         season: cw.d.season
         pal: cw.d.pal.values
+        music: cw.d.player.playing === true     // off duty, headphones on while something plays
         alert: cw.d.asking
         onAlertClicked: cw.d.askDone()
         onSummoned: cw.d.summonClaude()

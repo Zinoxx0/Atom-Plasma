@@ -28,8 +28,31 @@ PlasmoidItem {
     ClaudeAsk { id: checkIn }
     readonly property var ask: checkIn.ask
     readonly property bool asking: checkIn.asking
-    Plasmoid.status: asking ? PlasmaCore.Types.NeedsAttentionStatus : PlasmaCore.Types.ActiveStatus
+    // the island turns red for a check-in, or while Claude Code waits on a permission / a question form
+    Plasmoid.status: asking || activity === "attention" ? PlasmaCore.Types.NeedsAttentionStatus : PlasmaCore.Types.ActiveStatus
     function ackAsk() { checkIn.done() }
+    // an important update the update check found (~/.config/plasma-rice/update-check.py): a green badge on
+    // Clawd and a card in the popup, until it's marked seen or the update is installed
+    ClaudeAsk {
+        id: cachy
+        file: "update.json"
+        ackCommand: 'python3 "$HOME/.config/plasma-rice/update-check.py" --ack'
+    }
+    readonly property bool updating: cachy.asking
+    readonly property var updateInfo: cachy.ask         // (not `update`: that's Item.update())
+    function updateDone() { cachy.done() }
+    // something playing: off duty, Clawd puts its headphones on
+    NowPlaying { id: nowPlaying; ticking: false }
+    readonly property bool musicOn: nowPlaying.playing
+    // what the bar's Clawd is up to off duty (every Clawd works it out the same way from the clock)
+    property string barHobby: ""
+    // rain or snow outside, from the desk's weather (weather.py caches it): an umbrella, a scarf
+    WatchedJson { id: weatherFile; path: sh.home + "/.cache/rice/weather.json" }
+    readonly property string sky: {
+        const c = Number(weatherFile.value?.now?.code ?? -1)
+        return (c >= 51 && c <= 67) || (c >= 80 && c <= 82) || c >= 95 ? "rain"
+             : (c >= 71 && c <= 77) || c === 85 || c === 86 ? "snow" : ""
+    }
     // a double click on Clawd: Claude Code in a new terminal (KIO starts it in its own scope, so it
     // outlives plasmashell)
     function summonClaude() {
@@ -68,11 +91,19 @@ PlasmoidItem {
     readonly property string moodText: {
         if (celebrate) return "Fresh limits! Let's go.";
         if (mood === "limited") return "Out of energy. Recharging " + (limitWin.reset ? "until " + at(limitWin.reset) : "for a while") + ".";
-        if (activity === "waiting") return "Claude is waiting for you.";
-        if (activity === "done") return "All done!";
+        if (activity === "attention") return "Claude Code needs your OK.";
+        if (activity === "waiting") return "Claude asked you something.";
+        const after = ({ running: "Waiting on a background job…", done: "All done!", fixed: "Fixed it!",
+                         found: "Found some answers.", stuck: "Hit a snag. Have a look?", chat: "Just chatting." })[activity];
+        if (after) return after;
         if (peak >= 90) return "Running on fumes. So… sleepy.";
-        if (mood === "sleep") return !hasData ? "No usage data yet."
-                                   : daypart === "night" ? "Fast asleep. Goodnight!" : "Napping until Claude Code runs again.";
+        if (!hasData) return "No usage data yet.";
+        // off duty: what Clawd's doing with its time
+        const hobby = ({ book: "Reading a good book.", game: "Gaming on its break.", music: "Vibing to some music.",
+                         paint: "Painting a little masterpiece.", bubbles: "Blowing bubbles.", yoyo: "Practising yo-yo tricks.",
+                         plant: "Watering its plant.", blocks: "Building a tower.", telescope: "Stargazing.",
+                         coffee: "Coffee break." })[barHobby];
+        if (mood === "sleep" && hobby) return hobby + " Claude Code is resting.";
         const busy = ({ thinking: "Thinking it through…", typing: "Typing away with you.", building: "Running commands…",
                         reading: "Reading the code…", web: "Looking things up…", juggling: "Juggling subagents…",
                         sweeping: "Tidying up the context…" })[activity];
@@ -112,8 +143,10 @@ PlasmoidItem {
     function ringFrom(i, hot) { return hot ? pal.red : i === 0 ? pal.primary : pal.tertiary }
     function ringTo(i, hot) { return hot ? pal.orange : i === 0 ? pal.tertiary : pal.secondary }
 
-    toolTipMainText: asking ? "Claude needs you" : "Claude"
-    toolTipSubText: asking ? ask.msg + "\nOpen this to mark it done." : hasData ? "Session " + Math.round(session.pct) + "%  ·  Weekly " + Math.round(weekly.pct) + "%\n" + moodText
+    toolTipMainText: asking ? "Claude needs you" : updating ? String(updateInfo?.title ?? "Important Cachy update!") : "Claude"
+    toolTipSubText: asking ? ask.msg + "\nOpen this to mark it done."
+                  : updating ? String(updateInfo?.msg ?? "") + "\nOpen this for the report."
+                  : hasData ? "Session " + Math.round(session.pct) + "%  ·  Weekly " + Math.round(weekly.pct) + "%\n" + moodText
                             : "No usage data yet"
     preferredRepresentation: compactRepresentation
 
@@ -155,8 +188,12 @@ PlasmoidItem {
                 season: root.season
                 sand: root.sand
                 alert: root.asking
+                notice: root.updating
+                music: root.musicOn
+                weather: root.sky
                 pal: root.palValues
                 hovered: compact.containsMouse
+                onHobbyChanged: root.barHobby = hobby
                 onAlertClicked: root.expanded = true        // the popup has the message and Done
                 onSummoned: root.summonClaude()
                 Layout.alignment: Qt.AlignVCenter
@@ -275,6 +312,84 @@ PlasmoidItem {
                     }
                 }
 
+                // an important update (update-check.py): what it is, the care it needs, the full report
+                Rectangle {
+                    visible: root.updating
+                    Layout.fillWidth: true
+                    implicitHeight: updateRow.implicitHeight + 2 * Tokens.space.md
+                    radius: Tokens.radius.md
+                    color: C.alpha(pal.green, 0.12)
+                    border.width: 1
+                    border.color: C.alpha(pal.green, 0.4)
+                    RowLayout {
+                        id: updateRow
+                        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: Tokens.space.md }
+                        spacing: Tokens.space.md
+                        Rectangle {
+                            implicitWidth: 34; implicitHeight: 34
+                            radius: Tokens.radius.sm
+                            color: pal.green
+                            Layout.alignment: Qt.AlignTop
+                            Text {
+                                anchors.centerIn: parent
+                                text: "system_update_alt"
+                                color: pal.surfaceLowest
+                                font.family: Tokens.font.icons
+                                font.pixelSize: 22
+                            }
+                        }
+                        ColumnLayout {
+                            spacing: Tokens.space.xxs
+                            Layout.fillWidth: true
+                            Text {
+                                text: root.updateInfo ? String(root.updateInfo.title ?? "Important Cachy update!") : ""
+                                color: pal.green
+                                font.family: Tokens.font.ui
+                                font.weight: Font.Bold
+                                font.pixelSize: Tokens.size.body
+                            }
+                            Text {
+                                text: root.updateInfo ? root.updateInfo.msg : ""
+                                color: pal.fg
+                                font.family: Tokens.font.ui
+                                font.pixelSize: Tokens.size.body
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
+                            }
+                            Text {
+                                visible: text !== ""
+                                text: root.updateInfo ? String(root.updateInfo.caveat ?? "") : ""
+                                color: pal.fgDim
+                                font.family: Tokens.font.ui
+                                font.pixelSize: Tokens.size.label
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
+                            }
+                            RowLayout {
+                                spacing: Tokens.space.sm
+                                Layout.topMargin: Tokens.space.xs
+                                Pill {
+                                    palette: pal
+                                    text: "Got it"
+                                    accent: pal.green
+                                    onAccent: pal.surfaceLowest
+                                    size: 28
+                                    onClicked: root.updateDone()
+                                }
+                                Pill {
+                                    palette: pal
+                                    icon: "open_in_new"
+                                    iconLast: true
+                                    text: "Report"
+                                    size: 28
+                                    visible: !!(root.updateInfo && root.updateInfo.report)
+                                    onClicked: { Qt.openUrlExternally("file://" + root.updateInfo.report); root.expanded = false }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 PopupHeader {
                     Layout.fillWidth: true
                     palette: pal
@@ -299,6 +414,9 @@ PlasmoidItem {
                             season: root.season
                             sand: root.sand
                             alert: root.asking
+                            notice: root.updating
+                            music: root.musicOn
+                            weather: root.sky
                             pal: root.palValues
                             animate: root.expanded
                             onSummoned: root.summonClaude()
