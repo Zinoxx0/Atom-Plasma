@@ -7,3 +7,7 @@ lnf/com.zinoxx.rice/contents/splash/palette.js
 
 # the user settings live in ~/.config/atom-plasma/settings.json (settings.default.json is the repo default)
 settings.json
+
+# private notes for Claude sessions (see the file itself)
+CLAUDE.md
+REFACTOR.md
