@@ -15,6 +15,9 @@
     rice.py wallpaper-dir    where the collection is
     rice.py page             everything the Theme page shows, as one JSON (wallpapers, screens, themes)
     rice.py screens          JSON list of screens and their wallpapers (for the picker)
+    rice.py install [--dry-run]
+                             put every piece where Plasma, KWin and systemd look for it (links into this repo,
+                             units, plasmashell's environment, shortcuts); safe to re-run (atom/install.py)
     rice.py doctor           is the rice whole here? the machine's capabilities and features (settings
                              `features` {name: auto|on|off}), the displays, and every installed piece
     rice.py ui show          JSON: the UI size settings and every screen's size (standard and effective)
@@ -122,6 +125,9 @@ def main(args):
                 theme.screens_changed()
         else:
             print(displays.report(ds, cfg))
+    elif arg == "install":
+        from atom import install
+        print(install.install(dry="--dry-run" in args))
     elif arg == "doctor":
         from atom import doctor
         text, bad = doctor.report()
