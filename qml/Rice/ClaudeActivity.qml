@@ -6,9 +6,12 @@ import QtCore
 //
 //   ClaudeActivity { id: claude }      Clawd { activity: claude.activity }
 //
-// activity: thinking | typing | building | reading | web | juggling | sweeping | waiting | done, "idle"
-// once the hooks have reported and nothing is going on (Clawd then ignores the status line's `working`),
-// "" with no hook data at all.
+// activity, while Claude works: thinking | typing | building | reading | web | juggling | sweeping;
+// when it needs you: attention (a permission prompt, a question form, a plan to approve; until it goes
+// on) | waiting (its answer asked you something; up to 3 h); after an answer (what it was about, from
+// clawd-intent.py): running (background work going; up to 45 min) | fixed | done | found | stuck (for
+// 10 min) | chat (20 s); "idle" once the hooks have reported and nothing is going on (Clawd then
+// ignores the status line's `working`), "" with no hook data at all.
 Item {
     id: ca
     visible: false
@@ -20,9 +23,17 @@ Item {
 
     readonly property string activity: {
         if (!last || age > 6 * 3600) return ""
-        const e = last.event, t = String(last.tool || "")
-        if (e === "stop") return age < 8 ? "done" : "idle"
-        if (e === "notify") return age < 600 ? "waiting" : "idle"
+        const e = last.event, t = String(last.tool || ""), k = String(last.kind || "")
+        if (e === "stop") {
+            if (k === "running") return age < 45 * 60 ? "running" : "idle"
+            if (k === "question") return age < 3 * 3600 ? "waiting" : "idle"
+            if (k === "chat") return age < 20 ? "chat" : "idle"
+            if (k === "fixed" || k === "done" || k === "found" || k === "stuck") return age < 600 ? k : "idle"
+            return age < 8 ? "done" : "idle"                // an older hook, with no kind
+        }
+        // Claude Code waits on the user: a permission prompt, a question form (AskUserQuestion), a plan
+        if (e === "notify" || (e === "pre" && (t === "AskUserQuestion" || t === "ExitPlanMode")))
+            return age < 3 * 3600 ? "attention" : "idle"
         if (e === "end" || age > 180) return "idle"         // ended, or a session that died mid-way
         if (e === "compact") return "sweeping"
         if (e === "prompt" || e === "post") return "thinking"
@@ -42,9 +53,9 @@ Item {
         active: ca.active
         onChanged: if (file.value && file.value.ts) { ca.now = Date.now() / 1000; ca.last = file.value }
     }
-    // the clock only ticks while something is going on (to let "done" and stale states expire)
+    // the clock only ticks while something is going on (to let the after-answer states expire)
     Timer {
-        interval: ca.activity === "done" ? 2000 : 20000
+        interval: ca.age < 30 ? 2000 : 20000
         running: ca.active && ca.activity !== "" && ca.activity !== "idle"
         repeat: true
         onTriggered: ca.now = Date.now() / 1000

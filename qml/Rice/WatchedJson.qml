@@ -27,7 +27,8 @@ Item {
         if (!path) return
         const x = new XMLHttpRequest()
         x.onreadystatechange = () => {
-            if (x.readyState !== XMLHttpRequest.DONE) return
+            // (a read can land after this watcher was destroyed, e.g. a desk window remade at start)
+            if (x.readyState !== XMLHttpRequest.DONE || typeof wj.take !== "function") return
             wj.answered = true
             wj.take(x.responseText || "")
         }
