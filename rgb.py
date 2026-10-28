@@ -42,7 +42,7 @@ import sys
 import time
 from pathlib import Path
 
-from atom import palette, util
+from atom import displays, palette, util
 from atom.util import CACHE, STATE
 
 SETTINGS = STATE / "rgb.json"
@@ -76,12 +76,24 @@ RAZER = {0x0293: {"name": "Razer BlackWidow V4 X", "rows": 6, "cols": 22, "iface
 
 # ---------------------------------------------------------------- settings
 def builtin_output():
-    """The laptop's own panel (the laptop keyboard follows it by default)."""
-    for p in sorted(STATE.glob("palette-*.json")):
-        name = p.stem[len("palette-"):]
-        if name.startswith(("eDP", "LVDS")):
-            return name
+    """The laptop's own panel, as a display id (the laptop keyboard follows it by default)."""
+    for i, e in displays.registry().items():
+        if (e.get("connectors") or [""])[0].startswith(displays.INTERNAL):
+            return i
     return "lead"
+
+
+def to_id(key):
+    """A screen a keyboard follows, kept as a display id (it survives the monitor changing port); "lead" as is."""
+    return key if key == "lead" else displays.id_for(key, ds=[]) or key
+
+
+def to_conn(key):
+    """The connector a followed display id is on now (palette files and the Lighting tab use connectors)."""
+    if key == "lead":
+        return key
+    e = displays.registry().get(key) or {}
+    return (e.get("connectors") or [key])[0]
 
 
 def defaults():
@@ -102,6 +114,8 @@ def load():
     for dev, s in saved.items():
         if dev in out and isinstance(s, dict):
             out[dev].update({k: v for k, v in s.items() if k in out[dev]})
+    for s in out.values():
+        s["follow"] = to_id(s["follow"])        # settings from before display ids named a connector
     return out
 
 
@@ -140,23 +154,26 @@ def set_args(dev, args, strict=True):
                 sys.exit("brightness is 0..100")
         elif k == "on":
             v = v.lower() in ("1", "true", "on", "yes")
-        elif k == "follow" and not v:
-            sys.exit("follow is lead or an output name")
+        elif k == "follow":
+            if not v:
+                sys.exit("follow is lead, an output name or a display id")
+            v = to_id(v)
         out[k] = v
     return out
 
 
 # ---------------------------------------------------------------- colours
 def lead():
+    """The connector of the screen that drives the theme (theme-screen holds its display id)."""
     try:
-        return LEAD.read_text().strip()
+        return to_conn(LEAD.read_text().strip())
     except OSError:
         return ""
 
 
 def screen_palette(follow):
     """The palette of the screen a keyboard follows (the global one if that screen has none)."""
-    name = lead() if follow == "lead" else follow
+    name = lead() if follow == "lead" else to_conn(follow)
     for p in ([STATE / f"palette-{name}.json"] if name else []) + [STATE / "palette.json"]:
         try:
             return name, json.loads(p.read_text())
@@ -545,6 +562,7 @@ def status(cfg):
                 s["brightness"] = round(step * 100 / 3)
         effect, colours = plan(dev, s)
         screen, _ = screen_palette(s["follow"])
+        s["follow"] = to_conn(s["follow"])      # the Lighting tab names screens by connector
         out.append(dict(d, settings=s, effect=effect, colours=colours,
                         led=["#%02x%02x%02x" % led(c) for c in colours], screen=screen,
                         effects=[{"id": e, "name": n, "colours": k} for e, n, k in EFFECTS[dev]],

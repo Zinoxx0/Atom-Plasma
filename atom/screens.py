@@ -6,7 +6,7 @@ import json
 import subprocess
 from pathlib import Path
 
-from . import layout, palette, panel, presets, util
+from . import displays, layout, migrate, palette, panel, presets, util
 from .util import CACHE, STATE
 from .walls import palette_for, with_meta
 
@@ -39,51 +39,46 @@ desktops().forEach(function (d) {
 
 
 def outputs():
-    """Enabled outputs: [{name, label (Laptop / 4K / 1440p), x, y, w, h}] in logical px."""
-    try:
-        data = json.loads(util.run("kscreen-doctor", "-j").stdout)
-    except ValueError:
-        return []
-    out = []
-    for o in data.get("outputs", []):
-        if not o.get("enabled"):
-            continue
-        mode = next((m for m in o.get("modes", []) if m["id"] == o.get("currentModeId")), o)
-        h = mode["size"]["height"]
-        label = "Laptop" if o["name"].startswith(("eDP", "LVDS", "DSI")) else "4K" if h == 2160 else f"{h}p"
-        scale = o.get("scale") or 1
-        out.append({"name": o["name"], "label": label, "x": o["pos"]["x"], "y": o["pos"]["y"],
-                    "w": round(mode["size"]["width"] / scale), "h": round(h / scale)})
-    return out
+    """The enabled displays (atom/displays.py), left to right."""
+    return displays.probe()
 
 
 MATCH = 3      # px: kscreen-doctor and plasmashell can round a fractional-scale position differently
 
 
-def screens():
-    """Screens left to right: output name, label, Plasma screen index (0 = main bar),
-    desktop containment ids and the current wallpaper (path, "" if not an image file)."""
-    outs = outputs()
+def screens(cfg=None):
+    """Screens left to right: display id, connector (`name`), label, Plasma screen index (0 = main bar),
+    logical place and size, desktop containment ids, the current wallpaper (path, "" if not an image file),
+    the rice's UI size there (`ui`) and the display's details (`display`)."""
+    cfg = util.settings() if cfg is None else cfg
+    ds = outputs()
     try:
         desks = json.loads(panel.shell(DESKTOPS_JS))
     except (subprocess.CalledProcessError, ValueError):
         return []
     found = {}
     for d in desks:
-        # the output at this desktop's place; mirrored outputs share one, and Plasma shows one desktop there
-        near = [o for o in outs if abs(o["x"] - d["x"]) <= MATCH and abs(o["y"] - d["y"]) <= MATCH]
+        # the display at this desktop's place; mirrored outputs share one, and Plasma shows one desktop there
+        near = [o for o in ds if not o.mirror and abs(o.x - d["x"]) <= MATCH and abs(o.y - d["y"]) <= MATCH]
         if not near:
             util.warn("desktop %s on Plasma screen %s at %s,%s matches no output (%s)", d["id"], d["screen"],
-                      d["x"], d["y"], ", ".join(f'{o["name"]}@{o["x"]},{o["y"]}' for o in outs))
+                      d["x"], d["y"], ", ".join(f"{o.connector}@{o.x:g},{o.y:g}" for o in ds))
             continue
-        o = min(near, key=lambda o: abs(o["x"] - d["x"]) + abs(o["y"] - d["y"]))
-        s = found.setdefault(o["name"], dict(o, screen=d["screen"], x=d["x"], y=d["y"], main=d["screen"] == 0,
-                                              desktops=[], image=""))
+        o = min(near, key=lambda o: abs(o.x - d["x"]) + abs(o.y - d["y"]))
+        s = found.setdefault(o.connector, dict(
+            id=o.id, name=o.connector, label=o.label, screen=d["screen"], x=d["x"], y=d["y"],
+            w=round(o.w), h=round(o.h), main=d["screen"] == 0, desktops=[], image="",
+            ui=displays.ui_scale(o, cfg), display=dict(o.to_json(), sharedEdges=sorted(displays.shared_edges(o, ds)))))
         s["desktops"].append(d["id"])
         img = d["image"].removeprefix("file://")
         if not s["image"] and img and Path(img).is_file():
             s["image"] = img
-    return sorted(found.values(), key=lambda s: s["x"])
+    out = sorted(found.values(), key=lambda s: s["x"])
+    if ds:
+        for i, conn in displays.remember(ds).items():
+            util.log("display %s moved from %s to %s", i, conn, next(d.connector for d in ds if d.id == i))
+        migrate.upgrade(out, ds)
+    return out
 
 
 def set_images(targets, img):
@@ -165,12 +160,14 @@ def desk_layout(img, s):
 
 
 def media_screen(ss, cfg):
-    """The screen whose clock carries the music card and Clawd: settings desk_media while it's plugged in;
+    """The screen whose clock carries the music card and Clawd (its connector): settings desk_media (a display
+    id, or a connector) while it's plugged in;
     else the only screen; else one beside the main bar's screen (with two, the other one; with more, the
     biggest of those touching it)."""
-    names = [s["name"] for s in ss]
-    if cfg.get("desk_media") in names:
-        return cfg["desk_media"]
+    want = cfg.get("desk_media")
+    chosen = next((s for s in ss if want and want in (s.get("id"), s["name"])), None)
+    if chosen:
+        return chosen["name"]
     if not ss:
         return ""
     area = lambda s: (s.get("w") or 0) * (s.get("h") or 0)
@@ -187,11 +184,7 @@ def media_screen(ss, cfg):
     return max(near, key=area)["name"]
 
 
-def scale_for(setting, output, default=1):
-    """A size factor from settings.json: one number for every screen, or {output: factor}."""
-    if isinstance(setting, (int, float)):
-        return setting
-    return (setting or {}).get(output, default)
+TOP_RATIO = 1.05   # the Glimpse band's size next to the bar widgets' (settings ui.top)
 
 
 CLOCK_JS = r"""
@@ -207,10 +200,17 @@ panels().forEach(function (p) {
 """
 
 
-def size_clocks(bars, names, cfg):
-    """Each bar's clock in its screen's size (settings clock_size, points): a bar moves to another
+CLOCK_PT = 11      # the bar clock's points at UI size 1 (settings ui.clock_pt)
+
+
+def clock_pt(s, cfg):
+    return round(float((cfg.get("ui") or {}).get("clock_pt", CLOCK_PT)) * s["ui"])
+
+
+def size_clocks(bars, by_screen, cfg):
+    """Each bar's clock in its screen's size (ui.clock_pt x that screen's UI size): a bar moves to another
     screen when screens are unplugged (the main bar always sits on screen 0)."""
-    want = {str(b["panel"]): pt for b in bars if (pt := scale_for(cfg.get("clock_size"), names.get(b["screen"]), None))}
+    want = {str(b["panel"]): clock_pt(by_screen[b["screen"]], cfg) for b in bars if b["screen"] in by_screen}
     if want:
         try:
             panel.shell(CLOCK_JS % json.dumps(want))
@@ -226,11 +226,13 @@ def apply_screens(ss, cfg, fallback):
     theme_name = presets.current_theme(ss, ovs)
     for s in ss:
         img = Path(s["image"]) if s["image"] else None
-        p = with_meta(palette_for(img, cfg, ovs.get(s["name"])), img) if img else fallback
+        p = with_meta(palette_for(img, cfg, ovs.get(s["id"])), img) if img else fallback
         g = glass(img, s)
+        top = float((cfg.get("ui") or {}).get("top", TOP_RATIO))
         p = dict(p, _glass=g, _glassBand=GLASS_BAND, _rim=rim(g, p),
-                 _scale=scale_for(cfg.get("bar_scale"), s["name"]),         # size of that bar's widgets
-                 _topScale=scale_for(cfg.get("top_scale"), s["name"]),      # size of the Glimpse band up top
+                 _scale=s["ui"],                                            # size of that bar's widgets
+                 _topScale=round(s["ui"] * top, 2),                         # size of the Glimpse band up top
+                 _display={k: s["display"][k] for k in ("id", "name", "label", "portrait", "sharedEdges")},
                  _layout=desk_layout(img, s),                               # the desktop widgets' places (com.zinoxx.desk)
                  _desk={"media": s["name"] == music, "clawd": s["name"] == music, "theme": theme_name})
         util.write_if_changed(STATE / f"palette-{s['name']}.json", json.dumps(p, indent=2) + "\n")
@@ -239,7 +241,7 @@ def apply_screens(ss, cfg, fallback):
         bars = panel.panels()
     except (subprocess.CalledProcessError, ValueError):
         return
-    size_clocks(bars, {s["screen"]: s["name"] for s in ss}, cfg)
+    size_clocks(bars, {s["screen"]: s for s in ss}, cfg)
     for bar in bars:
         if bar["screen"] not in pals:
             continue

@@ -15,6 +15,9 @@
     rice.py wallpaper-dir    where the collection is
     rice.py page             everything the Theme page shows, as one JSON (wallpapers, screens, themes)
     rice.py screens          JSON list of screens and their wallpapers (for the picker)
+    rice.py displays [--json|--fix|--ask]
+                             the monitors: identity, size, UI size, whether they're arranged soundly (overlaps,
+                             gaps); --fix applies the proposed arrangement, --ask offers it in a notification
     rice.py preset save|load|delete <name>
                              presets: every screen's wallpaper (and the one that drives the
                              theme) under a short name, to switch whole looks at once
@@ -55,18 +58,19 @@ Writes / applies:
 Settings: ~/.config/plasma-rice/settings.json: soft_tint (how far the soft mood's surfaces lean toward
 Tokyo Night's indigo), depth (extra darkness for dark surfaces), light_ui (light wallpapers turn the
 desktop light: frosted Plasma Style "Rice-Light", a light KDE scheme, white-frost islands and popups;
-terminals and apps keep a dark twin palette), bar_scale (the size of a bar's widgets), top_scale (the
-Glimpse band at the top), clock_size (the bar clock's points), icon_theme, desk_media (the screen whose
-desktop clock carries the music card and Clawd; by default the only screen, else one beside the main
-bar's), weather {"city": ...} (weather.py), terminal {font, size, opacity, padding}, wallpaper_dir,
-wallhaven_* (wallhaven.py), update_check (update-check.py); each size is one factor for every screen or
-{output: factor}. The current-wallpaper symlink is ~/.local/state/rice/wallpaper.
+terminals and apps keep a dark twin palette), ui {auto (default true: each screen gets the standard size
+for its pixel density and viewing distance, atom/displays.py), size (the overall preference: x that with
+auto, the size itself without), top (the Glimpse band next to the bar widgets), clock_pt (the bar clock's
+points at size 1)}, displays {<display id>: {size}} (one screen's own size), icon_theme, desk_media (the
+display id whose desktop clock carries the music card and Clawd; by default the only screen, else one beside
+the main bar's), weather {"city": ...} (weather.py), terminal {font, size, opacity, padding}, wallpaper_dir,
+wallhaven_* (wallhaven.py), update_check (update-check.py). Display ids: `rice.py displays`. The current-wallpaper symlink is ~/.local/state/rice/wallpaper.
 """
 import json
 import sys
 from pathlib import Path
 
-from atom import presets, screens, theme, util, walls
+from atom import displays, presets, screens, theme, util, walls
 
 
 def main(args):
@@ -95,6 +99,20 @@ def main(args):
         print(walls.WALLDIR)
     elif arg == "page":
         print(json.dumps(theme.page()))
+    elif arg == "displays":
+        ds, cfg = displays.probe(), util.settings()
+        if "--json" in args:
+            print(json.dumps(displays.summary(ds, cfg)))
+        elif "--fix" in args:
+            fix = displays.proposal(ds)
+            if fix and not displays.apply_fix(fix):
+                sys.exit("kscreen-doctor didn't take: " + fix)
+            print(fix or "nothing to fix")
+        elif "--ask" in args:
+            if displays.ask(ds):
+                theme.screens_changed()
+        else:
+            print(displays.report(ds, cfg))
     elif arg == "screens":
         print(json.dumps(theme.screens_info()))
     elif arg == "presets":

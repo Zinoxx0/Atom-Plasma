@@ -1,19 +1,9 @@
 {
+  "version": 2,
   "soft_tint": 0.6,
   "depth": 0.0,
-  "bar_scale": {
-    "HDMI-A-1": 1.21,
-    "eDP-1": 1.1,
-    "DP-3": 1.1
-  },
-  "top_scale": 1.2,
   "icon_theme": "Tela-circle-dracula-dark",
   "light_ui": true,
-  "clock_size": {
-    "HDMI-A-1": 13,
-    "eDP-1": 11,
-    "DP-3": 12
-  },
   "update_check": {
     "holds": {
       "spotifast-bin": {
@@ -21,5 +11,10 @@
         "why": "0.14.1 segfaults at startup inside the NVIDIA EGL driver (615.78.08); 0.13.3 works. Held with IgnorePkg since 2026-10-22; 0.14.2 skipped 2026-10-28 (its notes don't fix the crash)"
       }
     }
+  },
+  "ui": {
+    "auto": true,
+    "size": 1.2,
+    "top": 1.05
   }
 }

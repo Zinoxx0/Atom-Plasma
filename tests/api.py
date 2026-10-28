@@ -43,7 +43,6 @@ alacritty = lambda p: terminals.alacritty(p, terminals.LOOK)  # noqa: E731
 place = layout.place
 rim = screens.rim
 media_screen = screens.media_screen
-scale_for = screens.scale_for
 theme_args = theme.theme_args
 unusable = walls.unusable
 # design tokens, boot, bar islands, keyboards

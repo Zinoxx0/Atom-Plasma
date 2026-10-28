@@ -58,11 +58,11 @@ def theme_show(s, cfg):
     img = Path(s["image"]) if s["image"] else None
     if not img or not img.is_file():
         return {"screen": s["name"], "image": ""}
-    ov = presets.overrides().get(s["name"], {})
+    ov = presets.overrides().get(s["id"], {})
     auto = walls.palette_for(img, cfg)
     cur = walls.palette_for(img, cfg, ov) if ov else auto
     roles = ("primary", "secondary", "tertiary")
-    return {"screen": s["name"], "image": str(img), "thumb": str(walls.thumb(img)),
+    return {"screen": s["name"], "id": s["id"], "image": str(img), "thumb": str(walls.thumb(img)),
             "mood": cur["_mood"], "scheme": cur["_scheme"], "autoMood": auto["_mood"],
             "detected": cur["_analysis"]["mood"], "moods": list(palette.MOODS), "lightUi": bool(cfg.get("light_ui")),
             "swatches": cur["_swatches"], "overrides": ov,
@@ -83,7 +83,7 @@ def theme_command(sub, target, args):
     asked = target
     if target == "focused":
         target = focused_output() or "all"
-    pickd = [s for s in ss if target in ("all", s["name"])]
+    pickd = [s for s in ss if target in ("all", s["name"], s["id"])]
     if not pickd:
         if asked != "focused":      # a name given by hand: a typo must not edit another screen
             sys.exit(f"no screen named {target!r} (have: {', '.join(s['name'] for s in ss)})")
@@ -94,10 +94,10 @@ def theme_command(sub, target, args):
     ovs = presets.overrides()
     for s in pickd:
         if sub == "reset":
-            ovs.pop(s["name"], None)
+            ovs.pop(s["id"], None)
         else:
-            cur = dict(ovs.get(s["name"], {}), **theme_args(args))
-            ovs[s["name"]] = {k: v for k, v in cur.items() if v not in ("", "auto", None)}
+            cur = dict(ovs.get(s["id"], {}), **theme_args(args))
+            ovs[s["id"]] = {k: v for k, v in cur.items() if v not in ("", "auto", None)}
     presets.save_overrides(ovs)
     pick("restore", "all")
 
@@ -168,25 +168,27 @@ def retheme(ss, img, cfg):
 
 # ---------------------------------------------------------------- picks
 def preset_prepare(name, ss):
-    """Puts a preset's wallpapers on every screen but the one that drives the theme, and its
-    hand-picked colours (or none) in place, and returns (that image, that screen, its name), which
-    pick() then themes from like any other pick. Screens the preset doesn't know (or whose image is
-    gone or unusable) keep what they have."""
+    """Puts a preset's wallpapers on every screen but the one that drives the theme (presets.plan: the same
+    monitor, else by role, else the main screen's), and its hand-picked colours (or none) in place, and returns
+    (that image, that screen's connector, the preset's name), which pick() then themes from like any other pick.
+    A wallpaper that's gone or unusable leaves that screen as it is."""
     p = presets.find_preset(presets.presets(), name)
     if not p:
         sys.exit(f"no preset named {name!r}")
-    have = {s["name"]: s for s in ss}
-    usable = {o: img for o, img in p["screens"].items() if o in have and not walls.unusable(Path(img))}
-    if not usable:
-        sys.exit(f"none of {p['name']!r}'s wallpapers are on a connected screen any more")
-    lead = p.get("lead") if p.get("lead") in usable else \
-        next((o for o, img in usable.items() if img == p["theme"]), next(iter(usable)))
-    presets.save_overrides({o: v for o, v in p.get("overrides", {}).items() if o in have})
-    for o, img in usable.items():
-        if o != lead and have[o]["image"] != img:
-            screens.set_images([have[o]], Path(img))
-            have[o]["image"] = img
-    return usable[lead], lead, p["name"]
+    want = {i: w for i, w in presets.plan(p, ss).items() if not walls.unusable(Path(w["image"]))}
+    if not want:
+        sys.exit(f"none of {p['name']!r}'s wallpapers can be shown any more")
+    by_id = {s["id"]: s for s in ss}
+    # the theme's lead screen if it's here, else the screen showing the theme's wallpaper, else the main one
+    lead = p.get("lead") if p.get("lead") in want else \
+        next((i for i, w in want.items() if w["image"] == p.get("theme")),
+             next((s["id"] for s in ss if s["main"] and s["id"] in want), next(iter(want))))
+    presets.save_overrides({i: w["overrides"] for i, w in want.items() if w["overrides"]})
+    for i, w in want.items():
+        if i != lead and by_id[i]["image"] != w["image"]:
+            screens.set_images([by_id[i]], Path(w["image"]))
+            by_id[i]["image"] = w["image"]
+    return want[lead]["image"], by_id[lead]["name"], p["name"]
 
 
 def pick(arg, target="focused", preset=""):
@@ -199,7 +201,7 @@ def pick(arg, target="focused", preset=""):
         arg, target, preset = preset_prepare(preset, ss)
     if target == "focused":
         target = focused_output() or "all"
-    chosen = [s for s in ss if target in ("all", s["name"])]
+    chosen = [s for s in ss if target in ("all", s["name"], s["id"])]
     if ss and not chosen:
         sys.exit(f"no screen named {target!r} (have: {', '.join(s['name'] for s in ss)})")
 
@@ -210,10 +212,10 @@ def pick(arg, target="focused", preset=""):
         fail(f"{img.name} {why}")
     if arg != "restore" and chosen:
         if not preset:      # a new wallpaper: back to its own colours (a loaded preset brings its own)
-            presets.save_overrides({o: v for o, v in presets.overrides().items() if o not in {s["name"] for s in chosen}})
+            presets.save_overrides({i: v for i, v in presets.overrides().items() if i not in {s["id"] for s in chosen}})
         focused = focused_output()
-        lead = one["name"] if one else next((s["name"] for s in chosen if s["name"] == focused), chosen[0]["name"])
-        util.write_if_changed(presets.LEAD, lead + "\n")
+        lead = one if one else next((s for s in chosen if s["name"] == focused), chosen[0])
+        presets.set_lead(lead["id"])
     cfg = util.settings()
     tmp = STATE / "wallpaper.tmp"
     tmp.unlink(missing_ok=True)
@@ -241,6 +243,10 @@ def pick(arg, target="focused", preset=""):
 def screens_changed():
     """Screens plugged in or out: each screen's palette (and so the desk's music card and Clawd), the
     bars' islands and clock sizes, the window borders."""
+    # an odd arrangement (overlaps, a screen apart) is offered a fix in a notification, which waits for an
+    # answer: in the background, so the rest goes on
+    subprocess.Popen([sys.executable, str(ROOT / "rice.py"), "displays", "--ask"], stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, start_new_session=True)
     p = util.load_json(STATE / "palette.json")
     if not p:
         return
@@ -263,19 +269,30 @@ def screens_info(ss=None):
     lead, ovs = presets.lead_screen(ss), presets.overrides()
     for s in ss:
         s["thumb"] = str(walls.thumb(Path(s["image"]))) if s["image"] else ""
-        s["lead"] = s["name"] == lead                   # its wallpaper drives the system theme
-        s["overrides"] = ovs.get(s["name"], {})         # hand-picked colours
+        s["lead"] = s["id"] == lead                     # its wallpaper drives the system theme
+        s["overrides"] = ovs.get(s["id"], {})           # hand-picked colours
         s["accent"] = (util.load_json(STATE / f"palette-{s['name']}.json") or {}).get("primary", "")
     return ss
 
 
 def presets_info(ss=None):
-    """The themes, each with its thumbnails and whether it's the one on screen right now."""
+    """The themes, each with its thumbnails and whether it's the one on screen right now. `thumbs` maps the
+    screens now (connectors) to what loading it would put there; `layout` is what it was saved on (with each
+    saved screen's thumbnail) and `plan` how it maps onto the screens now (same / role / mirror)."""
     ss = screens.screens() if ss is None else ss
     on = presets.current_theme(ss, presets.overrides())
-    return [dict(p, current=p["name"] == on,
-                 thumbs={o: str(walls.thumb(Path(img))) for o, img in p["screens"].items() if Path(img).is_file()})
-            for p in presets.presets()]
+    by_id = {s["id"]: s for s in ss}
+    out = []
+    for p in presets.presets():
+        plan = presets.plan(p, ss)
+        layout = [dict(e, thumb=str(walls.thumb(Path(e["image"]))) if Path(e["image"]).is_file() else "")
+                  for e in p.get("layout", [])]
+        out.append(dict(p, layout=layout, current=p["name"] == on,
+                        overrides=any(e.get("overrides") for e in layout),
+                        thumbs={by_id[i]["name"]: str(walls.thumb(Path(w["image"])))
+                                for i, w in plan.items() if Path(w["image"]).is_file()},
+                        plan={by_id[i]["name"]: {"how": w["how"], "from": w["from"]} for i, w in plan.items()}))
+    return out
 
 
 def page():

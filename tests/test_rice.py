@@ -152,12 +152,6 @@ class Screens(Golden):
         self.assertEqual(api.media_screen([three[0], three[2]], {}), "eDP-1")       # with two, the other one
         self.assertEqual(api.media_screen([], {}), "")
 
-    def test_scale_for(self):
-        self.assertEqual(api.scale_for(1.2, "DP-3"), 1.2)
-        self.assertEqual(api.scale_for({"DP-3": 1.1}, "DP-3"), 1.1)
-        self.assertEqual(api.scale_for({"DP-3": 1.1}, "eDP-1"), 1)
-        self.assertIsNone(api.scale_for(None, "x", None))
-
     def test_theme_args(self):
         self.assertEqual(api.theme_args(["theme", "set", "--primary", "#AABBCC", "--mood", "auto", "--intensity", "9"]),
                          {"primary": "#aabbcc", "mood": "auto", "intensity": 1.5})
