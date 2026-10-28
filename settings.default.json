@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "soft_tint": 0.6,
+  "depth": 0.0,
+  "light_ui": true,
+  "ui": {"auto": true, "size": 1.0, "top": 1.05},
+  "features": {}
+}

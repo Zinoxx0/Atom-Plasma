@@ -6,7 +6,7 @@
   size model (ui: auto, size, top) and desk_media to a display id.
 """
 from . import displays, presets, util
-from .util import ROOT, STATE
+from .util import STATE
 
 VERSION_FILE = STATE / "state-version"
 VERSION = 2
@@ -32,8 +32,7 @@ def upgrade(ss, ds):
 
 
 def settings_v2(ds, reg):
-    f = ROOT / "settings.json"
-    cfg = util.load_json(f, {}) or {}
+    cfg = util.user_settings()
     if cfg.get("version", 1) >= 2:
         return
     old = {k: cfg.pop(k) for k in ("bar_scale", "clock_size", "top_scale") if k in cfg}
@@ -45,7 +44,7 @@ def settings_v2(ds, reg):
     if cfg.get("desk_media"):
         cfg["desk_media"] = displays.id_for(cfg["desk_media"], ds, reg) or cfg["desk_media"]
     cfg["version"] = 2
-    util.save_json(f, {"version": 2, **{k: v for k, v in cfg.items() if k != "version"}})
+    util.save_settings({"version": 2, **{k: v for k, v in cfg.items() if k != "version"}})
 
 
 def rgb_v2(ds, reg):

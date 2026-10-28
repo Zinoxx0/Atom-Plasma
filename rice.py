@@ -64,7 +64,7 @@ Writes / applies:
     kwinrc [Round-Corners]                      gradient window border (primary -> tertiary), per screen
     the icon theme, the look-and-feel's splash palette, VS Code, btop, MangoHud, Zen, fastfetch,
     keyboards on Automatic (rgb.py), the login screen's stage (boot.py)
-Settings: ~/.config/plasma-rice/settings.json: soft_tint (how far the soft mood's surfaces lean toward
+Settings: ~/.config/atom-plasma/settings.json over the repo's settings.default.json: soft_tint (how far the soft mood's surfaces lean toward
 Tokyo Night's indigo), depth (extra darkness for dark surfaces), light_ui (light wallpapers turn the
 desktop light: frosted Plasma Style "Rice-Light", a light KDE scheme, white-frost islands and popups;
 terminals and apps keep a dark twin palette), ui {auto (default true: each screen gets the standard size

@@ -275,8 +275,7 @@ def ui_set(args, screen=None):
         return args[i + 1] if i + 1 < len(args) else ""
 
     util.hold_lock()
-    f = ROOT / "settings.json"
-    cfg = util.load_json(f, {}) or {}
+    cfg = util.user_settings()
     ui = cfg.setdefault("ui", {})
     if "--auto" in args:
         ui["auto"] = val("--auto").lower() in ("1", "true", "on", "yes")
@@ -301,7 +300,7 @@ def ui_set(args, screen=None):
             except ValueError:
                 sys.exit("--own is a number or auto")
         cfg["displays"] = {k: v for k, v in cfg["displays"].items() if v}
-    util.save_json(f, cfg)
+    util.save_settings(cfg)
     from . import reconcile
     reconcile.run()
 

@@ -20,9 +20,28 @@ LOG_FILE = STATE / "rice.log"
 
 
 # ---------------------------------------------------------------- settings
+CONFIG = HOME / ".config/atom-plasma"
+SETTINGS = CONFIG / "settings.json"                     # the user's (not in the repo)
+DEFAULTS = ROOT / "settings.default.json"               # the repo's: what a fresh install starts from
+
+
 def settings():
-    """~/.config/plasma-rice/settings.json ({} if it's missing or broken)."""
-    return load_json(ROOT / "settings.json", {})
+    """The repo's defaults with the user's settings over them (~/.config/atom-plasma/settings.json; a
+    settings.json in the repo from before 2026-10-28 counts until it's moved)."""
+    user = load_json(SETTINGS)
+    if user is None:
+        user = load_json(ROOT / "settings.json", {})
+    return {**(load_json(DEFAULTS, {}) or {}), **(user or {})}
+
+
+def user_settings():
+    """Only what the user set (for editing and saving back with save_settings)."""
+    user = load_json(SETTINGS)
+    return user if user is not None else (load_json(ROOT / "settings.json", {}) or {})
+
+
+def save_settings(cfg):
+    return save_json(SETTINGS, cfg)
 
 
 def wallpaper_dir(cfg=None):
