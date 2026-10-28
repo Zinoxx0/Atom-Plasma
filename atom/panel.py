@@ -3,8 +3,9 @@ on every re-theme (widget_settings, island_overrides, colorizer_apply), and the 
 bars themselves (main(), `panel/build.py`).
 
 Main panel (screen 0), left to right:
-  [launcher]  [tasks] ........ [Claude] [system rings] [tray] [clock] [power]
-Other screens: [launcher] [tasks] ........ [clock] [show desktop]
+  [launcher]  [tasks] ........ [Claude] [system rings] [tray] [tiling] [clock] [power]
+Other screens: [launcher] [tasks] ........ [tiling] [clock] [show desktop]
+[tiling] is com.zinoxx.tiling (auto-tiling on/off for that screen).
 [launcher] is com.zinoxx.launcher (replaces Kickoff); [tasks] is Glimpse (com.zinoxx.glimpse):
 pinned apps here, open windows in its top strip.
 A stock task manager found on a bar is replaced by it, pins included.
@@ -33,6 +34,7 @@ PRESET_COPY = ROOT / "atom/data/colorizer-preset.json"
 COLORIZER = "luisbocanegra.panel.colorizer"
 SPACER = "org.kde.plasma.panelspacer"
 TASKS = "com.zinoxx.glimpse"
+TILING = "com.zinoxx.tiling"
 LAUNCHER = "com.zinoxx.launcher"           # replaces Kickoff (favourites are Plasma's shared ones)
 LEGACY_TASKS = ["org.kde.plasma.icontasks", "org.kde.plasma.taskmanager"]
 ISLAND_RADIUS = TOKENS["radius"]["md"]     # islands share the windows' corner radius
@@ -314,6 +316,7 @@ panels().forEach(function (p) {
         clock.writeConfig("fontWeight", 700);
         if (fresh) clock.writeConfig("fontSize", 11);
     }
+    one("%(tiling)s");
     if (main) {
         one("org.kde.plasma.systemtray");
         one("com.zinoxx.claudeusage");
@@ -340,7 +343,7 @@ panels().forEach(function (p) {
     expanding.currentConfigGroup = ["General"];
     expanding.writeConfig("expanding", true);
     var small = spacers.slice(1).map(function (w) { return w.id; });
-    var need = main ? 6 : 2;
+    var need = main ? 7 : 3;
     while (small.length < need) small.push(spacer(p).id);
     ids.expanding = expanding.id;
     ids.small = small;
@@ -432,20 +435,77 @@ def order_for(ids, main):
         seq = [k(LAUNCHER), s[0],
                k(TASKS), ids["expanding"],
                k("com.zinoxx.claudeusage"), s[1], k("com.zinoxx.sysstats"), s[2],
-               k("org.kde.plasma.systemtray"), s[3], k("org.kde.plasma.digitalclock"), s[4],
+               k("org.kde.plasma.systemtray"), s[3], k(TILING), s[4], k("org.kde.plasma.digitalclock"), s[5],
                k("com.zinoxx.session"), k(COLORIZER)]
-        extra = s[5:]
+        extra = s[6:]
     else:
         seq = [k(LAUNCHER), s[0], k(TASKS), ids["expanding"],
-               k("org.kde.plasma.digitalclock"), s[1], k("org.kde.plasma.showdesktop"), k(COLORIZER)]
-        extra = s[2:]
+               k(TILING), s[1], k("org.kde.plasma.digitalclock"), s[2], k("org.kde.plasma.showdesktop"), k(COLORIZER)]
+        extra = s[3:]
     return seq + extra
 
 
-def main():
+def configure():
+    """Every bar's widgets and their settings (adds what's missing, at the end); returns {panel id: ids}."""
     js = JS % {"settings": json.dumps(colorizer_settings()), "spacer": SPACER, "colorizer": COLORIZER,
-               "clockpad": CLOCK_PAD, "tasks": TASKS, "legacy": json.dumps(LEGACY_TASKS), "launcher": LAUNCHER}
-    ids = json.loads(shell(js))
+               "clockpad": CLOCK_PAD, "tasks": TASKS, "legacy": json.dumps(LEGACY_TASKS), "launcher": LAUNCHER,
+               "tiling": TILING}
+    return json.loads(shell(js))
+
+
+# a new bar's widgets in order ("|" = a small spacer, "~" = the expanding one): added in this order, a new
+# panel needs no reordering (an existing one does: AppletOrder, with plasmashell stopped, main())
+TEMPLATES = {
+    "main": [LAUNCHER, "|", TASKS, "~", "com.zinoxx.claudeusage", "|", "com.zinoxx.sysstats", "|",
+             "org.kde.plasma.systemtray", "|", TILING, "|", "org.kde.plasma.digitalclock", "|", "com.zinoxx.session",
+             COLORIZER],
+    "secondary": [LAUNCHER, "|", TASKS, "~", TILING, "|", "org.kde.plasma.digitalclock", "|",
+                  "org.kde.plasma.showdesktop", COLORIZER],
+}
+BAR_PX = 49        # a bar's thickness at UI size 1 (logical px): 56 on the desk monitors at today's size
+
+NEW_BARS_JS = r"""
+var want = %(want)s, made = [];
+var have = {};
+panels().forEach(function (p) { if (p.screen >= 0 && p.screen < screenCount) have[p.screen] = p; });
+want.forEach(function (w) {
+    if (w.screen >= screenCount) return;
+    var p = have[w.screen];
+    if (!p) {
+        p = new Panel("org.kde.panel");
+        p.screen = w.screen;
+        p.location = "bottom";
+        p.floating = true;
+        p.lengthMode = "fill";
+        w.widgets.forEach(function (name) {
+            var x = p.addWidget(name === "|" || name === "~" ? "%(spacer)s" : name);
+            if (name === "|" || name === "~") {
+                x.currentConfigGroup = ["General"];
+                x.writeConfig("expanding", name === "~");
+                if (name === "|") x.writeConfig("length", 8);
+            }
+        });
+        made.push(p.id);
+    }
+    if (p.height !== w.height) p.height = w.height;
+});
+print(JSON.stringify(made));
+"""
+
+
+def ensure_bars(ss, cfg):
+    """One rice bar on every screen: a screen without a panel gets one from its template (the main bar on
+    Plasma screen 0), and every bar's thickness follows its screen's UI size. Returns the new panels' ids."""
+    want = [{"screen": s["screen"], "height": round(BAR_PX * s["ui"]),
+             "widgets": TEMPLATES["main" if s["screen"] == 0 else "secondary"]} for s in ss]
+    made = json.loads(shell(NEW_BARS_JS % {"want": json.dumps(want), "spacer": SPACER}) or "[]")
+    if made:
+        configure()         # the new bars' widget settings (Colorizer, clock), as for the rest
+    return made
+
+
+def main():
+    ids = configure()
     print("widgets:", json.dumps(ids))
 
     # plasmashell owns appletsrc while running: stop it, set the order, start it again

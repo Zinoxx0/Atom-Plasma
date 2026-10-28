@@ -15,6 +15,7 @@ HOME = Path.home()
 ROOT = Path(__file__).resolve().parent.parent        # ~/.config/plasma-rice
 STATE = HOME / ".local/state/rice"
 CACHE = HOME / ".cache/rice"
+RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")      # cleared at logout/reboot
 LOG_FILE = STATE / "rice.log"
 
 

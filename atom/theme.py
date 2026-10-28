@@ -241,18 +241,13 @@ def pick(arg, target="focused", preset=""):
 
 
 def screens_changed():
-    """Screens plugged in or out: each screen's palette (and so the desk's music card and Clawd), the
-    bars' islands and clock sizes, the window borders."""
-    # an odd arrangement (overlaps, a screen apart) is offered a fix in a notification, which waits for an
-    # answer: in the background, so the rest goes on
+    """Screens plugged in, out or rearranged: the whole rice on every screen (atom/reconcile.py), and an odd
+    arrangement (overlaps, a screen apart) offered a fix in a notification. That notification waits for an
+    answer, so it runs in the background and the rest goes on."""
     subprocess.Popen([sys.executable, str(ROOT / "rice.py"), "displays", "--ask"], stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, start_new_session=True)
-    p = util.load_json(STATE / "palette.json")
-    if not p:
-        return
-    util.hold_lock()
-    screens.apply_screens(screens.screens(), util.settings(), p)
-    kwin.apply_kwin(p)
+    from . import reconcile
+    reconcile.run()
 
 
 def setup():

@@ -5,8 +5,8 @@
     rice.py next|prev        step through the wallpaper collection (settings wallpaper_dir)
     rice.py random           pick a random one
     rice.py restore          re-apply the current wallpaper's theme
-    rice.py screens-changed  after screens are plugged in or out: each screen's palette, the desktop
-                             clock that carries Clawd, the bars' islands and clock sizes, window borders
+    rice.py screens-changed  after screens are plugged in, out or moved (atom-displayd runs it): every screen
+                             gets the whole rice (wallpaper, desk, bar, tiling, palette; atom/reconcile.py)
     rice.py setup            the one-shot settings that don't follow the wallpaper (window chrome, Dolphin,
                              Darkly): run once, and again only to put them back
     rice.py thumbs           (re)build picker thumbnails
@@ -15,6 +15,9 @@
     rice.py wallpaper-dir    where the collection is
     rice.py page             everything the Theme page shows, as one JSON (wallpapers, screens, themes)
     rice.py screens          JSON list of screens and their wallpapers (for the picker)
+    rice.py tiling toggle|tile|float|status [--screen focused|<output>|<display id>]
+                             auto-tiling per screen (Krohnkite; floating unless a screen is set to tile;
+                             default screen: the focused window's)
     rice.py displays [--json|--fix|--ask]
                              the monitors: identity, size, UI size, whether they're arranged soundly (overlaps,
                              gaps); --fix applies the proposed arrangement, --ask offers it in a notification
@@ -70,7 +73,7 @@ import json
 import sys
 from pathlib import Path
 
-from atom import displays, presets, screens, theme, util, walls
+from atom import displays, presets, screens, theme, tiling, util, walls
 
 
 def main(args):
@@ -113,6 +116,14 @@ def main(args):
                 theme.screens_changed()
         else:
             print(displays.report(ds, cfg))
+    elif arg == "tiling":
+        sub = args[1] if len(args) > 1 else "status"
+        if sub == "status":
+            print(json.dumps(tiling.state()))
+        elif sub in ("toggle", "tile", "float"):
+            print(tiling.set_mode(target, sub))
+        else:
+            sys.exit("rice.py tiling toggle|tile|float|status [--screen X]")
     elif arg == "screens":
         print(json.dumps(theme.screens_info()))
     elif arg == "presets":
