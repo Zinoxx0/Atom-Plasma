@@ -7,7 +7,8 @@ something it didn't make (a file in the way is reported, not replaced).
              the update), the user units in systemd/ into ~/.config/systemd/user
   units      enabled by feature: the display watcher always; keyboard lights, the update check when on
   plasmashell  its drop-in (the widgets read and write the rice's files with XMLHttpRequest)
-  shortcuts  command launchers (Meta+Alt+N/B/R wallpapers, Meta+Shift+W the Theme page, Meta+Alt+T tiling)
+  shortcuts  command launchers (Meta+Alt+N / B / Shift+N: next, previous, random wallpaper; Meta+Shift+W the
+             Theme page; Meta+Alt+T tiling)
              and the Dolphin "Rice" menu for images; keys are only bound where nothing is bound yet
   checks     the commands and Python modules the rice needs
 
@@ -35,8 +36,9 @@ NEEDS_PY = ["PIL", "numpy", "dbus", "gi"]
 LAUNCHERS = {
     "net.local.rice-wall-next": ("Next wallpaper", "go-next", "rice.py next --screen focused", "Meta+Alt+N"),
     "net.local.rice-wall-prev": ("Previous wallpaper", "go-previous", "rice.py prev --screen focused", "Meta+Alt+B"),
+    # (not Meta+Alt+R: Spectacle's screen recording has it by default)
     "net.local.rice-wall-random": ("Random wallpaper", "media-playlist-shuffle", "rice.py random --screen focused",
-                                   "Meta+Alt+R"),
+                                   "Meta+Alt+Shift+N"),
     "net.local.rice-wallpapers": ("Wallpapers", "preferences-desktop-wallpaper", "wallpapers.sh", "Meta+Shift+W"),
     "net.local.rice-tiling": ("Toggle auto-tiling", "view-grid", "tiling.sh", "Meta+Alt+T"),
 }

@@ -70,8 +70,8 @@ rice.py displays [--fix]                                           monitors, arr
 rice.py install | doctor | setup                                   install, check, one-time settings
 ```
 
-Shortcuts: Meta+Alt+N / B / R for the next, previous or a random wallpaper; Meta+Shift+W opens the Theme
-page; Meta+Alt+T toggles tiling.
+Shortcuts: Meta+Alt+N / B for the next or previous wallpaper, Meta+Alt+Shift+N for a random one (rebind
+in System Settings → Shortcuts); Meta+Shift+W opens the Theme page; Meta+Alt+T toggles tiling.
 
 ## Layout of the repo
 
