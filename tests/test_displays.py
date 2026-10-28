@@ -197,5 +197,37 @@ class Size(unittest.TestCase):
         self.assertIsNone(D.seam_free(ds["eDP-1"]))         # 1920 / 1.25 = 1536: already whole
 
 
+class Themes(unittest.TestCase):
+    """presets.plan: a theme saved on some screens, loaded on others."""
+    LAYOUT = [{"id": "L", "x": 0, "y": 0, "main": False, "image": "/w/laptop.jpg"},
+              {"id": "K", "x": 1536, "y": 0, "main": False, "image": "/w/4k.jpg", "overrides": {"mood": "neon"}},
+              {"id": "Q", "x": 3795, "y": 0, "main": True, "image": "/w/1440.jpg"}]
+
+    def screens(self, *spec):
+        return [{"id": i, "x": x, "main": m, "name": i.lower()} for i, x, m in spec]
+
+    def test_same_setup(self):
+        plan = api.presets.plan({"layout": self.LAYOUT}, self.screens(("L", 0, False), ("K", 1536, False), ("Q", 3795, True)))
+        self.assertEqual({i: (w["image"], w["how"]) for i, w in plan.items()},
+                         {"L": ("/w/laptop.jpg", "same"), "K": ("/w/4k.jpg", "same"), "Q": ("/w/1440.jpg", "same")})
+        self.assertEqual(plan["K"]["overrides"], {"mood": "neon"})
+
+    def test_laptop_alone_gets_its_own(self):
+        plan = api.presets.plan({"layout": self.LAYOUT}, self.screens(("L", 0, True)))
+        self.assertEqual(plan["L"]["image"], "/w/laptop.jpg")
+
+    def test_another_machine_maps_by_role(self):
+        plan = api.presets.plan({"layout": self.LAYOUT}, self.screens(("A", 0, True), ("B", 1920, False)))
+        self.assertEqual((plan["A"]["image"], plan["A"]["how"], plan["A"]["from"]), ("/w/1440.jpg", "role", "Q"))
+        self.assertEqual((plan["B"]["image"], plan["B"]["how"]), ("/w/laptop.jpg", "role"))   # then left to right
+
+    def test_more_screens_than_saved_mirror_the_main_one(self):
+        one = [{"id": "L", "x": 0, "main": True, "image": "/w/laptop.jpg"}]
+        plan = api.presets.plan({"layout": one}, self.screens(("L", 0, False), ("K", 1536, False), ("Q", 3795, True)))
+        self.assertEqual(plan["L"]["how"], "same")
+        self.assertEqual({i: (w["image"], w["how"]) for i, w in plan.items() if i != "L"},
+                         {"K": ("/w/laptop.jpg", "mirror"), "Q": ("/w/laptop.jpg", "mirror")})
+
+
 if __name__ == "__main__":
     unittest.main()

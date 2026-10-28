@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import rgb  # noqa: E402
-from atom import (apps, boot, kde, layout, palette, panel, screens, style, terminals,  # noqa: E402
+from atom import (apps, boot, kde, layout, palette, panel, presets, screens, style, terminals,  # noqa: E402
                   theme, tokens, util, vscode, walls)
 
 

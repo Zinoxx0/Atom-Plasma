@@ -59,7 +59,8 @@ def current_wallpaper():
 
 def preset_save(name, ss):
     """Every screen as it is now (wallpaper, place, hand-picked colours) and the one driving the global
-    theme; a preset with the same name (any case) is replaced in place."""
+    theme; a preset with the same name (any case) is replaced in place, keeping its entries for monitors
+    that aren't plugged in now."""
     name = preset_name(name)
     shown = [s for s in ss if s["image"]]
     if not shown:
@@ -81,6 +82,9 @@ def preset_save(name, ss):
     ps = presets()
     old = find_preset(ps, name)
     if old:
+        # saved again on fewer screens: the monitors that aren't plugged in keep what the theme had for them
+        here = {e["id"] for e in layout}
+        entry["layout"] += [e for e in old.get("layout", []) if e.get("id") not in here]
         ps[ps.index(old)] = entry
     else:
         ps.append(entry)
