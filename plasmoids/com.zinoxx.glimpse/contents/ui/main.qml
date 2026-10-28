@@ -483,6 +483,12 @@ PlasmoidItem {
         edgeX = x
         openNow()
     }
+    // a screen whose top edge carries on into another screen (stacked monitors) has no edge to push
+    // against: the pointer passes through. There, resting on the strip for dwellDelay opens the band
+    // (crossing it on the way up is too quick to). The screen's shared edges come from rice.py.
+    readonly property bool topShared: (pal.values._display?.sharedEdges ?? []).indexOf("top") >= 0
+    property real stripX: 0
+    Timer { id: stripDwell; interval: root.cfg.dwellDelay; onTriggered: if (root.stripHovered) root.edgeTouched(root.stripX) }
     // the opened band counts as one area: the band itself, plus the label tab and the thumbnails under it
     property bool bandHovered: false
     property bool dropHovered: false
@@ -694,8 +700,13 @@ PlasmoidItem {
                 onContainsMouseChanged: {
                     root.stripHover(containsMouse)
                     if (containsMouse && mouseY < 1) root.edgeTouched(mouseX)
+                    if (containsMouse && root.topShared) { root.stripX = mouseX; stripDwell.restart() }
+                    else stripDwell.stop()
                 }
-                onPositionChanged: mouse => { if (mouse.y < 1) root.edgeTouched(mouse.x) }
+                onPositionChanged: mouse => {
+                    root.stripX = mouse.x
+                    if (mouse.y < 1) root.edgeTouched(mouse.x)
+                }
                 onClicked: mouse => { root.edgeX = mouse.x; root.openNow() }
             }
         }

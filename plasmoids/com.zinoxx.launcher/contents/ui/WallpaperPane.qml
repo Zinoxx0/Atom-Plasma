@@ -35,7 +35,8 @@ Item {
     property string current: ""     // last wallpaper picked (drives the global theme)
     property var screens: []        // [{name, label, main, image, thumb, lead, overrides, accent}] left to right
     property var presets: []        // [{name, layout (the screens it was saved on), plan + thumbs (on the screens now), current}]
-    property var previewPreset: null    // the theme hovered: the Screens map shows what loading it would do
+    property var previewPreset: null
+    property var arrangement: ({})      // rice.py displays: {problem, fix} when screens overlap or one is apart    // the theme hovered: the Screens map shows what loading it would do
     property int presetLen: 10      // theme names stay this short (rice.py's rule)
     property string busy: ""        // "" | "apply" | "fetch"
     property string pending: ""     // path (or "preset:<name>") being applied
@@ -101,6 +102,7 @@ Item {
         try { pg = JSON.parse(out) } catch (e) { return false }
         screens = pg.screens
         presets = pg.presets
+        arrangement = pg.arrangement ?? ({})
         if (!all) return true
         dir = pg.dir
         current = pg.current
@@ -136,7 +138,7 @@ Item {
                 const name = out.trim()
                 wp.status = name ? "Saved theme “" + name + "”" : "Couldn't save the theme"
                 wp.reload()
-            } else if (kind === "pdelete") {
+            } else if (kind === "pdelete" || kind === "dfix") {
                 wp.reload()
             } else if (kind === "state") {
                 wp.takePage(out, false)
@@ -472,6 +474,18 @@ Item {
                 tooltip: wp.linked ? "Wallpapers and colours go to every screen · click a screen to edit it alone"
                                    : "Edit every screen together"
                 onClicked: wp.toggleLink()
+            }
+            Item { implicitWidth: Tokens.space.sm }
+            Chip {          // the screens overlap, or one is apart: windows can end up the wrong size
+                visible: !!wp.arrangement.problem
+                palette: pal
+                interactive: true
+                size: 28
+                icon: "warning"
+                text: "Fix arrangement"
+                tint: pal.bad
+                tooltip: (wp.arrangement.problem ?? "") + " · click to put them edge to edge"
+                onClicked: sh.exec("dfix", wp.rice(["displays", "--fix"]))
             }
             Item { Layout.fillWidth: true }
             Row {           // the star's meaning
