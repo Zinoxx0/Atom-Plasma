@@ -13,5 +13,13 @@
     "HDMI-A-1": 13,
     "eDP-1": 11,
     "DP-3": 12
+  },
+  "update_check": {
+    "holds": {
+      "spotifast-bin": {
+        "skip": "0.14.2-1",
+        "why": "0.14.1 segfaults at startup inside the NVIDIA EGL driver (615.78.08); 0.13.3 works. Held with IgnorePkg since 2026-10-22; 0.14.2 skipped 2026-10-28 (its notes don't fix the crash)"
+      }
+    }
   }
 }
