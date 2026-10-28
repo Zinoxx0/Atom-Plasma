@@ -6,7 +6,7 @@
         "Description": "CPU, memory and GPU rings",
         "Icon": "utilities-system-monitor",
         "Id": "com.zinoxx.sysstats",
-        "License": "MIT",
+        "License": "GPL-3.0-or-later",
         "Name": "System Rings",
         "Version": "1.0"
     },

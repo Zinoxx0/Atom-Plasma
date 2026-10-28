@@ -6,7 +6,7 @@
         "Description": "Auto-tiling on or off for this screen",
         "Icon": "view-grid",
         "Id": "com.zinoxx.tiling",
-        "License": "MIT",
+        "License": "GPL-3.0-or-later",
         "Name": "Tiling",
         "Version": "1.0"
     },

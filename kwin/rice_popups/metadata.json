@@ -7,7 +7,7 @@
         "EnabledByDefault": false,
         "Icon": "preferences-system-windows-effect-fadingpopups",
         "Id": "rice_popups",
-        "License": "GPL",
+        "License": "GPL-3.0-or-later",
         "Name": "Rice popups"
     },
     "X-KDE-Ordering": 60,

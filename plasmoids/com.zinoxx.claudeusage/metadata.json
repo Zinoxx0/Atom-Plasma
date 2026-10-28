@@ -6,7 +6,7 @@
         "Description": "Claude session (5h) and weekly usage limits",
         "Icon": "claude",
         "Id": "com.zinoxx.claudeusage",
-        "License": "MIT",
+        "License": "GPL-3.0-or-later",
         "Name": "Claude Usage",
         "Version": "2.0"
     },

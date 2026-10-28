@@ -7,7 +7,7 @@
         "EnabledByDefault": false,
         "Icon": "preferences-system-windows-effect-scale",
         "Id": "rice_window",
-        "License": "GPL",
+        "License": "GPL-3.0-or-later",
         "Name": "Rice window motion"
     },
     "X-KDE-Ordering": 60,

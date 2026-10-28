@@ -8,7 +8,7 @@
         ],
         "Description": "Atom Plasma: the white Orbit splash over the blurred wallpaper, and a wlogout-style logout screen (blurred per-screen wallpaper, big action tiles, countdown). Everything else falls back to Breeze.",
         "Id": "com.zinoxx.rice",
-        "License": "MIT",
+        "License": "GPL-3.0-or-later",
         "Name": "Atom Plasma",
         "Version": "1.0"
     },

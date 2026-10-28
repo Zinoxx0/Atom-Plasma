@@ -89,3 +89,8 @@ page; Meta+Alt+T toggles tiling.
 
 Your settings live in `~/.config/atom-plasma/settings.json`, which overrides the repo's
 `settings.default.json`. State lives in `~/.local/state/rice/` and caches in `~/.cache/rice/`.
+
+## License
+
+GPL-3.0-or-later (see `LICENSE`). The KWin effects in `kwin/` are adapted from KWin's own Scale and Fading
+popups effects (GPL-2.0-or-later), and `pkg/` patches GPL projects (KDE-Rounded-Corners, BlueZ).

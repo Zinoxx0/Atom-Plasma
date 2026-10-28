@@ -10,7 +10,7 @@
         "Description": "The desktop's information layer: clock, status line, weather, music and Clawd, placed in each wallpaper's quiet zone",
         "Icon": "preferences-desktop-wallpaper",
         "Id": "com.zinoxx.desk",
-        "License": "MIT",
+        "License": "GPL-3.0-or-later",
         "Name": "Atom Plasma Desk",
         "Version": "1.0"
     },

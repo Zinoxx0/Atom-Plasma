@@ -6,7 +6,7 @@
         "Description": "Launchers on the bar; every open window in a slim self-hiding strip at the top of each screen",
         "Icon": "preferences-system-windows",
         "Id": "com.zinoxx.glimpse",
-        "License": "MIT",
+        "License": "GPL-3.0-or-later",
         "Name": "Glimpse",
         "Version": "1.0"
     },
