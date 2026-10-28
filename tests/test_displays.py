@@ -229,5 +229,22 @@ class Themes(unittest.TestCase):
                          {"K": ("/w/laptop.jpg", "mirror"), "Q": ("/w/laptop.jpg", "mirror")})
 
 
+class DeskLayout(unittest.TestCase):
+    """The desk's clock block keeps a landscape shape and stays on screen whatever the screen's shape."""
+    IMG = sorted((Path(__file__).parent / "fixtures").glob("*.jpg"))[0]
+
+    def test_shapes(self):
+        from atom import layout
+        wide = layout.place(self.IMG, 2560, 1440)["clock"]
+        for w, h in ((1440, 2560), (800, 800), (3440, 1440), (1080, 1920)):
+            L = layout.place(self.IMG, w, h)
+            for box in (L["clock"], L["media"]):
+                self.assertTrue(box["w"] > box["h"], (w, h, box))                     # landscape-shaped
+                self.assertTrue(0 <= box["x"] and box["x"] + box["w"] <= w, (w, h, box))
+                self.assertTrue(0 <= box["y"] and box["y"] + box["h"] <= h, (w, h, box))
+        ultra = layout.place(self.IMG, 3440, 1440)["clock"]
+        self.assertEqual((ultra["w"], ultra["h"]), (wide["w"], wide["h"]))           # not stretched
+
+
 if __name__ == "__main__":
     unittest.main()

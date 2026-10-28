@@ -18,11 +18,14 @@ numpy and Pillow are imported where they're used: rice.py imports this module fo
 """
 from . import util
 
-VERSION = 4                 # bump when the placement changes (rice.py caches layouts by it)
+VERSION = 5                 # bump when the placement changes (rice.py caches layouts by it)
 CELL = 8                    # logical px per cell
-CLOCK = (0.25, 0.20)        # the clock block (Clawd's room, time, date, status, hourly strip), share of the screen
+# Sizes are shares of the screen's 16:9 equivalent (as wide as the screen, at most 16:9 of its height): on a
+# 16:9 screen that's the screen itself; a portrait or square one gets a landscape-shaped block sized by its
+# width, an ultrawide one the block of the 16:9 screen inside it (no stretched clock either way).
+CLOCK = (0.25, 0.20)        # the clock block (Clawd's room, time, date, status, hourly strip)
 MEDIA = (0.20, 0.085)       # the music card
-TOP, BOTTOM, SIDE = 0.07, 0.13, 0.035    # kept clear: the top band, the bar, the edges (fraction)
+TOP, BOTTOM, SIDE = 0.07, 0.13, 0.035    # kept clear: the top band, the bar, the edges
 
 
 def cover(img, w, h):
@@ -51,14 +54,27 @@ def cost_map(small):
     return 0.7 * detail + 0.3 * presence
 
 
+def equivalent(W, H):
+    """The 16:9 equivalent of a W x H screen (any unit): (width, height)."""
+    eq = min(W, H * 16 / 9)
+    return eq, eq * 9 / 16
+
+
+def clear(W, H):
+    """Cells kept clear at the sides, top and bottom of a W x H cell grid."""
+    ew, eh = equivalent(W, H)
+    return round(ew * SIDE), round(eh * TOP), round(eh * BOTTOM)
+
+
 def best_box(cost, bw, bh, taken=()):
     """Top-left cell of the bw x bh box with the lowest mean cost (plus a pull upward), inside the
     clear area and off `taken` boxes."""
     import numpy as np
     H, W = cost.shape
     ii = np.pad(cost.cumsum(0).cumsum(1), ((1, 0), (1, 0)))
-    x0, x1 = round(W * SIDE), W - round(W * SIDE) - bw
-    y0, y1 = round(H * TOP), H - round(H * BOTTOM) - bh
+    side, top, bottom = clear(W, H)
+    x0, x1 = side, W - side - bw
+    y0, y1 = top, H - bottom - bh
     best, where = None, (x0, y0)
     for y in range(y0, max(y0, y1) + 1):
         for x in range(x0, max(x0, x1) + 1):
@@ -78,14 +94,15 @@ def place(img, w, h):
     small = cover(img, w, h)
     cost = cost_map(small)
     H, W = cost.shape
-    cw, ch = round(W * CLOCK[0]), round(H * CLOCK[1])
-    mw, mh = round(W * MEDIA[0]), max(8, round(H * MEDIA[1]))
+    ew, eh = equivalent(W, H)
+    cw, ch = min(W, round(ew * CLOCK[0])), min(H, round(eh * CLOCK[1]))
+    mw, mh = min(W, round(ew * MEDIA[0])), min(H, max(8, round(eh * MEDIA[1])))
     cx, cy = best_box(cost, cw, ch)
     # the music card stacks under the clock when that spot is quiet, else finds its own
     under = (cx, cy + ch + 1)
     ux = cx if cx + cw / 2 < W * 0.62 else cx + cw - mw    # flush with the clock's own side
     under = (ux, under[1])
-    if under[1] + mh <= H - round(H * BOTTOM) and cost[under[1]:under[1] + mh, ux:ux + mw].mean() < 0.35:
+    if under[1] + mh <= H - clear(W, H)[2] and cost[under[1]:under[1] + mh, ux:ux + mw].mean() < 0.35:
         mx, my = under
     else:
         mx, my = best_box(cost, mw, mh, taken=[(cx, cy, cw, ch)])
