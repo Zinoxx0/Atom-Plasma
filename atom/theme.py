@@ -211,7 +211,8 @@ def pick(arg, target="focused", preset=""):
 
     one = chosen[0] if len(chosen) == 1 else None
     img = walls.pick(arg, cur=Path(one["image"]).resolve() if one and one["image"] else None,
-                     taken={Path(s["image"]).resolve() for s in ss if s["image"]})
+                     taken={Path(s["image"]).resolve() for s in ss if s["image"]},
+                     portrait_screen=one["display"]["portrait"] if one else None)
     if why := walls.unusable(img):      # before anything changes: a file the palette can't read would leave a half theme
         fail(f"{img.name} {why}")
     if arg != "restore" and chosen:

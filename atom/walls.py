@@ -32,10 +32,26 @@ def thumb(img):
     return out
 
 
-def pick(arg, cur=None, taken=()):
+def portrait(img):
+    """Is this picture taller than wide? (None if it can't be read; only the header is.)"""
+    from PIL import Image
+    try:
+        with Image.open(img) as im:
+            return im.height > im.width
+    except OSError:
+        return None
+
+
+def pick(arg, cur=None, taken=(), portrait_screen=None):
     """cur: the wallpaper next/prev step from (default: the last one picked);
-    taken: wallpapers on other screens, which random avoids when it can."""
+    taken: wallpapers on other screens, which random avoids when it can;
+    portrait_screen: True/False for a screen standing up or not: next, prev and random keep to pictures of
+    the same orientation when the collection has any (None: any picture)."""
     ws = walls()
+    if portrait_screen is not None and arg in ("next", "prev", "random"):
+        fit = [w for w in ws if portrait(w) == portrait_screen]
+        if fit:
+            ws = fit if cur is None or cur in fit else sorted(fit + [cur])
     if cur is None or arg == "restore":
         try:
             cur = CURRENT.resolve(strict=True)
