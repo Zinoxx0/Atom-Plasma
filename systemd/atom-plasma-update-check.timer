@@ -1,11 +1,11 @@
-# Atom Plasma: runs the update check every hour (the check itself decides when a new look is due).
+# Atom Plasma: the update check runs every day at 20:00 (a check run by hand with --force doesn't move
+# it). No catch-up: when the PC is off at 20:00, that day has no check.
 [Unit]
-Description=Atom Plasma update check, hourly
+Description=Atom Plasma update check, daily at 20:00
 
 [Timer]
-OnCalendar=hourly
-Persistent=true
-RandomizedDelaySec=10min
+OnCalendar=*-*-* 20:00:00
+AccuracySec=1min
 
 [Install]
 WantedBy=timers.target

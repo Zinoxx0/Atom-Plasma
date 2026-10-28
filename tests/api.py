@@ -1,5 +1,6 @@
 """The functions the tests check, by name, wherever they live: when code moves, only this file changes,
 and the saved outputs in tests/golden/ must still match."""
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -9,6 +10,17 @@ sys.path.insert(0, str(ROOT))
 import rgb  # noqa: E402
 from atom import (apps, boot, kde, layout, palette, panel, screens, style, terminals,  # noqa: E402
                   theme, tokens, util, vscode, walls)
+
+
+def _script(name, file):
+    spec = importlib.util.spec_from_file_location(name, ROOT / file)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+update_check = _script("update_check", "update-check.py")
+clawd_intent = _script("clawd_intent", "clawd-intent.py")
 
 # palette
 analyse = palette.analyse
@@ -42,6 +54,15 @@ launcher_style = panel.launcher_style
 vivid = rgb.vivid
 led = rgb.led
 key_frame = rgb.frame
+# the update check
+must_check = update_check.must_check
+advisories = update_check.advisories
+update_prompt = update_check.build_prompt
+update_report = update_check.render_report
+notice_keys = update_check.notice_keys
+notified = update_check.told
+# what Claude's answer was about, for Clawd
+answer_kind = clawd_intent.classify
 
 
 def render_templates(p, out_dir):

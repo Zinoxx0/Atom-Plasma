@@ -1,0 +1,12 @@
+# Atom Plasma: hourly upkeep for the update check (update-check.py --tidy): puts away the desktop Clawd's
+# update notice once its packages are installed, and retries a 20:00 check that failed or waited for
+# Claude usage, until midnight.
+[Unit]
+Description=Atom Plasma update check upkeep
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.config/plasma-rice/update-check.py --tidy
+Nice=10
+TimeoutStartSec=40min

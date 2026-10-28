@@ -1,0 +1,11 @@
+# Atom Plasma: runs the update check's upkeep every hour (see atom-plasma-update-tidy.service).
+[Unit]
+Description=Atom Plasma update check upkeep, hourly
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

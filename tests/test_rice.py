@@ -214,5 +214,107 @@ class Chrome(Golden):
                             "frame": api.key_frame([p["primary"], p["tertiary"]], 2, 5)})
 
 
+class UpdateCheck(Golden):
+    """update-check.py's pure parts: what Claude must look up, what it's told, what the report and the
+    notice say. UPS is a slice of a real CachyOS update list."""
+    UPS = {
+        "kwin": ("6.8.1-1.1", "6.8.1-2.1", "repo"),
+        "linux-cachyos": ("7.2.11-1", "7.3.0-4", "repo"),
+        "linux-cachyos-headers": ("7.2.11-1", "7.3.0-4", "repo"),
+        "linux-cachyos-nvidia-open": ("7.2.11-1", "7.3.0-4", "repo"),
+        "linux-cachyos-lts": ("6.18.40-1", "6.18.41-1", "repo"),
+        "linux-firmware": ("1:20260916-1", "1:20261019-1", "repo"),
+        "linux-firmware-nvidia": ("1:20260916-1", "1:20261019-1", "repo"),
+        "linux-api-headers": ("6.19-1", "6.20-1", "repo"),
+        "lib32-mesa": ("3:26.2.4-1", "3:26.2.5-1", "repo"),
+        "mesa": ("3:26.2.4-1", "3:26.2.5-1", "repo"),
+        "nss": ("3.131.1-1.1", "3.132-1.1", "repo"),
+        "nss-mdns": ("0.15.1-1", "0.15.2-1", "repo"),
+        "polkit-kde-agent": ("6.8.1-1", "6.8.2-1", "repo"),
+        "webkit2gtk-4.1": ("2.54.1-1", "2.54.2-1", "repo"),
+        "spotifast-bin": ("0.13.3-1", "0.14.2-1", "aur"),
+    }
+    HOLDS = {"spotifast-bin": {"skip": "0.14.1-1", "why": "segfaults in the NVIDIA EGL driver", "have": "0.13.3-1"}}
+
+    def test_must_check(self):
+        must = api.must_check(self.UPS, self.HOLDS)
+        self.assertEqual([name for name, _ in must],
+                         ["linux-firmware", "linux-cachyos-lts", "linux-cachyos", "mesa", "nss", "spotifast-bin"])
+        self.golden("update-must-check", must)
+        # a rebuild is never a must-check item, and a held package at its skipped version isn't either
+        self.assertEqual(api.must_check({"kwin": self.UPS["kwin"], "spotifast-bin": ("0.13.3-1", "0.14.1-1", "aur")},
+                                        self.HOLDS), [])
+
+    def test_advisories(self):
+        groups = [{"name": "AVG-1", "packages": ["linux"], "status": "Fixed", "fixed": "7.3.0-1", "severity": "High",
+                   "type": "privilege escalation", "issues": ["CVE-2026-1"]},
+                  {"name": "AVG-2", "packages": ["nss"], "status": "Fixed", "fixed": "3.131.1-1", "severity": "High",
+                   "type": "x", "issues": []},                                  # already installed
+                  {"name": "AVG-3", "packages": ["mesa"], "status": "Not affected", "fixed": "3:26.2.5-1",
+                   "severity": "Low", "type": "x", "issues": []}]
+        hits = api.advisories(groups, self.UPS)
+        self.assertEqual(len(hits), 1)
+        self.assertTrue(hits[0].startswith("- linux-cachyos: AVG-1"), hits[0])  # Arch's linux covers CachyOS's
+
+    def test_prompt(self):
+        news = "- Arch, Sun, 19 Oct 2026: News (https://archlinux.org/news/x/)"
+        full, must = api.update_prompt(self.UPS, sorted(self.UPS), self.HOLDS, "none", news, "2026-10-25")
+        self.assertEqual(len(must), 6)
+        daily, must = api.update_prompt(self.UPS, ["mesa", "lib32-mesa", "kwin"], self.HOLDS, "none", news, "2026-10-25")
+        self.assertEqual([name for name, _ in must], ["mesa"])
+        self.golden("update-prompt", {"full": full.splitlines(), "daily": daily.splitlines()})
+
+    def test_report(self):
+        verdict = {"important": False, "report": "Nothing qualifies.",
+                   "checked": [{"name": "mesa", "finding": "Bug fixes only.", "source": "https://docs.mesa3d.org/"},
+                               {"name": "lib32-mesa", "finding": "Same release.", "source": "https://docs.mesa3d.org/"},
+                               {"name": "nss", "finding": "Looked at the NSS release notes; none yet.", "source": ""}]}
+        must = api.must_check({n: self.UPS[n] for n in ("mesa", "lib32-mesa", "nss")}, {})
+        text = api.update_report("2026-10-25 20:00", "scheduled", self.UPS, ["lib32-mesa", "mesa", "nss"], verdict,
+                                 must, ["search: mesa 26.2.5 release notes"])
+        self.assertIn("## Must-check items with no source\n\n- nss ", text)
+        self.assertNotIn("**lib32-mesa**", text)                                 # folded into mesa's entry
+        self.golden("update-report", text.splitlines())
+
+    def test_notice_keys(self):
+        self.assertEqual(api.notice_keys("m", {"kwin": "6.8.1-2.1", "mesa": "3:26.2.5-1"}),
+                         {"kwin=6.8.1", "mesa=3:26.2.5"})                       # a rebuild is no news
+        self.assertTrue(next(iter(api.notice_keys("m", {}))).startswith("msg:"))
+        self.assertEqual(api.notified({"notified": ["kwin=6.8.1-1.1", "nss=3.132", "msg:ab12"]}),
+                         {"kwin=6.8.1", "nss=3.132", "msg:ab12"})
+
+
+
+class ClawdIntent(unittest.TestCase):
+    """clawd-intent.py: what Claude's answer was about (Clawd's pose after it), from the answer and the
+    tools its turn used."""
+    EDIT, LOOK, RUN = ["Read", "Edit", "Bash"], ["WebSearch", "WebFetch", "Read"], ["Bash", "Bash"]
+
+    def kind(self, text, tools=(), background=()):
+        return api.answer_kind(text, list(tools), list(background))
+
+    def test_running(self):
+        self.assertEqual(self.kind("Started it.", self.RUN, [{"id": "b1"}]), "running")
+        self.assertEqual(self.kind("The second dry run is going. It should take about a minute.", self.RUN), "running")
+        self.assertNotEqual(self.kind("I've stopped the checks; nothing else is running.", self.RUN), "running")
+
+    def test_question(self):
+        self.assertEqual(self.kind("Two ways to go.\n\nWhich one do you want?"), "question")
+        self.assertEqual(self.kind("It's ready, but I can't run sudo, so please run this in your own terminal:"), "question")
+        # an offer of a next step after finished work isn't one
+        self.assertEqual(self.kind("The overhaul is done and live.\n\nNothing is committed yet; want me to commit it?", self.EDIT), "done")
+        self.assertEqual(self.kind("Here's how it works.\n\nIf you'd like, I can look it up.", self.LOOK), "found")
+        self.assertNotEqual(self.kind("It expands to `x < 0 ? -x : x`, a ternary.", self.LOOK), "question")
+
+    def test_outcomes(self):
+        self.assertEqual(self.kind("Tiling is back on now. The toggle was broken by a bug.", self.EDIT), "fixed")
+        self.assertEqual(self.kind("Your own widget was the cause: its bob kept the GPU busy.", self.EDIT), "fixed")
+        self.assertEqual(self.kind("I couldn't get the build to work: the linker fails.", self.RUN), "stuck")
+        self.assertEqual(self.kind("Nothing is broken; the shell crashed once and restarted itself.", self.RUN), "found")
+        self.assertEqual(self.kind("The islands now have a glass look on all three bars.", self.RUN), "done")
+        self.assertEqual(self.kind("The cause is a stale cache in the launcher, and here is why. " * 20, self.LOOK), "found")
+        self.assertEqual(self.kind("Pick 2."), "chat")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,12 +1,13 @@
-# Atom Plasma: the update check (update-check.py). Hourly it puts away a notice whose updates are
-# installed; every couple of days a headless Claude Code reads what CachyOS has waiting and raises the
-# desktop Clawd's "Important Cachy update!" bubble only for a very important one. Installs nothing.
+# Atom Plasma: the update check (update-check.py --scheduled), started by its timer every day at 20:00:
+# a headless Claude Code reviews the updates CachyOS has waiting that are new since the last check, and
+# raises the desktop Clawd's "Important Cachy update!" bubble only for a very important one. Installs
+# nothing. The hourly upkeep (atom-plasma-update-tidy) retries it when it can't run at 20:00.
 [Unit]
 Description=Atom Plasma update check: flag only very important CachyOS updates
 After=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/python3 %h/.config/plasma-rice/update-check.py
+ExecStart=/usr/bin/python3 %h/.config/plasma-rice/update-check.py --scheduled
 Nice=10
 TimeoutStartSec=40min
