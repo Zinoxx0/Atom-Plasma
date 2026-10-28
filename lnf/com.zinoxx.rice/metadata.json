@@ -1,0 +1,16 @@
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "zinoxx"
+            }
+        ],
+        "Description": "Atom Plasma: the white Orbit splash over the blurred wallpaper, and a wlogout-style logout screen (blurred per-screen wallpaper, big action tiles, countdown). Everything else falls back to Breeze.",
+        "Id": "com.zinoxx.rice",
+        "License": "MIT",
+        "Name": "Atom Plasma",
+        "Version": "1.0"
+    },
+    "X-Plasma-APIVersion": "2"
+}
