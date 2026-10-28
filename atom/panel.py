@@ -316,10 +316,10 @@ panels().forEach(function (p) {
         clock.writeConfig("fontWeight", 700);
         if (fresh) clock.writeConfig("fontSize", 11);
     }
-    one("%(tiling)s");
+    if (%(with_tiling)s) one("%(tiling)s");
     if (main) {
         one("org.kde.plasma.systemtray");
-        one("com.zinoxx.claudeusage");
+        if (%(with_claude)s) one("com.zinoxx.claudeusage");
         one("com.zinoxx.sysstats");
         one("com.zinoxx.session");
     } else {
@@ -437,7 +437,7 @@ def order_for(ids, main, others=()):
     """A bar's AppletOrder: its template's widgets in place; widgets the template doesn't know (added by the
     user, e.g. the Claude widget on a secondary bar) each get an island right after the stretch."""
     s = list(ids["small"])
-    k = lambda name: ids[name]
+    k = lambda name: ids.get(name)
     if main:
         seq = [k(LAUNCHER), s[0],
                k(TASKS), ids["expanding"],
@@ -449,6 +449,16 @@ def order_for(ids, main, others=()):
         seq = [k(LAUNCHER), s[0], k(TASKS), ids["expanding"],
                k(TILING), s[1], k("org.kde.plasma.digitalclock"), s[2], k("org.kde.plasma.showdesktop"), k(COLORIZER)]
         extra = s[3:]
+    # a widget that isn't there (its feature is off) leaves its spacer spare
+    keep = []
+    for i, w in enumerate(seq):
+        if w is None:
+            continue
+        if w in s and keep and (keep[-1] in s or keep[-1] == ids["expanding"]):
+            extra.append(w)
+            continue
+        keep.append(w)
+    seq = keep
     at = seq.index(ids["expanding"]) + 1
     for o in others:
         seq[at:at] = [o] + ([extra.pop(0)] if extra else [])
@@ -457,10 +467,13 @@ def order_for(ids, main, others=()):
 
 
 def configure():
-    """Every bar's widgets and their settings (adds what's missing, at the end); returns {panel id: ids}."""
+    """Every bar's widgets and their settings (adds what's missing, at the end); returns {panel id: ids}.
+    Feature widgets (Claude, tiling) only where those features are on (atom/caps.py)."""
+    from . import caps
     js = JS % {"settings": json.dumps(colorizer_settings()), "spacer": SPACER, "colorizer": COLORIZER,
                "clockpad": CLOCK_PAD, "tasks": TASKS, "legacy": json.dumps(LEGACY_TASKS), "launcher": LAUNCHER,
-               "tiling": TILING}
+               "tiling": TILING, "with_tiling": json.dumps(caps.feature("tiling")),
+               "with_claude": json.dumps(caps.feature("claude"))}
     return json.loads(shell(js))
 
 
@@ -507,8 +520,14 @@ print(JSON.stringify(made));
 def ensure_bars(ss, cfg):
     """One rice bar on every screen: a screen without a panel gets one from its template (the main bar on
     Plasma screen 0), and every bar's thickness follows its screen's UI size. Returns the new panels' ids."""
+    from . import caps
+    off = {w for f, w in (("claude", "com.zinoxx.claudeusage"), ("tiling", TILING)) if not caps.feature(f, cfg)}
+
+    def template(name):     # without the widgets of features that are off (and the spacer after each)
+        t = TEMPLATES[name]
+        return [w for i, w in enumerate(t) if w not in off and not (w == "|" and i and t[i - 1] in off)]
     want = [{"screen": s["screen"], "height": round(BAR_PX * s["ui"]),
-             "widgets": TEMPLATES["main" if s["screen"] == 0 else "secondary"]} for s in ss]
+             "widgets": template("main" if s["screen"] == 0 else "secondary")} for s in ss]
     made = json.loads(shell(NEW_BARS_JS % {"want": json.dumps(want), "spacer": SPACER}) or "[]")
     if made:
         configure()         # the new bars' widget settings (Colorizer, clock), as for the rest

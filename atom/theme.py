@@ -113,7 +113,10 @@ def render_templates(p):
 
 def apply_rgb():
     """Keyboards on Automatic follow the new accents (rgb.py writes only those whose colours changed).
-    In the background: a keyboard is no reason to make the theme wait."""
+    In the background: a keyboard is no reason to make the theme wait. Only with keyboard_lights on."""
+    from . import caps
+    if not caps.feature("keyboard_lights"):
+        return
     subprocess.Popen([sys.executable, str(ROOT / "rgb.py"), "apply"], stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, start_new_session=True)
 
@@ -121,7 +124,8 @@ def apply_rgb():
 def stage_login(p, img):
     """The login screen follows the theme: its wallpaper, colours and Plasma Style are staged for the copier
     that `boot.py login` installs (a system unit; the greeter can't read ~). Skipped until it's installed."""
-    if not Path("/etc/systemd/system/atom-plasma-greeter.path").exists():
+    from . import caps
+    if not caps.feature("login_theme") or not Path("/etc/systemd/system/atom-plasma-greeter.path").exists():
         return
     from . import boot      # numpy and PIL: only imported here, off the path of the quick commands
     boot.stage_greeter(img, kde.STYLE.get(p.get("_scheme"), "Rice"))
