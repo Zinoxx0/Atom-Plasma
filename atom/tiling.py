@@ -86,28 +86,11 @@ def write_defaults(ds, tile):
     util.run(*(args + ([value] if value else ["--delete"])))
 
 
-LAYOUT_JS = """
-var target = null;
-workspace.screens.forEach(function (o) { if (o.name === %(conn)s) target = o; });
-if (!target) { answer("no-screen"); }
-else {
-    var before = workspace.activeWindow, desk = null;
-    workspace.stackingOrder.forEach(function (w) { if (w.desktopWindow && w.output === target) desk = w; });
-    if (desk) workspace.activeWindow = desk;
-    callDBus("org.kde.kglobalaccel", "/component/kwin", "org.kde.kglobalaccel.Component", "invokeShortcut",
-             %(shortcut)s, function () {
-        if (before && before !== desk) workspace.activeWindow = before;
-        answer(desk ? "ok" : "no-desktop");
-    });
-}
-"""
 
 
 def set_live(conn, tile):
     """Switch one screen's layout now, without moving focus for good."""
-    import json
-    js = LAYOUT_JS % {"conn": json.dumps(conn),
-                      "shortcut": json.dumps("KrohnkiteTileLayout" if tile else "KrohnkiteFloatingLayout")}
+    js = util.script("tiling-layout", conn=conn, shortcut="KrohnkiteTileLayout" if tile else "KrohnkiteFloatingLayout")
     return kwinscript.run(js, answer=True) == "ok"
 
 

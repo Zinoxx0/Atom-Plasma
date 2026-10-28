@@ -11,31 +11,8 @@ from .util import CACHE, STATE
 from .walls import palette_for, with_meta
 
 
-DESKTOPS_JS = r"""
-var out = [];
-desktops().forEach(function (d) {
-    // a desktop keeps its screen index while that screen is unplugged, and screenGeometry() answers
-    // an index past the last screen with screen 0's place
-    if (d.screen < 0 || d.screen >= screenCount) return;
-    var g = screenGeometry(d.screen);
-    d.currentConfigGroup = ["Wallpaper", "org.kde.image", "General"];
-    out.push({id: d.id, screen: d.screen, x: g.x, y: g.y,
-              image: d.wallpaperPlugin === "org.kde.image" ? d.readConfig("Image") : ""});
-});
-print(JSON.stringify(out));
-"""
 
 
-SET_JS = r"""
-var want = %s;
-desktops().forEach(function (d) {
-    var url = want[String(d.id)];
-    if (!url) return;
-    d.wallpaperPlugin = "org.kde.image";
-    d.currentConfigGroup = ["Wallpaper", "org.kde.image", "General"];
-    d.writeConfig("Image", url);
-});
-"""
 
 
 def outputs():
@@ -53,7 +30,7 @@ def screens(cfg=None):
     cfg = util.settings() if cfg is None else cfg
     ds = outputs()
     try:
-        desks = json.loads(panel.shell(DESKTOPS_JS))
+        desks = json.loads(panel.shell(util.script("desktops")))
     except (subprocess.CalledProcessError, ValueError):
         return []
     found = {}
@@ -82,7 +59,7 @@ def screens(cfg=None):
 
 
 def set_images(targets, img):
-    panel.shell(SET_JS % json.dumps({str(d): f"file://{img}" for s in targets for d in s["desktops"]}))
+    panel.shell(util.script("set-wallpapers", want={str(d): f"file://{img}" for s in targets for d in s["desktops"]}))
 
 
 GLASS_BAND = 160   # logical px of the screen top that Glimpse's glass bar can cover
@@ -187,17 +164,6 @@ def media_screen(ss, cfg):
 TOP_RATIO = 1.05   # the Glimpse band's size next to the bar widgets' (settings ui.top)
 
 
-CLOCK_JS = r"""
-var want = %s;
-panels().forEach(function (p) {
-    var pt = want[String(p.id)];
-    if (!pt) return;
-    p.widgets("org.kde.plasma.digitalclock").forEach(function (w) {
-        w.currentConfigGroup = ["Appearance"];
-        if (Number(w.readConfig("fontSize")) !== pt) w.writeConfig("fontSize", pt);
-    });
-});
-"""
 
 
 CLOCK_PT = 11      # the bar clock's points at UI size 1 (settings ui.clock_pt)
@@ -213,7 +179,7 @@ def size_clocks(bars, by_screen, cfg):
     want = {str(b["panel"]): clock_pt(by_screen[b["screen"]], cfg) for b in bars if b["screen"] in by_screen}
     if want:
         try:
-            panel.shell(CLOCK_JS % json.dumps(want))
+            panel.shell(util.script("clock-sizes", want=want))
         except subprocess.CalledProcessError:
             pass
 
@@ -232,7 +198,7 @@ def apply_screens(ss, cfg, fallback):
         p = dict(p, _glass=g, _glassBand=GLASS_BAND, _rim=rim(g, p),
                  _scale=s["ui"],                                            # size of that bar's widgets
                  _topScale=round(s["ui"] * top, 2),                         # size of the Glimpse band up top
-                 _display={k: s["display"][k] for k in ("id", "name", "label", "portrait", "sharedEdges")},
+                 _display={k: s["display"][k] for k in ("id", "name", "label", "portrait", "sharedEdges", "scale")},
                  _layout=desk_layout(img, s),                               # the desktop widgets' places (com.zinoxx.desk)
                  _desk={"media": s["name"] == music, "clawd": s["name"] == music, "theme": theme_name})
         util.write_if_changed(STATE / f"palette-{s['name']}.json", json.dumps(p, indent=2) + "\n")

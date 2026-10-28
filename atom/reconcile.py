@@ -20,18 +20,6 @@ from .util import CACHE, HOME, STATE
 DESK = "com.zinoxx.desk"
 DESK_PX = 54
 
-DESKS_JS = r"""
-var added = [];
-desktops().forEach(function (d) {
-    if (d.screen < 0 || d.screen >= screenCount) return;
-    if (d.widgets("%(desk)s").length) return;
-    var g = screenGeometry(d.screen);
-    // bottom right, under the bar: the applet draws nothing itself (its windows are layer-shell)
-    d.addWidget("%(desk)s", g.width - %(px)d - 30, g.height - %(px)d - 30, %(px)d, %(px)d);
-    added.push(d.id);
-});
-print(JSON.stringify(added));
-"""
 
 
 def is_ours(img):
@@ -56,7 +44,7 @@ def ensure_wallpapers(ss):
 
 def ensure_desks():
     try:
-        return json.loads(panel.shell(DESKS_JS % {"desk": DESK, "px": DESK_PX}) or "[]")
+        return json.loads(panel.shell(util.script("desks", desk=DESK, px=DESK_PX)) or "[]")
     except (subprocess.CalledProcessError, ValueError):
         return []
 

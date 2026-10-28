@@ -60,6 +60,11 @@ def _pictures():
 
 
 # ---------------------------------------------------------------- files
+def script(name, **args):
+    """atom/js/<name>.js (a plasmashell or KWin script) with its arguments as `ARGS`, one JSON object."""
+    return f"var ARGS = {json.dumps(args)};\n" + (ROOT / "atom/js" / f"{name}.js").read_text()
+
+
 def load_json(path, default=None):
     try:
         return json.loads(Path(path).read_text())

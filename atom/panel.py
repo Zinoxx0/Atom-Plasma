@@ -263,119 +263,14 @@ def shell(js):
                           check=True, capture_output=True, text=True).stdout.strip()
 
 
-JS = r"""
-var SETTINGS = %(settings)s;
-var out = {};
-function add(p, plugin, cfg) {
-    var w = p.addWidget(plugin);
-    for (var group in (cfg || {})) {
-        w.currentConfigGroup = group.split("/");
-        for (var k in cfg[group]) w.writeConfig(k, cfg[group][k]);
-    }
-    return w;
-}
-function spacer(p) { return add(p, "%(spacer)s", {"General": {"expanding": false, "length": 8}}); }
-panels().forEach(function (p) {
-    var main = p.screen === 0;
-    var have = {};
-    p.widgets().forEach(function (w) { (have[w.type] = have[w.type] || []).push(w); });
-    var ids = {};
-    function one(plugin, cfg) {
-        var w = (have[plugin] || [])[0] || add(p, plugin, cfg);
-        ids[plugin] = w.id;
-        return w;
-    }
-    // existing pieces
-    one("%(launcher)s"); one("org.kde.plasma.digitalclock");
-    (have["org.kde.plasma.kickoff"] || []).forEach(function (w) { w.remove(); });
-    // tasks: Glimpse takes over a stock task manager, pinned apps included
-    var LEGACY = %(legacy)s, old = [];
-    LEGACY.forEach(function (t) { old = old.concat(have[t] || []); });
-    var legacy = old[0], pins = [];
-    if (legacy) {
-        legacy.currentConfigGroup = ["General"];
-        pins = legacy.readConfig("launchers") || [];
-        if (typeof pins === "string") pins = pins ? pins.split(",") : [];
-    }
-    one("%(tasks)s", {"General": {"launchers": pins}});
-    // the wallpaper picker lives inside the launcher now (Meta+Shift+W, the wheel over the emblem)
-    old = old.concat(have["com.zinoxx.wallpicker"] || []);
-    old.forEach(function (w) { w.remove(); });
-    var clock = (have["org.kde.plasma.digitalclock"] || [])[0];
-    if (clock) {
-        clock.currentConfigGroup = ["Appearance"];
-        clock.writeConfig("showDate", true);
-        clock.writeConfig("dateDisplayFormat", "BesideTime");
-        clock.writeConfig("dateFormat", "custom");
-        clock.writeConfig("customDateFormat", "ddd d");
-        clock.writeConfig("use24hFormat", 2);
-        // the size is per bar (bigger on scaled bars), so only a fresh clock gets the default
-        var fresh = String(clock.readConfig("autoFontAndSize")) !== "false";
-        clock.writeConfig("autoFontAndSize", false);
-        clock.writeConfig("fontFamily", "Inter Display");
-        clock.writeConfig("fontWeight", 700);
-        if (fresh) clock.writeConfig("fontSize", 11);
-    }
-    if (%(with_tiling)s) one("%(tiling)s");
-    if (main) {
-        one("org.kde.plasma.systemtray");
-        if (%(with_claude)s) one("com.zinoxx.claudeusage");
-        one("com.zinoxx.sysstats");
-        one("com.zinoxx.session");
-    } else {
-        one("org.kde.plasma.showdesktop");
-    }
-    var pc = one("%(colorizer)s");
-    var settings = JSON.parse(JSON.stringify(SETTINGS));
-    settings.configurationOverrides.associations = [{"id": ids["org.kde.plasma.digitalclock"],
-        "name": "org.kde.plasma.digitalclock", "presets": ["%(clockpad)s"]}];
-    pc.currentConfigGroup = ["General"];
-    pc.writeConfig("globalSettings", JSON.stringify(settings));
-    pc.writeConfig("islandsEnabled", true);
-    pc.writeConfig("islandSeparatorWidget", "%(spacer)s");
-    pc.writeConfig("hideWidget", true);
-    pc.writeConfig("isEnabled", true);
-    pc.writeConfig("animatePropertyChanges", true);     // hover and popup states ease in
-    pc.writeConfig("animationDuration", 220);
-    // spacers: keep one expanding, make sure there are enough small ones
-    var spacers = have["%(spacer)s"] || [];
-    var expanding = spacers[0] || add(p, "%(spacer)s");
-    expanding.currentConfigGroup = ["General"];
-    expanding.writeConfig("expanding", true);
-    var small = spacers.slice(1).map(function (w) { return w.id; });
-    var need = main ? 7 : 3;
-    while (small.length < need) small.push(spacer(p).id);
-    ids.expanding = expanding.id;
-    ids.small = small;
-    out[p.id] = ids;
-});
-print(JSON.stringify(out));
-"""
 
 
-PANELS_JS = r"""
-var out = [];
-panels().forEach(function (p) {
-    if (p.screen < 0 || p.screen >= screenCount) return;     // its screen is unplugged
-    var g = screenGeometry(p.screen), pc = null, clock = null, widgets = [];
-    p.currentConfigGroup = ["General"];
-    var order = String(p.readConfig("AppletOrder") || "");
-    p.widgets().forEach(function (w) {
-        if (w.type === "%(colorizer)s") pc = w.id;
-        if (w.type === "org.kde.plasma.digitalclock") clock = w.id;
-        widgets.push({id: w.id, type: w.type});
-    });
-    if (pc !== null) out.push({panel: p.id, screen: p.screen, x: g.x, y: g.y, colorizer: pc, clock: clock,
-                               widgets: widgets, order: order});
-});
-print(JSON.stringify(out));
-"""
 
 
 def panels():
     """Panels with a Colorizer: id, Plasma screen index, logical position, colorizer/clock widget ids, widgets
     and their order (AppletOrder, as plasmashell has it now)."""
-    return json.loads(shell(PANELS_JS % {"colorizer": COLORIZER}))
+    return json.loads(shell(util.script("bars", colorizer=COLORIZER)))
 
 
 def islands(panel):
@@ -400,21 +295,7 @@ def colorizer_apply(panel, patch):
     configurationOverrides) in one write through plasmashell's scripting API; the widget
     picks it up live. (Its D-Bus route silently drops messages over ~50 KB, and per-island
     overrides are bigger than that.)"""
-    js = """
-var patch = %s;
-panels().forEach(function (p) {
-    if (p.id !== %d) return;
-    p.widgets("%s").forEach(function (w) {
-        w.currentConfigGroup = ["General"];
-        var g = {};
-        try { g = JSON.parse(w.readConfig("globalSettings") || "{}"); } catch (e) {}
-        for (var k in patch) g[k] = patch[k];
-        w.writeConfig("globalSettings", JSON.stringify(g));
-        w.reloadConfig();
-        print("ok");
-    });
-});
-""" % (json.dumps(patch), panel["panel"], COLORIZER)
+    js = util.script("colorizer-apply", patch=patch, panel=panel["panel"], colorizer=COLORIZER)
     try:
         return "ok" in shell(js)
     except subprocess.CalledProcessError:
@@ -470,11 +351,10 @@ def configure():
     """Every bar's widgets and their settings (adds what's missing, at the end); returns {panel id: ids}.
     Feature widgets (Claude, tiling) only where those features are on (atom/caps.py)."""
     from . import caps
-    js = JS % {"settings": json.dumps(colorizer_settings()), "spacer": SPACER, "colorizer": COLORIZER,
-               "clockpad": CLOCK_PAD, "tasks": TASKS, "legacy": json.dumps(LEGACY_TASKS), "launcher": LAUNCHER,
-               "tiling": TILING, "with_tiling": json.dumps(caps.feature("tiling")),
-               "with_claude": json.dumps(caps.feature("claude"))}
-    return json.loads(shell(js))
+    return json.loads(shell(util.script(
+        "bars-configure", settings=colorizer_settings(), spacer=SPACER, colorizer=COLORIZER, clockpad=CLOCK_PAD,
+        tasks=TASKS, legacy=LEGACY_TASKS, launcher=LAUNCHER, tiling=TILING,
+        with_tiling=caps.feature("tiling"), with_claude=caps.feature("claude"))))
 
 
 # a new bar's widgets in order ("|" = a small spacer, "~" = the expanding one): added in this order, a new
@@ -488,33 +368,6 @@ TEMPLATES = {
 }
 BAR_PX = 49        # a bar's thickness at UI size 1 (logical px): 56 on the desk monitors at today's size
 
-NEW_BARS_JS = r"""
-var want = %(want)s, made = [];
-var have = {};
-panels().forEach(function (p) { if (p.screen >= 0 && p.screen < screenCount) have[p.screen] = p; });
-want.forEach(function (w) {
-    if (w.screen >= screenCount) return;
-    var p = have[w.screen];
-    if (!p) {
-        p = new Panel("org.kde.panel");
-        p.screen = w.screen;
-        p.location = "bottom";
-        p.floating = true;
-        p.lengthMode = "fill";
-        w.widgets.forEach(function (name) {
-            var x = p.addWidget(name === "|" || name === "~" ? "%(spacer)s" : name);
-            if (name === "|" || name === "~") {
-                x.currentConfigGroup = ["General"];
-                x.writeConfig("expanding", name === "~");
-                if (name === "|") x.writeConfig("length", 8);
-            }
-        });
-        made.push(p.id);
-    }
-    if (p.height !== w.height) p.height = w.height;
-});
-print(JSON.stringify(made));
-"""
 
 
 def ensure_bars(ss, cfg):
@@ -528,7 +381,7 @@ def ensure_bars(ss, cfg):
         return [w for i, w in enumerate(t) if w not in off and not (w == "|" and i and t[i - 1] in off)]
     want = [{"screen": s["screen"], "height": round(BAR_PX * s["ui"]),
              "widgets": template("main" if s["screen"] == 0 else "secondary")} for s in ss]
-    made = json.loads(shell(NEW_BARS_JS % {"want": json.dumps(want), "spacer": SPACER}) or "[]")
+    made = json.loads(shell(util.script("bars-new", want=want, spacer=SPACER)) or "[]")
     if made:
         configure()         # the new bars' widget settings (Colorizer, clock), as for the rest
     return made

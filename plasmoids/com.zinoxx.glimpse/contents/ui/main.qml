@@ -124,25 +124,12 @@ PlasmoidItem {
     RiceShell {
         id: sh
         onNewData: (source, data) => {
-            if (source.endsWith("#outputs")) {
-                try {
-                    const map = {}
-                    for (const o of JSON.parse(data["stdout"]).outputs)
-                        if (o.enabled) map[o.name] = { h: o.size.height, scale: o.scale || 1 }
-                    root.outputs = map
-                } catch (e) {}
-            } else if (data["exit code"]) {
-                console.warn("glimpse:", source, data["stderr"])
-            }
+            if (data["exit code"]) console.warn("glimpse:", source, data["stderr"])
             disconnectSource(source)
         }
     }
-    // real resolution and scale of each output (Qt reports the scale rounded up, 2 for 1.25 and 1.7)
-    property var outputs: ({})
-    function readOutputs() { sh.connectSource("kscreen-doctor -j #outputs") }
-    onScreensChanged: readOutputs()
-    Component.onCompleted: readOutputs()
-    readonly property real dpr: outputs[screenName] ? outputs[screenName].scale : 1
+    // this screen's real scale (Qt reports it rounded up, 2 for 1.25 and 1.7), from its palette (rice.py)
+    readonly property real dpr: pal.values._display?.scale ?? 1
     function snap(v) { return Math.round(v * dpr) / dpr }
 
     // ------------------------------------------------------------------ screens
