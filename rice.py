@@ -15,6 +15,10 @@
     rice.py wallpaper-dir    where the collection is
     rice.py page             everything the Theme page shows, as one JSON (wallpapers, screens, themes)
     rice.py screens          JSON list of screens and their wallpapers (for the picker)
+    rice.py ui show          JSON: the UI size settings and every screen's size (standard and effective)
+    rice.py ui set [--auto true|false] [--size F] [--screen X --own F|--own auto]
+                             the UI size: automatic (each screen's standard size x the overall size) or one
+                             size everywhere; --own sets (or clears) one screen's own size; applied live
     rice.py tiling toggle|tile|float|status [--screen focused|<output>|<display id>]
                              auto-tiling per screen (Krohnkite; floating unless a screen is set to tile;
                              default screen: the focused window's)
@@ -116,6 +120,14 @@ def main(args):
                 theme.screens_changed()
         else:
             print(displays.report(ds, cfg))
+    elif arg == "ui":
+        sub = args[1] if len(args) > 1 else "show"
+        if sub == "show":
+            print(json.dumps(theme.ui_info()))
+        elif sub == "set":
+            theme.ui_set(args, None if target == "focused" and "--own" not in args else target)
+        else:
+            sys.exit("rice.py ui show|set ...")
     elif arg == "tiling":
         sub = args[1] if len(args) > 1 else "status"
         if sub == "status":

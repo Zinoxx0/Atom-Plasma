@@ -8,12 +8,15 @@ import "Rice/Color.js" as C
 // showing its wallpaper and a dot of its accent (ringed when its colours are hand-picked). The one
 // whose wallpaper drives the system theme (window colours, terminals, apps) wears a star. Click a
 // monitor to edit it; `linked` draws them all as one selection (edits go to every screen).
+// `preview` (a theme hovered on the page): each monitor cross-fades to what loading it would show there,
+// badged when the theme maps it by role (another monitor's wallpaper) or mirrors the main screen's.
 Item {
     id: dm
     required property RicePalette pal
     property var screens: []                // rice.py screens: name, label, x, y, w, h, thumb, lead, accent, overrides
     property string focusName: ""
     property bool linked: false
+    property var preview: null              // {connector: {thumb, how: same|role|mirror, from}} or null
     signal picked(string name)
 
     readonly property real gap: 4
@@ -33,6 +36,7 @@ Item {
             readonly property bool focused: modelData.name === dm.focusName
             readonly property bool custom: Object.keys(modelData.overrides ?? {}).length > 0
             readonly property bool hot: monMouse.containsMouse
+            readonly property var shown: dm.preview ? (dm.preview[modelData.name] ?? null) : null
             x: (modelData.x - dm.minX) * dm.k + dm.gap / 2
             y: ((modelData.y ?? 0) - dm.minY) * dm.k + dm.gap / 2
             width: modelData.w * dm.k - dm.gap
@@ -50,6 +54,30 @@ Item {
                 asynchronous: true
                 opacity: mon.selected || mon.hot ? 1 : 0.55
                 Behavior on opacity { NumberAnimation { duration: Tokens.fast } }
+            }
+            Kirigami.ShadowedImage {    // a hovered theme's wallpaper for this screen, faded in over it
+                anchors.fill: parent
+                radius: Tokens.radius.xs
+                color: "transparent"
+                source: mon.shown && mon.shown.thumb ? "file://" + mon.shown.thumb : ""
+                sourceSize.width: 160
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                opacity: mon.shown ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: Tokens.base; easing.type: Easing.OutCubic } }
+            }
+            Rectangle {     // how the theme got here: by role (another monitor's), or the main screen's copy
+                visible: !!mon.shown && mon.shown.how !== "same"
+                anchors { left: parent.left; top: parent.top; margins: 3 }
+                width: 16; height: 16; radius: 8
+                color: Qt.rgba(0, 0, 0, 0.55)
+                Text {
+                    anchors.centerIn: parent
+                    text: mon.shown && mon.shown.how === "mirror" ? "content_copy" : "swap_horiz"
+                    color: "#ffffff"
+                    font.family: Tokens.font.icons
+                    font.pixelSize: 11
+                }
             }
             Rectangle {     // its name on a soft scrim along the bottom
                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom }

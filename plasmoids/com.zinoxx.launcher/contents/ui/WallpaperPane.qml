@@ -26,14 +26,16 @@ Item {
     signal heroPicked(string path)
     signal heroHovered(string path)         // "" when the pointer leaves the grid
     signal back()
-    RicePalette { id: pal; output: Screen.name }   // its own: ready before anything below is built
+    RicePalette { id: pal; output: Screen.name }
+    readonly property RicePalette ricePal: pal   // its own: ready before anything below is built
 
     property string dir: ""         // the wallpaper collection (settings wallpaper_dir)
     property var walls: []          // its file names
     property var thumbs: ({})       // file name -> thumbnail path
     property string current: ""     // last wallpaper picked (drives the global theme)
     property var screens: []        // [{name, label, main, image, thumb, lead, overrides, accent}] left to right
-    property var presets: []        // [{name, screens: {output: image}, theme, thumbs: {output: thumb}, current}]
+    property var presets: []        // [{name, layout (the screens it was saved on), plan + thumbs (on the screens now), current}]
+    property var previewPreset: null    // the theme hovered: the Screens map shows what loading it would do
     property int presetLen: 10      // theme names stay this short (rice.py's rule)
     property string busy: ""        // "" | "apply" | "fetch"
     property string pending: ""     // path (or "preset:<name>") being applied
@@ -41,7 +43,7 @@ Item {
     property bool loaded: false
     property var fresh: []          // file names brought by the last "Get more" (badged in the grid)
     property bool naming: false     // the theme name field is out
-    property string tab: "walls"    // "walls" | "colours" | "lights"
+    property string tab: "walls"    // "walls" | "colours" | "size" | "lights"
 
     // which screen the page edits, and whether edits go to every screen (the desk map's chain)
     readonly property bool linked: cfg.wallTarget === "all" || !screens.some(s => s.name === cfg.wallTarget)
@@ -192,15 +194,42 @@ Item {
     }
     // on screen right now (rice.py decides: the same wallpapers, hand-picked colours and theme screen)
     function presetIsOn(pr) { return pr.current === true }
+    // what a theme would put on each screen now, for the Screens map (rice.py presets.plan)
+    readonly property var previewMap: {
+        if (!previewPreset) return null
+        const out = {}
+        for (const s of screens) {
+            const p = (previewPreset.plan ?? {})[s.name]
+            if (p) out[s.name] = { thumb: (previewPreset.thumbs ?? {})[s.name] ?? "", how: p.how, from: p.from }
+        }
+        return out
+    }
+    // "" when a theme fits these screens as saved; else "saved -> now" (a count, or the same count on other monitors)
+    function fitOf(pr) {
+        const saved = (pr.layout ?? []).length
+        const plan = Object.values(pr.plan ?? {})
+        if (saved === screens.length && plan.every(p => p.how === "same")) return ""
+        return saved + "→" + screens.length
+    }
+    function fitWords(pr) {
+        const layout = pr.layout ?? []
+        const label = id => (layout.find(e => e.id === id) ?? {}).label ?? "another screen"
+        const saved = "Saved on " + (layout.length === 1 ? "1 screen (" + layout[0].label + ")"
+                                     : layout.length + " screens (" + layout.map(e => e.label).join(", ") + ")")
+        if (!fitOf(pr)) return saved
+        const here = []
+        for (const s of screens) {
+            const p = (pr.plan ?? {})[s.name]
+            if (!p || p.how === "same") continue
+            here.push(s.label + (p.how === "mirror" ? " shows the main screen's" : " gets the " + label(p.from) + "'s"))
+        }
+        return saved + (here.length ? " · here: " + here.join(", ") : "")
+    }
     // screens and themes again (after a colour change: accents, custom marks, Save look)
     function refreshState() { sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" page #state') }
     Timer { id: statusTimer; interval: 5000; onTriggered: wp.status = "" }
     onStatusChanged: if (status) statusTimer.restart()
     onDiscoverChanged: if (discover) Qt.callLater(() => tagField.focusText())
-    function presetThumbs(pr) {     // left to right like the screens
-        const order = screens.map(s => s.name)
-        return Object.keys(pr.thumbs || {}).sort((a, b) => order.indexOf(a) - order.indexOf(b)).map(o => pr.thumbs[o])
-    }
 
     onShownChanged: if (shown) { reload(); naming = false; Qt.callLater(grid.showCurrent) }
     Component.onCompleted: reload()
@@ -287,6 +316,10 @@ Item {
                     readonly property bool isOn: wp.presetIsOn(modelData)
                     readonly property bool applying: wp.busy === "apply" && wp.pending === "preset:" + modelData.name
                     readonly property bool hot: pcMouse.containsMouse || activeFocus
+                    onHotChanged: {
+                        if (hot) wp.previewPreset = modelData
+                        else if (wp.previewPreset === modelData) wp.previewPreset = null
+                    }
                     height: presetList.height
                     width: pcRow.implicitWidth + 2 * Tokens.space.sm
                     radius: Tokens.radius.sm
@@ -304,26 +337,10 @@ Item {
                         id: pcRow
                         anchors.centerIn: parent
                         spacing: Tokens.space.sm
-                        Row {           // its screens' wallpapers, fanned like a small deck
+                        LayoutGlyph {   // the screens it was saved on, as they sat
                             anchors.verticalCenter: parent.verticalCenter
-                            spacing: -10
-                            Repeater {
-                                model: wp.presetThumbs(pc.modelData)
-                                Kirigami.ShadowedImage {
-                                    required property string modelData
-                                    required property int index
-                                    z: 10 - index
-                                    width: 28; height: 18
-                                    radius: 4
-                                    color: C.alpha(pal.fg, 0.08)
-                                    border.width: 1.5
-                                    border.color: pal.surface
-                                    source: "file://" + modelData
-                                    sourceSize.width: 96
-                                    fillMode: Image.PreserveAspectCrop
-                                    asynchronous: true
-                                }
-                            }
+                            pal: wp.ricePal     // (a bare `pal` here would be the glyph's own property)
+                            layout: pc.modelData.layout ?? []
                         }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
@@ -332,6 +349,14 @@ Item {
                             font.family: Tokens.font.ui
                             font.weight: Font.DemiBold
                             font.pixelSize: Tokens.size.label
+                        }
+                        Text {          // saved on other screens: how many then, how many now
+                            visible: wp.fitOf(pc.modelData) !== ""
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: wp.fitOf(pc.modelData)
+                            color: pal.muted
+                            font.family: Tokens.font.ui
+                            font.pixelSize: Tokens.size.caption
                         }
                         Text {          // keeps hand-picked colours too
                             visible: !!pc.modelData.overrides
@@ -354,6 +379,7 @@ Item {
                         anchors.fill: parent
                         mainText: pc.modelData.name
                         subText: (pc.modelData.overrides ? "Wallpapers and hand-picked colours · " : "Wallpapers · ")
+                               + wp.fitWords(pc.modelData) + " · "
                                + (pc.isOn ? "on screen now" : "click to bring it back") + " · right-click to delete"
                         MouseArea {
                             id: pcMouse
@@ -429,6 +455,7 @@ Item {
                 Layout.maximumWidth: 360
                 pal: pal
                 screens: wp.screens
+                preview: wp.previewMap
                 focusName: wp.focusName
                 linked: wp.linked
                 onPicked: name => wp.pickScreen(name)
@@ -481,7 +508,7 @@ Item {
                 anchors { left: parent.left; bottom: parent.bottom }
                 spacing: Tokens.space.lg
                 Repeater {
-                    model: [{ id: "walls", text: "Wallpaper" }, { id: "colours", text: "Colours" }, { id: "lights", text: "Lighting" }]
+                    model: [{ id: "walls", text: "Wallpaper" }, { id: "colours", text: "Colours" }, { id: "size", text: "Size" }, { id: "lights", text: "Lighting" }]
                     Item {
                         id: tb
                         required property var modelData
@@ -659,6 +686,17 @@ Item {
             rail: wp.rail
             screen: wp.focusName
             target: wp.target
+            onChanged: wp.refreshState()
+        }
+
+        // Size: how big the rice's UI is on each screen
+        SizeTab {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            visible: !wp.heroMode && wp.tab === "size"
+            pal: pal
+            rail: wp.rail
+            screen: wp.focusName
             onChanged: wp.refreshState()
         }
 

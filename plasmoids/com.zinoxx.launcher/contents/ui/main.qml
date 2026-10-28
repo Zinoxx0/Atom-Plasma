@@ -301,9 +301,11 @@ PlasmoidItem {
     // ------------------------------------------------------------------ popup
     fullRepresentation: FocusScope {
         id: pop
-        // fixed: Plasma would otherwise restore a different remembered size per screen
-        readonly property int w: root.px(880)
-        readonly property int h: root.px(580)
+        // fixed (Plasma would otherwise restore a different remembered size per screen), but never bigger than
+        // the screen it opens on; on a narrow one (an 800 px panel) the hero card steps aside for the apps
+        readonly property int w: Math.min(root.px(880), Math.max(320, Math.round(Screen.width) - 2 * Tokens.space.lg))
+        readonly property int h: Math.min(root.px(580), Math.max(320, Math.round(Screen.height * 0.88) - root.px(56)))
+        readonly property bool narrow: w < root.px(700)
         Layout.preferredWidth: w
         Layout.preferredHeight: h
         Layout.minimumWidth: w
@@ -346,6 +348,7 @@ PlasmoidItem {
                 // concentric with the popup's: lg - sm.
                 HeroCard {
                     id: hero
+                    visible: !pop.narrow
                     Layout.preferredWidth: root.px(248)
                     Layout.fillHeight: true
                     launcher: root

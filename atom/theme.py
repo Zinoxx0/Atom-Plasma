@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import apps, icons, kde, kwin, palette, presets, screens, terminals, tokens, util, walls
+from . import apps, displays, icons, kde, kwin, palette, presets, screens, terminals, tokens, util, walls
 from .util import HOME, ROOT, STATE
 
 OV_KEYS = ("mood", "primary", "secondary", "tertiary", "intensity")
@@ -250,6 +250,58 @@ def screens_changed():
     reconcile.run()
 
 
+# ---------------------------------------------------------------- UI size
+def ui_info(ds=None, cfg=None):
+    """The Theme page's Size controls: the settings and, per screen, its standard and effective size."""
+    cfg = util.settings() if cfg is None else cfg
+    ds = displays.probe() if ds is None else ds
+    ui = cfg.get("ui") or {}
+    own = cfg.get("displays") or {}
+    return {"auto": ui.get("auto", True), "size": ui.get("size", 1.0),
+            "screens": [{"name": d.connector, "id": d.id, "label": d.label, "title": d.name,
+                         "standard": displays.comfort(d), "size": displays.ui_scale(d, cfg),
+                         "own": (own.get(d.id) or {}).get("size"), "scaleAdvice": displays.scale_advice(d)}
+                        for d in ds]}
+
+
+def ui_set(args, screen=None):
+    """`rice.py ui set`: change the UI size settings, then apply them everywhere (palettes, bars, clocks)."""
+    def val(flag):
+        i = args.index(flag)
+        return args[i + 1] if i + 1 < len(args) else ""
+
+    util.hold_lock()
+    f = ROOT / "settings.json"
+    cfg = util.load_json(f, {}) or {}
+    ui = cfg.setdefault("ui", {})
+    if "--auto" in args:
+        ui["auto"] = val("--auto").lower() in ("1", "true", "on", "yes")
+    if "--size" in args:
+        try:
+            ui["size"] = round(max(0.5, min(2.5, float(val("--size")))), 2)
+        except ValueError:
+            sys.exit("--size is a number (1 = the standard size)")
+    if "--own" in args:
+        ds = displays.probe()
+        key = screen or focused_output()
+        d = next((d for d in ds if key in (d.connector, d.id)), None)
+        if not d:
+            sys.exit(f"no screen {key!r}")
+        own = cfg.setdefault("displays", {}).setdefault(d.id, {})
+        v = val("--own")
+        if v in ("auto", ""):
+            own.pop("size", None)
+        else:
+            try:
+                own["size"] = round(max(0.6, min(3.5, float(v))), 2)
+            except ValueError:
+                sys.exit("--own is a number or auto")
+        cfg["displays"] = {k: v for k, v in cfg["displays"].items() if v}
+    util.save_json(f, cfg)
+    from . import reconcile
+    reconcile.run()
+
+
 def setup():
     """The one-shot desktop settings that don't follow the wallpaper: window chrome, Dolphin, Darkly."""
     kwin.setup_chrome()
@@ -293,6 +345,9 @@ def presets_info(ss=None):
 def page():
     """Everything the Theme page shows, in one go (one process instead of three)."""
     ss = screens.screens()
+    ds = displays.probe()
+    issues = displays.check(ds)
+    fix = displays.proposal(ds) if issues["overlaps"] or issues["apart"] else ""
     try:
         current = str(walls.CURRENT.resolve(strict=True))
     except OSError:
@@ -300,4 +355,5 @@ def page():
     return {"dir": str(walls.WALLDIR), "current": current,
             "walls": [{"name": w.name, "path": str(w), "thumb": str(walls.thumb(w))} for w in walls.walls()],
             "screens": screens_info([dict(s) for s in ss]), "presets": presets_info(ss),
-            "presetLen": presets.PRESET_LEN, "moods": list(palette.MOODS)}
+            "presetLen": presets.PRESET_LEN, "moods": list(palette.MOODS), "ui": ui_info(ds),
+            "arrangement": {"problem": displays.describe(issues, ds), "fix": fix}}
