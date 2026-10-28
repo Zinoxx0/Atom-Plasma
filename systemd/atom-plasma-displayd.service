@@ -1,0 +1,14 @@
+# Atom Plasma: every screen gets the whole rice when screens are plugged in, unplugged or rearranged
+# (displayd.py -> rice.py screens-changed).
+[Unit]
+Description=Atom Plasma display watcher
+PartOf=graphical-session.target
+After=graphical-session.target plasma-plasmashell.service
+
+[Service]
+ExecStart=/usr/bin/python3 %h/.config/plasma-rice/displayd.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

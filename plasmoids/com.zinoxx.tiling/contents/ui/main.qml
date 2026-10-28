@@ -49,9 +49,10 @@ PlasmoidItem {
     toolTipMainText: tiled ? "Auto-tiling is on" : "Windows float"
     toolTipSubText: (tiled ? "This screen arranges its windows in tiles" : "Windows on this screen go where you put them")
                     + " · click to " + (tiled ? "let them float" : "tile them") + " · Meta+Alt+T"
-    preferredRepresentation: compactRepresentation
+    // the button is the whole widget (as Peek at Desktop does it): a full representation, no popup
+    preferredRepresentation: fullRepresentation
 
-    compactRepresentation: MouseArea {
+    fullRepresentation: MouseArea {
         id: compact
         hoverEnabled: true
         // a single-widget island: the same side padding as every rice bar widget

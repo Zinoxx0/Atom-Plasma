@@ -428,7 +428,14 @@ def colorizer_set(panel, path, value):
                           capture_output=True, text=True).returncode == 0
 
 
-def order_for(ids, main):
+def _pos(bar, wid):
+    order = [int(i) for i in bar.get("order", "").split(";") if i.strip().isdigit()]
+    return order.index(wid) if wid in order else len(order)
+
+
+def order_for(ids, main, others=()):
+    """A bar's AppletOrder: its template's widgets in place; widgets the template doesn't know (added by the
+    user, e.g. the Claude widget on a secondary bar) each get an island right after the stretch."""
     s = list(ids["small"])
     k = lambda name: ids[name]
     if main:
@@ -442,6 +449,10 @@ def order_for(ids, main):
         seq = [k(LAUNCHER), s[0], k(TASKS), ids["expanding"],
                k(TILING), s[1], k("org.kde.plasma.digitalclock"), s[2], k("org.kde.plasma.showdesktop"), k(COLORIZER)]
         extra = s[3:]
+    at = seq.index(ids["expanding"]) + 1
+    for o in others:
+        seq[at:at] = [o] + ([extra.pop(0)] if extra else [])
+        at += 2
     return seq + extra
 
 
@@ -507,6 +518,12 @@ def ensure_bars(ss, cfg):
 def main():
     ids = configure()
     print("widgets:", json.dumps(ids))
+    # widgets on a bar that its template doesn't place (kept, in their current order)
+    known = {v for pi in ids.values() for v in pi.values() if isinstance(v, int)} | \
+        {x for pi in ids.values() for x in pi["small"]}
+    others = {str(b["panel"]): [w["id"] for w in sorted(b["widgets"], key=lambda w: _pos(b, w["id"]))
+                                if w["id"] not in known and w["type"] not in (SPACER, COLORIZER)]
+              for b in panels()}
 
     # plasmashell owns appletsrc while running: stop it, set the order, start it again
     subprocess.run(["systemctl", "--user", "stop", "plasma-plasmashell.service"], check=True)
@@ -515,7 +532,7 @@ def main():
     for pid, panel_ids in ids.items():
         screen = subprocess.run(["kreadconfig6", "--file", rc, "--group", "Containments", "--group", pid,
                                  "--key", "lastScreen"], capture_output=True, text=True).stdout.strip()
-        order = ";".join(str(i) for i in order_for(panel_ids, screen == "0"))
+        order = ";".join(str(i) for i in order_for(panel_ids, screen == "0", others.get(pid, ())))
         subprocess.run(["kwriteconfig6", "--file", rc, "--group", "Containments", "--group", pid,
                         "--group", "General", "--key", "AppletOrder", order], check=True)
         print(pid, "->", order)

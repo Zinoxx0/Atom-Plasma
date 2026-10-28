@@ -108,23 +108,8 @@ PlasmoidItem {
         : now.getMonth() === 11 && now.getDate() <= 26 ? "xmas"
         : (now.getMonth() === 11 && now.getDate() === 31) || (now.getMonth() === 0 && now.getDate() === 1) ? "newyear" : ""
 
-    // ---- screens plugged in or out: rice.py moves the music card and Clawd (`_desk`), gives each bar its
-    // new screen's colours and clock size and re-borders the windows. Only the main screen's desktop asks,
-    // once the screens have settled; also once at start (the screens may differ from the last session).
-    readonly property string screenSetup: {
-        const all = Qt.application.screens
-        let out = []
-        for (let i = 0; i < all.length; i++) out.push(all[i].name + "@" + all[i].virtualX + "," + all[i].virtualY)
-        return screenName + " " + out.join(" ")
-    }
-    onScreenSetupChanged: rescreen.restart()
-    Timer {
-        id: rescreen
-        interval: 3000
-        running: true
-        onTriggered: if (Plasmoid.containment?.screen === 0)
-            sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" screens-changed #screens')
-    }
+    // (screens plugged in or out: atom-displayd runs rice.py screens-changed, which moves the music card and
+    // Clawd through `_desk` in this screen's palette)
 
     // ---- the desktop icons start under Glimpse's strip: Plasma only keeps them clear of its own panels, and
     // the strip (a layer-shell window with an exclusive zone) clipped their top. This applet shares the
