@@ -24,3 +24,4 @@ NowPlaying NowPlaying.qml
 TagField TagField.qml
 AppGlow AppGlow.qml
 SessionActions SessionActions.js
+BarFit BarFit.qml

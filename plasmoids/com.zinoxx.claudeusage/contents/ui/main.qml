@@ -150,14 +150,40 @@ PlasmoidItem {
                             : "No usage data yet"
     preferredRepresentation: compactRepresentation
 
+    // ---------- fitting the bar (Rice/BarFit.qml): on a bar too wide for its screen the rings drop their
+    // numbers at step 2, after the system rings (the tooltip and the popup still have them)
+    BarFit { id: fit; widget: root }
+    readonly property bool numbers: fit.step < 2
+    readonly property var riceFit: compactRepresentationItem ? compactRepresentationItem.fitWidths : []
+    function numText(i) { return hasData ? Math.round((i === 0 ? session : weekly).pct) + "%" : "–" }
+
     // ---------- panel ----------
     compactRepresentation: MouseArea {
         id: compact
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton | Qt.MiddleButton
-        // the same side padding as every rice bar widget
-        Layout.minimumWidth: row.implicitWidth + 2 * Tokens.space.md * root.uiScale
-        Layout.preferredWidth: Layout.minimumWidth
+        // what this widget takes at each step (root.riceFit, for BarFit): Clawd and the two rings with the
+        // same side padding as every rice bar widget, plus the numbers until step 2
+        Text {
+            id: numFont
+            visible: false
+            font.family: Tokens.font.ui
+            font.weight: Font.DemiBold
+            font.pixelSize: Math.round(Tokens.size.body * root.uiScale)
+            font.features: { "tnum": 1 }
+        }
+        TextMetrics { id: num0; font: numFont.font; text: root.numText(0) }
+        TextMetrics { id: num1; font: numFont.font; text: root.numText(1) }
+        function numWidth(i) { return Tokens.space.xs * root.uiScale + Math.ceil((i === 0 ? num0 : num1).advanceWidth) }
+        readonly property real ringW: 15 * root.uiScale
+        readonly property real bare: 2 * Tokens.space.md * root.uiScale + mini.implicitWidth
+                                     + 2 * (Tokens.space.sm * root.uiScale + ringW)
+        readonly property var fitWidths: [bare + numWidth(0) + numWidth(1), bare + numWidth(0) + numWidth(1), bare]
+        // giving the numbers up (or taking them back) glides
+        property real shown: fitWidths[Math.min(fit.step, fitWidths.length - 1)]
+        Behavior on shown { enabled: fit.animate; NumberAnimation { duration: Tokens.ms(450); easing.type: Tokens.move } }
+        Layout.minimumWidth: shown
+        Layout.preferredWidth: shown
         Layout.fillHeight: true
         onClicked: mouse => {
             if (mouse.button === Qt.MiddleButton) Qt.openUrlExternally("https://claude.ai/settings/usage");
@@ -206,9 +232,9 @@ PlasmoidItem {
                     required property int index
                     readonly property var info: index === 0 ? root.session : root.weekly
                     readonly property bool hot: info.pct >= 90
-                    spacing: Tokens.space.xs * root.uiScale
+                    spacing: 0
                     Ring {
-                        implicitWidth: 15 * root.uiScale; implicitHeight: implicitWidth
+                        implicitWidth: compact.ringW; implicitHeight: implicitWidth
                         thickness: 3 * root.uiScale
                         instant: true    // a sweep per update would keep the panel redrawing
                         value: meter.info.pct
@@ -218,13 +244,29 @@ PlasmoidItem {
                         showText: false
                         Layout.alignment: Qt.AlignVCenter
                     }
-                    Text {
-                        text: root.hasData ? Math.round(meter.info.pct) + "%" : "–"
-                        color: meter.hot ? pal.red : pal.fg
-                        font.family: Tokens.font.ui
-                        font.weight: Font.DemiBold
-                        font.pixelSize: Math.round(Tokens.size.body * root.uiScale)
-                        font.features: { "tnum": 1 }
+                    Item {
+                        // the number; on a tight bar it fades out as its room closes. Explicit layout
+                        // widths: an item whose implicit width drops to 0 keeps the width the layout last
+                        // gave it (Qt Quick Layouts), so a closed one is hidden outright
+                        property real room: root.numbers ? compact.numWidth(meter.index) : 0
+                        Behavior on room { enabled: fit.animate; NumberAnimation { duration: Tokens.ms(450); easing.type: Tokens.move } }
+                        visible: room > 0.5
+                        Layout.minimumWidth: room
+                        Layout.preferredWidth: room
+                        Layout.maximumWidth: room
+                        implicitHeight: numLabel.implicitHeight
+                        clip: true
+                        Layout.alignment: Qt.AlignVCenter
+                        Text {
+                            id: numLabel
+                            x: Tokens.space.xs * root.uiScale
+                            anchors.verticalCenter: parent.verticalCenter
+                            opacity: root.numbers ? 1 : 0
+                            Behavior on opacity { enabled: fit.animate; NumberAnimation { duration: Tokens.ms(350) } }
+                            text: root.numText(meter.index)
+                            color: meter.hot ? pal.red : pal.fg
+                            font: numFont.font
+                        }
                     }
                 }
             }

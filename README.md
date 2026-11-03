@@ -32,6 +32,11 @@ and Panel Colorizer. Optional: Darkly, Klassy, KWin better-blur-dx, Krohnkite (t
   `atom-plasma-displayd` (a user unit that sleeps until KWin or udev reports a change) runs the reconciler.
   It gives a new screen the main screen's wallpaper, a desk clock, a bar (the main bar on Plasma's primary
   screen, a secondary one elsewhere) and floating windows.
+- **Bars fit their screen.** When a bar needs more room than its screen has (the main bar moving from a
+  desk monitor to the laptop panel), its widgets give things up in a fixed order, least useful first, and
+  take them back as soon as there's room: the CPU/RAM/GPU numbers (the rings stay), then the Claude
+  numbers, then the pinned apps that don't fit fold into a folder tile that opens them in a popup, and
+  last of all the battery's %. It follows the bar's real room live: screens, tray icons, new pins.
 - **Monitors are known by their EDID** (maker, model, serial), not by connector. A monitor keeps its
   colours, size and place in your themes when it moves to another port. Run `./rice.py displays` to see them.
 - **Odd arrangements get flagged.** Overlapping screens shrink each other's maximize area, and a screen

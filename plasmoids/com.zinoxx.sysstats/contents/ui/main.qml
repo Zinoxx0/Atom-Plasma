@@ -133,6 +133,32 @@ PlasmoidItem {
         return "up " + (d ? d + "d " : "") + (h ? h + "h " : "") + m + "m";
     }
 
+    // ---------- fitting the bar (Rice/BarFit.qml): a bar too wide for its screen takes the numbers off
+    // the CPU, RAM and GPU rings first (step 1; the rings still show the load), the battery's last (step 4)
+    BarFit { id: fit; widget: root }
+    readonly property bool numbers: fit.step < 1
+    readonly property bool batteryNumber: fit.step < 4
+    Text {
+        id: numFont
+        visible: false
+        font.family: Tokens.font.ui
+        font.weight: Font.DemiBold
+        font.pixelSize: Math.round(Tokens.size.label * root.uiScale)
+        font.features: { "tnum": 1 }
+    }
+    // a number keeps the room of "00%", so the islands never shift as it changes
+    TextMetrics { id: widest; font: numFont.font; text: "00%" }
+    readonly property real ringW: 22 * uiScale
+    readonly property real numW: Tokens.space.xs * uiScale + Math.ceil(widest.advanceWidth)
+    function barWidth(nums, batNum) {
+        const cells = unplugged ? 4 : 3
+        return 2 * Tokens.space.md * uiScale + cells * ringW + (cells - 1) * Tokens.space.sm * uiScale
+             + (nums ? 3 * numW : 0) + (unplugged && batNum ? numW : 0)
+    }
+    // what this widget takes at each step (BarFit reads it, the compact uses it)
+    readonly property var riceFit: [barWidth(true, true), barWidth(false, true), barWidth(false, true),
+                                    barWidth(false, true), barWidth(false, false)]
+
     toolTipMainText: "System"
     toolTipSubText: stats.concat(unplugged ? [battery] : []).map(s => s.label + " " + Math.round(s.value) + "%").join("  ·  ")
                     + (unplugged && battery.sub ? " (" + battery.sub + ")" : "")
@@ -141,9 +167,12 @@ PlasmoidItem {
     compactRepresentation: MouseArea {
         id: compact
         hoverEnabled: true
-        // the same side padding as every rice bar widget
-        Layout.minimumWidth: row.implicitWidth + 2 * Tokens.space.md * root.uiScale
-        Layout.preferredWidth: Layout.minimumWidth
+        // the rings with the same side padding as every rice bar widget (root.barWidth), at the bar's
+        // fit step; giving numbers up (or taking them back) glides
+        property real shown: root.riceFit[Math.min(fit.step, root.riceFit.length - 1)]
+        Behavior on shown { enabled: fit.animate; NumberAnimation { duration: Tokens.ms(450); easing.type: Tokens.move } }
+        Layout.minimumWidth: shown
+        Layout.preferredWidth: shown
         Layout.fillHeight: true
         onClicked: root.expanded = !root.expanded
 
@@ -160,10 +189,11 @@ PlasmoidItem {
                     id: cell
                     required property int index
                     readonly property var stat: index < 3 ? root.stats[index] : root.battery
+                    readonly property bool showNum: index < 3 ? root.numbers : root.batteryNumber
                     visible: index < 3 || root.unplugged
-                    spacing: Tokens.space.xs * root.uiScale
+                    spacing: 0
                     Item {
-                        implicitWidth: 22 * root.uiScale; implicitHeight: implicitWidth
+                        implicitWidth: root.ringW; implicitHeight: implicitWidth
                         Ring {
                             anchors.fill: parent
                             thickness: 2.5 * root.uiScale
@@ -182,18 +212,30 @@ PlasmoidItem {
                             font.pixelSize: Math.round(12 * root.uiScale)
                         }
                     }
-                    Text {
-                        id: pct
-                        // a full 100 drops its sign: "100" fits in the room kept for "00%", so the
-                        // panel islands never shift, and 1% doesn't trail two empty digits
-                        text: Math.round(cell.stat.value) >= 100 ? "100" : Math.round(cell.stat.value) + "%"
-                        color: pal.fg
-                        font.family: Tokens.font.ui
-                        font.weight: Font.DemiBold
-                        font.pixelSize: Math.round(Tokens.size.label * root.uiScale)
-                        font.features: { "tnum": 1 }
-                        Layout.minimumWidth: Math.ceil(widest.advanceWidth)
-                        TextMetrics { id: widest; font: pct.font; text: "00%" }
+                    Item {
+                        // the number; on a tight bar it fades out as its room closes. Explicit layout
+                        // widths: an item whose implicit width drops to 0 keeps the width the layout last
+                        // gave it (Qt Quick Layouts), so a closed one is hidden outright
+                        property real room: cell.showNum ? root.numW : 0
+                        Behavior on room { enabled: fit.animate; NumberAnimation { duration: Tokens.ms(450); easing.type: Tokens.move } }
+                        visible: room > 0.5
+                        Layout.minimumWidth: room
+                        Layout.preferredWidth: room
+                        Layout.maximumWidth: room
+                        implicitHeight: pct.implicitHeight
+                        clip: true
+                        Text {
+                            id: pct
+                            x: Tokens.space.xs * root.uiScale
+                            anchors.verticalCenter: parent.verticalCenter
+                            opacity: cell.showNum ? 1 : 0
+                            Behavior on opacity { enabled: fit.animate; NumberAnimation { duration: Tokens.ms(350) } }
+                            // a full 100 drops its sign: "100" fits in the room kept for "00%", so the
+                            // panel islands never shift, and 1% doesn't trail two empty digits
+                            text: Math.round(cell.stat.value) >= 100 ? "100" : Math.round(cell.stat.value) + "%"
+                            color: pal.fg
+                            font: numFont.font
+                        }
                     }
                 }
             }

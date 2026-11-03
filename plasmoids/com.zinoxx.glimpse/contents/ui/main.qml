@@ -23,6 +23,10 @@ PlasmoidItem {
 
     preferredRepresentation: fullRepresentation
     fullRepresentation: BarLaunchers { g: root }
+    // fitting the bar (Rice/BarFit.qml): on a bar too wide for its screen, pins fold at step 3
+    BarFit { id: barFit; widget: root }
+    readonly property alias fit: barFit
+    readonly property var riceFit: fullRepresentationItem ? fullRepresentationItem.fitWidths : []
 
     readonly property var cfg: Plasmoid.configuration
 
