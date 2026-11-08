@@ -63,6 +63,18 @@ PlasmoidItem {
         return g
     }
 
+    // its global shortcut (Meta+V, set by panel/build.py) opens the clipboard's history on the active screen;
+    // Plasma also expands the applet on activation: there's no popup, so it folds straight back
+    Connections {
+        target: Plasmoid
+        function onActivated() {
+            if (Shell.kind === "clipboard") { Shell.close("clipboard"); return }
+            const scr = Windows.activeScreen || Screen.name
+            Shell.open("clipboard", scr, Shell.island("control", scr))
+        }
+    }
+    onExpandedChanged: if (expanded) Qt.callLater(() => { root.expanded = false })
+
     toolTipMainText: "Status"
     toolTipSubText: "Network, sound, Bluetooth, battery · your apps"
     preferredRepresentation: compactRepresentation

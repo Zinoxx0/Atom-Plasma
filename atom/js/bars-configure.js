@@ -42,7 +42,9 @@ panels().forEach(function (p) {
     old.forEach(function (w) { w.remove(); });
     if (ARGS.with_tiling) one(ARGS.tiling);
     if (main) {
-        one(ARGS.status);
+        var st = one(ARGS.status);
+        // Meta+V: the clipboard's history (plasmashell's own binding is released first, atom/panel.py)
+        if (!st.globalShortcut) st.globalShortcut = "Meta+V";
         if (ARGS.with_claude) one("com.zinoxx.claudeusage");
         one("com.zinoxx.sysstats");
         one("com.zinoxx.session");

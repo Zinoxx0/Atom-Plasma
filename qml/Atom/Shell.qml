@@ -16,6 +16,7 @@ QtObject {
         calendar: Qt.resolvedUrl("panels/Calendar.qml"),
         control: Qt.resolvedUrl("panels/Control.qml"),
         traymenu: Qt.resolvedUrl("panels/TrayMenu.qml"),
+        clipboard: Qt.resolvedUrl("panels/Clipboard.qml"),
         demo: Qt.resolvedUrl("panels/Demo.qml"),
         demo2: Qt.resolvedUrl("panels/Demo.qml"),
     })

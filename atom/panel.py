@@ -347,10 +347,19 @@ def order_for(ids, main, others=()):
     return seq + extra
 
 
+def free_clipboard_key():
+    """Meta+V belonged to plasmashell's clipboard applet (Klipper's "show-on-mouse-pos"); the status island
+    takes it over (its panel shows the clipboard's history), so the old binding lets go of it first."""
+    action = ["plasmashell", "show-on-mouse-pos", "plasmashell", "Show Clipboard Items at Mouse Position"]
+    subprocess.run(["busctl", "--user", "call", "org.kde.kglobalaccel", "/kglobalaccel", "org.kde.KGlobalAccel",
+                    "setForeignShortcutKeys", "asa(ai)", "4", *action, "0"], capture_output=True)
+
+
 def configure():
     """Every bar's widgets and their settings (adds what's missing, at the end); returns {panel id: ids}.
     Feature widgets (Claude, tiling) only where those features are on (atom/caps.py)."""
     from . import caps
+    free_clipboard_key()
     return json.loads(shell(util.script(
         "bars-configure", settings=colorizer_settings(), spacer=SPACER, colorizer=COLORIZER, clockpad=CLOCK_PAD,
         tasks=TASKS, legacy=LEGACY_TASKS, launcher=LAUNCHER, tiling=TILING, shell=SHELL, clock=CLOCK, status=STATUS,
