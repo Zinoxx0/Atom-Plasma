@@ -15,6 +15,7 @@ Frost {
     property real unit: 1
     property real reveal: 0                     // the content's opacity (after the panel has grown)
     signal done()
+    property var typeInto: null                 // (the stage's: typing in a folder goes to the search)
     readonly property alias grid: grid
     function u(n) { return Math.round(n * unit) }
 
@@ -93,6 +94,8 @@ Frost {
                     folder.launcher.launch(model, currentIndex); event.accepted = true
                 } else if (event.key === Qt.Key_Escape) {
                     folder.done(); event.accepted = true
+                } else if (folder.typeInto && folder.typeInto(event)) {
+                    event.accepted = true
                 }
             }
             Rectangle {     // a slim scroll pip, quiet until the grid moves

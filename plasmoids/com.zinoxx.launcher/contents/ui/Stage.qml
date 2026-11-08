@@ -326,6 +326,7 @@ Window {
             }
             FocusRing { ink: stage.rice.edge; radius: pin.radius; shown: pin.activeFocus; gap: 2 }
             activeFocusOnTab: inRow
+            Keys.onPressed: event => { if (stage.typeInto(event)) event.accepted = true }
             Keys.onReturnPressed: stage.launcher.launch(stage.launcher.favorites, pin.index)
             Keys.onEnterPressed: stage.launcher.launch(stage.launcher.favorites, pin.index)
             MouseArea {
@@ -372,6 +373,7 @@ Window {
                 PauseAnimation { duration: st.shown && st.opacity < 0.5 ? st.delay : 0 }
                 NumberAnimation { duration: st.shown ? Tokens.slow : Tokens.fast; easing.type: Tokens.enter } } }
             onOpened: stage.openFolder(index)
+            Keys.onPressed: event => { if (stage.typeInto(event)) event.accepted = true }
         }
     }
 
@@ -422,6 +424,7 @@ Window {
         opacity: stage.contentIn ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: Tokens.fast } }
         reveal: Math.max(0, (stage.fp - 0.55) / 0.45)
+        typeInto: stage.typeInto
         onDone: stage.closeFolder()
     }
 
@@ -678,6 +681,17 @@ Window {
     }
 
     onContentInChanged: if (contentIn) launcher.stageEntered()
+
+    // typing anywhere (a pin, a stack or a folder has the focus) goes to the search
+    Shortcut { sequences: ["Ctrl+F", "/"]; enabled: stage.phase === "open"; onActivated: { if (stage.folderAt >= 0) stage.closeFolder(); search.forceActiveFocus() } }
+    function typeInto(event) {
+        if (!event.text || !event.text.trim() || (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) return false
+        if (stage.folderAt >= 0) stage.closeFolder()
+        search.text += event.text
+        search.cursorPosition = search.text.length
+        search.forceActiveFocus()
+        return true
+    }
 
     // fresh every time it opens: empty query, home, the search field ready to type in
     onOpened: {

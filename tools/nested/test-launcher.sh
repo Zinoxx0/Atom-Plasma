@@ -55,6 +55,11 @@ step "meta";            qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaSh
 S0=$(grep -o 'ATOM stage stack0 at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $5, $6}')
 step "hover stack at [$S0]"; $F move $S0 wait 600; shot l-hover
 step "open folder";     $F move $S0 click wait 900; shot l-folder
+step "type in folder";  $F type "fire" wait 1200; shot l-typed
+step "esc clears";      $F key 1 wait 500
+step "esc closes";      $F key 1 wait 900
+step "meta again";      qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu; $F wait 2200
+step "open folder 2";   $F move $S0 click wait 900
 step "esc folds";       $F key 1 wait 600; shot l-folded
 step "theme";           $F move 1470 835 click wait 1200; shot l-theme
 step "meta closes";     qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu; $F wait 1200; shot l-meta-closed
@@ -71,6 +76,7 @@ check "the jewel opened the launcher"   'shell kind "launcher"' "$L"
 check "keyboard back to the app after Esc"  'app typed "ax"' "$N/out/app.log"
 check "Meta closed it and the keyboard came back" 'app typed "axy"' "$N/out/app.log"
 check "opening cleared the desk (the app was minimized)" 'app active false' "$N/out/app.log"
+check "typing in a folder searched"  'stage folder close' "$L"
 check "a stack opened as a folder, Esc folded it" 'ATOM stage folder' "$L"
 errs=$(grep -E "launcher|Stage|Atom|PowerOrb" "$L" | grep -E "Error|error:|TypeError|ReferenceError|Cannot|Unable|not a type|is not defined|Invalid property|no panel for" | sort -u | head -20)
 [ -n "$errs" ] && { echo "$errs"; fail=1; }
