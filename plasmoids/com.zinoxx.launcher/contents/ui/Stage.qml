@@ -198,15 +198,17 @@ Window {
     }
 
     // ------------------------------------------------------------------ the jewel's light, around the capsule
+    // a circle of light fading to nothing at its rim, squashed into a wide ellipse (no edges anywhere)
     Shape {
         id: jewelLight
         enabled: false             // light only: under everything, takes no clicks
-        readonly property real w: stage.capW * 1.7
-        readonly property real h: stage.capH * 5.5
+        readonly property real w: stage.capW * 1.9
+        readonly property real squash: 0.42
         x: stage.capX + stage.capW / 2 - w / 2
-        y: stage.capY + stage.capH / 2 - h / 2
+        y: stage.capY + stage.capH / 2 - w / 2
         width: w
-        height: h
+        height: w
+        transform: Scale { origin.x: jewelLight.w / 2; origin.y: jewelLight.w / 2; yScale: jewelLight.squash }
         visible: opacity > 0.01
         opacity: stage.p * (stage.walls ? 0 : 1)
         Behavior on opacity { NumberAnimation { duration: Tokens.slow } }
@@ -215,13 +217,13 @@ Window {
             strokeWidth: -1
             strokeColor: "transparent"
             fillGradient: RadialGradient {
-                centerX: jewelLight.w / 2; centerY: jewelLight.h / 2; centerRadius: jewelLight.w / 2
+                centerX: jewelLight.w / 2; centerY: jewelLight.w / 2; centerRadius: jewelLight.w / 2
                 focalX: centerX; focalY: centerY
-                GradientStop { position: 0; color: C.alpha(stage.rice.primary, 0.2 * Math.max(0.4, stage.rice.glow)) }
-                GradientStop { position: 0.5; color: C.alpha(stage.rice.primary, 0.06 * Math.max(0.4, stage.rice.glow)) }
-                GradientStop { position: 1; color: "transparent" }
+                GradientStop { position: 0; color: C.alpha(stage.rice.primary, 0.22 * Math.max(0.4, stage.rice.glow)) }
+                GradientStop { position: 0.45; color: C.alpha(stage.rice.primary, 0.08 * Math.max(0.4, stage.rice.glow)) }
+                GradientStop { position: 1; color: C.alpha(stage.rice.primary, 0) }
             }
-            PathRectangle { x: 0; y: 0; width: jewelLight.w; height: jewelLight.h; radius: jewelLight.h / 2 }
+            PathRectangle { x: 0; y: 0; width: jewelLight.w; height: jewelLight.w; radius: jewelLight.w / 2 }
         }
     }
 

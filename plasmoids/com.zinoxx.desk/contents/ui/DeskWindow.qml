@@ -1,11 +1,13 @@
 import QtQuick
 import QtQuick.Window
 import org.kde.layershell as LayerShell
+import Atom
 import "Rice"
 
 // One piece of the desk: a layer-shell window on the bottom layer of the host's screen (over the
 // wallpaper, under every window, never focused), at `box` in that screen's logical px. A new box
-// fades the content out, moves the window and fades it back in; showing fades in.
+// fades the content out, moves the window and fades it back in; showing fades in. While the launcher is
+// open on its screen it fades away (the launcher has the bare desktop).
 Window {
     id: dw
     required property var d                 // the Desk root
@@ -47,9 +49,16 @@ Window {
     Component.onCompleted: placed = box
     onVisibleChanged: if (visible && !relocate.running) { body.opacity = 0; appear.restart() }
 
+    // the launcher presents itself on this screen's bare desktop: the desk steps aside meanwhile
+    readonly property bool stepAside: Shell.kind === "launcher" && Shell.screen === modelData.name
     Item {
-        id: body
         anchors.fill: parent
+        opacity: dw.stepAside ? 0 : 1
+        Behavior on opacity { NumberAnimation { duration: dw.stepAside ? Tokens.base : Tokens.slow; easing.type: dw.stepAside ? Tokens.exit : Tokens.enter } }
+        Item {
+            id: body
+            anchors.fill: parent
+        }
     }
     SequentialAnimation {
         id: relocate
