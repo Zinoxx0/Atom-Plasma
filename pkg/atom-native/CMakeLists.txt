@@ -2,12 +2,14 @@
 #   BlurBehind   KWin's blur under a set of rounded rects of a window, kept in step with a shape that moves
 #   InputMask    the part of a window that takes the pointer (the rest lets clicks through to what's below)
 #   Bus          one message bus for every widget in the process, whatever QML engine loaded it
+#   Tray         the apps' tray icons (a StatusNotifierHost) and their menus (DBusMenu), for the status island
 # Built and installed per user (no root): ./build.sh puts the module in ~/.local/lib/qt6/qml/Atom/Native,
 # which plasmashell finds through QML_IMPORT_PATH (systemd/plasma-plasmashell.service.d/rice.conf).
 cmake_minimum_required(VERSION 3.22)
 project(atom-native VERSION 0.1 LANGUAGES CXX)
 
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Quick)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Quick DBus Widgets)
+find_package(dbusmenu-lxqt REQUIRED)
 find_package(KF6WindowSystem REQUIRED)
 qt_standard_project_setup(REQUIRES 6.8)
 
@@ -24,6 +26,7 @@ qt_add_qml_module(atomnative
         src/inputmask.h src/inputmask.cpp
         src/bus.h src/bus.cpp
         src/regions.h src/regions.cpp
+        src/tray.h src/tray.cpp
 )
 target_include_directories(atomnative PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(atomnative PRIVATE Qt6::Core Qt6::Gui Qt6::Quick KF6::WindowSystem)
+target_link_libraries(atomnative PRIVATE Qt6::Core Qt6::Gui Qt6::Quick Qt6::DBus Qt6::Widgets KF6::WindowSystem dbusmenu-lxqt)

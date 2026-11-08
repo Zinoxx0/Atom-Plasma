@@ -22,7 +22,11 @@ panels().forEach(function (p) {
     // existing pieces
     one(ARGS.launcher); one(ARGS.clock);
     // the clock island replaces the stock clock (its calendar lives on the shell's sheet)
-    ["org.kde.plasma.kickoff", "org.kde.plasma.digitalclock"].forEach(function (t) { (have[t] || []).forEach(function (w) { w.remove(); }); });
+    // ... and the status island replaces Plasma's system tray (its applets go with it: the control center,
+    // the notifications and the tray icons are the shell's now)
+    ["org.kde.plasma.kickoff", "org.kde.plasma.digitalclock", "org.kde.plasma.systemtray"].forEach(function (t) {
+        (have[t] || []).forEach(function (w) { w.remove(); });
+    });
     // tasks: Glimpse takes over a stock task manager, pinned apps included
     var LEGACY = ARGS.legacy, old = [];
     LEGACY.forEach(function (t) { old = old.concat(have[t] || []); });
@@ -38,7 +42,7 @@ panels().forEach(function (p) {
     old.forEach(function (w) { w.remove(); });
     if (ARGS.with_tiling) one(ARGS.tiling);
     if (main) {
-        one("org.kde.plasma.systemtray");
+        one(ARGS.status);
         if (ARGS.with_claude) one("com.zinoxx.claudeusage");
         one("com.zinoxx.sysstats");
         one("com.zinoxx.session");

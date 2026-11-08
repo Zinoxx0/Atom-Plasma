@@ -94,9 +94,22 @@ Window {
     property bool handingBack: false
     function handBack() { handingBack = true; Qt.callLater(() => { handingBack = false }) }
 
+    // the notification cards: on the screen you're working on, out of the status island
+    Toasts {
+        id: toasts
+        anchors.fill: parent
+        screenName: win.screenName
+        pal: pal
+        ui: win.ui
+        readonly property var statusIsland: Shell.island("control", win.screenName)
+        island: statusIsland ? win.local(statusIsland) : Qt.rect(win.width - Math.round(64 * win.ui), win.height - Math.round(52 * win.ui), Math.round(48 * win.ui), Math.round(36 * win.ui))
+        blocked: sheet.shown && sheet.kind === "control"
+    }
+    readonly property int unread: Notify.unreadTotal      // (starts the notifications' memory with the shell)
+
     InputMask {
         window: win
-        shapes: sheet.shown ? [sheet.shape] : []
+        shapes: (sheet.shown ? [sheet.shape] : []).concat(toasts.shapes)
         onShapesChanged: if (Shell.debug && shapes.length === 0) console.warn("ATOM mask empty", Date.now() % 100000)
     }
     Item {      // tests: where a click on the surface itself lands

@@ -3,7 +3,7 @@ on every re-theme (widget_settings, island_overrides, colorizer_apply), and the 
 bars themselves (main(), `panel/build.py`).
 
 Main panel (screen 0), left to right:
-  [launcher]  [tasks] ........ [Claude] [system rings] [tray] [tiling] [clock] [power]
+  [launcher]  [tasks] ........ [Claude] [system rings] [status] [tiling] [clock] [power]
 Other screens: [launcher] [tasks] ........ [tiling] [clock] [show desktop]
 [tiling] is com.zinoxx.tiling (auto-tiling on/off for that screen).
 [launcher] is com.zinoxx.launcher (replaces Kickoff); [tasks] is Glimpse (com.zinoxx.glimpse):
@@ -38,6 +38,8 @@ TILING = "com.zinoxx.tiling"
 LAUNCHER = "com.zinoxx.launcher"           # replaces Kickoff (favourites are Plasma's shared ones)
 SHELL = "com.zinoxx.shell"                 # draws the bar widgets' panels on one morphing sheet (qml/Atom)
 CLOCK = "com.zinoxx.clock"                 # the clock island (its calendar on the sheet); replaces the stock clock
+STATUS = "com.zinoxx.status"               # the status island (tray icons, system state, the control center);
+                                           # replaces Plasma's system tray
 LEGACY_TASKS = ["org.kde.plasma.icontasks", "org.kde.plasma.taskmanager"]
 ISLAND_RADIUS = TOKENS["radius"]["md"]     # islands share the windows' corner radius
 
@@ -320,7 +322,7 @@ def order_for(ids, main, others=()):
         seq = [k(LAUNCHER), s[0],
                k(TASKS), ids["expanding"],
                k("com.zinoxx.claudeusage"), s[1], k("com.zinoxx.sysstats"), s[2],
-               k("org.kde.plasma.systemtray"), s[3], k(TILING), s[4], k(CLOCK), s[5],
+               k(STATUS), s[3], k(TILING), s[4], k(CLOCK), s[5],
                k("com.zinoxx.session"), k(SHELL), k(COLORIZER)]
         extra = s[6:]
     else:
@@ -351,7 +353,7 @@ def configure():
     from . import caps
     return json.loads(shell(util.script(
         "bars-configure", settings=colorizer_settings(), spacer=SPACER, colorizer=COLORIZER, clockpad=CLOCK_PAD,
-        tasks=TASKS, legacy=LEGACY_TASKS, launcher=LAUNCHER, tiling=TILING, shell=SHELL, clock=CLOCK,
+        tasks=TASKS, legacy=LEGACY_TASKS, launcher=LAUNCHER, tiling=TILING, shell=SHELL, clock=CLOCK, status=STATUS,
         with_tiling=caps.feature("tiling"), with_claude=caps.feature("claude"))))
 
 
@@ -359,7 +361,7 @@ def configure():
 # panel needs no reordering (an existing one does: AppletOrder, with plasmashell stopped, main())
 TEMPLATES = {
     "main": [LAUNCHER, "|", TASKS, "~", "com.zinoxx.claudeusage", "|", "com.zinoxx.sysstats", "|",
-             "org.kde.plasma.systemtray", "|", TILING, "|", CLOCK, "|", "com.zinoxx.session",
+             STATUS, "|", TILING, "|", CLOCK, "|", "com.zinoxx.session",
              SHELL, COLORIZER],
     "secondary": [LAUNCHER, "|", TASKS, "~", TILING, "|", CLOCK, "|",
                   "org.kde.plasma.showdesktop", SHELL, COLORIZER],

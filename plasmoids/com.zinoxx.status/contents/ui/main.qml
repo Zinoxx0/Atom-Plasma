@@ -1,0 +1,244 @@
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Shapes
+import QtQuick.Window
+import QtQuick.Controls as QQC2
+import org.kde.kirigami as Kirigami
+import org.kde.plasma.plasmoid
+import org.kde.plasma.plasma5support as P5Support
+import org.kde.plasma.private.volume as Vol
+import org.kde.plasma.networkmanagement as PlasmaNM
+import org.kde.bluezqt as BluezQt
+import org.kde.notificationmanager as NM
+import Atom
+import Atom.Native
+import "Rice"
+import "Rice/Color.js" as C
+
+// The status island (it replaces Plasma's system tray): your apps' tray icons (Atom.Native Tray: a click
+// opens the app, a right click its menu on the shell's sheet, the middle button its second action, the
+// wheel scrolls it), then the system's state in glyphs (network, Bluetooth, sound, a microphone in use,
+// the battery, Do Not Disturb). A click on the glyphs opens the control center (Atom panels/Control.qml).
+PlasmoidItem {
+    id: root
+
+    RicePalette { id: pal; output: Screen.name }
+    readonly property real ui: pal.uiScale
+    function u(n) { return Math.round(n * ui) }
+
+    PlasmaNM.ConnectionIcon { id: net }
+    readonly property string netGlyph: {
+        const n = String(net.connectionIcon || "")
+        if (n.indexOf("wired") >= 0) return "lan"
+        if (n.indexOf("offline") >= 0 || n.indexOf("disconnected") >= 0 || n === "") return "signal_disconnected"
+        if (n.indexOf("excellent") >= 0 || n.indexOf("100") >= 0) return "wifi"
+        if (n.indexOf("good") >= 0 || n.indexOf("75") >= 0) return "network_wifi_3_bar"
+        if (n.indexOf("ok") >= 0 || n.indexOf("50") >= 0) return "network_wifi_2_bar"
+        if (n.indexOf("weak") >= 0 || n.indexOf("25") >= 0 || n.indexOf("none") >= 0 || n.indexOf("00") >= 0) return "network_wifi_1_bar"
+        if (n.indexOf("wireless") >= 0) return "wifi"
+        return "lan"
+    }
+    readonly property var bt: BluezQt.Manager
+    readonly property bool btConnected: Array.prototype.slice.call(bt.devices || []).some(d => d.connected)
+    readonly property var sink: Vol.PreferredDevice.sink
+    Vol.SourceOutputModel { id: recording }
+    P5Support.DataSource { engine: "powermanagement"; connectedSources: ["Battery"]; onNewData: (s, d) => root.batt = d }
+    property var batt: ({})
+    readonly property bool hasBattery: batt["Has Battery"] === true
+    readonly property int charge: Number(batt["Percent"]) || 0
+    readonly property bool charging: batt["State"] === "Charging" || batt["State"] === "FullyCharged"
+    NM.Settings { id: notifySettings }
+    readonly property bool dnd: { const t = notifySettings.notificationsInhibitedUntil; return !!t && !isNaN(t) && t > new Date() }
+
+    // the glyphs, left to right
+    readonly property var glyphs: {
+        const g = []
+        if (dnd) g.push({ g: "do_not_disturb_on", c: pal.tertiary })
+        if (recording.count > 0) g.push({ g: "mic", c: pal.warn })
+        g.push({ g: netGlyph, c: pal.fg })
+        if (bt.bluetoothOperational && btConnected) g.push({ g: "bluetooth_connected", c: pal.fg })
+        g.push({ g: !sink || sink.muted ? "volume_off" : sink.volume > 65536 * 0.6 ? "volume_up" : sink.volume > 0 ? "volume_down" : "volume_mute", c: !sink || sink.muted ? pal.muted : pal.fg })
+        if (hasBattery) g.push({ g: charging ? "battery_charging_full" : charge <= 10 ? "battery_alert" : "battery_" + Math.min(6, Math.round(charge / 100 * 6)) + "_bar",
+                                 c: !charging && charge <= 15 ? pal.bad : pal.fg })
+        return g
+    }
+
+    toolTipMainText: "Status"
+    toolTipSubText: "Network, sound, Bluetooth, battery · your apps"
+    preferredRepresentation: compactRepresentation
+
+    compactRepresentation: RowLayout {
+        id: compact
+        spacing: root.u(4)
+        Layout.minimumWidth: implicitWidth
+        Layout.preferredWidth: implicitWidth
+        Layout.fillHeight: true
+
+        Item { implicitWidth: root.u(Tokens.space.sm) }
+
+        // beads: the apps with news you haven't seen (Atom Notify), each a candy dot in the app's colour with
+        // a ring that fills a fifth per message; they overlap when there are many and fan out under the pointer
+        Row {
+            id: beads
+            visible: Notify.unseen.length > 0
+            Layout.alignment: Qt.AlignVCenter
+            Layout.rightMargin: visible ? root.u(6) : 0
+            spacing: beadHover.hovered ? root.u(5) : Notify.unseen.length > 3 ? -root.u(9) : root.u(3)
+            Behavior on spacing { NumberAnimation { duration: Tokens.ms(380); easing.type: Tokens.grow } }
+            HoverHandler { id: beadHover }
+            Repeater {
+                model: Notify.unseen
+                delegate: MouseArea {
+                    id: bead
+                    required property var modelData
+                    required property int index
+                    readonly property color tint: C.appTint(beadColors, pal.primary)
+                    Kirigami.ImageColors { id: beadColors; source: bead.modelData.icon }
+                    width: root.u(24); height: width
+                    z: Notify.unseen.length - index
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    scale: containsMouse ? 1.12 : 1
+                    Behavior on scale { NumberAnimation { duration: Tokens.base; easing.type: Tokens.enter } }
+                    onClicked: {
+                        const p = mapToGlobal(0, 0)
+                        Shell.open("control", Screen.name, { x: p.x, y: p.y, width: width, height: height }, { group: bead.modelData.key })
+                        Notify.markSeen(bead.modelData.key)
+                    }
+                    Rectangle {     // the candy: the app's colour, glassy
+                        anchors.centerIn: parent
+                        width: root.u(20); height: width; radius: width / 2
+                        gradient: Gradient {
+                            GradientStop { position: 0; color: Qt.lighter(bead.tint, 1.25) }
+                            GradientStop { position: 1; color: Qt.darker(bead.tint, 1.15) }
+                        }
+                        border.width: 1
+                        border.color: Qt.rgba(1, 1, 1, 0.35)
+                        Kirigami.Icon {
+                            anchors.centerIn: parent
+                            width: root.u(13); height: width
+                            source: bead.modelData.icon
+                        }
+                    }
+                    Shape {     // how many: an arc around it
+                        anchors.fill: parent
+                        preferredRendererType: Shape.CurveRenderer
+                        ShapePath {
+                            fillColor: "transparent"
+                            strokeColor: Qt.lighter(bead.tint, 1.35)
+                            strokeWidth: Math.max(1.5, root.u(2))
+                            capStyle: ShapePath.RoundCap
+                            PathAngleArc {
+                                centerX: bead.width / 2; centerY: bead.height / 2
+                                radiusX: bead.width / 2 - root.u(1); radiusY: radiusX
+                                startAngle: -90
+                                sweepAngle: Math.min(5, bead.modelData.unread) / 5 * 360
+                            }
+                        }
+                    }
+                    QQC2.ToolTip.text: bead.modelData.name + " · " + bead.modelData.unread + (bead.modelData.unread === 1 ? " new" : " new")
+                    QQC2.ToolTip.visible: containsMouse
+                    QQC2.ToolTip.delay: 300
+                }
+            }
+        }
+
+        // the apps' icons
+        Repeater {
+            model: Tray
+            delegate: MouseArea {
+                id: app
+                required property int index
+                required property string key
+                required property string title
+                required property string status
+                required property string iconName
+                required property string iconSource
+                required property string tooltip
+                required property bool itemIsMenu
+                required property bool hasMenu
+                visible: status !== "Passive"
+                Layout.preferredWidth: visible ? root.u(28) : 0
+                Layout.fillHeight: true
+                hoverEnabled: true
+                acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                function globalRect() { const p = mapToGlobal(0, 0); return { x: p.x, y: p.y, width: width, height: height } }
+                onClicked: mouse => {
+                    const p = mapToGlobal(mouse.x, mouse.y)
+                    if (mouse.button === Qt.MiddleButton) Tray.secondaryActivate(index, p.x, p.y)
+                    else if (mouse.button === Qt.RightButton || app.itemIsMenu) {
+                        if (app.hasMenu) Shell.toggle("traymenu", Screen.name, globalRect(), { key: app.key })
+                        else Tray.contextMenu(index, p.x, p.y)
+                    } else Tray.activate(index, p.x, p.y)
+                }
+                onWheel: wheel => Tray.scroll(index, wheel.angleDelta.y || wheel.angleDelta.x, wheel.angleDelta.y === 0)
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: root.u(26); height: width; radius: width / 2
+                    color: C.alpha(pal.fg, app.pressed ? 0.16 : app.containsMouse ? 0.1 : 0)
+                    Behavior on color { ColorAnimation { duration: Tokens.fast } }
+                }
+                Kirigami.Icon {
+                    anchors.centerIn: parent
+                    width: root.u(18); height: width
+                    source: app.iconSource || app.iconName
+                    scale: app.pressed ? 0.9 : 1
+                    Behavior on scale { NumberAnimation { duration: Tokens.fast } }
+                }
+                Rectangle {     // it wants you
+                    visible: app.status === "NeedsAttention"
+                    anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: root.u(4) }
+                    width: root.u(5); height: width; radius: width / 2
+                    color: pal.primary
+                }
+                QQC2.ToolTip.text: app.tooltip || app.title
+                QQC2.ToolTip.visible: app.containsMouse && !!(app.tooltip || app.title)
+                QQC2.ToolTip.delay: 600
+            }
+        }
+        Rectangle {     // between the apps and the system
+            visible: Tray.count > 0
+            Layout.preferredWidth: 1
+            Layout.preferredHeight: root.u(16)
+            Layout.leftMargin: root.u(4)
+            Layout.rightMargin: root.u(2)
+            color: C.alpha(pal.fg, 0.18)
+        }
+
+        // the system: one island, opens the control center
+        Island {
+            id: sys
+            kind: "control"
+            Layout.fillHeight: true
+            Layout.preferredWidth: glyphRow.implicitWidth + root.u(12)
+            Rectangle {
+                anchors.fill: parent
+                anchors.topMargin: root.u(5)
+                anchors.bottomMargin: root.u(5)
+                radius: height / 2
+                color: C.alpha(sys.open ? pal.primary : pal.fg, sys.open ? 0.22 : sys.containsMouse ? 0.08 : 0)
+                Behavior on color { ColorAnimation { duration: Tokens.fast } }
+            }
+            Row {
+                id: glyphRow
+                anchors.centerIn: parent
+                spacing: root.u(7)
+                Repeater {
+                    model: root.glyphs
+                    Text {
+                        required property var modelData
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: modelData.g
+                        color: sys.open ? pal.primary : modelData.c
+                        font.family: Tokens.font.icons
+                        font.pixelSize: root.u(18)
+                        Behavior on color { ColorAnimation { duration: Tokens.fast } }
+                    }
+                }
+            }
+        }
+        Item { implicitWidth: root.u(Tokens.space.xs) }
+    }
+    // never shown (the panels are the shell's), but a panel applet draws nothing without one
+    fullRepresentation: Item {}
+}
