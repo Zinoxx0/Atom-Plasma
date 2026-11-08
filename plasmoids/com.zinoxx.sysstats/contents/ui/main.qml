@@ -5,6 +5,7 @@ import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import org.kde.ksysguard.sensors as Sensors
 import org.kde.plasma.plasma5support as P5Support
+import Atom
 import "Rice"
 import "Rice/Color.js" as C
 
@@ -12,6 +13,24 @@ import "Rice/Color.js" as C
 // unplugged. The popup adds a three-minute history of each (tabs) and what uses the most of it right now.
 PlasmoidItem {
     id: root
+
+    // its panel lives on the shell's sheet (Atom.Shell kind "stats"), grown out of this island
+    readonly property string myScreenName: root.Window.window ? Screen.name : ""
+    readonly property bool panelOpen: Shell.kind === "stats" && Shell.screen === myScreenName
+    function islandRect() {
+        const it = root.compactRepresentationItem
+        if (!it) return null
+        const p = it.mapToGlobal(0, 0)
+        return { x: p.x, y: p.y, width: it.width, height: it.height }
+    }
+    function togglePanel() { Shell.toggle("stats", myScreenName, islandRect()) }
+    function openPanel() { Shell.open("stats", myScreenName, islandRect()) }
+    function closePanel() { Shell.close("stats") }
+    function hoverPanel() { Shell.hover("stats", myScreenName, islandRect()) }
+    onMyScreenNameChanged: Shell.portal(myScreenName, "stats", popup)
+    Component.onCompleted: Shell.portal(myScreenName, "stats", popup)
+    // where its island is (for things that grow out of it unasked); again when the bar's layout settles
+    Timer { interval: 1500; running: root.myScreenName !== ""; onTriggered: { const r = root.islandRect(); if (r) Shell.place("stats", root.myScreenName, r) } }
 
     RicePalette { id: pal; output: Screen.name }
     Account { id: me }
@@ -26,9 +45,9 @@ PlasmoidItem {
         }
     }
     property real uptime: 0
-    onExpandedChanged: if (expanded) sh.connectSource('cut -d" " -f1 /proc/uptime #up')
+    onPanelOpenChanged: if (panelOpen) sh.connectSource('cut -d" " -f1 /proc/uptime #up')
 
-    readonly property int rate: expanded ? 1000 : 2500
+    readonly property int rate: panelOpen ? 1000 : 2500
     Sensors.Sensor { id: cpu;     sensorId: "cpu/all/usage";               updateRateLimit: root.rate }
     Sensors.Sensor { id: cpuTemp; sensorId: "cpu/all/averageTemperature";  updateRateLimit: root.rate }
     Sensors.Sensor { id: mem;     sensorId: "memory/physical/usedPercent"; updateRateLimit: root.rate }
@@ -121,11 +140,11 @@ PlasmoidItem {
                      value: tab === 1 ? v / 1048576 : tab === 2 && num(gpuClock) > 0 ? v * Math.min(1, num(gpuClock) / gpuTopClock) : v }
         });
     }
-    Timer { interval: 2000; running: root.expanded; repeat: true; triggeredOnStart: true; onTriggered: root.readTop() }
+    Timer { interval: 2000; running: root.panelOpen; repeat: true; triggeredOnStart: true; onTriggered: root.readTop() }
     onTabChanged: { topProcs = []; readTop() }
     function openMonitor() {
         sh.connectSource("setsid -f plasma-systemmonitor >/dev/null 2>&1 #run");
-        root.expanded = false;
+        root.closePanel();
     }
 
     function upText(s) {
@@ -174,7 +193,8 @@ PlasmoidItem {
         Layout.minimumWidth: shown
         Layout.preferredWidth: shown
         Layout.fillHeight: true
-        onClicked: root.expanded = !root.expanded
+        onClicked: root.togglePanel()
+        onContainsMouseChanged: if (containsMouse) root.hoverPanel()
 
         RowLayout {
             id: row
@@ -242,244 +262,68 @@ PlasmoidItem {
         }
     }
 
-    fullRepresentation: Item {
-        Layout.preferredWidth: 460
-        Layout.preferredHeight: content.implicitHeight + 2 * Tokens.space.lg
-        Layout.minimumWidth: 460
-        Layout.minimumHeight: content.implicitHeight + 2 * Tokens.space.lg
-        // never bigger than the content: Plasma restores a remembered popup size otherwise
-        Layout.maximumWidth: Layout.preferredWidth
-        Layout.maximumHeight: Layout.preferredHeight
+    // the popup, drawn on the shell's sheet (Atom panels/Portal.qml makes it there, in this context, so it
+    // reads this widget's data), grown out of this island
+    property Component popup: Component {
+        Item {
+            implicitWidth: 460
+            implicitHeight: content.implicitHeight + 2 * Tokens.space.lg
 
-        PopupIn {
-            anchors.fill: parent
-            active: root.expanded
-            ricePalette: pal
+            PopupIn {
+                anchors.fill: parent
+                active: root.panelOpen
+                ricePalette: pal
 
-            ColumnLayout {
-                id: content
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: Tokens.space.lg }
-                spacing: Tokens.space.lg
+                ColumnLayout {
+                    id: content
+                    anchors { left: parent.left; right: parent.right; top: parent.top; margins: Tokens.space.lg }
+                    spacing: Tokens.space.lg
 
-                PopupHeader {
-                    Layout.fillWidth: true
-                    palette: pal
-                    title: "System"
-                    subtitle: me.host + "  ·  " + root.upText(root.uptime)
-                              + (root.unplugged ? "  ·  battery " + Math.round(root.battery.value) + "%"
-                                                  + (root.battery.sub ? ", " + root.battery.sub : "") : "")
-                    trailing: IconButton {
+                    PopupHeader {
+                        Layout.fillWidth: true
                         palette: pal
-                        icon: "monitoring"
-                        tooltip: "Open System Monitor"
-                        size: 34
-                        onClicked: root.openMonitor()
-                    }
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 0
-                    Repeater {
-                        model: 3    // fixed count, see the compact Repeater
-                        ColumnLayout {
-                            id: big
-                            required property int index
-                            readonly property var stat: root.stats[index]
-                            Layout.fillWidth: true
-                            spacing: Tokens.space.xs + 2
-                            Ring {
-                                Layout.alignment: Qt.AlignHCenter
-                                implicitWidth: 118; implicitHeight: 118
-                                thickness: 10
-                                value: big.stat.value
-                                label: big.stat.label
-                                from: root.heat(big.stat.value, big.stat.from)
-                                to: root.heat(big.stat.value, big.stat.to)
-                                track: C.alpha(pal.fg, 0.08)
-                                textColor: pal.fg
-                                subColor: pal.fgDim
-                                active: root.expanded
-                            }
-                            Text {
-                                // filling the width lets the three columns share the row evenly
-                                Layout.fillWidth: true
-                                horizontalAlignment: Text.AlignHCenter
-                                text: big.stat.sub
-                                color: pal.fgDim
-                                font.family: Tokens.font.ui
-                                font.pixelSize: Tokens.size.label
-                                font.features: { "tnum": 1 }
-                            }
-                        }
-                    }
-                }
-
-                // history: one tab per meter, its line in that meter's colours
-                GlassCard {
-                    id: hist
-                    Layout.fillWidth: true
-                    implicitHeight: histCol.implicitHeight + 2 * Tokens.space.md
-                    palette: pal
-                    readonly property var stat: root.stats[root.tab]
-                    readonly property var points: root.history[root.tab]
-                    readonly property color lineA: root.heat(stat.value, stat.from)
-                    readonly property color lineB: root.heat(stat.value, stat.to)
-                    function stat3() {
-                        const d = points;
-                        if (!d.length) return "";
-                        const lo = Math.min(...d), hi = Math.max(...d), avg = d.reduce((a, b) => a + b, 0) / d.length;
-                        return "min " + Math.round(lo) + "  ·  avg " + Math.round(avg) + "  ·  peak " + Math.round(hi);
-                    }
-
-                    ColumnLayout {
-                        id: histCol
-                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: Tokens.space.md }
-                        spacing: Tokens.space.sm
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: Tokens.space.xs + 2
-                            Repeater {
-                                model: 3
-                                Chip {
-                                    required property int index
-                                    palette: pal
-                                    interactive: true
-                                    selected: root.tab === index
-                                    size: 24
-                                    icon: root.stats[index].icon
-                                    text: root.stats[index].label
-                                    tint: pal[root.stats[index].from]
-                                    onClicked: root.tab = index
-                                }
-                            }
-                            Item { Layout.fillWidth: true }
-                            Text {
-                                text: Math.round(hist.stat.value) + "%"
-                                color: hist.lineA
-                                font.family: Tokens.font.ui
-                                font.weight: Font.Bold
-                                font.pixelSize: Tokens.size.body
-                                font.features: { "tnum": 1 }
-                            }
-                        }
-                        Canvas {
-                            id: graph
-                            Layout.fillWidth: true
-                            implicitHeight: 84
-                            readonly property var points: hist.points
-                            readonly property color a: hist.lineA
-                            readonly property color b: hist.lineB
-                            onPointsChanged: requestPaint()
-                            onAChanged: requestPaint()
-                            onBChanged: requestPaint()
-                            onWidthChanged: requestPaint()
-                            onPaint: {
-                                const ctx = getContext("2d");
-                                ctx.reset();
-                                const d = points, n = root.samples;
-                                // faint quarter lines, so the height reads as a percentage
-                                ctx.strokeStyle = C.alpha(pal.fg, 0.06);
-                                ctx.lineWidth = 1;
-                                for (const q of [0.25, 0.5, 0.75]) {
-                                    ctx.beginPath(); ctx.moveTo(0, Math.round(height * q) + 0.5); ctx.lineTo(width, Math.round(height * q) + 0.5); ctx.stroke();
-                                }
-                                if (d.length < 2) return;
-                                const x = i => width * (i + n - d.length) / (n - 1);
-                                const y = v => 2 + (height - 4) * (1 - Math.max(0, Math.min(100, v)) / 100);
-                                const along = ctx.createLinearGradient(0, 0, width, 0);
-                                along.addColorStop(0, C.alpha(a, 0.9));
-                                along.addColorStop(1, b);
-                                const fall = ctx.createLinearGradient(0, 0, 0, height);
-                                fall.addColorStop(0, C.alpha(C.mix(a, b, 0.5), 0.34));
-                                fall.addColorStop(1, C.alpha(C.mix(a, b, 0.5), 0));
-                                ctx.beginPath();
-                                ctx.moveTo(x(0), height);
-                                for (let i = 0; i < d.length; i++) ctx.lineTo(x(i), y(d[i]));
-                                ctx.lineTo(x(d.length - 1), height);
-                                ctx.closePath();
-                                ctx.fillStyle = fall;
-                                ctx.fill();
-                                ctx.beginPath();
-                                for (let i = 0; i < d.length; i++) i ? ctx.lineTo(x(i), y(d[i])) : ctx.moveTo(x(i), y(d[i]));
-                                ctx.lineWidth = 2;
-                                ctx.lineJoin = "round";
-                                ctx.strokeStyle = along;
-                                ctx.stroke();
-                                // now: a dot at the end of the line
-                                ctx.beginPath();
-                                ctx.arc(x(d.length - 1), y(d[d.length - 1]), 3, 0, 2 * Math.PI);
-                                ctx.fillStyle = b;
-                                ctx.fill();
-                            }
-                        }
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Text {
-                                text: "last 3 minutes"
-                                color: pal.muted
-                                font.family: Tokens.font.ui
-                                font.pixelSize: Tokens.size.caption
-                            }
-                            Item { Layout.fillWidth: true }
-                            Text {
-                                text: hist.stat3()
-                                color: pal.muted
-                                font.family: Tokens.font.ui
-                                font.pixelSize: Tokens.size.caption
-                                font.features: { "tnum": 1 }
-                            }
-                        }
-
-                        // what uses the most of it now
-                        SectionHeader {
-                            Layout.topMargin: Tokens.space.xs
+                        title: "System"
+                        subtitle: me.host + "  ·  " + root.upText(root.uptime)
+                                  + (root.unplugged ? "  ·  battery " + Math.round(root.battery.value) + "%"
+                                                      + (root.battery.sub ? ", " + root.battery.sub : "") : "")
+                        trailing: IconButton {
                             palette: pal
-                            text: root.tab === 1 ? "Most memory" : root.tab === 2 ? "Most GPU" : "Most CPU"
+                            icon: "monitoring"
+                            tooltip: "Open System Monitor"
+                            size: 34
+                            onClicked: root.openMonitor()
                         }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 0
                         Repeater {
-                            model: 3
-                            RowLayout {
-                                id: proc
+                            model: 3    // fixed count, see the compact Repeater
+                            ColumnLayout {
+                                id: big
                                 required property int index
-                                readonly property var item: root.topProcs[index] ?? null
+                                readonly property var stat: root.stats[index]
                                 Layout.fillWidth: true
-                                spacing: Tokens.space.sm
-                                opacity: item ? 1 : 0.35
-                                Behavior on opacity { NumberAnimation { duration: Tokens.fast } }
-                                Text {
-                                    Layout.preferredWidth: 150
-                                    text: proc.item ? proc.item.name : "–"
-                                    elide: Text.ElideRight
-                                    color: pal.fg
-                                    font.family: Tokens.font.ui
-                                    font.pixelSize: Tokens.size.label
-                                    font.weight: Font.Medium
+                                spacing: Tokens.space.xs + 2
+                                Ring {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    implicitWidth: 118; implicitHeight: 118
+                                    thickness: 10
+                                    value: big.stat.value
+                                    label: big.stat.label
+                                    from: root.heat(big.stat.value, big.stat.from)
+                                    to: root.heat(big.stat.value, big.stat.to)
+                                    track: C.alpha(pal.fg, 0.08)
+                                    textColor: pal.fg
+                                    subColor: pal.fgDim
+                                    active: root.panelOpen
                                 }
-                                Rectangle {     // its share, in the meter's colours
+                                Text {
+                                    // filling the width lets the three columns share the row evenly
                                     Layout.fillWidth: true
-                                    implicitHeight: 4
-                                    radius: 2
-                                    color: C.alpha(pal.fg, 0.08)
-                                    Rectangle {
-                                        height: parent.height
-                                        radius: 2
-                                        readonly property real share: !proc.item ? 0
-                                            : root.tab === 1 ? Math.min(1, proc.item.value / Math.max(1, root.num(memTot) / 1073741824))
-                                            : Math.min(1, proc.item.value / 100)
-                                        width: Math.max(height, parent.width * share)
-                                        Behavior on width { NumberAnimation { duration: Tokens.base; easing.type: Tokens.move } }
-                                        gradient: Gradient {
-                                            orientation: Gradient.Horizontal
-                                            GradientStop { position: 0; color: hist.lineA }
-                                            GradientStop { position: 1; color: hist.lineB }
-                                        }
-                                    }
-                                }
-                                Text {
-                                    Layout.preferredWidth: 64
-                                    horizontalAlignment: Text.AlignRight
-                                    text: !proc.item ? "" : root.tab === 1 ? proc.item.value.toFixed(1) + " GB" : Math.round(proc.item.value) + "%"
+                                    horizontalAlignment: Text.AlignHCenter
+                                    text: big.stat.sub
                                     color: pal.fgDim
                                     font.family: Tokens.font.ui
                                     font.pixelSize: Tokens.size.label
@@ -488,8 +332,186 @@ PlasmoidItem {
                             }
                         }
                     }
+
+                    // history: one tab per meter, its line in that meter's colours
+                    GlassCard {
+                        id: hist
+                        Layout.fillWidth: true
+                        implicitHeight: histCol.implicitHeight + 2 * Tokens.space.md
+                        palette: pal
+                        readonly property var stat: root.stats[root.tab]
+                        readonly property var points: root.history[root.tab]
+                        readonly property color lineA: root.heat(stat.value, stat.from)
+                        readonly property color lineB: root.heat(stat.value, stat.to)
+                        function stat3() {
+                            const d = points;
+                            if (!d.length) return "";
+                            const lo = Math.min(...d), hi = Math.max(...d), avg = d.reduce((a, b) => a + b, 0) / d.length;
+                            return "min " + Math.round(lo) + "  ·  avg " + Math.round(avg) + "  ·  peak " + Math.round(hi);
+                        }
+
+                        ColumnLayout {
+                            id: histCol
+                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: Tokens.space.md }
+                            spacing: Tokens.space.sm
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: Tokens.space.xs + 2
+                                Repeater {
+                                    model: 3
+                                    Chip {
+                                        required property int index
+                                        palette: pal
+                                        interactive: true
+                                        selected: root.tab === index
+                                        size: 24
+                                        icon: root.stats[index].icon
+                                        text: root.stats[index].label
+                                        tint: pal[root.stats[index].from]
+                                        onClicked: root.tab = index
+                                    }
+                                }
+                                Item { Layout.fillWidth: true }
+                                Text {
+                                    text: Math.round(hist.stat.value) + "%"
+                                    color: hist.lineA
+                                    font.family: Tokens.font.ui
+                                    font.weight: Font.Bold
+                                    font.pixelSize: Tokens.size.body
+                                    font.features: { "tnum": 1 }
+                                }
+                            }
+                            Canvas {
+                                id: graph
+                                Layout.fillWidth: true
+                                implicitHeight: 84
+                                readonly property var points: hist.points
+                                readonly property color a: hist.lineA
+                                readonly property color b: hist.lineB
+                                onPointsChanged: requestPaint()
+                                onAChanged: requestPaint()
+                                onBChanged: requestPaint()
+                                onWidthChanged: requestPaint()
+                                onPaint: {
+                                    const ctx = getContext("2d");
+                                    ctx.reset();
+                                    const d = points, n = root.samples;
+                                    // faint quarter lines, so the height reads as a percentage
+                                    ctx.strokeStyle = C.alpha(pal.fg, 0.06);
+                                    ctx.lineWidth = 1;
+                                    for (const q of [0.25, 0.5, 0.75]) {
+                                        ctx.beginPath(); ctx.moveTo(0, Math.round(height * q) + 0.5); ctx.lineTo(width, Math.round(height * q) + 0.5); ctx.stroke();
+                                    }
+                                    if (d.length < 2) return;
+                                    const x = i => width * (i + n - d.length) / (n - 1);
+                                    const y = v => 2 + (height - 4) * (1 - Math.max(0, Math.min(100, v)) / 100);
+                                    const along = ctx.createLinearGradient(0, 0, width, 0);
+                                    along.addColorStop(0, C.alpha(a, 0.9));
+                                    along.addColorStop(1, b);
+                                    const fall = ctx.createLinearGradient(0, 0, 0, height);
+                                    fall.addColorStop(0, C.alpha(C.mix(a, b, 0.5), 0.34));
+                                    fall.addColorStop(1, C.alpha(C.mix(a, b, 0.5), 0));
+                                    ctx.beginPath();
+                                    ctx.moveTo(x(0), height);
+                                    for (let i = 0; i < d.length; i++) ctx.lineTo(x(i), y(d[i]));
+                                    ctx.lineTo(x(d.length - 1), height);
+                                    ctx.closePath();
+                                    ctx.fillStyle = fall;
+                                    ctx.fill();
+                                    ctx.beginPath();
+                                    for (let i = 0; i < d.length; i++) i ? ctx.lineTo(x(i), y(d[i])) : ctx.moveTo(x(i), y(d[i]));
+                                    ctx.lineWidth = 2;
+                                    ctx.lineJoin = "round";
+                                    ctx.strokeStyle = along;
+                                    ctx.stroke();
+                                    // now: a dot at the end of the line
+                                    ctx.beginPath();
+                                    ctx.arc(x(d.length - 1), y(d[d.length - 1]), 3, 0, 2 * Math.PI);
+                                    ctx.fillStyle = b;
+                                    ctx.fill();
+                                }
+                            }
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text {
+                                    text: "last 3 minutes"
+                                    color: pal.muted
+                                    font.family: Tokens.font.ui
+                                    font.pixelSize: Tokens.size.caption
+                                }
+                                Item { Layout.fillWidth: true }
+                                Text {
+                                    text: hist.stat3()
+                                    color: pal.muted
+                                    font.family: Tokens.font.ui
+                                    font.pixelSize: Tokens.size.caption
+                                    font.features: { "tnum": 1 }
+                                }
+                            }
+
+                            // what uses the most of it now
+                            SectionHeader {
+                                Layout.topMargin: Tokens.space.xs
+                                palette: pal
+                                text: root.tab === 1 ? "Most memory" : root.tab === 2 ? "Most GPU" : "Most CPU"
+                            }
+                            Repeater {
+                                model: 3
+                                RowLayout {
+                                    id: proc
+                                    required property int index
+                                    readonly property var item: root.topProcs[index] ?? null
+                                    Layout.fillWidth: true
+                                    spacing: Tokens.space.sm
+                                    opacity: item ? 1 : 0.35
+                                    Behavior on opacity { NumberAnimation { duration: Tokens.fast } }
+                                    Text {
+                                        Layout.preferredWidth: 150
+                                        text: proc.item ? proc.item.name : "–"
+                                        elide: Text.ElideRight
+                                        color: pal.fg
+                                        font.family: Tokens.font.ui
+                                        font.pixelSize: Tokens.size.label
+                                        font.weight: Font.Medium
+                                    }
+                                    Rectangle {     // its share, in the meter's colours
+                                        Layout.fillWidth: true
+                                        implicitHeight: 4
+                                        radius: 2
+                                        color: C.alpha(pal.fg, 0.08)
+                                        Rectangle {
+                                            height: parent.height
+                                            radius: 2
+                                            readonly property real share: !proc.item ? 0
+                                                : root.tab === 1 ? Math.min(1, proc.item.value / Math.max(1, root.num(memTot) / 1073741824))
+                                                : Math.min(1, proc.item.value / 100)
+                                            width: Math.max(height, parent.width * share)
+                                            Behavior on width { NumberAnimation { duration: Tokens.base; easing.type: Tokens.move } }
+                                            gradient: Gradient {
+                                                orientation: Gradient.Horizontal
+                                                GradientStop { position: 0; color: hist.lineA }
+                                                GradientStop { position: 1; color: hist.lineB }
+                                            }
+                                        }
+                                    }
+                                    Text {
+                                        Layout.preferredWidth: 64
+                                        horizontalAlignment: Text.AlignRight
+                                        text: !proc.item ? "" : root.tab === 1 ? proc.item.value.toFixed(1) + " GB" : Math.round(proc.item.value) + "%"
+                                        color: pal.fgDim
+                                        font.family: Tokens.font.ui
+                                        font.pixelSize: Tokens.size.label
+                                        font.features: { "tnum": 1 }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
+
         }
     }
+    // never shown (the popup is the shell's), but a panel applet draws nothing without one
+    fullRepresentation: Item {}
 }

@@ -17,6 +17,8 @@ QtObject {
         control: Qt.resolvedUrl("panels/Control.qml"),
         traymenu: Qt.resolvedUrl("panels/TrayMenu.qml"),
         clipboard: Qt.resolvedUrl("panels/Clipboard.qml"),
+        stats: Qt.resolvedUrl("panels/Portal.qml"),
+        claude: Qt.resolvedUrl("panels/Portal.qml"),
         demo: Qt.resolvedUrl("panels/Demo.qml"),
         demo2: Qt.resolvedUrl("panels/Demo.qml"),
     })
@@ -70,6 +72,16 @@ QtObject {
     }
     // kinds that never follow the pointer (and never open by it): their own surfaces, not the sheet
     readonly property var solo: ({ launcher: true, power: true })
+
+    // portals: a bar widget whose popup content is its own (its data lives there) registers it here, per
+    // screen; panels/Portal.qml makes it on the sheet, in the widget's own context
+    property var portals: ({})
+    function portal(scr, k, component) {
+        if (!scr || !k) return
+        const next = Object.assign({}, portals)
+        next[scr + "/" + k] = component
+        portals = next
+    }
 
     // islands on the bars, so a host can grow something out of one without being asked (a notification
     // out of the status island): key "<screen>/<kind>" -> { x, y, width, height } (global logical px)
