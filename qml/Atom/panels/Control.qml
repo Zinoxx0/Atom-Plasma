@@ -41,7 +41,7 @@ FocusScope {
     Keys.onEscapePressed: event => { if (page) { page = ""; event.accepted = true } else event.accepted = false }
 
     // ------------------------------------------------------------------ the system
-    RiceShell { id: sh; onNewData: (source, data) => { if (source.indexOf("#night") >= 0) night.read(); disconnectSource(source) } }
+    RiceShell { id: sh; onNewData: (source, data) => { if (source.indexOf("#night") >= 0) { night.read(); nightRecheck.restart() } disconnectSource(source) } }
     function run(cmd, tag) { sh.connectSource(cmd + " #" + (tag || "run")) }
 
     PlasmaNM.EnabledConnections { id: radios }
@@ -77,21 +77,26 @@ FocusScope {
         notifySettings.save()
     }
 
-    // night light: KWin's, switched in its config (it may not be set up at all yet)
+    // night light: KWin's, switched in its config (it may not be set up at all yet). KWin's night light
+    // reloads only on a KConfigWatcher notification (--notify), not on /KWin reconfigure; the key is
+    // deleted first so the write always counts as a change and notifies even when the file already held
+    // the wanted value but KWin didn't (a write without --notify left them apart once).
     QtObject {
         id: night
         property bool on: false
         function read() {
             const r = DBus.SessionBus.asyncCall({ service: "org.kde.KWin", path: "/org/kde/KWin/NightLight", iface: "org.freedesktop.DBus.Properties",
                 member: "Get", arguments: [new DBus.string("org.kde.KWin.NightLight"), new DBus.string("running")], signature: "(ss)" })
-            r.finished.connect(() => { if (!r.isError) night.on = r.value === true })
+            r.finished.connect(() => { if (!r.isError) night.on = r.value === true; r.destroy() })
         }
         function set(want) {
             on = want
-            cc.run("kwriteconfig6 --file kwinrc --group NightColor --key Active " + (want ? "true" : "false")
-                   + " && qdbus6 org.kde.KWin /KWin reconfigure", "night")
+            cc.run("kwriteconfig6 --file kwinrc --group NightColor --key Active --delete"
+                   + " && kwriteconfig6 --file kwinrc --group NightColor --key Active " + (want ? "true" : "false") + " --notify", "night")
         }
     }
+    // KWin handles the notification on its own time: read again a moment after the write's answer
+    Timer { id: nightRecheck; interval: 700; onTriggered: night.read() }
 
     // the battery (laptops), the rice's battery saver
     P5Support.DataSource { engine: "powermanagement"; connectedSources: ["Battery"]; onNewData: (s, d) => cc.batt = d }
