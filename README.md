@@ -63,6 +63,32 @@ Each feature is `auto` (on when the machine has what it needs), `on` or `off`. S
 | `update_check`: a daily check for important updates | Arch/CachyOS and Claude Code |
 | `boot_theme` / `login_theme`: boot menu, splash and login screen | Limine + Plymouth / Plasma Login Manager |
 
+## The shell
+
+The bar's widgets are islands, and their panels all open on one morphing sheet per screen: it grows out of
+the island you clicked, glides to the next one while you point along the bar, and folds back into its
+island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on every bar).
+
+- **Launcher** (the jewel, Meta): your windows fly into their pins and the launcher presents itself on the
+  bare wallpaper: the jewel lifts into a search capsule, pinned apps come out as glass bubbles and the app
+  library as category decks that open as folders. Closing brings every window back where it was.
+- **Power** (the power island, or the launcher's power button): a ripple of blur spreads over every screen
+  and the session's actions come up big on yours.
+- **Status island** (replaces Plasma's system tray): your apps' tray icons with menus in the rice's look,
+  the system's state, and beads for apps with notifications you haven't seen. It opens the **control
+  center**: Wi-Fi, Bluetooth, Do Not Disturb, night light, power profile, battery saver, volume and
+  microphone, every screen's brightness, what's playing, the apps' own volumes, your room's lights, and the
+  notification history.
+- **Notifications** grow out of the status island on the screen you're working on, one card per chat.
+- **Clock island**: the calendar, with Portuguese holidays and your Google Calendar
+  (`./agenda.py set-url <the calendar's secret iCal address>`; it stays in `~/.config/atom-plasma/secrets.json`).
+- **Clipboard history** on Meta+V.
+
+The shell needs a small native module (`pkg/atom-native`: blur behind the sheet, input masks, the tray host;
+`rice.py install` builds it into `~/.local/lib/qt6/qml`; needs `libdbusmenu-lxqt`) and, for the calendar,
+`python-icalendar` and `python-recurring-ical-events`. After a Qt or Frameworks upgrade, rebuild it with
+`pkg/atom-native/build.sh`.
+
 ## Commands
 
 ```
@@ -75,8 +101,9 @@ rice.py displays [--fix]                                           monitors, arr
 rice.py install | doctor | setup                                   install, check, one-time settings
 ```
 
-Shortcuts: Meta+Alt+N / B for the next or previous wallpaper, Meta+Alt+Shift+N for a random one (rebind
-in System Settings → Shortcuts); Meta+Shift+W opens the Theme page; Meta+Alt+T toggles tiling.
+Shortcuts: Meta opens the launcher; Meta+V the clipboard's history; Meta+Alt+N / B for the next or previous
+wallpaper, Meta+Alt+Shift+N for a random one (rebind in System Settings → Shortcuts); Meta+Shift+W opens the
+Theme page; Meta+Alt+T toggles tiling.
 
 ## Layout of the repo
 
@@ -85,12 +112,15 @@ in System Settings → Shortcuts); Meta+Shift+W opens the Theme page; Meta+Alt+T
 | `atom/` | the Python library: displays, reconcile, palettes (OKLab moods), screens, presets, KDE/KWin/apps theming, panels, tiling, caps, install, doctor |
 | `rice.py`, `displayd.py`, ... | entry points |
 | `qml/Rice/` | shared QML: design tokens, the per-screen palette, Clawd, controls |
-| `plasmoids/` | the launcher, Glimpse (task strip and top band), desk clock, system rings, Claude usage, session, tiling toggle |
+| `qml/Atom/` | the shell: its switchboard, the morphing sheet, panels (calendar, control center, clipboard...), notification cards, the power overlay |
+| `plasmoids/` | the launcher, Glimpse (task strip and top band), desk clock, the clock and status islands, system rings, Claude usage, session, tiling toggle, the shell's host |
+| `agenda.py` | the calendar's data: holidays and your Google Calendar |
 | `lnf/` | look-and-feel: splash and logout screen |
 | `plasma-style/`, `kwin/`, `templates/`, `shell/` | Plasma Style generator, KWin effects, config templates, shell rice |
 | `systemd/` | user units: display watcher, keyboard lights, update check |
-| `pkg/` | PKGBUILDs for patched dependencies (per-output rounded corners) |
+| `pkg/` | PKGBUILDs for patched dependencies (per-output rounded corners) and the shell's native module |
 | `tests/` | `python3 -m unittest discover -s tests` (golden outputs, 20+ display topologies) |
+| `tools/nested/` | a nested, isolated KWin + plasmashell with fake input, and the shell's tests in it (`test-*.sh`) |
 
 Your settings live in `~/.config/atom-plasma/settings.json`, which overrides the repo's
 `settings.default.json`. State lives in `~/.local/state/rice/` and caches in `~/.cache/rice/`.
