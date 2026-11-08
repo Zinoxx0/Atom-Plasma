@@ -114,6 +114,7 @@ QtObject {
     readonly property int stripBright: strip.bright || 0
     readonly property bool stripTrouble: strip.status === "error"
     readonly property bool stripBusy: strip.status === "connecting"
+    readonly property bool stripStuck: strip.stuck === true      // failing with other devices on the adapter
     readonly property string stripSummary: {
         if (!roomLoaded) return "Connecting…"
         if (roomProblem) return roomProblem
@@ -160,6 +161,8 @@ QtObject {
     }
     function applySync() { roomPost("apply", "/api/sync/apply", {}) }
     function wake() { if (roomReachable && home) roomPost("wake", "/api/wake", {}) }
+    // reset the Bluetooth adapter (the service does it): frees the radio for the strip; headphones reconnect
+    function resetBluetooth() { roomPatch("strip", { status: "connecting", stuck: false }); roomPost("reset", "/api/reset", {}) }
 
     // ------------------------------------------------------------------ both
     readonly property bool present: roomReachable ? home : lampReachable        // anything to show

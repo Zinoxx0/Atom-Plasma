@@ -282,19 +282,27 @@ FocusScope {
                         x: rp.u(12); y: rp.u(10)
                         width: parent.width - rp.u(24)
                         spacing: rp.u(8)
-                        Text {
+                        Text {      // the service says what's wrong (and that it keeps trying)
                             Layout.fillWidth: true
-                            text: "The strip didn't answer. It only takes one Bluetooth client: close its phone app, "
-                                + "or switch it off at the plug for a few seconds."
+                            text: lights.strip.error || "The strip didn't answer."
                             wrapMode: Text.WordWrap
                             color: rp.pal.fgDim
                             font.family: Tokens.font.ui
                             font.pixelSize: rp.u(11)
                         }
-                        Chip {
-                            pal: rp.pal; ui: rp.ui; small: true
-                            glyph: "refresh"; text: "Try again"
-                            onClicked: lights.setStrip(lights.stripOn)
+                        Row {
+                            spacing: rp.u(6)
+                            Chip {
+                                pal: rp.pal; ui: rp.ui; small: true
+                                glyph: "refresh"; text: "Try again"
+                                onClicked: lights.setStrip(lights.stripOn)
+                            }
+                            Chip {
+                                visible: lights.stripStuck
+                                pal: rp.pal; ui: rp.ui; small: true
+                                glyph: "bluetooth_searching"; text: "Reset Bluetooth"
+                                onClicked: lights.resetBluetooth()
+                            }
                         }
                     }
                 }
