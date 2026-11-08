@@ -20,8 +20,9 @@ panels().forEach(function (p) {
         return w;
     }
     // existing pieces
-    one(ARGS.launcher); one("org.kde.plasma.digitalclock");
-    (have["org.kde.plasma.kickoff"] || []).forEach(function (w) { w.remove(); });
+    one(ARGS.launcher); one(ARGS.clock);
+    // the clock island replaces the stock clock (its calendar lives on the shell's sheet)
+    ["org.kde.plasma.kickoff", "org.kde.plasma.digitalclock"].forEach(function (t) { (have[t] || []).forEach(function (w) { w.remove(); }); });
     // tasks: Glimpse takes over a stock task manager, pinned apps included
     var LEGACY = ARGS.legacy, old = [];
     LEGACY.forEach(function (t) { old = old.concat(have[t] || []); });
@@ -35,21 +36,6 @@ panels().forEach(function (p) {
     // the wallpaper picker lives inside the launcher now (Meta+Shift+W, the wheel over the emblem)
     old = old.concat(have["com.zinoxx.wallpicker"] || []);
     old.forEach(function (w) { w.remove(); });
-    var clock = (have["org.kde.plasma.digitalclock"] || [])[0];
-    if (clock) {
-        clock.currentConfigGroup = ["Appearance"];
-        clock.writeConfig("showDate", true);
-        clock.writeConfig("dateDisplayFormat", "BesideTime");
-        clock.writeConfig("dateFormat", "custom");
-        clock.writeConfig("customDateFormat", "ddd d");
-        clock.writeConfig("use24hFormat", 2);
-        // the size is per bar (bigger on scaled bars), so only a fresh clock gets the default
-        var fresh = String(clock.readConfig("autoFontAndSize")) !== "false";
-        clock.writeConfig("autoFontAndSize", false);
-        clock.writeConfig("fontFamily", "Inter Display");
-        clock.writeConfig("fontWeight", 700);
-        if (fresh) clock.writeConfig("fontSize", 11);
-    }
     if (ARGS.with_tiling) one(ARGS.tiling);
     if (main) {
         one("org.kde.plasma.systemtray");
@@ -62,8 +48,7 @@ panels().forEach(function (p) {
     one(ARGS.shell);            // the panels' host (no width on the bar)
     var pc = one(ARGS.colorizer);
     var settings = JSON.parse(JSON.stringify(SETTINGS));
-    settings.configurationOverrides.associations = [{"id": ids["org.kde.plasma.digitalclock"],
-        "name": "org.kde.plasma.digitalclock", "presets": [ARGS.clockpad]}];
+    settings.configurationOverrides.associations = [];      // the clock island pads itself
     pc.currentConfigGroup = ["General"];
     pc.writeConfig("globalSettings", JSON.stringify(settings));
     pc.writeConfig("islandsEnabled", true);

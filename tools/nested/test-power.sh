@@ -62,7 +62,7 @@ check() { if grep -q -- "$2" "$3"; then echo "ok   $1"; else echo "FAIL $1"; fai
 check "the island opened the power overlay"   'ATOM power Virtual-0 phase open lead true' "$L"
 check "keyboard back to the app after Esc"   'app typed "ab"' "$N/out/app.log"
 n=$(grep -c 'ATOM power Virtual-0 phase closed' "$L"); [ "$n" -ge 2 ] && echo "ok   a click on the blur closed it" || { echo "FAIL a click on the blur closed it"; fail=1; }
-errs=$(grep -E "Power|power|Atom|Session" "$L" | grep -E "Error|TypeError|ReferenceError|Cannot|Unable|not a type|is not defined|Could not set" | sort -u | head)
+errs=$(grep -E "Power|power|Atom|Session" "$L" | grep -E "Error|TypeError|ReferenceError|Cannot|Unable|not a type|is not defined|Could not set|Invalid property|no panel for" | sort -u | head)
 [ -n "$errs" ] && { echo "$errs"; fail=1; }
 echo "logs: $N/out"
 exit $fail

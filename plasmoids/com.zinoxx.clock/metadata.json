@@ -1,0 +1,14 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [{ "Name": "zinoxx" }],
+        "Category": "Date and Time",
+        "Description": "The date and time; opens the calendar (holidays, your Google Calendar)",
+        "Icon": "preferences-system-time",
+        "Id": "com.zinoxx.clock",
+        "License": "GPL-3.0-or-later",
+        "Name": "Clock",
+        "Version": "1.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

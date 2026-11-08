@@ -37,6 +37,7 @@ TASKS = "com.zinoxx.glimpse"
 TILING = "com.zinoxx.tiling"
 LAUNCHER = "com.zinoxx.launcher"           # replaces Kickoff (favourites are Plasma's shared ones)
 SHELL = "com.zinoxx.shell"                 # draws the bar widgets' panels on one morphing sheet (qml/Atom)
+CLOCK = "com.zinoxx.clock"                 # the clock island (its calendar on the sheet); replaces the stock clock
 LEGACY_TASKS = ["org.kde.plasma.icontasks", "org.kde.plasma.taskmanager"]
 ISLAND_RADIUS = TOKENS["radius"]["md"]     # islands share the windows' corner radius
 
@@ -253,11 +254,6 @@ def clock_padding(normal):
     return {"normal": o}
 
 
-def clock_overrides(clock_id):
-    return {"overrides": {CLOCK_PAD: clock_padding(colorizer_settings()["widgets"]["normal"])},
-            "associations": [{"id": clock_id, "name": "org.kde.plasma.digitalclock", "presets": [CLOCK_PAD]}]}
-
-
 def shell(js):
     return subprocess.run(["qdbus6", "org.kde.plasmashell", "/PlasmaShell",
                            "org.kde.PlasmaShell.evaluateScript", js],
@@ -324,12 +320,12 @@ def order_for(ids, main, others=()):
         seq = [k(LAUNCHER), s[0],
                k(TASKS), ids["expanding"],
                k("com.zinoxx.claudeusage"), s[1], k("com.zinoxx.sysstats"), s[2],
-               k("org.kde.plasma.systemtray"), s[3], k(TILING), s[4], k("org.kde.plasma.digitalclock"), s[5],
+               k("org.kde.plasma.systemtray"), s[3], k(TILING), s[4], k(CLOCK), s[5],
                k("com.zinoxx.session"), k(SHELL), k(COLORIZER)]
         extra = s[6:]
     else:
         seq = [k(LAUNCHER), s[0], k(TASKS), ids["expanding"],
-               k(TILING), s[1], k("org.kde.plasma.digitalclock"), s[2], k("org.kde.plasma.showdesktop"), k(SHELL),
+               k(TILING), s[1], k(CLOCK), s[2], k("org.kde.plasma.showdesktop"), k(SHELL),
                k(COLORIZER)]
         extra = s[3:]
     # a widget that isn't there (its feature is off) leaves its spacer spare
@@ -355,7 +351,7 @@ def configure():
     from . import caps
     return json.loads(shell(util.script(
         "bars-configure", settings=colorizer_settings(), spacer=SPACER, colorizer=COLORIZER, clockpad=CLOCK_PAD,
-        tasks=TASKS, legacy=LEGACY_TASKS, launcher=LAUNCHER, tiling=TILING, shell=SHELL,
+        tasks=TASKS, legacy=LEGACY_TASKS, launcher=LAUNCHER, tiling=TILING, shell=SHELL, clock=CLOCK,
         with_tiling=caps.feature("tiling"), with_claude=caps.feature("claude"))))
 
 
@@ -363,9 +359,9 @@ def configure():
 # panel needs no reordering (an existing one does: AppletOrder, with plasmashell stopped, main())
 TEMPLATES = {
     "main": [LAUNCHER, "|", TASKS, "~", "com.zinoxx.claudeusage", "|", "com.zinoxx.sysstats", "|",
-             "org.kde.plasma.systemtray", "|", TILING, "|", "org.kde.plasma.digitalclock", "|", "com.zinoxx.session",
+             "org.kde.plasma.systemtray", "|", TILING, "|", CLOCK, "|", "com.zinoxx.session",
              SHELL, COLORIZER],
-    "secondary": [LAUNCHER, "|", TASKS, "~", TILING, "|", "org.kde.plasma.digitalclock", "|",
+    "secondary": [LAUNCHER, "|", TASKS, "~", TILING, "|", CLOCK, "|",
                   "org.kde.plasma.showdesktop", SHELL, COLORIZER],
 }
 BAR_PX = 49        # a bar's thickness at UI size 1 (logical px): 56 on the desk monitors at today's size

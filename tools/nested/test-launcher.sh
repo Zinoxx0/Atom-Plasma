@@ -72,7 +72,7 @@ check "keyboard back to the app after Esc"  'app typed "ax"' "$N/out/app.log"
 check "Meta closed it and the keyboard came back" 'app typed "axy"' "$N/out/app.log"
 check "opening cleared the desk (the app was minimized)" 'app active false' "$N/out/app.log"
 check "a stack opened as a folder, Esc folded it" 'ATOM stage folder' "$L"
-errs=$(grep -E "launcher|Stage|Atom|PowerOrb" "$L" | grep -E "Error|error:|TypeError|ReferenceError|Cannot|Unable|not a type|is not defined" | sort -u | head -20)
+errs=$(grep -E "launcher|Stage|Atom|PowerOrb" "$L" | grep -E "Error|error:|TypeError|ReferenceError|Cannot|Unable|not a type|is not defined|Invalid property|no panel for" | sort -u | head -20)
 [ -n "$errs" ] && { echo "$errs"; fail=1; }
 echo "logs: $N/out"
 exit $fail

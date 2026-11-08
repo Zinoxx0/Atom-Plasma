@@ -13,6 +13,7 @@ QtObject {
 
     // what the sheet can show: kind -> the panel's QML (each takes ricePalette, screenName, ui, kind, args)
     readonly property var panels: ({
+        calendar: Qt.resolvedUrl("panels/Calendar.qml"),
         demo: Qt.resolvedUrl("panels/Demo.qml"),
         demo2: Qt.resolvedUrl("panels/Demo.qml"),
     })
