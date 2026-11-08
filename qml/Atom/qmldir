@@ -7,6 +7,6 @@ SheetWindow 1.0 SheetWindow.qml
 Island 1.0 Island.qml
 Frost 1.0 Frost.qml
 PowerWindow 1.0 PowerWindow.qml
-RoomLight 1.0 RoomLight.qml
+singleton RoomLight 1.0 RoomLight.qml
 singleton Notify 1.0 Notify.qml
 Toasts 1.0 Toasts.qml

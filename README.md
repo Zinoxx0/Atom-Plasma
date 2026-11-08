@@ -80,7 +80,9 @@ island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on ev
   the system's state, and beads for apps with notifications you haven't seen. It opens the **control
   center**: Wi-Fi, Bluetooth, Do Not Disturb, night light, power profile, battery saver, volume and
   microphone, every screen's brightness, what's playing, the apps' own volumes, your room's lights, and the
-  notification history.
+  notification history. With a room light setup at home (a lamp bridge on `127.0.0.1:48723`, a strip and
+  wallpaper-sync service on `127.0.0.1:48724`), a light button joins the island and opens the **Room**
+  panel: each light's level, white, colour and moods, and Match wallpaper.
 - **Notifications** grow out of the status island on the screen you're working on, one card per chat.
 - **Clock island**: the calendar, with Portuguese holidays and your Google Calendar
   (`./agenda.py set-url <the calendar's secret iCal address>`; it stays in `~/.config/atom-plasma/secrets.json`).

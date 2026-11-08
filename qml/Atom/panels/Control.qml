@@ -17,8 +17,9 @@ import "parts"
 
 // The control center (the status island's panel): quick toggles (Wi-Fi, Bluetooth, Do Not Disturb, night
 // light, the power profile, the battery saver), levels (volume, microphone, every screen's brightness),
-// what's playing, the apps' own volumes, the room's lights when home. Wi-Fi, Bluetooth and the audio
-// output open their own page in place (the sheet reshapes around it). Esc steps back, then closes.
+// what's playing, the apps' own volumes, the room's lights when home (their arrow: the Room panel). Wi-Fi,
+// Bluetooth and the audio output open their own page in place (the sheet reshapes around it). Esc steps
+// back, then closes.
 FocusScope {
     id: cc
     property RicePalette ricePalette: null
@@ -104,7 +105,11 @@ FocusScope {
     }
     readonly property bool saverOn: !!(saverFile.value && saverFile.value.on)
 
-    RoomLight { id: room; active: cc.visible }
+    // the room's lights (Atom RoomLight, shared with the status island's button and the Room panel)
+    readonly property var room: RoomLight
+    onVisibleChanged: RoomLight.watch("control/" + screenName, visible)
+    Component.onDestruction: RoomLight.watch("control/" + screenName, false)
+    function openRoom() { Shell.open("room", cc.screenName, Shell.anchor) }
     NowPlaying { id: music; ticking: false }
 
     // a row of a list page
@@ -531,20 +536,32 @@ FocusScope {
             }
         }
 
-        // the room's lights (at home)
-        Text {
-            visible: room.reachable && room.home
-            text: "Room"
-            color: cc.pal.muted
-            font.family: Tokens.font.ui
-            font.weight: Font.DemiBold
-            font.pixelSize: cc.u(11)
-            font.capitalization: Font.AllUppercase
-            font.letterSpacing: 0.6
+        // the room's lights (at home): levels here, everything else on the Room panel (the arrow)
+        RowLayout {
+            Layout.fillWidth: true
+            visible: room.present
+            Text {
+                Layout.fillWidth: true
+                text: "Room"
+                color: cc.pal.muted
+                font.family: Tokens.font.ui
+                font.weight: Font.DemiBold
+                font.pixelSize: cc.u(11)
+                font.capitalization: Font.AllUppercase
+                font.letterSpacing: 0.6
+            }
+            Text {
+                text: "Colours & more"
+                color: roomMore.containsMouse ? cc.pal.fg : cc.pal.primary
+                font.family: Tokens.font.ui
+                font.weight: Font.DemiBold
+                font.pixelSize: cc.u(11)
+                MouseArea { id: roomMore; anchors.fill: parent; anchors.margins: -cc.u(6); hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: cc.openRoom() }
+            }
         }
         Level {
             Layout.fillWidth: true
-            visible: room.reachable && room.home && room.lamp !== null
+            visible: room.present && room.lampReachable
             pal: cc.pal; ui: cc.ui
             icon: room.lampOn ? "light" : "light_off"
             label: "Bedside lamp" + (room.lampOn ? "" : "  ·  off")
@@ -555,12 +572,12 @@ FocusScope {
         }
         Level {
             Layout.fillWidth: true
-            visible: room.reachable && room.home && room.room !== null
+            visible: room.present && room.roomReachable
             pal: cc.pal; ui: cc.ui
-            icon: "wb_iridescent"
-            label: "LED strip" + (room.stripOn ? "" : "  ·  off")
+            icon: room.stripTrouble ? "bluetooth_disabled" : "wb_iridescent"
+            label: "LED strip" + (room.stripTrouble ? "  ·  can't reach it" : room.stripOn ? "" : "  ·  off")
             value: room.stripBright / 100
-            dim: !room.stripOn
+            dim: !room.stripOn || room.stripTrouble
             onMoved: v => room.setStripBright(v * 100)
             onIconClicked: room.setStrip(!room.stripOn)
         }
@@ -568,7 +585,7 @@ FocusScope {
         Column {
             Layout.fillWidth: true
             Layout.topMargin: cc.u(30)
-            visible: !music.present && apps.count === 0 && !(room.reachable && room.home) && Notify.groups.length === 0
+            visible: !music.present && apps.count === 0 && !room.present && Notify.groups.length === 0
             spacing: cc.u(6)
             Text { anchors.horizontalCenter: parent.horizontalCenter; text: "self_care"; color: C.alpha(cc.pal.fg, 0.25); font.family: Tokens.font.icons; font.pixelSize: cc.u(34) }
             Text { anchors.horizontalCenter: parent.horizontalCenter; text: "All quiet"; color: cc.pal.muted; font.family: Tokens.font.ui; font.pixelSize: cc.u(13) }

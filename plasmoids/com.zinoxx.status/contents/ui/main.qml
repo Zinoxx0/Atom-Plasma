@@ -17,8 +17,10 @@ import "Rice/Color.js" as C
 
 // The status island (it replaces Plasma's system tray): your apps' tray icons (Atom.Native Tray: a click
 // opens the app, a right click its menu on the shell's sheet, the middle button its second action, the
-// wheel scrolls it), then the system's state in glyphs (network, Bluetooth, sound, a microphone in use,
-// the battery, Do Not Disturb). A click on the glyphs opens the control center (Atom panels/Control.qml).
+// wheel scrolls it), the room's lights when home (Atom RoomLight: a click opens the Room panel, the middle
+// button switches them all, the wheel dims them), then the system's state in glyphs (network, Bluetooth,
+// sound, a microphone in use, the battery, Do Not Disturb). A click on the glyphs opens the control
+// center (Atom panels/Control.qml).
 PlasmoidItem {
     id: root
 
@@ -208,8 +210,50 @@ PlasmoidItem {
                 QQC2.ToolTip.delay: 600
             }
         }
+        // the room's lights (the bedside lamp, the LED strip), only when home: lit while any is on
+        Island {
+            id: roomBtn
+            kind: "room"
+            visible: RoomLight.present
+            Layout.preferredWidth: root.u(28)
+            Layout.fillHeight: true
+            cursorShape: Qt.PointingHandCursor
+            property real wheelRest: 0
+            onWheel: wheel => {
+                wheelRest += wheel.angleDelta.y                 // a notch is 120; touchpads send many small ones
+                const notches = Math.trunc(wheelRest / 120)
+                if (notches === 0) return
+                wheelRest -= notches * 120
+                RoomLight.nudge(notches * 5)
+            }
+            Rectangle {
+                anchors.centerIn: parent
+                width: root.u(26); height: width; radius: width / 2
+                color: C.alpha(roomBtn.open ? pal.primary : pal.fg, roomBtn.open ? 0.22 : roomBtn.pressed ? 0.16 : roomBtn.containsMouse ? 0.1 : 0)
+                Behavior on color { ColorAnimation { duration: Tokens.fast } }
+            }
+            Text {
+                anchors.centerIn: parent
+                text: "lightbulb"
+                color: roomBtn.open ? pal.primary : RoomLight.anyOn ? pal.fg : pal.muted
+                font.family: Tokens.font.icons
+                font.pixelSize: root.u(18)
+                scale: roomBtn.pressed ? 0.9 : 1
+                Behavior on scale { NumberAnimation { duration: Tokens.fast } }
+                Behavior on color { ColorAnimation { duration: Tokens.fast } }
+            }
+            MouseArea {         // the middle button: every light on or off (left clicks fall through to the island)
+                anchors.fill: parent
+                acceptedButtons: Qt.MiddleButton
+                onClicked: RoomLight.setAll(!RoomLight.anyOn)
+            }
+            QQC2.ToolTip.text: "Room light  ·  lamp: " + RoomLight.lampSummary.toLowerCase() + "  ·  strip: " + RoomLight.stripSummary.toLowerCase()
+                               + "\nMiddle-click: all on or off  ·  wheel: dim"
+            QQC2.ToolTip.visible: containsMouse && !open
+            QQC2.ToolTip.delay: 600
+        }
         Rectangle {     // between the apps and the system
-            visible: Tray.count > 0
+            visible: Tray.count > 0 || roomBtn.visible
             Layout.preferredWidth: 1
             Layout.preferredHeight: root.u(16)
             Layout.leftMargin: root.u(4)

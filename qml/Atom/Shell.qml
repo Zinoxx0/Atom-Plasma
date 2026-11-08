@@ -17,6 +17,7 @@ QtObject {
         control: Qt.resolvedUrl("panels/Control.qml"),
         traymenu: Qt.resolvedUrl("panels/TrayMenu.qml"),
         clipboard: Qt.resolvedUrl("panels/Clipboard.qml"),
+        room: Qt.resolvedUrl("panels/Room.qml"),
         stats: Qt.resolvedUrl("panels/Portal.qml"),
         claude: Qt.resolvedUrl("panels/Portal.qml"),
         demo: Qt.resolvedUrl("panels/Demo.qml"),
