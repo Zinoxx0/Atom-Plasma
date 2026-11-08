@@ -1,0 +1,7 @@
+module Atom
+singleton Shell 1.0 Shell.qml
+singleton Windows 1.0 Windows.qml
+Glass 1.0 Glass.qml
+Sheet 1.0 Sheet.qml
+SheetWindow 1.0 SheetWindow.qml
+Island 1.0 Island.qml

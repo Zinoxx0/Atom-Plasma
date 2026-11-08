@@ -22,7 +22,11 @@ QtObject {
     readonly property int fast: ms(150)
     readonly property int base: ms(250)
     readonly property int slow: ms(400)
+    readonly property int morph: ms(360)
+    readonly property int collapse: ms(220)
+    readonly property int stagger: ms(30)
     readonly property int enter: Easing.OutCubic     // things arriving
     readonly property int exit: Easing.InCubic       // things leaving
     readonly property int move: Easing.InOutCubic    // things moving between states
+    readonly property int grow: Easing.OutQuart      // shapes growing and reshaping (no overshoot)
 }

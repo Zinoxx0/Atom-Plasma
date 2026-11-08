@@ -19,7 +19,9 @@ TOKENS = {
     "size": {"caption": 10, "small": 11, "label": 12, "body": 13, "title": 15, "heading": 18,
              "display": 24, "hero": 32},
     # ms at normal speed; QML scales them by the system animation speed (kdeglobals AnimationDurationFactor)
-    "dur": {"fast": 150, "base": 250, "slow": 400},
+    # morph / collapse: the shell's sheets growing out of an island and shrinking back; stagger: between
+    # children entering one after another
+    "dur": {"fast": 150, "base": 250, "slow": 400, "morph": 360, "collapse": 220, "stagger": 30},
     # alpha levels over the palette's surfaces / accents
     "alpha": {"glass": 0.78, "card": 0.55, "hover": 0.08, "press": 0.14, "selected": 0.16,
               "outline": 0.10, "outlineStrong": 0.22, "wash": 0.12, "shadow": 0.45},
@@ -77,6 +79,7 @@ def qml():
         "    readonly property int enter: Easing.OutCubic     // things arriving",
         "    readonly property int exit: Easing.InCubic       // things leaving",
         "    readonly property int move: Easing.InOutCubic    // things moving between states",
+        "    readonly property int grow: Easing.OutQuart      // shapes growing and reshaping (no overshoot)",
         "}",
     ]
     return "\n".join(lines) + "\n"

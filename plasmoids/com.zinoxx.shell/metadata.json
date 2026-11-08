@@ -1,0 +1,14 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [{ "Name": "zinoxx" }],
+        "Category": "System Information",
+        "Description": "Draws the rice's panels (calendar, control center, session...) on one morphing surface per screen",
+        "Icon": "preferences-desktop-theme",
+        "Id": "com.zinoxx.shell",
+        "License": "GPL-3.0-or-later",
+        "Name": "Atom shell",
+        "Version": "1.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
