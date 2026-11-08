@@ -5,19 +5,24 @@ import QtQuick.Window
 import org.kde.layershell as LayerShell
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.private.kicker as Kicker
+import org.kde.plasma.workspace.dbus as DBus
 import Atom
+import Atom.Native
 import "Rice"
 import "Rice/Color.js" as C
 
-// The launcher, presented on the bare desktop. Opening it clears the desk: every window flies into its
-// pin in the top band (Atom Windows.clear: minimized, KWin's magic lamp) and the wallpaper itself is the
-// backdrop. The bar's jewel lifts off and glides up into the search capsule; a greeting settles above it;
+// The launcher, presented on the bare desktop of its screen. Opening it clears that screen: its windows
+// fly into their pins in the top band (Atom Windows.clear: minimized, KWin's magic lamp; other screens
+// keep theirs), the bar fades away under the wallpaper itself, and the wallpaper is the backdrop. The
+// bar's jewel lifts off and glides up into the search capsule; a greeting settles above it;
 // the pinned apps come out as candy-glass bubbles, then the app library: every category a frosted stack
 // of its first apps, six to a row, that opens as a folder grown out of it. Typing grows the results out
 // of the capsule. Everything is frosted with the screen's pre-blurred wallpaper (Atom Frost), so the glass
 // fades and moves with its piece. Closing folds it all back into the jewel and brings the windows back
 // exactly as they were (Windows.restore). Esc steps back (folder, query, then closes); so does a click on
-// the bare wallpaper, Meta, or launching something.
+// the bare wallpaper, Meta, launching something, or picking a window in Glimpse's top band (which stays
+// usable: the stage lets the pointer through to its strip). When the pointer moves to another screen,
+// the launcher follows it there, the query with it (not from the Theme page).
 // Mapped only while open: unmapping hands the keyboard back to the window that had it.
 Window {
     id: stage
@@ -38,8 +43,14 @@ Window {
     flags: Qt.FramelessWindowHint
     visible: phase !== "closed"
 
-    LayerShell.Window.scope: "atom-launcher"
-    LayerShell.Window.layer: LayerShell.Window.LayerOverlay
+    // a scope KWin knows (an unknown one makes it a normal window, which the rounded-corners effect
+    // outlines and rounds: a frame around the whole screen); "utility" is no special window to KWin
+    LayerShell.Window.scope: "utility"
+    // the top layer: above the bar and every window (fullscreen ones are minimized with the rest), and
+    // below the overlay, where Glimpse's opened band goes while the launcher has its screen. KWin puts a
+    // surface that maps without the keyboard under the focused one of its layer, so the band can't come
+    // up above the stage within one layer
+    LayerShell.Window.layer: LayerShell.Window.LayerTop
     LayerShell.Window.anchors: LayerShell.Window.AnchorTop | LayerShell.Window.AnchorBottom
                              | LayerShell.Window.AnchorLeft | LayerShell.Window.AnchorRight
     LayerShell.Window.exclusionZone: -1
@@ -63,14 +74,15 @@ Window {
     function begin() {
         jewel = local(Shell.anchor || Shell.island("launcher", screenName))
         shrink.stop()
-        if (launcher.clearDesk) Windows.clear()
+        pointerAt = ""
         if (phase === "closed") {
             p = 0
             folderAt = -1
             phase = "opening"
-            waitFrame = true
+            waitFrame = true            // the desk clears on the first frame (onFrameSwapped)
             opened()
         } else {
+            if (launcher.clearDesk) Windows.clear(screenName)
             phase = "opening"
             grow.restart()
         }
@@ -80,10 +92,11 @@ Window {
         phase = "closing"
         grow.stop()
         waitFrame = false
-        Windows.restore()
+        Windows.restore(screenName)
         shrink.restart()
     }
     onPhaseChanged: {
+        if (phase === "closed") keepWall.restart()
         if (!Shell.debug) return
         console.warn("ATOM stage", screenName, "phase", phase, Date.now() % 100000)
         if (phase === "open") console.warn("ATOM stage state home", home, "contentIn", contentIn, "searching", searching,
@@ -94,8 +107,62 @@ Window {
                          "power at", Math.round(powerBead.x + powerBead.width / 2), Math.round(powerBead.y + powerBead.height / 2))
         }
     }
+    // The windows go once the stage is up: mapped, it holds the keyboard, so minimizing the focused window
+    // doesn't make KWin focus one on another screen, and closing hands the keyboard back to it
     property bool waitFrame: false
-    onFrameSwapped: if (waitFrame) { waitFrame = false; grow.restart() }
+    onFrameSwapped: if (waitFrame) {
+        waitFrame = false
+        if (launcher.clearDesk) Windows.clear(screenName)
+        grow.restart()
+    }
+
+    // ------------------------------------------------------------------ following the pointer
+    // While it's open, KWin is asked every 150 ms which screen the pointer is on (activeOutputName: the
+    // pointer's screen, KWin's default; plasmashell only sees the pointer over its own surfaces, and Qt
+    // doesn't always tell when it leaves one for another screen). When the pointer has moved to another
+    // screen, the launcher goes there, query and all. Where the pointer rests when the launcher opens
+    // doesn't count (Meta opens it on the active window's screen): only a move does.
+    property string pointerAt: ""               // the screen the pointer was last seen on ("" = not yet)
+    Timer {
+        interval: 150
+        repeat: true
+        running: stage.wanted && (stage.phase === "opening" || stage.phase === "open") && !stage.walls
+        triggeredOnStart: true
+        onTriggered: stage.askPointer()
+    }
+    function askPointer() {
+        const reply = DBus.SessionBus.asyncCall({ service: "org.kde.KWin", path: "/KWin", iface: "org.kde.KWin",
+                                                  member: "activeOutputName", arguments: [] })
+        reply.finished.connect(() => {
+            const v = reply.isError ? "" : reply.value
+            reply.destroy()
+            stage.pointerSeen(String((v && typeof v === "object" && "value" in v) ? v.value : (v ?? "")))
+        })
+    }
+    function pointerSeen(name) {
+        if (!name || !wanted || phase === "closing" || walls) return
+        const before = pointerAt
+        pointerAt = name
+        if (!before || name === before || name === screenName) return
+        const there = Shell.island("launcher", name)        // a screen whose bar has no launcher can't have it
+        if (Shell.debug) console.warn("ATOM stage pointer moved from", before, "to", name, there ? "(following)" : "(no launcher there)")
+        if (!there) return
+        Shell.open("launcher", name, there, { query: launcher.query })
+    }
+
+    // ------------------------------------------------------------------ Glimpse's top band stays usable
+    // its strip is under this surface (same layer, mapped earlier): let the pointer through to it there.
+    // The opened band comes up above the stage (overlay), and a window picked in it closes the launcher
+    // (Glimpse's leaveLauncher)
+    readonly property var strip: Shell.island("strip", screenName)
+    InputMask {
+        window: stage
+        enabled: !!stage.strip && stage.screenObj !== null
+        shapes: {
+            const t = stage.strip ? Math.max(0, stage.strip.y + stage.strip.height - stage.screenObj.virtualY) : 0
+            return [{ x: 0, y: t, width: stage.width, height: Math.max(0, stage.height - t), radius: 0 }]
+        }
+    }
     NumberAnimation {
         id: grow
         target: stage; property: "p"; to: 1
@@ -186,12 +253,52 @@ Window {
     readonly property real ch: jewel.height + (capH - jewel.height) * p
 
 
+    // ------------------------------------------------------------------ the bar steps aside
+    // The launcher has the bare desktop: the bar it grew from (islands, their glass and shadows) is covered
+    // with the wallpaper itself, drawn the way the desktop draws it (scaled and cropped to the screen), so
+    // the bar fades away as the jewel lifts off and comes back as it lands. Loaded while open, and kept a
+    // while after closing, so opening again doesn't wait for it.
+    readonly property rect barArea: {
+        const r = launcher.panelRect
+        if (!r || r.width <= 0 || !screenObj) return Qt.rect(0, 0, 0, 0)
+        const m = u(20)                         // the islands' shadows reach past the bar's window
+        const x0 = Math.max(0, r.x - screenObj.virtualX - m), y0 = Math.max(0, r.y - screenObj.virtualY - m)
+        const x1 = Math.min(width, r.x - screenObj.virtualX + r.width + m), y1 = Math.min(height, r.y - screenObj.virtualY + r.height + m)
+        return Qt.rect(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0))
+    }
+    Timer { id: keepWall; interval: 120000 }
+    Item {
+        id: barCover
+        enabled: false
+        x: stage.barArea.x
+        y: stage.barArea.y
+        width: stage.barArea.width
+        height: stage.barArea.height
+        clip: true
+        visible: opacity > 0.001
+        opacity: bareWall.status === Image.Ready ? Math.min(1, stage.p / 0.3) : 0
+        Image {
+            id: bareWall
+            x: -barCover.x
+            y: -barCover.y
+            width: stage.width
+            height: stage.height
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            smooth: true
+            readonly property real dpr: stage.screenObj ? stage.screenObj.devicePixelRatio : 1
+            sourceSize: Qt.size(Math.round(stage.width * dpr), Math.round(stage.height * dpr))
+            source: stage.rice.wallpaper && (stage.phase !== "closed" || keepWall.running) ? "file://" + stage.rice.wallpaper : ""
+        }
+    }
+
     // ------------------------------------------------------------------ the bare wallpaper takes clicks
     MouseArea {
         anchors.fill: parent
         enabled: stage.phase === "open"
         acceptedButtons: Qt.LeftButton | Qt.RightButton
-        onClicked: {
+        onClicked: mouse => {
+            if (Shell.debug) console.warn("ATOM stage wallpaper clicked at", Math.round(mouse.x), Math.round(mouse.y))
             if (stage.folderAt >= 0) stage.closeFolder()
             else stage.launcher.close()
         }
@@ -695,7 +802,8 @@ Window {
 
     // fresh every time it opens: empty query, home, the search field ready to type in
     onOpened: {
-        search.text = ""
+        search.text = Shell.args.query || ""       // moved here from another screen: the query comes along
+        search.cursorPosition = search.text.length
         launcher.category = 0
         Qt.callLater(() => search.forceActiveFocus())
     }

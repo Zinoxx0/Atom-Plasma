@@ -6,6 +6,7 @@ import org.kde.kirigami as Kirigami
 import org.kde.taskmanager as TaskManager
 import org.kde.kitemmodels as KItemModels
 import org.kde.layershell as LayerShell
+import Atom
 import "Rice"
 import "Rice/Color.js" as C
 
@@ -18,6 +19,8 @@ import "Rice/Color.js" as C
 // Clicking a window: minimized -> restore here, on another screen -> slide here,
 // here and focused -> minimize, here -> focus. Clicking an app icon does that to the app's most
 // relevant window (see pickWindow). Middle-click: a new window of that app (on a thumbnail: close it).
+// The launcher (Atom Shell) covers its screen on the top layer but lets the pointer through to the
+// strip; the opened band then comes up above it (overlay), and picking a window or app here closes it.
 PlasmoidItem {
     id: root
 
@@ -150,6 +153,29 @@ PlasmoidItem {
     }
     function isMine(geo) { return sameRect(geo, myGeometry) }
     onMyGeometryChanged: scheduleScan()
+
+    // ------------------------------------------------------------------ the launcher (Atom Shell)
+    // it has this screen (on the top layer): the opened band goes on the overlay, above it
+    readonly property bool underLauncher: Shell.kind === "launcher" && Shell.screen === screenName
+    // a window or app picked here while the launcher is open (any screen): it closes, bringing back the
+    // windows it cleared, all but the picked one (ids), which the click rules then bring up on top
+    function leaveLauncher(ids) {
+        if (Shell.kind !== "launcher") return
+        if (ids) Windows.release(ids)
+        Shell.close("launcher")
+    }
+    // where the strip is, so the launcher's stage lets the pointer through to it
+    readonly property var stripRect: myScreen && cfg.showStrip
+        ? { x: myScreen.virtualX, y: myScreen.virtualY, width: myScreen.width, height: stripHeight } : null
+    property string stripPlaced: ""
+    function placeStrip() {
+        if (stripPlaced && stripPlaced !== screenName) Shell.forget("strip", stripPlaced)
+        if (stripRect) Shell.place("strip", screenName, stripRect)
+        else if (stripPlaced) Shell.forget("strip", stripPlaced)
+        stripPlaced = stripRect ? screenName : ""
+    }
+    onStripRectChanged: Qt.callLater(placeStrip)
+    Component.onDestruction: if (stripPlaced) Shell.forget("strip", stripPlaced)
     function screenFor(geo) {
         return screens.find(s => sameRect(geo, Qt.rect(s.virtualX, s.virtualY, s.width, s.height))) ?? null
     }
@@ -268,8 +294,10 @@ PlasmoidItem {
         if (!(i >= 0 && i < launchers.count)) return
         const R = TaskManager.AbstractTasksModel
         const idx = launchers.index(i, 0)
-        if (!actOnApp(launchers.data(idx, R.AppId), launchers.data(idx, R.LauncherUrlWithoutIcon)))
+        if (!actOnApp(launchers.data(idx, R.AppId), launchers.data(idx, R.LauncherUrlWithoutIcon))) {
+            leaveLauncher()
             launcherTasks.requestActivate(launchers.mapToSource(idx))
+        }
     }
     function removeLauncherAt(i) {
         const l = cfg.launchers.slice()
@@ -394,6 +422,7 @@ PlasmoidItem {
     function actOn(model, idx) {
         const R = TaskManager.AbstractTasksModel
         if (!idx || !idx.valid) return
+        leaveLauncher(model.data(idx, R.WinIdList))
         if (!isMine(model.data(idx, R.ScreenGeometry)))
             bringHere(model.data(idx, R.WinIdList))                 // restore or slide it onto this screen
         else if (model.data(idx, R.IsMinimized) === true || model.data(idx, R.IsActive) !== true)

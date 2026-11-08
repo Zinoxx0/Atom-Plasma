@@ -183,7 +183,7 @@ Item {
         }
         onClicked: mouse => {
             if (mouse.button === Qt.RightButton) menu.openRelative()
-            else if (mouse.button === Qt.MiddleButton) tile.tasks.requestNewInstance(tile.srcIndex)
+            else if (mouse.button === Qt.MiddleButton) { g.leaveLauncher(); tile.tasks.requestNewInstance(tile.srcIndex) }
             else g.actOnTile(tile.tasks, tile.srcIndex)
         }
     }

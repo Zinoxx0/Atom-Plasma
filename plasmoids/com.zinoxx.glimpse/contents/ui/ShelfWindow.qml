@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Window
 import org.kde.layershell as LayerShell
+import Atom
 import "Rice"
 import "Rice/Color.js" as C
 
@@ -28,7 +29,8 @@ Window {
     width: modelData.width
     height: g.barH + g.tabH + dropGap + thumbs.fullHeight + g.px(24)
     LayerShell.Window.scope: "dock"
-    LayerShell.Window.layer: g.fsMode ? LayerShell.Window.LayerOverlay : LayerShell.Window.LayerTop
+    // the overlay over a fullscreen window, and while the launcher (top layer) has this screen
+    LayerShell.Window.layer: g.fsMode || g.underLauncher ? LayerShell.Window.LayerOverlay : LayerShell.Window.LayerTop
     LayerShell.Window.anchors: LayerShell.Window.AnchorTop | LayerShell.Window.AnchorLeft | LayerShell.Window.AnchorRight
     LayerShell.Window.exclusionZone: -1
     LayerShell.Window.keyboardInteractivity: LayerShell.Window.KeyboardInteractivityNone
@@ -50,6 +52,7 @@ Window {
     // everything else has faded out. Over a fullscreen window it only maps while open, so nothing sits
     // on top of a game.
     readonly property bool drawn: morph > 0 || g.shelfOpen
+    onVisibleChanged: if (Shell.debug) console.warn("ATOM glimpse shelf", modelData.name, "mapped", visible, Date.now() % 100000)
     function ensureMapped() {
         unmap.stop()
         if (!visible) {

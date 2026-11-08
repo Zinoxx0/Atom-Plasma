@@ -31,6 +31,7 @@ Item {
     }
 
     function launch(newInstance) {
+        g.leaveLauncher()
         const idx = g.launchers.mapToSource(g.launchers.index(lb.index, 0))
         if (newInstance) g.launcherTasks.requestNewInstance(idx)
         else g.launcherTasks.requestActivate(idx)

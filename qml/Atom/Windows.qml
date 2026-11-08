@@ -70,31 +70,40 @@ QtObject {
     Component.onCompleted: schedule()
 
     // ------------------------------------------------------------------ clearing the desk (the launcher)
-    // The launcher presents itself on the bare desktop: every window is minimized (KWin's magic lamp sends
-    // them into their Glimpse pins) and, when it closes, exactly those come back. KWin's own show-desktop
-    // can't do this: it ends the moment the launcher takes the keyboard.
-    property var cleared: []                    // window ids it minimized, most recently used first
+    // The launcher presents itself on the bare desktop of ITS screen: the windows there are minimized
+    // (KWin's magic lamp sends them into their Glimpse pins) and, when it closes or moves to another
+    // screen, exactly those come back. The other screens keep their windows. KWin's own show-desktop
+    // can't do this: it's for every screen, and it ends the moment the launcher takes the keyboard.
+    property var cleared: ({})                  // screen name -> window ids minimized there, most recently used first
     function idsAt(idx) {
         return Array.prototype.slice.call(tasks.data(idx, TaskManager.AbstractTasksModel.WinIdList) || []).map(String)
     }
-    function clear() {
+    function clear(scr) {
         const R = TaskManager.AbstractTasksModel
         const out = []
         for (let i = 0; i < tasks.count; i++) {
             const idx = tasks.index(i, 0)
             if (tasks.data(idx, R.IsWindow) !== true || tasks.data(idx, R.IsMinimized) === true) continue
             if (tasks.data(idx, R.SkipTaskbar) === true) continue
+            const s = screenAt(tasks.data(idx, R.ScreenGeometry))
+            if (!s || s.name !== scr) continue
             const ids = idsAt(idx)
             if (!ids.length) continue
             out.push(ids[0])
             tasks.requestToggleMinimized(idx)
         }
-        cleared = cleared.concat(out)
+        const next = Object.assign({}, cleared)
+        next[scr] = (next[scr] || []).concat(out)
+        cleared = next
+        if (Shell.debug) console.warn("ATOM windows cleared", scr, out.length)
     }
-    function restore() {
+    function restore(scr) {
         const R = TaskManager.AbstractTasksModel
-        const ids = cleared.slice().reverse()   // least recently used first: the most recent ends on top
-        cleared = []
+        const ids = (cleared[scr] || []).slice().reverse()   // least recently used first: the most recent ends on top
+        const next = Object.assign({}, cleared)
+        delete next[scr]
+        cleared = next
+        if (Shell.debug) console.warn("ATOM windows restored", scr, ids.length)
         for (const id of ids) {
             for (let i = 0; i < tasks.count; i++) {
                 const idx = tasks.index(i, 0)
@@ -102,5 +111,14 @@ QtObject {
                 if (idsAt(idx).indexOf(id) >= 0) { tasks.requestToggleMinimized(idx); break }
             }
         }
+    }
+    // windows something else is bringing back (a click in Glimpse while the launcher is open): the
+    // launcher's restore leaves them alone, so they come back once, on top
+    function release(ids) {
+        const drop = Array.prototype.slice.call(ids || []).map(String)
+        if (!drop.length) return
+        const next = {}
+        for (const scr in cleared) next[scr] = cleared[scr].filter(id => drop.indexOf(id) < 0)
+        cleared = next
     }
 }

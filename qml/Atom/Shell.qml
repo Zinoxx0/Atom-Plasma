@@ -44,10 +44,12 @@ QtObject {
     property double closedAt: 0
 
     function open(k, scr, anchorRect, a) {
-        // kind last: it's the one hosts react to, the rest is read then
-        screen = scr || ""
+        // kind last: it's the one hosts react to, the rest is read then. The screen just before it: a
+        // panel moving to another screen (the launcher follows the pointer) keeps its kind, so the new
+        // screen's host reacts to the screen and must find the anchor and args already there
         anchor = anchorRect || null
         args = a || ({})
+        screen = scr || ""
         kind = k
     }
     function close(k) {

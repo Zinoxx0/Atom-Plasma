@@ -69,9 +69,11 @@ The bar's widgets are islands, and their panels all open on one morphing sheet p
 the island you clicked, glides to the next one while you point along the bar, and folds back into its
 island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on every bar).
 
-- **Launcher** (the jewel, Meta): your windows fly into their pins and the launcher presents itself on the
-  bare wallpaper: the jewel lifts into a search capsule, pinned apps come out as glass bubbles and the app
-  library as category decks that open as folders. Closing brings every window back where it was.
+- **Launcher** (the jewel, Meta): that screen's windows fly into their pins, its bar fades away, and the
+  launcher presents itself on the bare wallpaper: the jewel lifts into a search capsule, pinned apps come
+  out as glass bubbles and the app library as category decks that open as folders. Other screens keep
+  their windows; move the pointer to one and the launcher follows (your search comes along). Closing, or
+  picking a window in the top band, brings the windows back where they were.
 - **Power** (the power island, or the launcher's power button): a ripple of blur spreads over every screen
   and the session's actions come up big on yours.
 - **Status island** (replaces Plasma's system tray): your apps' tray icons with menus in the rice's look,

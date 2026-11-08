@@ -39,6 +39,11 @@ PlasmoidItem {
     readonly property var myScreen: root.Window.window ? (screens.find(sc => sc.name === Screen.name) ?? null) : null
     readonly property string myScreenName: myScreen ? myScreen.name : ""
     readonly property bool shown: Shell.kind === "launcher" && Shell.screen === myScreenName
+    // the bar this jewel sits on (global logical px; Plasma places its panel windows itself, so Qt knows
+    // where they are): the stage covers it with the wallpaper while open
+    readonly property var panelWindow: root.Window.window
+    readonly property rect panelRect: panelWindow ? Qt.rect(panelWindow.x, panelWindow.y, panelWindow.width, panelWindow.height)
+                                                  : Qt.rect(0, 0, 0, 0)
     function close() { if (Shell.kind === "launcher") Shell.close("launcher") }
     // opening clears the desk: the windows fly into their pins and come back on close (Atom Windows)
     readonly property bool clearDesk: true
