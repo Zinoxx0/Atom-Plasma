@@ -59,6 +59,7 @@ panels().forEach(function (p) {
     } else {
         one("org.kde.plasma.showdesktop");
     }
+    one(ARGS.shell);            // the panels' host (no width on the bar)
     var pc = one(ARGS.colorizer);
     var settings = JSON.parse(JSON.stringify(SETTINGS));
     settings.configurationOverrides.associations = [{"id": ids["org.kde.plasma.digitalclock"],

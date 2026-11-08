@@ -75,7 +75,7 @@ Item {
                     transform: Translate { id: rowRise; y: 6 }
                     SequentialAnimation {
                         id: rowIn
-                        PauseAnimation { duration: Tokens.ms(Math.min(row.index, 6) * 20) }
+                        PauseAnimation { duration: Tokens.ms(Math.max(0, Math.min(row.index, 6)) * 20) }
                         ParallelAnimation {
                             NumberAnimation { target: row; property: "opacity"; to: 1; duration: Tokens.base; easing.type: Tokens.enter }
                             NumberAnimation { target: rowRise; property: "y"; to: 0; duration: Tokens.base; easing.type: Tokens.enter }

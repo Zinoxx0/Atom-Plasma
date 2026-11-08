@@ -86,6 +86,30 @@ def glass(img, s):
     return str(out) if out.exists() else ""
 
 
+FULL_DIV = 4      # the launcher's backdrop is made at a quarter of the screen: the blur hides the scaling
+
+
+def glass_full(img, s):
+    """The whole screen's wallpaper as Plasma shows it, blurred and a little saturated: the fullscreen
+    launcher's backdrop (a static picture, so opening it costs no blur passes). Made small (FULL_DIV) and
+    drawn stretched; the blur hides that."""
+    w, h = s.get("w"), s.get("h")
+    if not img or not w or not h:
+        return ""
+    d = CACHE / "glass-full"
+    key = hashlib.sha1(f"{img}:{img.stat().st_mtime}:{w}x{h}".encode()).hexdigest()[:10]
+    out = d / f"{s['name']}-{key}.jpg"
+    if not out.exists():
+        d.mkdir(parents=True, exist_ok=True)
+        sw, sh = max(1, round(w / FULL_DIV)), max(1, round(h / FULL_DIV))
+        util.run("magick", str(img) + "[0]", "-resize", f"{sw}x{sh}^", "-gravity", "center", "-extent", f"{sw}x{sh}",
+                 "+repage", "-blur", "0x9", "-modulate", "100,135", "-quality", "92", str(out))
+        for old in d.glob(f"{s['name']}-*.jpg"):
+            if old != out:
+                old.unlink(missing_ok=True)
+    return str(out) if out.exists() else ""
+
+
 RIM_STOPS = 12
 
 
@@ -195,7 +219,7 @@ def apply_screens(ss, cfg, fallback):
         p = with_meta(palette_for(img, cfg, ovs.get(s["id"])), img) if img else fallback
         g = glass(img, s)
         top = float((cfg.get("ui") or {}).get("top", TOP_RATIO))
-        p = dict(p, _glass=g, _glassBand=GLASS_BAND, _rim=rim(g, p),
+        p = dict(p, _glass=g, _glassBand=GLASS_BAND, _rim=rim(g, p), _glassFull=glass_full(img, s),
                  _scale=s["ui"],                                            # size of that bar's widgets
                  _topScale=round(s["ui"] * top, 2),                         # size of the Glimpse band up top
                  _display={k: s["display"][k] for k in ("id", "name", "label", "portrait", "sharedEdges", "scale")},

@@ -36,6 +36,7 @@ SPACER = "org.kde.plasma.panelspacer"
 TASKS = "com.zinoxx.glimpse"
 TILING = "com.zinoxx.tiling"
 LAUNCHER = "com.zinoxx.launcher"           # replaces Kickoff (favourites are Plasma's shared ones)
+SHELL = "com.zinoxx.shell"                 # draws the bar widgets' panels on one morphing sheet (qml/Atom)
 LEGACY_TASKS = ["org.kde.plasma.icontasks", "org.kde.plasma.taskmanager"]
 ISLAND_RADIUS = TOKENS["radius"]["md"]     # islands share the windows' corner radius
 
@@ -324,11 +325,12 @@ def order_for(ids, main, others=()):
                k(TASKS), ids["expanding"],
                k("com.zinoxx.claudeusage"), s[1], k("com.zinoxx.sysstats"), s[2],
                k("org.kde.plasma.systemtray"), s[3], k(TILING), s[4], k("org.kde.plasma.digitalclock"), s[5],
-               k("com.zinoxx.session"), k(COLORIZER)]
+               k("com.zinoxx.session"), k(SHELL), k(COLORIZER)]
         extra = s[6:]
     else:
         seq = [k(LAUNCHER), s[0], k(TASKS), ids["expanding"],
-               k(TILING), s[1], k("org.kde.plasma.digitalclock"), s[2], k("org.kde.plasma.showdesktop"), k(COLORIZER)]
+               k(TILING), s[1], k("org.kde.plasma.digitalclock"), s[2], k("org.kde.plasma.showdesktop"), k(SHELL),
+               k(COLORIZER)]
         extra = s[3:]
     # a widget that isn't there (its feature is off) leaves its spacer spare
     keep = []
@@ -353,7 +355,7 @@ def configure():
     from . import caps
     return json.loads(shell(util.script(
         "bars-configure", settings=colorizer_settings(), spacer=SPACER, colorizer=COLORIZER, clockpad=CLOCK_PAD,
-        tasks=TASKS, legacy=LEGACY_TASKS, launcher=LAUNCHER, tiling=TILING,
+        tasks=TASKS, legacy=LEGACY_TASKS, launcher=LAUNCHER, tiling=TILING, shell=SHELL,
         with_tiling=caps.feature("tiling"), with_claude=caps.feature("claude"))))
 
 
@@ -362,9 +364,9 @@ def configure():
 TEMPLATES = {
     "main": [LAUNCHER, "|", TASKS, "~", "com.zinoxx.claudeusage", "|", "com.zinoxx.sysstats", "|",
              "org.kde.plasma.systemtray", "|", TILING, "|", "org.kde.plasma.digitalclock", "|", "com.zinoxx.session",
-             COLORIZER],
+             SHELL, COLORIZER],
     "secondary": [LAUNCHER, "|", TASKS, "~", TILING, "|", "org.kde.plasma.digitalclock", "|",
-                  "org.kde.plasma.showdesktop", COLORIZER],
+                  "org.kde.plasma.showdesktop", SHELL, COLORIZER],
 }
 BAR_PX = 49        # a bar's thickness at UI size 1 (logical px): 56 on the desk monitors at today's size
 

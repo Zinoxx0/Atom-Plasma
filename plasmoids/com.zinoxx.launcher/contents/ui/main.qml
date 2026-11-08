@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Effects
 import QtQuick.Layouts
-import QtQuick.Dialogs
 import QtCore
 import QtQuick.Controls as QQC2
 import QtQuick.Window
@@ -12,25 +11,51 @@ import org.kde.plasma.extras as PlasmaExtras
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.private.kicker as Kicker
 import org.kde.plasma.plasma5support as P5Support
+import Atom
 import "Rice"
 import "Rice/Color.js" as C
-import "Rice/SessionActions.js" as Session
 
-// A calm, wallpaper-lit app launcher in the style of the session menu. Left: a hero card of
-// this screen's wallpaper (or a picture chosen with its pencil, placed by hand) with the time,
-// a greeting and session shortcuts. Right: a search field over pinned apps, category chips and
-// the app grid, or the wallpaper picker (WallpaperPane). Typing searches apps, settings, files
-// and maths (KRunner), grouped by kind. Favourites are Plasma's shared ones (Kickoff's).
-// Meta opens it (X-Plasma-Provides: org.kde.plasma.launchermenu); Meta+Shift+W opens it on the
-// wallpapers; the wheel over the emblem steps this screen's wallpaper.
+// The launcher: the bar's jewel (the accent pill) and, when it's clicked or Meta is pressed, a fullscreen
+// stage that grows out of it (Stage.qml): clock and greeting, search, pinned apps, categories and the app
+// grid, or the Theme page (WallpaperPane), with the power orb in the corner. Typing searches apps,
+// settings, files and maths (KRunner), grouped by kind. Favourites are Plasma's shared ones (Kickoff's).
+// Meta opens it on the screen of the active window (X-Plasma-Provides: org.kde.plasma.launchermenu);
+// Meta+Shift+W opens it on the wallpapers; the wheel over the jewel steps this screen's wallpaper.
+// Open/closed lives in Atom.Shell (kind "launcher"), so every bar's launcher agrees on it.
 PlasmoidItem {
     id: root
 
     RicePalette { id: pal; output: Screen.name }
     Account { id: me }
-    // the popup is one design size on every screen, scaled like the bar (rice settings bar_scale)
+    // the stage is one design size on every screen, scaled like the bar (rice settings bar_scale) and a
+    // little larger than the bar's widgets: it has the whole screen
     readonly property real s: pal.uiScale
-    function px(n) { return Math.round(n * s) }
+    readonly property real k: 1.15
+    function px(n) { return Math.round(n * s * k) }
+
+    // ------------------------------------------------------------------ open / close (Atom.Shell)
+    readonly property var screens: Array.prototype.slice.call(Qt.application.screens)
+    // until the item sits in its panel window, Screen.name reports the primary screen
+    readonly property var myScreen: root.Window.window ? (screens.find(sc => sc.name === Screen.name) ?? null) : null
+    readonly property string myScreenName: myScreen ? myScreen.name : ""
+    readonly property bool shown: Shell.kind === "launcher" && Shell.screen === myScreenName
+    function close() { if (Shell.kind === "launcher") Shell.close("launcher") }
+    // Meta (this applet holds the launcher shortcut): open on the screen of the active window, or close.
+    // Plasma also expands the applet on activation (activationTogglesExpanded: false would make that
+    // "always expand"): its popup is never wanted, so it folds straight back, before it can map (a
+    // change made inside this handler is ignored: the next turn of the event loop)
+    onExpandedChanged: {
+        if (Shell.debug) console.warn("ATOM launcher expanded", expanded, Date.now() % 100000)
+        if (expanded) Qt.callLater(() => { root.expanded = false })
+    }
+    Connections {
+        target: Plasmoid
+        function onActivated() {
+            if (Shell.kind === "launcher") { Shell.close("launcher"); return }
+            const scr = Windows.activeScreen || root.myScreenName
+            Shell.open("launcher", scr, Shell.island("launcher", scr))
+        }
+    }
 
     RiceShell {
         id: sh
@@ -57,8 +82,8 @@ PlasmoidItem {
     property string openTab: ""         // a tab asked for before the Theme page was first built
     // Meta+Shift+W (~/.local/share/applications/net.local.rice-wallpapers.desktop) leaves a note,
     // then opens the launcher: read it once per opening
-    onExpandedChanged: {
-        if (root.expanded) sh.connectSource('f="$HOME/.local/state/rice/launcher-open"; cat "$f" 2>/dev/null; rm -f "$f" #mode')
+    onShownChanged: {
+        if (root.shown) sh.connectSource('f="$HOME/.local/state/rice/launcher-open"; cat "$f" 2>/dev/null; rm -f "$f" #mode')
         else { view = "apps"; wallMode = "desktop" }
     }
     // the wheel over the emblem: this screen's next / previous wallpaper
@@ -66,16 +91,6 @@ PlasmoidItem {
 
     // the hero image: chosen here, or this screen's wallpaper
     readonly property var cfg: Plasmoid.configuration
-    function setHero(path) { cfg.heroImage = path || "" }
-    FileDialog {
-        id: browseDialog
-        title: "Choose the hero image"
-        nameFilters: ["Images (*.png *.jpg *.jpeg *.webp *.avif)", "All files (*)"]
-        currentFolder: StandardPaths.writableLocation(StandardPaths.PicturesLocation)
-        // the popup stays open while the dialog has the focus
-        onVisibleChanged: root.hideOnWindowDeactivate = !visible
-        onAccepted: root.setHero(String(selectedFile).replace(/^file:\/\//, ""))
-    }
 
     toolTipMainText: "Apps"
     toolTipSubText: "Search apps, settings, files and maths · Meta"
@@ -139,6 +154,10 @@ PlasmoidItem {
                   "krunner_sessions", "krunner_powerdevil", "locations", "baloosearch", "krunner_webshortcuts"]
     }
     Kicker.DragHelper { id: dragHelper; dragIconSize: Kirigami.Units.iconSizes.medium }
+    // for the stage (Stage.qml)
+    readonly property var runnerModel: runner
+    readonly property var kickerDrag: dragHelper
+    readonly property var menu: ctx
 
     property string query: ""
     onQueryChanged: {
@@ -183,7 +202,7 @@ PlasmoidItem {
 
     function launch(model, row) {
         model.trigger(row, "", null)
-        root.expanded = false
+        root.close()
     }
     function isFavorite(id) { return !!id && favorites.isFavorite(id) }
     function toggleFavorite(id) {
@@ -192,9 +211,6 @@ PlasmoidItem {
         else favorites.addFavorite(id)
     }
 
-    // session shortcuts in the hero card: the session menu's list (Rice/SessionActions.js); restart and
-    // shut down go through the rice logout screen (org.kde.LogoutPrompt)
-    readonly property var sessionActions: Session.pick(["lock", "sleep", "reboot", "shutdown"])
     function greeting(h) { return h < 5 ? "Up late," : h < 12 ? "Good morning," : h < 18 ? "Good afternoon," : "Good evening," }
 
     // battery saver (plasma-rice/battery-saver.py): its switch on the hero card shows only while the
@@ -262,20 +278,19 @@ PlasmoidItem {
                 if (!t || !act) return
                 if (act.fav) { root.toggleFavorite(t.favoriteId); return }
                 t.model.trigger(t.row, act.actionId, act.actionArgument)
-                root.expanded = false
+                root.close()
             }
         }
     }
 
     // ------------------------------------------------------------------ panel: the emblem
-    compactRepresentation: MouseArea {
+    compactRepresentation: Island {
         id: compact
-        hoverEnabled: true
+        kind: "launcher"
         // a pill, not a square: the bar's one wide, accent-filled island (panel/build.py launcher_style)
         Layout.minimumWidth: Math.round(emblem.implicitWidth * 1.8 * root.s)
         Layout.preferredWidth: Layout.minimumWidth
         Layout.fillHeight: true
-        onClicked: root.expanded = !root.expanded
         property real acc: 0
         onWheel: wheel => {
             acc += wheel.angleDelta.y
@@ -286,7 +301,7 @@ PlasmoidItem {
             anchors.centerIn: parent
             hovered: compact.containsMouse
             pressed: compact.pressed
-            open: root.expanded
+            open: root.shown
             scale: root.s * 1.12       // vector, stays crisp
             // light on the accent fill: a white core and orbits with a breath of the tertiary,
             // candy satellites
@@ -298,244 +313,19 @@ PlasmoidItem {
         }
     }
 
-    // ------------------------------------------------------------------ popup
-    fullRepresentation: FocusScope {
-        id: pop
-        // fixed (Plasma would otherwise restore a different remembered size per screen), but never bigger than
-        // the screen it opens on; on a narrow one (an 800 px panel) the hero card steps aside for the apps
-        readonly property int w: Math.min(root.px(880), Math.max(320, Math.round(Screen.width) - 2 * Tokens.space.lg))
-        readonly property int h: Math.min(root.px(580), Math.max(320, Math.round(Screen.height * 0.88) - root.px(56)))
-        readonly property bool narrow: w < root.px(700)
-        Layout.preferredWidth: w
-        Layout.preferredHeight: h
-        Layout.minimumWidth: w
-        Layout.minimumHeight: h
-        Layout.maximumWidth: w
-        Layout.maximumHeight: h
-        focus: true
+    // never shown (activation and clicks open the stage), but a panel applet draws nothing without one
+    fullRepresentation: Item {}
+    signal stageEntered()               // the stage's content starts coming in (the grid's apps follow)
 
-        property date now: new Date()
-        Timer { running: root.expanded; repeat: true; interval: 5000; triggeredOnStart: true; onTriggered: pop.now = new Date() }
-
-        // fresh every time it opens: empty query, All, first app, the grid fades in
-        signal entered()
-        Connections {
-            target: root
-            function onExpandedChanged() {
-                if (!root.expanded) return
-                search.text = ""
-                root.category = 0
-                browse.gridView.currentIndex = -1
-                browse.gridView.positionViewAtBeginning()
-                browse.pinnedView.positionViewAtBeginning()
-                Qt.callLater(() => search.forceActiveFocus())
-                pop.entered()
-            }
-        }
-        Component.onCompleted: Qt.callLater(() => search.forceActiveFocus())
-
-        PopupIn {
-            anchors.fill: parent
-            active: root.expanded
-            ricePalette: pal
-
-            RowLayout {
-                anchors.fill: parent
-                spacing: Tokens.space.lg
-
-                // ------------------------------------------------------ hero card
-                // It sits the dialog's margin (space.sm) in from the edge, so its corners are
-                // concentric with the popup's: lg - sm.
-                HeroCard {
-                    id: hero
-                    visible: !pop.narrow
-                    Layout.preferredWidth: root.px(248)
-                    Layout.fillHeight: true
-                    launcher: root
-                    rice: pal
-                    account: me
-                    now: pop.now
-                    onBrowseImage: browseDialog.open()
-                }
-
-                // ------------------------------------------------------ search + content, or wallpapers
-                Item {
-                    id: rightSide
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.topMargin: Tokens.space.lg
-                    Layout.rightMargin: Tokens.space.lg
-                    Layout.bottomMargin: Tokens.space.lg
-
-                ColumnLayout {
-                    id: appsPane
-                    anchors.fill: parent
-                    spacing: Tokens.space.md
-                    // the two views trade places with a fade and a short slide
-                    opacity: root.view === "apps" ? 1 : 0
-                    visible: opacity > 0
-                    enabled: root.view === "apps"
-                    Behavior on opacity { NumberAnimation { duration: Tokens.base; easing.type: Tokens.move } }
-                    transform: Translate { x: root.view === "apps" ? 0 : -root.px(16); Behavior on x { NumberAnimation { duration: Tokens.slow; easing.type: Tokens.move } } }
-
-                    // search, and the way to the wallpapers
-                    RowLayout {
-                    Layout.fillWidth: true
-                    spacing: Tokens.space.sm
-                    Rectangle {
-                        id: searchBox
-                        Layout.fillWidth: true
-                        implicitHeight: root.px(46)
-                        radius: Tokens.radius.md
-                        color: C.alpha(pal.fg, search.activeFocus ? 0.09 : 0.06)
-                        border.width: search.activeFocus ? 1.5 : 1
-                        border.color: search.activeFocus ? C.alpha(pal.primary, 0.75) : C.alpha(pal.edge, Tokens.alpha.outline)
-                        Behavior on color { ColorAnimation { duration: Tokens.fast } }
-                        Behavior on border.color { ColorAnimation { duration: Tokens.fast } }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.IBeamCursor; onPressed: search.forceActiveFocus() }
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: Tokens.space.lg
-                            anchors.rightMargin: Tokens.space.md
-                            spacing: Tokens.space.md
-                            Text {
-                                text: "search"
-                                color: search.activeFocus ? pal.primary : pal.muted
-                                font.family: Tokens.font.icons
-                                font.pixelSize: root.px(22)
-                                Behavior on color { ColorAnimation { duration: Tokens.fast } }
-                            }
-                            Item {
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                TextInput {
-                                    id: search
-                                    anchors.fill: parent
-                                    verticalAlignment: TextInput.AlignVCenter
-                                    color: pal.fg
-                                    selectionColor: pal.primary
-                                    selectedTextColor: pal.onPrimary
-                                    font.family: Tokens.font.ui
-                                    font.pixelSize: root.px(Tokens.size.title)
-                                    clip: true
-                                    focus: true
-                                    onTextChanged: root.query = text
-                                    Keys.onPressed: event => {
-                                        if (event.key === Qt.Key_Escape) {
-                                            if (text) text = ""; else root.expanded = false
-                                            event.accepted = true
-                                        } else if (event.key === Qt.Key_Down || (event.key === Qt.Key_Tab && root.query)) {
-                                            // with a query the arrows walk the results; without, Down enters the grid
-                                            // (Tab then follows the focus chain: pinned, chips, grid, session)
-                                            if (root.query) root.moveSelection(1)
-                                            else { browse.gridView.forceActiveFocus(Qt.TabFocusReason); if (browse.gridView.currentIndex < 0) browse.gridView.currentIndex = 0 }
-                                            event.accepted = true
-                                        } else if (event.key === Qt.Key_Up) {
-                                            if (root.query) root.moveSelection(-1)
-                                            event.accepted = true
-                                        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                                            if (root.query) root.activateSelection()
-                                            else if (browse.gridView.currentIndex >= 0) root.launch(root.browseModel, browse.gridView.currentIndex)
-                                            event.accepted = true
-                                        }
-                                    }
-                                }
-                                Text {
-                                    anchors.fill: parent
-                                    verticalAlignment: Text.AlignVCenter
-                                    visible: !search.text && !search.preeditText
-                                    text: "Search apps, settings, files… or do maths"
-                                    color: pal.muted
-                                    font: search.font
-                                    elide: Text.ElideRight
-                                }
-                            }
-                            // KRunner at work: stepped dots; otherwise the key hint
-                            Busy {
-                                visible: root.searching
-                                running: visible
-                                implicitWidth: root.px(16); implicitHeight: implicitWidth
-                                color: pal.primary
-                            }
-                            Rectangle {
-                                visible: !root.searching
-                                implicitHeight: root.px(22)
-                                implicitWidth: hint.implicitWidth + Tokens.space.md + 2
-                                radius: Tokens.radius.xs
-                                color: C.alpha(pal.fg, 0.07)
-                                border.width: 1
-                                border.color: C.alpha(pal.edge, Tokens.alpha.outline)
-                                Text {
-                                    id: hint
-                                    anchors.centerIn: parent
-                                    text: root.query ? "esc" : "meta"
-                                    color: pal.muted
-                                    font.family: Tokens.font.ui
-                                    font.weight: Font.DemiBold
-                                    font.pixelSize: root.px(Tokens.size.caption)
-                                }
-                            }
-                        }
-                    }
-
-                    IconButton {
-                        palette: pal
-                        icon: "palette"
-                        tooltip: "Theme: wallpapers and colours"
-                        size: root.px(46)
-                        onClicked: root.openWallpapers("desktop")
-                    }
-                    }
-
-                    // ---------------------------------------------- browse: pinned, chips, grid
-                    AppBrowse {
-                        id: browse
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        visible: !root.query
-                        launcher: root
-                        rice: pal
-                        menu: ctx
-                        kickerDrag: dragHelper
-                        searchField: search
-                    }
-
-                    // ---------------------------------------------- results
-                    SearchResults {
-                        id: resultsArea
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        visible: !!root.query
-                        launcher: root
-                        rice: pal
-                        menu: ctx
-                        runnerModel: runner
-                    }
-                }
-
-                // built the first time it's opened, then kept
-                Loader {
-                    id: walls
-                    anchors.fill: parent
-                    active: root.view === "walls" || item !== null
-                    opacity: root.view === "walls" ? 1 : 0
-                    visible: opacity > 0
-                    enabled: root.view === "walls"
-                    Behavior on opacity { NumberAnimation { duration: Tokens.base; easing.type: Tokens.move } }
-                    transform: Translate { x: root.view === "walls" ? 0 : root.px(16); Behavior on x { NumberAnimation { duration: Tokens.slow; easing.type: Tokens.move } } }
-                    onEnabledChanged: if (enabled && item) Qt.callLater(() => item.forceActiveFocus())
-                    onLoaded: { root.wallsPane = item; if (root.openTab) item.tab = root.openTab; root.openTab = ""; item.forceActiveFocus() }
-                    sourceComponent: WallpaperPane {
-                        cfg: root.cfg
-                        mode: root.wallMode
-                        heroCurrent: root.cfg.heroImage || pal.wallpaper     // the choice, not the preview
-                        onBack: { root.view = "apps"; hero.preview = ""; Qt.callLater(() => search.forceActiveFocus()) }
-                        onHeroHovered: path => hero.preview = path
-                        onHeroPicked: path => { root.setHero(path); hero.preview = ""; root.view = "apps" }
-                    }
-                }
-                }
-            }
+    // ------------------------------------------------------------------ the stage (fullscreen, its own surface)
+    Instantiator {
+        model: root.myScreen ? [root.myScreen] : []
+        delegate: Stage {
+            required property var modelData
+            screenObj: modelData
+            launcher: root
+            rice: pal
+            account: me
         }
     }
 }

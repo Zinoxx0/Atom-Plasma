@@ -57,7 +57,7 @@ ColumnLayout {
         onActiveFocusChanged: if (activeFocus && currentIndex < 0) currentIndex = 0
         Keys.onReturnPressed: if (currentIndex >= 0) launcher.launch(launcher.favorites, currentIndex)
         Keys.onEnterPressed: if (currentIndex >= 0) launcher.launch(launcher.favorites, currentIndex)
-        Keys.onEscapePressed: launcher.expanded = false
+        Keys.onEscapePressed: launcher.close()
         onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
         delegate: Item {
             id: pin
@@ -225,7 +225,7 @@ ColumnLayout {
                 if (currentIndex >= 0) launcher.launch(launcher.browseModel, currentIndex)
                 event.accepted = true
             } else if (event.key === Qt.Key_Escape) {
-                launcher.expanded = false
+                launcher.close()
                 event.accepted = true
             } else if (event.key === Qt.Key_Up && currentIndex < columns) {
                 searchField.forceActiveFocus()
@@ -262,8 +262,8 @@ ColumnLayout {
                 }
             }
             Connections {
-                target: pop
-                function onEntered() { if (app.index < 24 && Tokens.speed > 0) appIn.restart() }
+                target: launcher
+                function onStageEntered() { if (app.index < 24 && Tokens.speed > 0) appIn.restart() }
             }
 
             Rectangle {

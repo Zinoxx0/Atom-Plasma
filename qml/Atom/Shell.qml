@@ -13,6 +13,7 @@ QtObject {
 
     // what the sheet can show: kind -> the panel's QML (each takes ricePalette, screenName, ui, kind, args)
     readonly property var panels: ({
+        session: Qt.resolvedUrl("panels/Session.qml"),
         demo: Qt.resolvedUrl("panels/Demo.qml"),
         demo2: Qt.resolvedUrl("panels/Demo.qml"),
     })
@@ -25,6 +26,11 @@ QtObject {
     property var args: ({})
     readonly property bool busy: kind !== ""
     property bool debug: false              // tests: log every transition (console.warn "ATOM")
+    function logIsland(key, r) {
+        const parts = key.split("/")
+        console.warn("ATOM island", parts[1], "at", Math.round(r.x + r.width / 2), Math.round(r.y + r.height / 2), "on", parts[0])
+    }
+    onDebugChanged: if (debug) for (const key in islands) logIsland(key, islands[key])
     onKindChanged: if (debug) console.warn("ATOM shell kind", JSON.stringify(kind), "screen", screen, Date.now() % 100000)
 
     // the click that closed a panel (the sheet lost focus to the bar) must not open it again
@@ -70,6 +76,7 @@ QtObject {
         const next = Object.assign({}, islands)
         next[key] = { x: r.x, y: r.y, width: r.width, height: r.height }
         islands = next
+        if (debug) logIsland(key, r)
     }
     function forget(k, scr) {
         const key = scr + "/" + k

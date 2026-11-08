@@ -45,11 +45,15 @@ LAUNCHERS = {
 
 DROPIN_TEXT = """# Atom Plasma: the rice widgets read their palette files with QML's XMLHttpRequest instead of spawning a
 # process per read (qml/Rice/RicePalette.qml), and pass a command's changing arguments in a file
-# (qml/Rice/RiceShell.qml exec(), in $XDG_RUNTIME_DIR).
+# (qml/Rice/RiceShell.qml exec(), in $XDG_RUNTIME_DIR). The shell's QML (qml/Atom, imported by URI so every
+# widget shares one Atom.Shell) and its native part (Atom.Native, built per user) are found through
+# QML_IMPORT_PATH.
 [Service]
 Environment=QML_XHR_ALLOW_FILE_READ=1
 Environment=QML_XHR_ALLOW_FILE_WRITE=1
+Environment=QML_IMPORT_PATH=%h/.config/plasma-rice/qml:%h/.local/lib/qt6/qml
 """
+NATIVE = HOME / ".local/lib/qt6/qml/Atom/Native"     # pkg/atom-native/build.sh puts it there
 
 
 class Plan:
@@ -130,6 +134,8 @@ def install(dry=False):
     for f in sorted((ROOT / "systemd").glob("*.service")) + sorted((ROOT / "systemd").glob("*.timer")):
         p.link(UNITS / f.name, f)
     p.write(DROPIN, DROPIN_TEXT, ours_marker="Atom Plasma")
+    if not (NATIVE / "qmldir").exists():
+        p.run(str(ROOT / "pkg/atom-native/build.sh"))
     for i, (name, icon, cmd, _) in LAUNCHERS.items():
         p.write(APPS / f"{i}.desktop", launcher(name, icon, cmd), ours_marker="X-AtomPlasma")
     p.write(SERVICEMENUS / "rice.desktop", servicemenu(), ours_marker="X-AtomPlasma")

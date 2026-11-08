@@ -23,6 +23,23 @@ def _linked(link, target):
         return False
 
 
+def shell_loads():
+    """Atom (qml/Atom) and Atom.Native import in a throwaway offscreen qml6, as plasmashell would load them."""
+    import tempfile
+    src = "import QtQuick\nimport Atom\nimport Atom.Native\nItem { Component.onCompleted: { console.warn('atom-ok', Shell.kind === ''); Qt.quit() } }\n"
+    with tempfile.NamedTemporaryFile("w", suffix=".qml", delete=False) as f:
+        f.write(src)
+    env = dict(os.environ, QT_QPA_PLATFORM="offscreen", QT_FORCE_STDERR_LOGGING="1",
+               QML_IMPORT_PATH=f"{ROOT / 'qml'}:{HOME / '.local/lib/qt6/qml'}")
+    try:
+        r = subprocess.run(["qml6", f.name], capture_output=True, text=True, timeout=20, env=env)
+        return "atom-ok true" in r.stderr
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    finally:
+        os.unlink(f.name)
+
+
 def checks():
     """[(ok, what, fix)]"""
     out = []
@@ -48,6 +65,11 @@ def checks():
     out.append(("QML_XHR_ALLOW_FILE_READ=1" in env and "QML_XHR_ALLOW_FILE_WRITE=1" in env,
                 "plasmashell may read/write the rice's files (QML_XHR_ALLOW_FILE_*)",
                 f"write {DROPIN} (see README), then relog"))
+    out.append(("QML_IMPORT_PATH=" in env and "plasma-rice/qml" in env,
+                "plasmashell finds the shell's QML (QML_IMPORT_PATH: qml/Atom, Atom.Native)",
+                "rice.py install && systemctl --user daemon-reload && systemctl --user restart plasma-plasmashell"))
+    out.append((shell_loads(), "the shell loads (Atom and Atom.Native import offscreen)",
+                f"{ROOT / 'pkg/atom-native/build.sh'} (after a Qt or Frameworks upgrade: rebuild it)"))
     try:
         bars = panel.panels()
         services = util.run("qdbus6", quiet=True).stdout

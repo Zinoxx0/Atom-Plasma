@@ -58,7 +58,7 @@ def tidy(ss):
     for f in STATE.glob("palette-*.json"):
         if f.stem.removeprefix("palette-") not in here:
             f.unlink(missing_ok=True)
-    for f in (CACHE / "glass").glob("*.jpg"):
+    for f in [*(CACHE / "glass").glob("*.jpg"), *(CACHE / "glass-full").glob("*.jpg")]:
         if f.name.rsplit("-", 1)[0] not in here:
             f.unlink(missing_ok=True)
     have = kde.kde_read(HOME / ".config/kwinrc")
