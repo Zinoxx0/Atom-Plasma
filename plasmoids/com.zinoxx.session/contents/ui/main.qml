@@ -5,9 +5,8 @@ import org.kde.plasma.plasmoid
 import Atom
 import "Rice"
 
-// The session island: the power glyph on the bar. A click opens the session panel (Atom
-// panels/Session.qml: you, the uptime; lock, sleep, log out, restart, shut down) on the shell's sheet,
-// grown out of this island.
+// The session island: the power glyph on the bar. A click opens the power overlay (Atom PowerWindow): a
+// ripple of blur spreads from this island over every screen and the session's actions come up big here.
 PlasmoidItem {
     id: root
 
@@ -20,7 +19,7 @@ PlasmoidItem {
 
     compactRepresentation: Island {
         id: compact
-        kind: "session"
+        kind: "power"
         // a single-widget island: the same side padding as every rice bar widget
         Layout.minimumWidth: power.implicitWidth + 2 * Tokens.space.md * root.uiScale
         Layout.preferredWidth: Layout.minimumWidth

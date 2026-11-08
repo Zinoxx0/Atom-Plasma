@@ -68,4 +68,39 @@ QtObject {
         if (JSON.stringify(fs) !== JSON.stringify(fullscreen)) fullscreen = fs
     }
     Component.onCompleted: schedule()
+
+    // ------------------------------------------------------------------ clearing the desk (the launcher)
+    // The launcher presents itself on the bare desktop: every window is minimized (KWin's magic lamp sends
+    // them into their Glimpse pins) and, when it closes, exactly those come back. KWin's own show-desktop
+    // can't do this: it ends the moment the launcher takes the keyboard.
+    property var cleared: []                    // window ids it minimized, most recently used first
+    function idsAt(idx) {
+        return Array.prototype.slice.call(tasks.data(idx, TaskManager.AbstractTasksModel.WinIdList) || []).map(String)
+    }
+    function clear() {
+        const R = TaskManager.AbstractTasksModel
+        const out = []
+        for (let i = 0; i < tasks.count; i++) {
+            const idx = tasks.index(i, 0)
+            if (tasks.data(idx, R.IsWindow) !== true || tasks.data(idx, R.IsMinimized) === true) continue
+            if (tasks.data(idx, R.SkipTaskbar) === true) continue
+            const ids = idsAt(idx)
+            if (!ids.length) continue
+            out.push(ids[0])
+            tasks.requestToggleMinimized(idx)
+        }
+        cleared = cleared.concat(out)
+    }
+    function restore() {
+        const R = TaskManager.AbstractTasksModel
+        const ids = cleared.slice().reverse()   // least recently used first: the most recent ends on top
+        cleared = []
+        for (const id of ids) {
+            for (let i = 0; i < tasks.count; i++) {
+                const idx = tasks.index(i, 0)
+                if (tasks.data(idx, R.IsMinimized) !== true) continue
+                if (idsAt(idx).indexOf(id) >= 0) { tasks.requestToggleMinimized(idx); break }
+            }
+        }
+    }
 }

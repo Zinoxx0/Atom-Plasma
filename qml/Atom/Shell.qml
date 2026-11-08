@@ -13,7 +13,6 @@ QtObject {
 
     // what the sheet can show: kind -> the panel's QML (each takes ricePalette, screenName, ui, kind, args)
     readonly property var panels: ({
-        session: Qt.resolvedUrl("panels/Session.qml"),
         demo: Qt.resolvedUrl("panels/Demo.qml"),
         demo2: Qt.resolvedUrl("panels/Demo.qml"),
     })
@@ -63,8 +62,10 @@ QtObject {
     // while a panel is open, pointing at another island on the same screen moves the sheet there
     // (menu-bar style); the launcher, fullscreen, never follows the pointer
     function hover(k, scr, anchorRect, a) {
-        if (kind && kind !== "launcher" && kind !== k && screen === scr) open(k, scr, anchorRect, a)
+        if (kind && !(kind in solo) && !(k in solo) && kind !== k && screen === scr) open(k, scr, anchorRect, a)
     }
+    // kinds that never follow the pointer (and never open by it): their own surfaces, not the sheet
+    readonly property var solo: ({ launcher: true, power: true })
 
     // islands on the bars, so a host can grow something out of one without being asked (a notification
     // out of the status island): key "<screen>/<kind>" -> { x, y, width, height } (global logical px)

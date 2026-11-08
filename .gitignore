@@ -11,3 +11,6 @@ settings.json
 # private notes for Claude sessions (see the file itself)
 CLAUDE.md
 REFACTOR.md
+
+# Claude's overnight work log (local, not part of the rice)
+NIGHT.md

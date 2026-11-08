@@ -40,6 +40,10 @@ PlasmoidItem {
     readonly property string myScreenName: myScreen ? myScreen.name : ""
     readonly property bool shown: Shell.kind === "launcher" && Shell.screen === myScreenName
     function close() { if (Shell.kind === "launcher") Shell.close("launcher") }
+    // opening clears the desk: the windows fly into their pins and come back on close (Atom Windows)
+    readonly property bool clearDesk: true
+    // the power overlay (the shell's): every screen blurs, the session's actions big on this one
+    function openPower(from) { Shell.open("power", Shell.screen || myScreenName, from || null) }
     // Meta (this applet holds the launcher shortcut): open on the screen of the active window, or close.
     // Plasma also expands the applet on activation (activationTogglesExpanded: false would make that
     // "always expand"): its popup is never wanted, so it folds straight back, before it can map (a
@@ -249,7 +253,7 @@ PlasmoidItem {
         // numbers, which are Kicker's private enum and can move in a Plasma release
         function openFor(item, model, row) {
             clearMenuItems()
-            const roles = item.model ?? {}
+            const roles = item.roles ?? item.model ?? {}      // an AppTile carries them as roles
             const fav = roles.favoriteId
             target = { model: model, row: row, favoriteId: fav }
             visualParent = item
