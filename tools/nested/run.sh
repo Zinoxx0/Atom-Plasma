@@ -3,7 +3,9 @@
 #
 #   tools/nested/run.sh [--plasma APPLETSRC] INNER.sh [SECONDS]
 #
-# KWin runs on a virtual 1600x900 output (ATOM_NESTED_OUTPUTS=2: two of them side by side; socket "atom-spike") inside its own D-Bus session with service
+# KWin runs on a virtual 1600x900 output (ATOM_NESTED_OUTPUTS=2: two of them side by side; ATOM_NESTED_SCALE=1.15: at a
+# fractional scale, set once the inner script sources env.sh, for anything that must stay pixel-exact; socket
+# "atom-spike") inside its own D-Bus session with service
 # activation OFF (an activating bus spawns a second xdg-document-portal that kills the user's). Config,
 # data, cache and state live in a scratch dir, so nothing of the user's is read or written except what
 # Plasma reads from $HOME (the Desktop folder, the wallpaper). With --plasma, the inner script can start
@@ -49,6 +51,11 @@ pkill() { echo "nested tests: kill by PID (pkill would reach the user's session)
 killall() { pkill; }
 mark() { echo "qml: ATOM ## \$* \$(( \$(date +%s%3N) % 100000 ))" >> "\$L"; }
 shot() { spectacle -b -n -f -o "\$N/out/\$1.png" >/dev/null 2>&1; }
+# ATOM_NESTED_SCALE=1.15: the outputs at a fractional scale (KWin's own --scale only makes a virtual output bigger)
+if [ -n "\${ATOM_NESTED_SCALE:-}" ]; then
+    for o in \$(seq 0 \$(( \${ATOM_NESTED_OUTPUTS:-1} - 1 ))); do kscreen-doctor "output.Virtual-\$o.scale.\$ATOM_NESTED_SCALE" >/dev/null 2>&1; done
+    sleep 1
+fi
 EOF
 : > "$N/out/plasmashell.log"
 

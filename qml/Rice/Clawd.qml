@@ -23,9 +23,9 @@ import "ClawdActs.js" as Acts
 // dizzy). A double click calls `summoned` (the widgets open Claude Code in a terminal).
 //
 // How it's drawn: one Canvas. ClawdArt.js turns the pose into a short list of coloured cells (22 x 10
-// for the figure; hats, props and visitors reach out around it), snapped to whole device pixels
-// (`cell`) so every cell is the same size on fractional scales, and the canvas is only repainted when
-// that list changes. There are no items per pixel and nothing is bound per prop: a Clawd is one item,
+// for the figure; hats, props and visitors reach out around it), snapped to whole device pixels of
+// the window it's in (`cell`) so every cell is the same size on fractional scales, and the canvas is
+// only repainted when that list changes. There are no items per pixel and nothing is bound per prop: a Clawd is one item,
 // a few timers and this file's bindings.
 //
 // How it moves: every motion is an "act" (ClawdActs.js), a short list of stepped poses played as a
@@ -75,7 +75,12 @@ Item {
     readonly property bool live: visible && animate
     readonly property bool looping: live && continuous
 
-    readonly property real dpr: Screen.devicePixelRatio > 0 ? Screen.devicePixelRatio : 1
+    // the scale it's really drawn at: its window's. (Screen.devicePixelRatio is the output's whole-number
+    // scale on Wayland, 2 for a screen at 1.15, and cells snapped to that come out uneven.)
+    readonly property real dpr: {
+        const w = Window.window
+        return w && w.devicePixelRatio > 0 ? w.devicePixelRatio : Screen.devicePixelRatio > 0 ? Screen.devicePixelRatio : 1
+    }
     readonly property int cell: Math.max(1, Math.round(px * dpr))      // device px per cell
     readonly property real unit: cell / dpr
     implicitWidth: 22 * unit
@@ -277,6 +282,7 @@ Item {
         onWidthChanged: requestPaint()
         onHeightChanged: requestPaint()
     }
+    onCellChanged: canvas.requestPaint()
 
     // ---------- acts ----------
     property string playing: ""
