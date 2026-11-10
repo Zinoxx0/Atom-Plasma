@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Notify once when the Claude session or weekly limit crosses 80% / 95%.
 
-Run every minute by the Claude Usage applet (one per bar it's on: a lock keeps two runs from both
-sending). "Already sent" state lives in ~/.local/state/rice/claude-alerts.json. The icons are Clawd
-tired (80%) and exhausted (95%): usage shows as tiredness, never nerves.
+Run by ~/.claude/statusline.sh whenever the limits it caches for the Claude Usage applet change (a
+lock keeps two runs from both sending). "Already sent" state lives in
+~/.local/state/rice/claude-alerts.json. The icons are Clawd tired (80%) and exhausted (95%): usage
+shows as tiredness, never nerves.
 """
 import fcntl
 import json

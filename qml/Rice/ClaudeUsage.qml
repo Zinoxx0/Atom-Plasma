@@ -2,7 +2,7 @@ import QtQuick
 import QtCore
 
 // Claude Code's usage limits (~/.cache/claude-usage.json, which ~/.claude/statusline.sh writes while a
-// session runs) and what they mean for Clawd: how full each window is, its pace, whether it's live,
+// session runs: when the numbers change, and every 20 s to say it's alive) and what they mean for Clawd: how full each window is, its pace, whether it's live,
 // and how tired Clawd looks (`peak` -> Clawd.usage; `mood` is only happy | sleep | limited). Watched,
 // not polled (WatchedJson); `now` ticks every 30 s, every second while `fast` (a popup with countdowns).
 //

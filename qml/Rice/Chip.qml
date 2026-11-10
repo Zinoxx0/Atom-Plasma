@@ -13,7 +13,7 @@ Item {
     property string text: ""
     property string icon: ""            // Material Symbols glyph before the text
     property bool dot: false            // a status dot before the text
-    property bool pulse: false          // the dot breathes (popups only: it's a loop)
+    property bool pulse: false          // the dot breathes (popups only: it redraws ~16 times a second)
     property color tint: palette.fgDim
     property bool solid: false          // badge: filled with the tint, dark text
     property bool interactive: false
@@ -58,12 +58,13 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             width: Math.round(chip.size * 0.28); height: width; radius: width / 2
             color: chip.solid ? chip.textColor : chip.tint
-            SequentialAnimation on opacity {
+            // it breathes in steps, read off the clock: a smooth loop would keep the whole popup's
+            // window redrawing at the screen's refresh rate for the sake of one dot
+            Timer {
+                interval: 60; repeat: true
                 running: chip.pulse && chip.dot && chip.visible
-                loops: Animation.Infinite
                 onRunningChanged: if (!running) dotItem.opacity = 1
-                NumberAnimation { to: 0.3; duration: 900; easing.type: Easing.InOutSine }
-                NumberAnimation { to: 1; duration: 900; easing.type: Easing.InOutSine }
+                onTriggered: dotItem.opacity = 0.65 + 0.35 * Math.cos(2 * Math.PI * (Date.now() % 1800) / 1800)
             }
         }
         Text {

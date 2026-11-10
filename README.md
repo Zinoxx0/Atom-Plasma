@@ -93,6 +93,22 @@ The shell needs a small native module (`pkg/atom-native`: blur behind the sheet,
 `python-icalendar` and `python-recurring-ical-events`. After a Qt or Frameworks upgrade, rebuild it with
 `pkg/atom-native/build.sh`.
 
+## Clawd
+
+The Claude island (and, on one screen, the desk clock) is home to Clawd, Claude Code's creature, in pixel
+art. It shows what Claude Code is doing (typing, thinking, running commands, reading, on the web, handing
+work to subagents, compacting), what its last answer was about, and how much of your usage limits is left:
+it tires as a window fills up and dozes by an hourglass when one runs out. Off duty it never sleeps: it
+has thirty hobbies, picked by the hour, the season and the weather, a new one every five minutes, each
+with a little project that moves on while you watch (a scarf gets longer, a marshmallow turns golden, a
+snowman gets its hat), and now and then someone drops by (a bird, a falling leaf, a ghost at Halloween).
+Hover it for a hello, stroke it back and forth, click it for one of its acts; a double click opens Claude
+Code in a terminal. Every Clawd on every screen does the same thing at the same moment.
+
+Each one is a single canvas, repainted only when its picture changes, and it holds still behind a
+fullscreen window (`qml/Rice/Clawd.qml`; the art is in `ClawdArt.js`, the acts and hobbies in
+`ClawdActs.js`). To look at them while changing them, `tools/clawd/sheet.qml` renders contact sheets.
+
 ## Commands
 
 ```
@@ -115,7 +131,7 @@ Theme page; Meta+Alt+T toggles tiling.
 | --- | --- |
 | `atom/` | the Python library: displays, reconcile, palettes (OKLab moods), screens, presets, KDE/KWin/apps theming, panels, tiling, caps, install, doctor |
 | `rice.py`, `displayd.py`, ... | entry points |
-| `qml/Rice/` | shared QML: design tokens, the per-screen palette, Clawd, controls |
+| `qml/Rice/` | shared QML: design tokens, the per-screen palette, Clawd (its art and its acts), controls |
 | `qml/Atom/` | the shell: its switchboard, the morphing sheet, panels (calendar, control center, clipboard...), notification cards, the power overlay |
 | `plasmoids/` | the launcher, Glimpse (task strip and top band), desk clock, the clock and status islands, system rings, Claude usage, session, tiling toggle, the shell's host |
 | `agenda.py` | the calendar's data: holidays and your Google Calendar |

@@ -8,7 +8,8 @@ import "Rice"
 import "Rice/Color.js" as C
 
 // Claude usage limits with Clawd in the panel.
-// Data:    ~/.cache/claude-usage.json  (written by ~/.claude/statusline.sh)
+// Data:    ~/.cache/claude-usage.json  (written by ~/.claude/statusline.sh, when the numbers change and
+//          every 20 s while a session runs)
 // Colours: this screen's palette (RicePalette, written by ~/.config/plasma-rice/rice.py)
 PlasmoidItem {
     id: root
@@ -64,7 +65,10 @@ PlasmoidItem {
     NowPlaying { id: nowPlaying; ticking: false }
     readonly property bool musicOn: nowPlaying.playing
     // what the bar's Clawd is up to off duty (every Clawd works it out the same way from the clock)
-    property string barHobby: ""
+    property string barHobby: ""            // "Knitting a scarf."
+    property bool barIdle: false
+    // behind a fullscreen window nobody sees the bar: its Clawd holds still (no timers, no redraws)
+    readonly property bool covered: Windows.isFullscreen(myScreenName)
     // rain or snow outside, from the desk's weather (weather.py caches it): an umbrella, a scarf
     WatchedJson { id: weatherFile; path: sh.home + "/.cache/rice/weather.json" }
     readonly property string sky: {
@@ -118,11 +122,7 @@ PlasmoidItem {
         if (peak >= 90) return "Running on fumes. So… sleepy.";
         if (!hasData) return "No usage data yet.";
         // off duty: what Clawd's doing with its time
-        const hobby = ({ book: "Reading a good book.", game: "Gaming on its break.", music: "Vibing to some music.",
-                         paint: "Painting a little masterpiece.", bubbles: "Blowing bubbles.", yoyo: "Practising yo-yo tricks.",
-                         plant: "Watering its plant.", blocks: "Building a tower.", telescope: "Stargazing.",
-                         coffee: "Coffee break." })[barHobby];
-        if (mood === "sleep" && hobby) return hobby + " Claude Code is resting.";
+        if (mood === "sleep" && barHobby) return barHobby + " Claude Code is resting.";
         const busy = ({ thinking: "Thinking it through…", typing: "Typing away with you.", building: "Running commands…",
                         reading: "Reading the code…", web: "Looking things up…", juggling: "Juggling subagents…",
                         sweeping: "Tidying up the context…" })[activity];
@@ -130,6 +130,7 @@ PlasmoidItem {
         if (working && activity !== "idle") return daypart === "night" ? "Burning the midnight oil with you."
                           : warm ? "In the zone, a bit ahead of pace." : "In the zone with you.";
         if (peak >= 75) return "Getting sleepy. Maybe pace yourself.";
+        if (barIdle && barHobby) return barHobby + (peak < 50 ? " Plenty of room left." : "");
         if (season === "xmas") return "Ho ho ho. Plenty of room left.";
         return ({
             morning: "Good morning! Coffee's ready.",
@@ -238,7 +239,10 @@ PlasmoidItem {
                 weather: root.sky
                 pal: root.palValues
                 hovered: compact.containsMouse
-                onHobbyChanged: root.barHobby = hobby
+                animate: !root.covered
+                onHobbyTextChanged: root.barHobby = hobbyText
+                onIdleChanged: root.barIdle = idle
+                Component.onCompleted: { root.barHobby = hobbyText; root.barIdle = idle }
                 onAlertClicked: root.openPanel()        // the popup has the message and Done
                 onSummoned: root.summonClaude()
                 Layout.alignment: Qt.AlignVCenter
@@ -455,7 +459,7 @@ PlasmoidItem {
                         title: "Claude"
                         subtitle: root.moodText
                         leading: GlassCard {
-                            implicitWidth: 112; implicitHeight: 84
+                            implicitWidth: 132; implicitHeight: 92
                             palette: pal
                             accent: pal.claude
                             Clawd {

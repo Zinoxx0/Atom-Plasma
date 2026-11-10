@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Effects
+import Atom
 import "Rice"
 import "Rice/Color.js" as C
 import "Weather.js" as W
@@ -275,6 +276,7 @@ DeskWindow {
         onAlertClicked: cw.d.askDone()
         onSummoned: cw.d.summonClaude()
         interactive: true
-        animate: cw.visible
+        // (behind a fullscreen window nobody sees the desktop: it holds still)
+        animate: cw.visible && !Windows.isFullscreen(cw.modelData.name)
     }
 }
