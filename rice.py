@@ -11,6 +11,8 @@
                              Darkly): run once, and again only to put them back
     rice.py thumbs           (re)build picker thumbnails
     rice.py walls            the picker's list: wallpaper file names, one per line (thumbnails built)
+    rice.py launcher-data    the launcher's own data (~/.cache/rice/launcher.json): Steam's art for the
+                             installed games, when each app was last used and how much (atom/home.py)
     rice.py check FILE...    can these be wallpapers (format and readable)? names the ones that can't
     rice.py wallpaper-dir    where the collection is
     rice.py page             everything the Theme page shows, as one JSON (wallpapers, screens, themes)
@@ -111,6 +113,9 @@ def main(args):
         print(walls.WALLDIR)
     elif arg == "page":
         print(json.dumps(theme.page()))
+    elif arg == "launcher-data":     # the launcher's own data: Steam's art for the games, when apps were used
+        from atom import home
+        print(home.write())
     elif arg == "displays":
         ds, cfg = displays.probe(), util.settings()
         if "--json" in args:
