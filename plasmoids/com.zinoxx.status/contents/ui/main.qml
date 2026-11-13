@@ -192,12 +192,26 @@ PlasmoidItem {
                     color: C.alpha(pal.fg, app.pressed ? 0.16 : app.containsMouse ? 0.1 : 0)
                     Behavior on color { ColorAnimation { duration: Tokens.fast } }
                 }
-                Kirigami.Icon {
+                Item {
                     anchors.centerIn: parent
                     width: root.u(18); height: width
-                    source: app.iconSource || app.iconName
                     scale: app.pressed ? 0.9 : 1
                     Behavior on scale { NumberAnimation { duration: Tokens.fast } }
+                    // a themed name, or the app's own picture as a data: URL (Electron apps: Discord, Slack).
+                    // Kirigami.Icon can't load data: URLs (it shows the "unknown" sheet), so those go to an Image.
+                    Kirigami.Icon {
+                        anchors.fill: parent
+                        visible: app.iconSource === ""
+                        source: visible ? app.iconName : ""
+                    }
+                    Image {
+                        anchors.fill: parent
+                        visible: app.iconSource !== ""
+                        source: app.iconSource
+                        fillMode: Image.PreserveAspectFit
+                        smooth: true
+                        mipmap: true
+                    }
                 }
                 Rectangle {     // it wants you
                     visible: app.status === "NeedsAttention"

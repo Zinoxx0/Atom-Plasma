@@ -112,8 +112,16 @@ FocusScope {
                         }
                         Kirigami.Icon {
                             anchors.fill: parent
-                            visible: !entry.checkable && (entry.iconName !== "" || entry.iconSource !== "")
-                            source: entry.iconName || entry.iconSource
+                            visible: !entry.checkable && entry.iconName !== ""
+                            source: entry.iconName
+                        }
+                        Image {     // a picture the app sent (data: URL): Kirigami.Icon can't load those
+                            anchors.fill: parent
+                            visible: !entry.checkable && entry.iconName === "" && entry.iconSource !== ""
+                            source: visible ? entry.iconSource : ""
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
+                            mipmap: true
                         }
                     }
                     Text {
