@@ -61,6 +61,20 @@ QtObject {
         }
         groups = order
     }
+    // does this app name (a window's app id, a tray icon's id...) belong to the group? Loose on purpose:
+    // "slack" is "com.slack.Slack"'s, "discord" Discord's
+    function matches(g, name) {
+        const a = String(name || "").toLowerCase()
+        if (a.length < 3) return false
+        return a === g.key || a.indexOf(g.key) >= 0 || g.key.indexOf(a) >= 0 || a === String(g.name).toLowerCase()
+    }
+    // how many unseen for an app known by any of these names
+    function unreadFor(names) {
+        let n = 0
+        for (const g of unseen)
+            if ((names || []).some(a => matches(g, a))) n += g.unread
+        return n
+    }
     function markSeen(key) {
         if (!key) return
         const next = Object.assign({}, seen)
@@ -91,7 +105,7 @@ QtObject {
             const a = Windows.activeApp
             if (!a) return
             for (const g of n.groups)
-                if (g.unread > 0 && (a === g.key || a.indexOf(g.key) >= 0 || g.key.indexOf(a) >= 0 || a === String(g.name).toLowerCase()))
+                if (g.unread > 0 && n.matches(g, a))
                     n.markSeen(g.key)
         }
     }

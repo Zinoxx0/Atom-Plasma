@@ -112,6 +112,7 @@ public:
         connect(&debounce, &QTimer::timeout, this, &TrayItem::fetch);
         listen();
         fetch();
+        fetchPid();
     }
 
     QString spec, service, path, iface = kKdeItem;
@@ -119,6 +120,7 @@ public:
     QString iconUrl, attentionUrl;
     bool itemIsMenu = false;
     bool loaded = false;
+    uint pid = 0;       // the app's process (its window has the same one): what a click brings back
     std::function<void(TrayItem *)> onChange;
 
     QString shownName() const { return status == QLatin1String("NeedsAttention") && !attentionName.isEmpty() ? attentionName : iconName; }
@@ -136,6 +138,24 @@ private:
         for (const char *sig : {"NewTitle", "NewIcon", "NewAttentionIcon", "NewOverlayIcon", "NewToolTip", "NewStatus", "NewMenu"}) {
             bus.connect(service, path, iface, QLatin1String(sig), this, SLOT(changed()));
         }
+    }
+    void fetchPid()
+    {
+        QDBusMessage m = QDBusMessage::createMethodCall(QStringLiteral("org.freedesktop.DBus"), QStringLiteral("/org/freedesktop/DBus"),
+                                                        QStringLiteral("org.freedesktop.DBus"), QStringLiteral("GetConnectionUnixProcessID"));
+        m << service;
+        auto *w = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(m, 5000), this);
+        connect(w, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *w) {
+            w->deleteLater();
+            QDBusPendingReply<uint> r = *w;
+            if (r.isError()) {
+                return;
+            }
+            pid = r.value();
+            if (loaded && onChange) {
+                onChange(this);
+            }
+        });
     }
     void fetch()
     {
@@ -293,6 +313,7 @@ QVariant Tray::data(const QModelIndex &index, int role) const
     case Tooltip: return i->tooltip;
     case ItemIsMenu: return i->itemIsMenu;
     case HasMenu: return !i->menuPath.isEmpty() && i->menuPath != QLatin1String("/");
+    case Pid: return int(i->pid);
     }
     return {};
 }
@@ -300,7 +321,7 @@ QVariant Tray::data(const QModelIndex &index, int role) const
 QHash<int, QByteArray> Tray::roleNames() const
 {
     return {{Key, "key"}, {AppId, "appId"}, {Title, "title"}, {Status, "status"}, {IconName, "iconName"},
-            {IconSource, "iconSource"}, {Tooltip, "tooltip"}, {ItemIsMenu, "itemIsMenu"}, {HasMenu, "hasMenu"}};
+            {IconSource, "iconSource"}, {Tooltip, "tooltip"}, {ItemIsMenu, "itemIsMenu"}, {HasMenu, "hasMenu"}, {Pid, "pid"}};
 }
 
 static void callItem(TrayItem *i, const QString &method, const QVariantList &args)

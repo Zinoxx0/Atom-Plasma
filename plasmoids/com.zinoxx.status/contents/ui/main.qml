@@ -2,9 +2,9 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Shapes
 import QtQuick.Window
-import QtQuick.Controls as QQC2
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.plasmoid
+import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasma5support as P5Support
 import org.kde.plasma.private.volume as Vol
 import org.kde.plasma.networkmanagement as PlasmaNM
@@ -16,8 +16,8 @@ import "Rice"
 import "Rice/Color.js" as C
 
 // The status island (it replaces Plasma's system tray): your apps' tray icons (Atom.Native Tray: a click
-// opens the app, a right click its menu on the shell's sheet, the middle button its second action, the
-// wheel scrolls it), the room's lights when home (Atom RoomLight: a click opens the Room panel, the middle
+// brings the app's window back, or opens the app when it has none; a right click its menu on the shell's
+// sheet, the middle button its second action, the wheel scrolls it; the quiet ones stack), the room's lights when home (Atom RoomLight: a click opens the Room panel, the middle
 // button switches them all, the wheel dims them), then the system's state in glyphs (network, Bluetooth,
 // sound, a microphone in use, the battery, Do Not Disturb). A click on the glyphs opens the control
 // center (Atom panels/Control.qml).
@@ -97,28 +97,35 @@ PlasmoidItem {
             visible: Notify.unseen.length > 0
             Layout.alignment: Qt.AlignVCenter
             Layout.rightMargin: visible ? root.u(6) : 0
-            spacing: beadHover.hovered ? root.u(5) : Notify.unseen.length > 3 ? -root.u(9) : root.u(3)
+            spacing: fanned ? root.u(5) : Notify.unseen.length > 3 ? -root.u(9) : root.u(3)
             Behavior on spacing { NumberAnimation { duration: Tokens.ms(380); easing.type: Tokens.grow } }
-            HoverHandler { id: beadHover }
+            // under the pointer: each bead's own hover (see the apps' icons below for why not a HoverHandler)
+            property bool fanned: false
+            function hoverCheck() {
+                let any = false
+                for (let i = 0; i < beadIcons.count; i++) if (beadIcons.itemAt(i)?.hovered) any = true
+                if (any) { beadSettle.stop(); fanned = true } else beadSettle.restart()
+            }
+            Timer { id: beadSettle; interval: Tokens.ms(220); onTriggered: beads.fanned = false }
             Repeater {
+                id: beadIcons
                 model: Notify.unseen
-                delegate: MouseArea {
+                // Plasma's tooltip wraps the bead's MouseArea (Qt Quick Controls' tooltips open as popup
+                // windows that take the pointer from the bar: the next click only closed the tooltip)
+                delegate: PlasmaCore.ToolTipArea {
                     id: bead
                     required property var modelData
                     required property int index
                     readonly property color tint: C.appTint(beadColors, pal.primary)
+                    readonly property bool hovered: beadArea.containsMouse
+                    onHoveredChanged: beads.hoverCheck()
                     Kirigami.ImageColors { id: beadColors; source: bead.modelData.icon }
                     width: root.u(24); height: width
                     z: Notify.unseen.length - index
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    scale: containsMouse ? 1.12 : 1
+                    mainText: bead.modelData.name
+                    subText: bead.modelData.unread + " new"
+                    scale: hovered ? 1.12 : 1
                     Behavior on scale { NumberAnimation { duration: Tokens.base; easing.type: Tokens.enter } }
-                    onClicked: {
-                        const p = mapToGlobal(0, 0)
-                        Shell.open("control", Screen.name, { x: p.x, y: p.y, width: width, height: height }, { group: bead.modelData.key })
-                        Notify.markSeen(bead.modelData.key)
-                    }
                     Rectangle {     // the candy: the app's colour, glassy
                         anchors.centerIn: parent
                         width: root.u(20); height: width; radius: width / 2
@@ -150,78 +157,189 @@ PlasmoidItem {
                             }
                         }
                     }
-                    QQC2.ToolTip.text: bead.modelData.name + " · " + bead.modelData.unread + (bead.modelData.unread === 1 ? " new" : " new")
-                    QQC2.ToolTip.visible: containsMouse
-                    QQC2.ToolTip.delay: 300
+                    MouseArea {
+                        id: beadArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            const p = mapToGlobal(0, 0)
+                            Shell.open("control", Screen.name, { x: p.x, y: p.y, width: width, height: height }, { group: bead.modelData.key })
+                            Notify.markSeen(bead.modelData.key)
+                        }
+                    }
                 }
             }
         }
 
-        // the apps' icons
-        Repeater {
-            model: Tray
-            delegate: MouseArea {
-                id: app
-                required property int index
-                required property string key
-                required property string title
-                required property string status
-                required property string iconName
-                required property string iconSource
-                required property string tooltip
-                required property bool itemIsMenu
-                required property bool hasMenu
-                visible: status !== "Passive"
-                Layout.preferredWidth: visible ? root.u(28) : 0
-                Layout.fillHeight: true
-                hoverEnabled: true
-                acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-                function globalRect() { const p = mapToGlobal(0, 0); return { x: p.x, y: p.y, width: width, height: height } }
-                onClicked: mouse => {
-                    const p = mapToGlobal(mouse.x, mouse.y)
-                    if (mouse.button === Qt.MiddleButton) Tray.secondaryActivate(index, p.x, p.y)
-                    else if (mouse.button === Qt.RightButton || app.itemIsMenu) {
-                        if (app.hasMenu) Shell.toggle("traymenu", Screen.name, globalRect(), { key: app.key })
-                        else Tray.contextMenu(index, p.x, p.y)
-                    } else Tray.activate(index, p.x, p.y)
+        // the apps' icons. One with news (unseen notifications, or asking for you) stands on its own; the
+        // quiet ones (open in the background, nothing new) sit in a stack of stairs that fans out under the
+        // pointer. News slides an app out of the stack, and once it's been seen the app steps back in.
+        Item {
+            id: apps
+            readonly property real slot: root.u(28)
+            readonly property real step: root.u(11)     // how much of a stacked icon shows past the one in front
+            readonly property real rise: root.u(2)      // each step stands this much higher
+            readonly property int glide: Tokens.ms(380)
+            property int quiet: 0                       // icons in the stack
+            property int loud: 0                        // icons on their own
+            // under the pointer: each icon's own hover. Not a HoverHandler on this item: Qt drops an ancestor's
+            // hover whenever icons slide under a still pointer, and the stack flapped open and shut. It folds
+            // back a moment after the pointer has really gone.
+            property bool fanned: false
+            function hoverCheck() {
+                let any = false
+                for (let i = 0; i < appIcons.count; i++) {
+                    const it = appIcons.itemAt(i)
+                    if (it && it.shown && it.hovered) any = true
                 }
-                onWheel: wheel => Tray.scroll(index, wheel.angleDelta.y || wheel.angleDelta.x, wheel.angleDelta.y === 0)
-                Rectangle {
-                    anchors.centerIn: parent
-                    width: root.u(26); height: width; radius: width / 2
-                    color: C.alpha(pal.fg, app.pressed ? 0.16 : app.containsMouse ? 0.1 : 0)
-                    Behavior on color { ColorAnimation { duration: Tokens.fast } }
+                if (any) { settle.stop(); fanned = true } else settle.restart()
+            }
+            Timer { id: settle; interval: Tokens.ms(220); onTriggered: apps.fanned = false }
+            readonly property bool stacked: quiet > 1 && !fanned
+            readonly property real stackWidth: quiet === 0 ? 0 : stacked ? slot + (quiet - 1) * step : quiet * slot
+            property real shownWidth: stackWidth + loud * slot
+            Behavior on shownWidth { NumberAnimation { duration: apps.glide; easing.type: Tokens.grow } }
+            visible: quiet + loud > 0
+            Layout.fillHeight: true
+            Layout.preferredWidth: visible ? shownWidth : 0
+            // who goes where: the stack first, in the tray's order, then the ones with news
+            function relayout() {
+                let q = 0, l = 0
+                for (let i = 0; i < appIcons.count; i++) {
+                    const it = appIcons.itemAt(i)
+                    if (!it || !it.shown) continue
+                    it.place = it.news ? { stack: false, i: l++ } : { stack: true, i: q++ }
                 }
-                Item {
-                    anchors.centerIn: parent
-                    width: root.u(18); height: width
-                    scale: app.pressed ? 0.9 : 1
-                    Behavior on scale { NumberAnimation { duration: Tokens.fast } }
-                    // a themed name, or the app's own picture as a data: URL (Electron apps: Discord, Slack).
-                    // Kirigami.Icon can't load data: URLs (it shows the "unknown" sheet), so those go to an Image.
-                    Kirigami.Icon {
-                        anchors.fill: parent
-                        visible: app.iconSource === ""
-                        source: visible ? app.iconName : ""
+                quiet = q
+                loud = l
+                if (Shell.debug) { console.warn("ATOM tray stack", q, "alone", l); report.restart() }
+            }
+            Component.onCompleted: Qt.callLater(relayout)
+            onStackedChanged: if (Shell.debug) { console.warn("ATOM tray stacked", stacked); report.restart() }
+            Timer {     // tests (Shell.debug): where each icon ends up once it has glided there
+                id: report
+                interval: apps.glide + 80
+                onTriggered: {
+                    for (let i = 0; i < appIcons.count; i++) {
+                        const it = appIcons.itemAt(i)
+                        if (!it || !it.shown) continue
+                        const p = it.mapToGlobal(it.width / 2, it.height / 2)
+                        console.warn("ATOM tray at", it.appId, Math.round(p.x), Math.round(p.y), it.place.stack ? "stack" : "alone", apps.stacked ? "stacked" : "open")
                     }
-                    Image {
+                }
+            }
+
+            Repeater {
+                id: appIcons
+                model: Tray
+                onItemAdded: Qt.callLater(apps.relayout)
+                onItemRemoved: Qt.callLater(apps.relayout)
+                // Plasma's tooltip wraps the icon's MouseArea (inside it, a hover item on top would make the
+                // MouseArea an ancestor, whose hover Qt drops when icons slide under a still pointer)
+                delegate: PlasmaCore.ToolTipArea {
+                    id: app
+                    required property int index
+                    required property string key
+                    required property string appId
+                    required property string title
+                    required property string status
+                    required property string iconName
+                    required property string iconSource
+                    required property string tooltip
+                    required property bool itemIsMenu
+                    required property bool hasMenu
+                    required property int pid
+                    readonly property bool shown: status !== "Passive"
+                    // the names it may go by: its tray id ("discord_status_icon_1" -> "discord"), its title, its window's app id
+                    readonly property var names: {
+                        const _ = Windows.tasks.count
+                        const n = [String(appId).replace(/_status_icon(_\d+)?$/i, ""), title]
+                        const w = Windows.appIdOf(pid, n)
+                        if (w) n.push(w)
+                        return n
+                    }
+                    readonly property bool news: status === "NeedsAttention" || Notify.unreadFor(names) > 0
+                    onShownChanged: Qt.callLater(apps.relayout)
+                    onNewsChanged: Qt.callLater(apps.relayout)
+                    readonly property bool hovered: area.containsMouse
+                    onHoveredChanged: apps.hoverCheck()
+                    property var place: ({ stack: true, i: 0 })
+                    readonly property bool squeezed: place.stack && apps.stacked
+                    visible: shown
+                    width: apps.slot
+                    height: apps.height
+                    x: !place.stack ? apps.stackWidth + place.i * apps.slot : squeezed ? place.i * apps.step : place.i * apps.slot
+                    y: squeezed ? ((apps.quiet - 1) / 2 - place.i) * apps.rise : 0
+                    z: place.stack ? apps.quiet - place.i : 0      // the lowest step in front
+                    Behavior on x { NumberAnimation { duration: apps.glide; easing.type: Tokens.grow } }
+                    Behavior on y { NumberAnimation { duration: apps.glide; easing.type: Tokens.grow } }
+                    readonly property var lines: String(tooltip || title).split("\n")
+                    mainText: squeezed ? "" : lines[0]
+                    subText: squeezed ? "" : lines.slice(1).join("\n")
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: root.u(26); height: width; radius: width / 2
+                        color: C.alpha(pal.fg, app.squeezed ? 0 : area.pressed ? 0.16 : area.containsMouse ? 0.1 : 0)
+                        Behavior on color { ColorAnimation { duration: Tokens.fast } }
+                    }
+                    Rectangle {     // in the stack: a dark glass chip, so each icon stands apart from the one behind it
+                        anchors.centerIn: parent
+                        width: root.u(24); height: width; radius: width / 2
+                        color: C.alpha(pal.surfaceLowest, 0.92)
+                        border.width: 1
+                        border.color: C.alpha(pal.edge, 0.16)
+                        opacity: app.squeezed ? 1 : 0
+                        visible: opacity > 0
+                        Behavior on opacity { NumberAnimation { duration: apps.glide; easing.type: Tokens.grow } }
+                    }
+                    Item {
+                        anchors.centerIn: parent
+                        width: root.u(18); height: width
+                        scale: (area.pressed ? 0.9 : 1) * (app.squeezed ? 0.84 : 1)
+                        Behavior on scale { NumberAnimation { duration: Tokens.fast } }
+                        // a themed name, or the app's own picture as a data: URL (Electron apps: Discord, Slack).
+                        // Kirigami.Icon can't load data: URLs (it shows the "unknown" sheet), so those go to an Image.
+                        Kirigami.Icon {
+                            anchors.fill: parent
+                            visible: app.iconSource === ""
+                            source: visible ? app.iconName : ""
+                        }
+                        Image {
+                            anchors.fill: parent
+                            visible: app.iconSource !== ""
+                            source: app.iconSource
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
+                            mipmap: true
+                        }
+                    }
+                    Rectangle {     // it wants you
+                        visible: app.status === "NeedsAttention"
+                        anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: root.u(4) }
+                        width: root.u(5); height: width; radius: width / 2
+                        color: pal.primary
+                    }
+                    MouseArea {
+                        id: area
                         anchors.fill: parent
-                        visible: app.iconSource !== ""
-                        source: app.iconSource
-                        fillMode: Image.PreserveAspectFit
-                        smooth: true
-                        mipmap: true
+                        hoverEnabled: true
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                        function globalRect() { const p = mapToGlobal(0, 0); return { x: p.x, y: p.y, width: width, height: height } }
+                        onClicked: mouse => {
+                            if (Shell.debug) console.warn("ATOM tray click", app.appId, mouse.button, "window", Windows.windowOf(app.pid, app.names))
+                            const p = mapToGlobal(mouse.x, mouse.y)
+                            if (mouse.button === Qt.MiddleButton) Tray.secondaryActivate(app.index, p.x, p.y)
+                            else if (mouse.button === Qt.RightButton || app.itemIsMenu) {
+                                if (app.hasMenu) Shell.toggle("traymenu", Screen.name, globalRect(), { key: app.key })
+                                else Tray.contextMenu(app.index, p.x, p.y)
+                            }
+                            // its window comes back (or goes down when it has the focus); with none, the app opens one
+                            else if (!Windows.summon(app.pid, app.names)) Tray.activate(app.index, p.x, p.y)
+                        }
+                        onWheel: wheel => Tray.scroll(app.index, wheel.angleDelta.y || wheel.angleDelta.x, wheel.angleDelta.y === 0)
                     }
                 }
-                Rectangle {     // it wants you
-                    visible: app.status === "NeedsAttention"
-                    anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: root.u(4) }
-                    width: root.u(5); height: width; radius: width / 2
-                    color: pal.primary
-                }
-                QQC2.ToolTip.text: app.tooltip || app.title
-                QQC2.ToolTip.visible: app.containsMouse && !!(app.tooltip || app.title)
-                QQC2.ToolTip.delay: 600
             }
         }
         // the room's lights (the bedside lamp, the LED strip), only when home: lit while any is on
@@ -261,10 +379,13 @@ PlasmoidItem {
                 acceptedButtons: Qt.MiddleButton
                 onClicked: RoomLight.setAll(!RoomLight.anyOn)
             }
-            QQC2.ToolTip.text: "Room light  ·  lamp: " + RoomLight.lampSummary.toLowerCase() + "  ·  strip: " + RoomLight.stripSummary.toLowerCase()
-                               + "\nMiddle-click: all on or off  ·  wheel: dim"
-            QQC2.ToolTip.visible: containsMouse && !open
-            QQC2.ToolTip.delay: 600
+            PlasmaCore.ToolTipArea {
+                anchors.fill: parent
+                active: !roomBtn.open
+                mainText: "Room light"
+                subText: "Lamp: " + RoomLight.lampSummary.toLowerCase() + "  ·  strip: " + RoomLight.stripSummary.toLowerCase()
+                         + "\nMiddle-click: all on or off  ·  wheel: dim"
+            }
         }
         Rectangle {     // between the apps and the system
             visible: Tray.count > 0 || roomBtn.visible

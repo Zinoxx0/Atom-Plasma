@@ -9,7 +9,8 @@
 # activation OFF (an activating bus spawns a second xdg-document-portal that kills the user's). Config,
 # data, cache and state live in a scratch dir, so nothing of the user's is read or written except what
 # Plasma reads from $HOME (the Desktop folder, the wallpaper). With --plasma, the inner script can start
-# plasmashell on that applets layout (start_plasma). The inner script gets:
+# plasmashell on that applets layout (start_plasma). ATOM_NESTED_QML=DIR puts DIR first on the QML import path
+# (an Atom.Native built with ATOM_QML_DEST=DIR, tried before it's installed). The inner script gets:
 #   N     scratch dir (logs and screenshots in $N/out)
 #   F     fakein: pointer and keys for the nested KWin only (it refuses any other compositor)
 #   L     plasmashell's log
@@ -43,7 +44,7 @@ cat > "$N/env.sh" <<EOF
 export N="$N" F="$fake/fakein" L="$N/out/plasmashell.log" REPO="$repo"
 export QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=wayland XDG_CURRENT_DESKTOP=KDE KDE_FULL_SESSION=true
 export KDE_SESSION_VERSION=6 QML_XHR_ALLOW_FILE_READ=1
-export QML_IMPORT_PATH="$repo/qml:\$HOME/.local/lib/qt6/qml"
+export QML_IMPORT_PATH="${ATOM_NESTED_QML:+$ATOM_NESTED_QML:}$repo/qml:\$HOME/.local/lib/qt6/qml"
 # by PID only: a name (pkill -x plasmashell) also matches the USER's processes outside the nested session
 start_plasma() { /usr/lib/kactivitymanagerd & KAMD_PID=\$!; sleep 1; plasmashell --no-respawn >> "\$L" 2>&1 & PLASMA_PID=\$!; sleep "\${1:-7}"; }
 stop_plasma() { kill \$PLASMA_PID \$KAMD_PID 2>/dev/null; sleep 1; }

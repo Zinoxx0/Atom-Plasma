@@ -3,7 +3,8 @@
 //
 //   Tray (singleton, a list model): one row per app icon the session's StatusNotifierWatcher knows
 //     roles: key, appId, title, status ("Passive" | "Active" | "NeedsAttention"), iconName, iconSource
-//            (a data: URL when the app sends pixels instead of a name), tooltip, itemIsMenu, hasMenu
+//            (a data: URL when the app sends pixels instead of a name), tooltip, itemIsMenu, hasMenu,
+//            pid (the app's process, 0 until known: its windows have the same one)
 //     activate(row, x, y), secondaryActivate(row, x, y), scroll(row, delta, horizontal), contextMenu(row, x, y)
 //     menu(row) -> TrayMenu (the app's menu, read over DBusMenu; null when it has none)
 //   TrayMenu (a list model): text, iconName, iconSource, enabled, checkable, checked, separator, hasSubmenu
@@ -75,7 +76,7 @@ class Tray : public QAbstractListModel
     Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
 
 public:
-    enum Roles { Key = Qt::UserRole + 1, AppId, Title, Status, IconName, IconSource, Tooltip, ItemIsMenu, HasMenu };
+    enum Roles { Key = Qt::UserRole + 1, AppId, Title, Status, IconName, IconSource, Tooltip, ItemIsMenu, HasMenu, Pid };
     static Tray *create(QQmlEngine *, QJSEngine *);
 
     int rowCount(const QModelIndex &parent = {}) const override;

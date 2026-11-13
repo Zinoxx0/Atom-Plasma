@@ -112,6 +112,38 @@ QtObject {
             }
         }
     }
+    // ------------------------------------------------------------------ an app's window, from its tray icon
+    // A tray icon knows its app's process; the app's window has the same one (else it goes by app id).
+    // Its row, most recently used first, or -1 when the app has no window (closed to the tray).
+    function windowOf(pid, names) {
+        const R = TaskManager.AbstractTasksModel
+        const ids = (names || []).map(n => String(n || "").toLowerCase()).filter(n => n.length > 1)
+        let byName = -1
+        for (let i = 0; i < tasks.count; i++) {
+            const idx = tasks.index(i, 0)
+            if (tasks.data(idx, R.IsWindow) !== true || tasks.data(idx, R.SkipTaskbar) === true) continue
+            if (pid > 0 && tasks.data(idx, R.AppPid) === pid) return i
+            if (byName < 0 && ids.indexOf(String(tasks.data(idx, R.AppId) || "").toLowerCase()) >= 0) byName = i
+        }
+        return byName
+    }
+    // its app id, lower case ("" when it has no window)
+    function appIdOf(pid, names) {
+        const r = windowOf(pid, names)
+        return r < 0 ? "" : String(tasks.data(tasks.index(r, 0), TaskManager.AbstractTasksModel.AppId) || "").toLowerCase()
+    }
+    // a tray icon's click, by Glimpse's rules: a minimized or covered window comes back (activating
+    // un-minimizes), the focused one goes down. false when there's no window: the app decides (it opens one)
+    function summon(pid, names) {
+        const R = TaskManager.AbstractTasksModel
+        const r = windowOf(pid, names)
+        if (r < 0) return false
+        const idx = tasks.index(r, 0)
+        if (tasks.data(idx, R.IsMinimized) !== true && tasks.data(idx, R.IsActive) === true) tasks.requestToggleMinimized(idx)
+        else tasks.requestActivate(idx)
+        return true
+    }
+
     // windows something else is bringing back (a click in Glimpse while the launcher is open): the
     // launcher's restore leaves them alone, so they come back once, on top
     function release(ids) {
