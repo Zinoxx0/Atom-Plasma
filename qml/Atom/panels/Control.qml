@@ -354,116 +354,6 @@ FocusScope {
         Layout.alignment: Qt.AlignTop
         spacing: cc.u(12)
 
-        // the notifications, by app (a bead opens its own app's group)
-        RowLayout {
-            Layout.fillWidth: true
-            visible: Notify.groups.length > 0
-            Text {
-                Layout.fillWidth: true
-                text: "Notifications"
-                color: cc.pal.muted
-                font.family: Tokens.font.ui
-                font.weight: Font.DemiBold
-                font.pixelSize: cc.u(11)
-                font.capitalization: Font.AllUppercase
-                font.letterSpacing: 0.6
-            }
-            Text {
-                text: "Clear all"
-                color: clearAllM.containsMouse ? cc.pal.fg : cc.pal.primary
-                font.family: Tokens.font.ui
-                font.weight: Font.DemiBold
-                font.pixelSize: cc.u(11)
-                MouseArea { id: clearAllM; anchors.fill: parent; anchors.margins: -cc.u(6); hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Notify.clearAll() }
-            }
-        }
-        Flickable {
-            Layout.fillWidth: true
-            Layout.preferredHeight: Math.min(contentHeight, cc.u(330))
-            visible: Notify.groups.length > 0
-            contentHeight: groupsCol.implicitHeight
-            clip: true
-            boundsBehavior: Flickable.StopAtBounds
-            Column {
-                id: groupsCol
-                width: parent.width
-                spacing: cc.u(8)
-                Repeater {
-                    model: Notify.groups
-                    delegate: Rectangle {
-                        id: grp
-                        required property var modelData
-                        readonly property bool focused: cc.args && cc.args.group === modelData.key
-                        width: groupsCol.width
-                        implicitHeight: gcol.implicitHeight + cc.u(16)
-                        radius: cc.u(16)
-                        color: C.alpha(focused ? cc.pal.primary : cc.pal.fg, focused ? 0.12 : 0.045)
-                        border.width: 1
-                        border.color: focused ? C.alpha(cc.pal.primary, 0.45) : C.alpha(cc.pal.edge, Tokens.alpha.outline)
-                        Column {
-                            id: gcol
-                            x: cc.u(10); y: cc.u(8)
-                            width: parent.width - cc.u(20)
-                            spacing: cc.u(4)
-                            RowLayout {
-                                width: parent.width
-                                spacing: cc.u(8)
-                                Kirigami.Icon { implicitWidth: cc.u(18); implicitHeight: implicitWidth; source: grp.modelData.icon }
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: grp.modelData.name + (grp.modelData.unread > 0 ? "  ·  " + grp.modelData.unread + " new" : "")
-                                    elide: Text.ElideRight
-                                    color: cc.pal.fg
-                                    font.family: Tokens.font.ui
-                                    font.weight: Font.DemiBold
-                                    font.pixelSize: cc.u(12)
-                                }
-                                Text {
-                                    text: "close"
-                                    color: gx.containsMouse ? cc.pal.fg : cc.pal.muted
-                                    font.family: Tokens.font.icons
-                                    font.pixelSize: cc.u(16)
-                                    MouseArea { id: gx; anchors.fill: parent; anchors.margins: -cc.u(4); hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Notify.clearApp(grp.modelData.key) }
-                                }
-                            }
-                            Repeater {
-                                model: grp.modelData.items.slice(0, 3)
-                                delegate: Rectangle {
-                                    id: item
-                                    required property var modelData
-                                    width: gcol.width
-                                    implicitHeight: icol.implicitHeight + cc.u(10)
-                                    radius: cc.u(10)
-                                    color: im.containsMouse ? C.alpha(cc.pal.fg, 0.07) : "transparent"
-                                    Column {
-                                        id: icol
-                                        x: cc.u(26); y: cc.u(5)
-                                        width: parent.width - cc.u(54)
-                                        Text { width: parent.width; text: item.modelData.summary; elide: Text.ElideRight; color: cc.pal.fg; font.family: Tokens.font.ui; font.weight: Font.Medium; font.pixelSize: cc.u(12) }
-                                        Text { width: parent.width; visible: text !== ""; text: item.modelData.body; textFormat: Text.StyledText; elide: Text.ElideRight; maximumLineCount: 1; color: cc.pal.fgDim; font.family: Tokens.font.ui; font.pixelSize: cc.u(12) }
-                                    }
-                                    Text {
-                                        anchors { right: parent.right; rightMargin: cc.u(4); top: parent.top; topMargin: cc.u(6) }
-                                        text: Qt.formatTime(item.modelData.created, "HH:mm")
-                                        color: cc.pal.muted
-                                        font.family: Tokens.font.ui
-                                        font.pixelSize: cc.u(10)
-                                    }
-                                    MouseArea {
-                                        id: im
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: item.modelData.hasDefault ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                        onClicked: { if (item.modelData.hasDefault) { Notify.activate(item.modelData.row); Shell.close() } }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         // what's playing
         Rectangle {
             Layout.fillWidth: true
@@ -590,7 +480,7 @@ FocusScope {
         Column {
             Layout.fillWidth: true
             Layout.topMargin: cc.u(30)
-            visible: !music.present && apps.count === 0 && !room.present && Notify.groups.length === 0
+            visible: !music.present && apps.count === 0 && !room.present
             spacing: cc.u(6)
             Text { anchors.horizontalCenter: parent.horizontalCenter; text: "self_care"; color: C.alpha(cc.pal.fg, 0.25); font.family: Tokens.font.icons; font.pixelSize: cc.u(34) }
             Text { anchors.horizontalCenter: parent.horizontalCenter; text: "All quiet"; color: cc.pal.muted; font.family: Tokens.font.ui; font.pixelSize: cc.u(13) }

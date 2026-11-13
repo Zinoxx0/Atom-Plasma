@@ -19,7 +19,7 @@ Item {
     required property RicePalette pal
     property real ui: 1
     property rect island: Qt.rect(width - u(64), height - u(52), u(48), u(36))   // this window's coordinates (default: the bar's corner)
-    property bool blocked: false                // the control center is open here: news goes there
+    property bool blocked: false                // the apps' panel is open here: news goes there
     function u(n) { return Math.round(n * ui) }
 
     // the screen they show on
@@ -76,7 +76,7 @@ Item {
         const out = []
         for (let i = 0; i < stack.children.length; i++) {
             const c = stack.children[i]
-            if (!c.visible || c.height < 2 || !c.isCard) continue
+            if (!c.visible || c.height < 2 || !c.isCard || c.leaving) continue    // a folding card lets go at once
             const p = c.mapToItem(toasts, 0, 0)
             out.push({ x: p.x, y: p.y, width: c.width, height: c.height, radius: u(20) })
         }
@@ -84,6 +84,10 @@ Item {
         shapes = out
     }
     Timer { id: remeasure; interval: 30; onTriggered: toasts.measure() }
+    // again once the stack's move has played: measured mid-way, a card that slid down when another left kept
+    // a shape over the bar (it took the status island's clicks until the next toast)
+    Timer { id: settled; interval: Tokens.ms(420) + 40; onTriggered: toasts.measure() }
+    function remeasureSoon() { remeasure.restart(); settled.restart() }
 
     // ------------------------------------------------------------------ the stack
     readonly property real cardW: u(380)
@@ -95,7 +99,7 @@ Item {
         anchors.bottomMargin: toasts.height - toasts.island.y + toasts.u(12)
         width: toasts.cardW
         spacing: toasts.u(10)
-        onPositioningComplete: remeasure.restart()
+        onPositioningComplete: toasts.remeasureSoon()
         move: Transition { NumberAnimation { properties: "y"; duration: Tokens.ms(420); easing.type: Tokens.grow } }
 
         Rectangle {     // more waiting
@@ -154,6 +158,7 @@ Item {
                 height: visible ? body.implicitHeight : 0
                 onLeadChanged: Qt.callLater(cards.recount)
                 Component.onCompleted: { Qt.callLater(cards.recount); if (shown) { grow.restart(); popups.playSoundHint(popups.index(index, 0)) } }
+                Component.onDestruction: toasts.remeasureSoon()     // a gone card may not move the others (no new positioning)
                 onShownChanged: if (shown && !leaving) grow.restart()
 
                 // time: its own, or 6 s (critical ones stay); hover holds it
@@ -166,6 +171,7 @@ Item {
                 }
                 function leave(closeIt) {
                     leaving = true
+                    toasts.remeasureSoon()
                     fold.closeIt = closeIt
                     fold.restart()
                 }

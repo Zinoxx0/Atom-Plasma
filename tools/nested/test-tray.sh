@@ -4,7 +4,8 @@
 # opens their panel on the sheet; a row's click brings its app's minimized window back (and closes the
 # panel), and an app with no window is asked to open; a notification slides its app out of the stack, a
 # click on it there brings its window back, and seeing it (the window gets the focus) puts it back in the
-# stack. Exit 0 = all good.
+# stack; the panel lists the notifications by app, and an app's ✕ clears them (back into the stack too).
+# Exit 0 = all good.
 # ATOM_NESTED_QML=DIR tries an Atom.Native built there (pkg/atom-native/build.sh with ATOM_QML_DEST=DIR).
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
@@ -60,7 +61,7 @@ minimize() { kw "for (const w of workspace.windowList()) if (w.resourceClass == 
 
 step "stacked";  shot t-stacked
 step "minimize"; minimize
-I=$(grep -o 'ATOM island apps at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $5, $6}')
+I=$(grep -o 'ATOM tray island [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $4, $5}')
 step "open";     $F move ${I:-1400 880} wait 300 click wait 1300; shot t-panel
 R=$(row trayalpha)
 step "pick";     $F move ${R:-800 700} wait 300 click wait 1000; alpha
@@ -72,6 +73,13 @@ step "news";     minimize; gdbus call --session --dest org.freedesktop.Notificat
                  $F wait 1500; shot t-news
 P=$(at trayalpha alone)
 step "seen";     $F move ${P:-1400 880} wait 300 click wait 1500; alpha; shot t-seen
+step "news2";    gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications \
+                     --method org.freedesktop.Notifications.Notify traybeta 0 "" "Again" "more news" "[]" "{}" 4000 >/dev/null
+                 $F wait 1500
+I=$(grep -o 'ATOM tray island [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $4, $5}')
+step "open3";    $F move ${I:-1400 880} wait 300 click wait 1300; shot t-panel-news
+X=$(grep -o 'ATOM apps group traybeta close [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $6, $7}')
+step "clear";    $F move ${X:-800 700} wait 300 click wait 1200; shot t-cleared
 step end
 kill $apps $watcher; stop_plasma
 I
@@ -93,6 +101,10 @@ if grep -q "trayalpha activated" "$A"; then echo "FAIL the app with a window was
 after "news slides the app out of the stack" news "ATOM tray stack 2 alone 1" "$L" "ATOM ##"
 after "its own icon brings its window back" seen "alpha minimized=false active=true" "$A" "^alpha"
 after "seen, it steps back into the stack" seen "ATOM tray stack 3 alone 0" "$L" "ATOM ##"
+after "news again takes its app out" news2 "ATOM tray stack 2 alone 1" "$L" "ATOM ##"
+after "the panel lists the notifications by app" open3 "ATOM apps group traybeta close" "$L" "ATOM ##"
+after "and the ones already seen" open3 "ATOM apps group trayalpha close" "$L" "ATOM ##"
+after "an app's ✕ clears its group: back into the stack" clear "ATOM tray stack 3 alone 0" "$L" "ATOM ##"
 errs=$(grep -E "status|Tray|Windows|Notify|Atom" "$L" | grep -E "Error|TypeError|ReferenceError|Cannot|Unable|not a type|is not defined|Could not set|Binding loop|Invalid property" | sort -u | head)
 [ -n "$errs" ] && { echo "$errs"; fail=1; }
 echo "logs: $N/out"

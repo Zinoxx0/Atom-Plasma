@@ -98,10 +98,11 @@ PlasmoidItem {
         }
     }
 
-    // ------------------------------------------------------------------ the quiet apps' panel
-    // One row per app in the stack, on the shell's sheet (Atom panels/Portal.qml makes it there, in this
-    // widget's context), grown out of the stack: a click brings the app's window back (or opens the app),
-    // a right click (or ⋯) its menu, the middle button its second action.
+    // ------------------------------------------------------------------ the apps' panel
+    // On the shell's sheet (Atom panels/Portal.qml makes it there, in this widget's context), grown out of
+    // the stack (or a bead: its app's group lit): the notifications by app (Atom Notify; a click runs one,
+    // ✕ clears an app's, Clear all), then one row per app in the stack: a click brings the app's window back
+    // (or opens the app), a right click (or ⋯) its menu, the middle button its second action.
     property Item stack: null                   // the bar's apps (the compact representation's)
     readonly property string myScreenName: root.Window.window ? Screen.name : ""
     readonly property bool appsOpen: Shell.kind === "apps" && Shell.screen === myScreenName
@@ -120,8 +121,10 @@ PlasmoidItem {
     property Component appsPopup: Component {
         Item {
             id: ap
-            implicitWidth: root.u(330)
+            implicitWidth: root.u(360)
             implicitHeight: apCol.implicitHeight + 2 * root.u(Tokens.space.lg)
+            readonly property string focusGroup: root.appsOpen && Shell.args ? (Shell.args.group || "") : ""
+            readonly property int quiet: root.stack ? root.stack.quiet : 0
 
             PopupIn {
                 anchors.fill: parent
@@ -136,8 +139,136 @@ PlasmoidItem {
                     PopupHeader {
                         Layout.fillWidth: true
                         palette: pal
-                        title: "In the background"
-                        subtitle: (root.stack ? root.stack.quiet : 0) + " apps open, nothing new"
+                        title: "Apps"
+                        subtitle: [Notify.unreadTotal > 0 ? Notify.unreadTotal + " new" : Notify.groups.length > 0 ? "Nothing new" : "No notifications"]
+                                  .concat(ap.quiet > 0 ? [ap.quiet + " in the background"] : []).join("  ·  ")
+                    }
+
+                    // the notifications, by app, newest first
+                    RowLayout {
+                        Layout.fillWidth: true
+                        visible: Notify.groups.length > 0
+                        Text {
+                            Layout.fillWidth: true
+                            text: "Notifications"
+                            color: pal.muted
+                            font.family: Tokens.font.ui
+                            font.weight: Font.DemiBold
+                            font.pixelSize: root.u(11)
+                            font.capitalization: Font.AllUppercase
+                            font.letterSpacing: 0.6
+                        }
+                        Text {
+                            text: "Clear all"
+                            color: clearAllM.containsMouse ? pal.fg : pal.primary
+                            font.family: Tokens.font.ui
+                            font.weight: Font.DemiBold
+                            font.pixelSize: root.u(11)
+                            MouseArea { id: clearAllM; anchors.fill: parent; anchors.margins: -root.u(6); hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Notify.clearAll() }
+                        }
+                    }
+                    Flickable {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: Math.min(contentHeight, root.u(330))
+                        visible: Notify.groups.length > 0
+                        contentHeight: groupsCol.implicitHeight
+                        clip: true
+                        boundsBehavior: Flickable.StopAtBounds
+                        Column {
+                            id: groupsCol
+                            width: parent.width
+                            spacing: root.u(8)
+                            Repeater {
+                                id: groupCards
+                                model: Notify.groups
+                                delegate: Rectangle {
+                                    id: grp
+                                    required property var modelData
+                                    readonly property bool focused: ap.focusGroup === modelData.key
+                                    property Item closer: closeGlyph
+                                    width: groupsCol.width
+                                    implicitHeight: gcol.implicitHeight + root.u(16)
+                                    radius: root.u(16)
+                                    color: C.alpha(focused ? pal.primary : pal.fg, focused ? 0.12 : 0.045)
+                                    border.width: 1
+                                    border.color: focused ? C.alpha(pal.primary, 0.45) : C.alpha(pal.edge, Tokens.alpha.outline)
+                                    Column {
+                                        id: gcol
+                                        x: root.u(10); y: root.u(8)
+                                        width: parent.width - root.u(20)
+                                        spacing: root.u(4)
+                                        RowLayout {
+                                            width: parent.width
+                                            spacing: root.u(8)
+                                            Kirigami.Icon { implicitWidth: root.u(18); implicitHeight: implicitWidth; source: grp.modelData.icon }
+                                            Text {
+                                                Layout.fillWidth: true
+                                                text: grp.modelData.name + (grp.modelData.unread > 0 ? "  ·  " + grp.modelData.unread + " new" : "")
+                                                elide: Text.ElideRight
+                                                color: pal.fg
+                                                font.family: Tokens.font.ui
+                                                font.weight: Font.DemiBold
+                                                font.pixelSize: root.u(12)
+                                            }
+                                            Text {
+                                                id: closeGlyph
+                                                text: "close"
+                                                color: gx.containsMouse ? pal.fg : pal.muted
+                                                font.family: Tokens.font.icons
+                                                font.pixelSize: root.u(16)
+                                                MouseArea { id: gx; anchors.fill: parent; anchors.margins: -root.u(4); hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Notify.clearApp(grp.modelData.key) }
+                                            }
+                                        }
+                                        Repeater {
+                                            model: grp.modelData.items.slice(0, 3)
+                                            delegate: Rectangle {
+                                                id: item
+                                                required property var modelData
+                                                width: gcol.width
+                                                implicitHeight: icol.implicitHeight + root.u(10)
+                                                radius: root.u(10)
+                                                color: im.containsMouse ? C.alpha(pal.fg, 0.07) : "transparent"
+                                                Column {
+                                                    id: icol
+                                                    x: root.u(26); y: root.u(5)
+                                                    width: parent.width - root.u(54)
+                                                    Text { width: parent.width; text: item.modelData.summary; elide: Text.ElideRight; color: pal.fg; font.family: Tokens.font.ui; font.weight: Font.Medium; font.pixelSize: root.u(12) }
+                                                    Text { width: parent.width; visible: text !== ""; text: item.modelData.body; textFormat: Text.StyledText; elide: Text.ElideRight; maximumLineCount: 1; color: pal.fgDim; font.family: Tokens.font.ui; font.pixelSize: root.u(12) }
+                                                }
+                                                Text {
+                                                    anchors { right: parent.right; rightMargin: root.u(4); top: parent.top; topMargin: root.u(6) }
+                                                    text: Qt.formatTime(item.modelData.created, "HH:mm")
+                                                    color: pal.muted
+                                                    font.family: Tokens.font.ui
+                                                    font.pixelSize: root.u(10)
+                                                }
+                                                MouseArea {
+                                                    id: im
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: item.modelData.hasDefault ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                                    onClicked: { if (item.modelData.hasDefault) { Notify.activate(item.modelData.row); Shell.close() } }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // the quiet apps, one row each
+                    Text {
+                        Layout.fillWidth: true
+                        Layout.topMargin: Notify.groups.length > 0 ? root.u(4) : 0
+                        visible: ap.quiet > 0
+                        text: "In the background"
+                        color: pal.muted
+                        font.family: Tokens.font.ui
+                        font.weight: Font.DemiBold
+                        font.pixelSize: root.u(11)
+                        font.capitalization: Font.AllUppercase
+                        font.letterSpacing: 0.6
                     }
                     ColumnLayout {
                         Layout.fillWidth: true
@@ -258,6 +389,12 @@ PlasmoidItem {
                         const p = r.mapToGlobal(r.width / 2, r.height / 2)
                         console.warn("ATOM apps row", r.appId, Math.round(p.x), Math.round(p.y))
                     }
+                    for (let i = 0; i < groupCards.count; i++) {
+                        const g = groupCards.itemAt(i)
+                        if (!g) continue
+                        const p = g.closer.mapToGlobal(g.closer.width / 2, g.closer.height / 2)
+                        console.warn("ATOM apps group", g.modelData.key, "close", Math.round(p.x), Math.round(p.y), g.focused ? "lit" : "")
+                    }
                 }
             }
         }
@@ -350,7 +487,7 @@ PlasmoidItem {
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             const p = mapToGlobal(0, 0)
-                            Shell.open("control", Screen.name, { x: p.x, y: p.y, width: width, height: height }, { group: bead.modelData.key })
+                            Shell.open("apps", Screen.name, { x: p.x, y: p.y, width: width, height: height }, { group: bead.modelData.key })
                             Notify.markSeen(bead.modelData.key)
                         }
                     }
@@ -372,11 +509,15 @@ PlasmoidItem {
             readonly property int glide: Tokens.ms(380)
             property int quiet: 0                       // icons in the stack
             property int loud: 0                        // icons on their own
-            readonly property bool stacked: quiet > 1  // a lone quiet app is just an icon
-            readonly property real stackWidth: quiet === 0 ? 0 : stacked ? slot + (quiet - 1) * step : slot
+            // the island opens the apps' panel, the notifications' home too: a lone quiet app is just an icon
+            // unless there's history to reach, and with no quiet app at all a bell stands in for the stack
+            readonly property bool history: Notify.groups.length > 0
+            readonly property bool stacked: quiet > 1 || (quiet === 1 && history)
+            readonly property bool bell: quiet === 0 && history
+            readonly property real stackWidth: quiet === 0 ? (bell ? slot : 0) : stacked ? slot + (quiet - 1) * step : slot
             property real shownWidth: stackWidth + loud * slot
             Behavior on shownWidth { NumberAnimation { duration: apps.glide; easing.type: Tokens.grow } }
-            visible: quiet + loud > 0
+            visible: quiet + loud > 0 || bell
             Layout.fillHeight: true
             Layout.preferredWidth: visible ? shownWidth : 0
             // who goes where: the stack first, in the tray's order, then the ones with news
@@ -401,6 +542,10 @@ PlasmoidItem {
                         if (!it || !it.shown) continue
                         const p = it.mapToGlobal(it.width / 2, it.height / 2)
                         console.warn("ATOM tray at", it.appId, Math.round(p.x), Math.round(p.y), it.place.stack ? "stack" : "alone")
+                    }
+                    if (stackIsland.visible) {
+                        const c = stackIsland.mapToGlobal(stackIsland.width / 2, stackIsland.height / 2)
+                        console.warn("ATOM tray island", Math.round(c.x), Math.round(c.y))
                     }
                 }
             }
@@ -501,11 +646,23 @@ PlasmoidItem {
                 }
             }
 
-            // the stack, as one island over its icons: a click opens the quiet apps' panel (root.appsPopup)
+            Text {      // no quiet app, only the notifications' history: the bell is the island
+                visible: apps.bell
+                width: apps.slot
+                height: apps.height
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                text: "notifications"
+                color: stackIsland.open ? pal.primary : pal.fg
+                font.family: Tokens.font.icons
+                font.pixelSize: root.u(18)
+                Behavior on color { ColorAnimation { duration: Tokens.fast } }
+            }
+            // the stack, as one island over its icons: a click opens the apps' panel (root.appsPopup)
             Island {
                 id: stackIsland
                 kind: "apps"
-                visible: apps.stacked
+                visible: apps.stacked || apps.bell
                 z: 1000
                 width: apps.stackWidth
                 height: apps.height

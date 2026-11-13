@@ -77,12 +77,12 @@ island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on ev
 - **Power** (the power island, or the launcher's power button): a ripple of blur spreads over every screen
   and the session's actions come up big on yours.
 - **Status island** (replaces Plasma's system tray): your apps' tray icons with menus in the rice's look
-  (a click brings the app's window back; the quiet ones rest on each other in a stack whose click opens
-  their panel, and an app with news steps out of it), the system's state, and beads for apps with
-  notifications you haven't seen. It opens the **control
-  center**: Wi-Fi, Bluetooth, Do Not Disturb, night light, power profile, battery saver, volume and
-  microphone, every screen's brightness, what's playing, the apps' own volumes, your room's lights, and the
-  notification history. With a room light setup at home (a lamp bridge on `127.0.0.1:48723`, a strip and
+  (a click brings the app's window back; the quiet ones rest on each other in a stack, and an app with news
+  steps out of it), the system's state, and beads for apps with notifications you haven't seen. The stack
+  (or a bead) opens the **Apps** panel: the notification history by app, then the apps in the background.
+  The system's glyphs open the **control center**: Wi-Fi, Bluetooth, Do Not Disturb, night light, power
+  profile, battery saver, volume and microphone, every screen's brightness, what's playing, the apps' own
+  volumes and your room's lights. With a room light setup at home (a lamp bridge on `127.0.0.1:48723`, a strip and
   wallpaper-sync service on `127.0.0.1:48724`), a light button joins the island and opens the **Room**
   panel: each light's level, white, colour and moods, and Match wallpaper.
 - **Notifications** grow out of the status island on the screen you're working on, one card per chat.

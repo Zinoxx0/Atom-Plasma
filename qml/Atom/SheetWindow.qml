@@ -103,7 +103,7 @@ Window {
         ui: win.ui
         readonly property var statusIsland: Shell.island("control", win.screenName)
         island: statusIsland ? win.local(statusIsland) : Qt.rect(win.width - Math.round(64 * win.ui), win.height - Math.round(52 * win.ui), Math.round(48 * win.ui), Math.round(36 * win.ui))
-        blocked: sheet.shown && sheet.kind === "control"
+        blocked: sheet.shown && sheet.kind === "apps"
     }
     readonly property int unread: Notify.unreadTotal      // (starts the notifications' memory with the shell)
 
