@@ -17,7 +17,8 @@ import "Rice/Color.js" as C
 
 // The status island (it replaces Plasma's system tray): your apps' tray icons (Atom.Native Tray: a click
 // brings the app's window back, or opens the app when it has none; a right click its menu on the shell's
-// sheet, the middle button its second action, the wheel scrolls it; the quiet ones stack), the room's lights when home (Atom RoomLight: a click opens the Room panel, the middle
+// sheet, the middle button its second action, the wheel scrolls it; the quiet ones rest in a stack that
+// opens their panel), the room's lights when home (Atom RoomLight: a click opens the Room panel, the middle
 // button switches them all, the wheel dims them), then the system's state in glyphs (network, Bluetooth,
 // sound, a microphone in use, the battery, Do Not Disturb). A click on the glyphs opens the control
 // center (Atom panels/Control.qml).
@@ -76,6 +77,191 @@ PlasmoidItem {
         }
     }
     onExpandedChanged: if (expanded) Qt.callLater(() => { root.expanded = false })
+
+    // an app's tray icon: a themed name, or its own picture as a data: URL (Electron apps: Discord, Slack).
+    // Kirigami.Icon can't load data: URLs (it shows the "unknown" sheet), so those go to an Image.
+    component AppIcon: Item {
+        property string iconName: ""
+        property string iconSource: ""
+        Kirigami.Icon {
+            anchors.fill: parent
+            visible: parent.iconSource === ""
+            source: visible ? parent.iconName : ""
+        }
+        Image {
+            anchors.fill: parent
+            visible: parent.iconSource !== ""
+            source: parent.iconSource
+            fillMode: Image.PreserveAspectFit
+            smooth: true
+            mipmap: true
+        }
+    }
+
+    // ------------------------------------------------------------------ the quiet apps' panel
+    // One row per app in the stack, on the shell's sheet (Atom panels/Portal.qml makes it there, in this
+    // widget's context), grown out of the stack: a click brings the app's window back (or opens the app),
+    // a right click (or ⋯) its menu, the middle button its second action.
+    property Item stack: null                   // the bar's apps (the compact representation's)
+    readonly property string myScreenName: root.Window.window ? Screen.name : ""
+    readonly property bool appsOpen: Shell.kind === "apps" && Shell.screen === myScreenName
+    onMyScreenNameChanged: Shell.portal(myScreenName, "apps", appsPopup)
+    Component.onCompleted: Shell.portal(myScreenName, "apps", appsPopup)
+    // a name to show: the icon's title, else its id made readable ("discord_status_icon_1" -> "Discord")
+    function appName(appId, title) {
+        if (title && title !== appId) return title
+        const id = String(appId || "").replace(/_status_icon(_\d+)?$/i, "").replace(/[-_]+/g, " ").trim()
+        return id ? id.charAt(0).toUpperCase() + id.slice(1) : "App"
+    }
+    function appMenu(row) {
+        if (row.hasMenu) Shell.open("traymenu", myScreenName, stack ? stack.island.globalRect() : null, { key: row.key })
+        else { Shell.close("apps"); const p = row.mapToGlobal(0, 0); Tray.contextMenu(row.index, p.x, p.y) }
+    }
+    property Component appsPopup: Component {
+        Item {
+            id: ap
+            implicitWidth: root.u(330)
+            implicitHeight: apCol.implicitHeight + 2 * root.u(Tokens.space.lg)
+
+            PopupIn {
+                anchors.fill: parent
+                active: root.appsOpen
+                ricePalette: pal
+
+                ColumnLayout {
+                    id: apCol
+                    anchors { left: parent.left; right: parent.right; top: parent.top; margins: root.u(Tokens.space.lg) }
+                    spacing: root.u(Tokens.space.md)
+
+                    PopupHeader {
+                        Layout.fillWidth: true
+                        palette: pal
+                        title: "In the background"
+                        subtitle: (root.stack ? root.stack.quiet : 0) + " apps open, nothing new"
+                    }
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: root.u(6)
+                        Repeater {
+                            id: rows
+                            model: Tray
+                            delegate: Rectangle {
+                                id: row
+                                required property int index
+                                required property string key
+                                required property string appId
+                                required property string title
+                                required property string tooltip
+                                required property string iconName
+                                required property string iconSource
+                                required property bool itemIsMenu
+                                required property bool hasMenu
+                                required property int pid
+                                // its icon on the bar: whether it's in the stack, and the names its window goes by
+                                readonly property Item twin: root.stack ? root.stack.icons.itemAt(index) : null
+                                visible: !!twin && twin.shown && twin.place.stack
+                                readonly property string name: root.appName(appId, title)
+                                readonly property string detail: {
+                                    const _ = Windows.tasks.count
+                                    const w = Windows.stateOf(pid, twin ? twin.names : [])
+                                    const extra = String(tooltip || "").split("\n").filter(l => l && l.toLowerCase() !== name.toLowerCase())
+                                    return [w === "minimized" ? "Minimized" : w ? "Open" : "In the tray"].concat(extra).join("  ·  ")
+                                }
+                                readonly property bool lit: rowArea.containsMouse || moreArea.containsMouse
+                                Layout.fillWidth: true
+                                implicitHeight: root.u(50)
+                                radius: root.u(14)
+                                color: C.alpha(pal.fg, rowArea.pressed ? 0.1 : lit ? 0.07 : 0.035)
+                                border.width: 1
+                                border.color: C.alpha(pal.edge, Tokens.alpha.outline)
+                                Behavior on color { ColorAnimation { duration: Tokens.fast } }
+                                MouseArea {
+                                    id: rowArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                                    onClicked: mouse => {
+                                        const p = mapToGlobal(mouse.x, mouse.y)
+                                        if (mouse.button === Qt.MiddleButton) { Tray.secondaryActivate(row.index, p.x, p.y); return }
+                                        if (mouse.button === Qt.RightButton || row.itemIsMenu) { root.appMenu(row); return }
+                                        if (Shell.debug) console.warn("ATOM apps pick", row.appId)
+                                        Shell.close("apps")
+                                        // the sheet has the focus, so the window comes back (or the app opens)
+                                        if (!Windows.summon(row.pid, row.twin ? row.twin.names : [])) Tray.activate(row.index, p.x, p.y)
+                                    }
+                                    onWheel: wheel => Tray.scroll(row.index, wheel.angleDelta.y || wheel.angleDelta.x, wheel.angleDelta.y === 0)
+                                }
+                                RowLayout {
+                                    anchors { fill: parent; leftMargin: root.u(12); rightMargin: root.u(8) }
+                                    spacing: root.u(12)
+                                    AppIcon {
+                                        Layout.preferredWidth: root.u(26)
+                                        Layout.preferredHeight: root.u(26)
+                                        iconName: row.iconName
+                                        iconSource: row.iconSource
+                                        scale: rowArea.pressed ? 0.92 : 1
+                                        Behavior on scale { NumberAnimation { duration: Tokens.fast } }
+                                    }
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: root.u(1)
+                                        Text {
+                                            Layout.fillWidth: true
+                                            text: row.name
+                                            elide: Text.ElideRight
+                                            color: pal.fg
+                                            font.family: Tokens.font.ui
+                                            font.weight: Font.DemiBold
+                                            font.pixelSize: root.u(13)
+                                        }
+                                        Text {
+                                            Layout.fillWidth: true
+                                            text: row.detail
+                                            elide: Text.ElideRight
+                                            color: pal.fgDim
+                                            font.family: Tokens.font.ui
+                                            font.pixelSize: root.u(11)
+                                        }
+                                    }
+                                    Text {      // its menu, for when a right click isn't what comes to mind
+                                        visible: row.hasMenu
+                                        Layout.preferredWidth: root.u(26)
+                                        horizontalAlignment: Text.AlignHCenter
+                                        text: "more_horiz"
+                                        color: moreArea.containsMouse ? pal.fg : row.lit ? pal.fgDim : pal.muted
+                                        font.family: Tokens.font.icons
+                                        font.pixelSize: root.u(18)
+                                        Behavior on color { ColorAnimation { duration: Tokens.fast } }
+                                        MouseArea {
+                                            id: moreArea
+                                            anchors.fill: parent
+                                            anchors.margins: -root.u(4)
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: root.appMenu(row)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Timer {     // tests (Shell.debug): where each row is, once the sheet has grown
+                running: Shell.debug
+                interval: 900
+                onTriggered: {
+                    for (let i = 0; i < rows.count; i++) {
+                        const r = rows.itemAt(i)
+                        if (!r || !r.visible) continue
+                        const p = r.mapToGlobal(r.width / 2, r.height / 2)
+                        console.warn("ATOM apps row", r.appId, Math.round(p.x), Math.round(p.y))
+                    }
+                }
+            }
+        }
+    }
 
     toolTipMainText: "Status"
     toolTipSubText: "Network, sound, Bluetooth, battery · your apps"
@@ -173,31 +359,21 @@ PlasmoidItem {
         }
 
         // the apps' icons. One with news (unseen notifications, or asking for you) stands on its own; the
-        // quiet ones (open in the background, nothing new) sit in a stack of stairs that fans out under the
-        // pointer. News slides an app out of the stack, and once it's been seen the app steps back in.
+        // quiet ones (open in the background, nothing new) rest on each other in a stack of stairs, one island:
+        // a click opens their panel on the shell's sheet, like the control center's. News slides an app out of
+        // the stack, and once it's been seen the app steps back in.
         Item {
             id: apps
+            property alias icons: appIcons
+            property alias island: stackIsland
             readonly property real slot: root.u(28)
-            readonly property real step: root.u(11)     // how much of a stacked icon shows past the one in front
+            readonly property real step: root.u(9)      // how much of a stacked icon shows past the one in front
             readonly property real rise: root.u(2)      // each step stands this much higher
             readonly property int glide: Tokens.ms(380)
             property int quiet: 0                       // icons in the stack
             property int loud: 0                        // icons on their own
-            // under the pointer: each icon's own hover. Not a HoverHandler on this item: Qt drops an ancestor's
-            // hover whenever icons slide under a still pointer, and the stack flapped open and shut. It folds
-            // back a moment after the pointer has really gone.
-            property bool fanned: false
-            function hoverCheck() {
-                let any = false
-                for (let i = 0; i < appIcons.count; i++) {
-                    const it = appIcons.itemAt(i)
-                    if (it && it.shown && it.hovered) any = true
-                }
-                if (any) { settle.stop(); fanned = true } else settle.restart()
-            }
-            Timer { id: settle; interval: Tokens.ms(220); onTriggered: apps.fanned = false }
-            readonly property bool stacked: quiet > 1 && !fanned
-            readonly property real stackWidth: quiet === 0 ? 0 : stacked ? slot + (quiet - 1) * step : quiet * slot
+            readonly property bool stacked: quiet > 1  // a lone quiet app is just an icon
+            readonly property real stackWidth: quiet === 0 ? 0 : stacked ? slot + (quiet - 1) * step : slot
             property real shownWidth: stackWidth + loud * slot
             Behavior on shownWidth { NumberAnimation { duration: apps.glide; easing.type: Tokens.grow } }
             visible: quiet + loud > 0
@@ -215,8 +391,7 @@ PlasmoidItem {
                 loud = l
                 if (Shell.debug) { console.warn("ATOM tray stack", q, "alone", l); report.restart() }
             }
-            Component.onCompleted: Qt.callLater(relayout)
-            onStackedChanged: if (Shell.debug) { console.warn("ATOM tray stacked", stacked); report.restart() }
+            Component.onCompleted: { root.stack = apps; Qt.callLater(relayout) }
             Timer {     // tests (Shell.debug): where each icon ends up once it has glided there
                 id: report
                 interval: apps.glide + 80
@@ -225,9 +400,17 @@ PlasmoidItem {
                         const it = appIcons.itemAt(i)
                         if (!it || !it.shown) continue
                         const p = it.mapToGlobal(it.width / 2, it.height / 2)
-                        console.warn("ATOM tray at", it.appId, Math.round(p.x), Math.round(p.y), it.place.stack ? "stack" : "alone", apps.stacked ? "stacked" : "open")
+                        console.warn("ATOM tray at", it.appId, Math.round(p.x), Math.round(p.y), it.place.stack ? "stack" : "alone")
                     }
                 }
+            }
+
+            Rectangle {     // the stack's island lights up under the pointer, and in the accent while its panel is open
+                anchors { fill: stackIsland; topMargin: root.u(5); bottomMargin: root.u(5) }
+                visible: stackIsland.visible
+                radius: height / 2
+                color: C.alpha(stackIsland.open ? pal.primary : pal.fg, stackIsland.open ? 0.22 : stackIsland.pressed ? 0.12 : stackIsland.containsMouse ? 0.08 : 0)
+                Behavior on color { ColorAnimation { duration: Tokens.fast } }
             }
 
             Repeater {
@@ -235,8 +418,8 @@ PlasmoidItem {
                 model: Tray
                 onItemAdded: Qt.callLater(apps.relayout)
                 onItemRemoved: Qt.callLater(apps.relayout)
-                // Plasma's tooltip wraps the icon's MouseArea (inside it, a hover item on top would make the
-                // MouseArea an ancestor, whose hover Qt drops when icons slide under a still pointer)
+                // Plasma's tooltip wraps the icon's MouseArea (Qt Quick Controls' tooltips open as popup windows
+                // that take the pointer from the bar: the next click only closed the tooltip)
                 delegate: PlasmaCore.ToolTipArea {
                     id: app
                     required property int index
@@ -262,57 +445,32 @@ PlasmoidItem {
                     readonly property bool news: status === "NeedsAttention" || Notify.unreadFor(names) > 0
                     onShownChanged: Qt.callLater(apps.relayout)
                     onNewsChanged: Qt.callLater(apps.relayout)
-                    readonly property bool hovered: area.containsMouse
-                    onHoveredChanged: apps.hoverCheck()
                     property var place: ({ stack: true, i: 0 })
-                    readonly property bool squeezed: place.stack && apps.stacked
+                    readonly property bool inStack: place.stack && apps.stacked     // drawn only: the island takes the pointer
                     visible: shown
                     width: apps.slot
                     height: apps.height
-                    x: !place.stack ? apps.stackWidth + place.i * apps.slot : squeezed ? place.i * apps.step : place.i * apps.slot
-                    y: squeezed ? ((apps.quiet - 1) / 2 - place.i) * apps.rise : 0
+                    x: !place.stack ? apps.stackWidth + place.i * apps.slot : inStack ? place.i * apps.step : 0
+                    y: inStack ? ((apps.quiet - 1) / 2 - place.i) * apps.rise : 0
                     z: place.stack ? apps.quiet - place.i : 0      // the lowest step in front
                     Behavior on x { NumberAnimation { duration: apps.glide; easing.type: Tokens.grow } }
                     Behavior on y { NumberAnimation { duration: apps.glide; easing.type: Tokens.grow } }
                     readonly property var lines: String(tooltip || title).split("\n")
-                    mainText: squeezed ? "" : lines[0]
-                    subText: squeezed ? "" : lines.slice(1).join("\n")
+                    mainText: inStack ? "" : lines[0]
+                    subText: inStack ? "" : lines.slice(1).join("\n")
                     Rectangle {
                         anchors.centerIn: parent
                         width: root.u(26); height: width; radius: width / 2
-                        color: C.alpha(pal.fg, app.squeezed ? 0 : area.pressed ? 0.16 : area.containsMouse ? 0.1 : 0)
+                        color: C.alpha(pal.fg, app.inStack ? 0 : area.pressed ? 0.16 : area.containsMouse ? 0.1 : 0)
                         Behavior on color { ColorAnimation { duration: Tokens.fast } }
                     }
-                    Rectangle {     // in the stack: a dark glass chip, so each icon stands apart from the one behind it
-                        anchors.centerIn: parent
-                        width: root.u(24); height: width; radius: width / 2
-                        color: C.alpha(pal.surfaceLowest, 0.92)
-                        border.width: 1
-                        border.color: C.alpha(pal.edge, 0.16)
-                        opacity: app.squeezed ? 1 : 0
-                        visible: opacity > 0
-                        Behavior on opacity { NumberAnimation { duration: apps.glide; easing.type: Tokens.grow } }
-                    }
-                    Item {
+                    AppIcon {
                         anchors.centerIn: parent
                         width: root.u(18); height: width
-                        scale: (area.pressed ? 0.9 : 1) * (app.squeezed ? 0.84 : 1)
+                        iconName: app.iconName
+                        iconSource: app.iconSource
+                        scale: area.pressed ? 0.9 : 1
                         Behavior on scale { NumberAnimation { duration: Tokens.fast } }
-                        // a themed name, or the app's own picture as a data: URL (Electron apps: Discord, Slack).
-                        // Kirigami.Icon can't load data: URLs (it shows the "unknown" sheet), so those go to an Image.
-                        Kirigami.Icon {
-                            anchors.fill: parent
-                            visible: app.iconSource === ""
-                            source: visible ? app.iconName : ""
-                        }
-                        Image {
-                            anchors.fill: parent
-                            visible: app.iconSource !== ""
-                            source: app.iconSource
-                            fillMode: Image.PreserveAspectFit
-                            smooth: true
-                            mipmap: true
-                        }
                     }
                     Rectangle {     // it wants you
                         visible: app.status === "NeedsAttention"
@@ -323,6 +481,7 @@ PlasmoidItem {
                     MouseArea {
                         id: area
                         anchors.fill: parent
+                        enabled: !app.inStack
                         hoverEnabled: true
                         acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
                         function globalRect() { const p = mapToGlobal(0, 0); return { x: p.x, y: p.y, width: width, height: height } }
@@ -340,6 +499,17 @@ PlasmoidItem {
                         onWheel: wheel => Tray.scroll(app.index, wheel.angleDelta.y || wheel.angleDelta.x, wheel.angleDelta.y === 0)
                     }
                 }
+            }
+
+            // the stack, as one island over its icons: a click opens the quiet apps' panel (root.appsPopup)
+            Island {
+                id: stackIsland
+                kind: "apps"
+                visible: apps.stacked
+                z: 1000
+                width: apps.stackWidth
+                height: apps.height
+                cursorShape: Qt.PointingHandCursor
             }
         }
         // the room's lights (the bedside lamp, the LED strip), only when home: lit while any is on

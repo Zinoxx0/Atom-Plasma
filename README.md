@@ -77,8 +77,8 @@ island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on ev
 - **Power** (the power island, or the launcher's power button): a ripple of blur spreads over every screen
   and the session's actions come up big on yours.
 - **Status island** (replaces Plasma's system tray): your apps' tray icons with menus in the rice's look
-  (a click brings the app's window back; the quiet ones stand in a stack of stairs that fans out under the
-  pointer, and an app with news steps out of it), the system's state, and beads for apps with
+  (a click brings the app's window back; the quiet ones rest on each other in a stack whose click opens
+  their panel, and an app with news steps out of it), the system's state, and beads for apps with
   notifications you haven't seen. It opens the **control
   center**: Wi-Fi, Bluetooth, Do Not Disturb, night light, power profile, battery saver, volume and
   microphone, every screen's brightness, what's playing, the apps' own volumes, your room's lights, and the

@@ -132,6 +132,14 @@ QtObject {
         const r = windowOf(pid, names)
         return r < 0 ? "" : String(tasks.data(tasks.index(r, 0), TaskManager.AbstractTasksModel.AppId) || "").toLowerCase()
     }
+    // "minimized", "active", "open", or "" when it has no window
+    function stateOf(pid, names) {
+        const R = TaskManager.AbstractTasksModel
+        const r = windowOf(pid, names)
+        if (r < 0) return ""
+        const idx = tasks.index(r, 0)
+        return tasks.data(idx, R.IsMinimized) === true ? "minimized" : tasks.data(idx, R.IsActive) === true ? "active" : "open"
+    }
     // a tray icon's click, by Glimpse's rules: a minimized or covered window comes back (activating
     // un-minimizes), the focused one goes down. false when there's no window: the app decides (it opens one)
     function summon(pid, names) {

@@ -20,6 +20,7 @@ QtObject {
         room: Qt.resolvedUrl("panels/Room.qml"),
         stats: Qt.resolvedUrl("panels/Portal.qml"),
         claude: Qt.resolvedUrl("panels/Portal.qml"),
+        apps: Qt.resolvedUrl("panels/Portal.qml"),        // the status island's stack of quiet apps
         demo: Qt.resolvedUrl("panels/Demo.qml"),
         demo2: Qt.resolvedUrl("panels/Demo.qml"),
     })

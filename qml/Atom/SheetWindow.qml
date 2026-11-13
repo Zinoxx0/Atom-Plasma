@@ -112,8 +112,9 @@ Window {
         shapes: (sheet.shown ? [sheet.shape] : []).concat(toasts.shapes)
         onShapesChanged: if (Shell.debug && shapes.length === 0) console.warn("ATOM mask empty", Date.now() % 100000)
     }
-    Item {      // tests: where a click on the surface itself lands
+    Item {      // tests: where a click on the surface itself lands (under the panels: on top it took their presses)
         anchors.fill: parent
+        z: -1
         visible: Shell.debug
         TapHandler { onTapped: (pt) => console.warn("ATOM surface tapped at", Math.round(pt.position.x), Math.round(pt.position.y), "shown", sheet.shown) }
     }
