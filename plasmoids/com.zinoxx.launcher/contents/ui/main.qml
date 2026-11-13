@@ -16,9 +16,10 @@ import "Rice"
 import "Rice/Color.js" as C
 
 // The launcher: the bar's jewel (the accent pill) and, when it's clicked or Meta is pressed, a fullscreen
-// stage that grows out of it (Stage.qml): clock and greeting, search, pinned apps, categories and the app
-// grid, or the Theme page (WallpaperPane), with the power orb in the corner. Typing searches apps,
-// settings, files and maths (KRunner), grouped by kind. Favourites are Plasma's shared ones (Kickoff's).
+// home screen that opens out of it (Stage.qml, "Atom Home"): pages of rows (your pins and recents, games
+// with Steam's art, apps by category) under a hero for the focused item, or the Theme page. Typing
+// searches apps, settings, files and maths (KRunner), grouped by kind. Favourites are Plasma's shared
+// ones (Kickoff's). Its own data (Steam's art, when apps were used): rice.py launcher-data.
 // Meta opens it on the screen of the active window (X-Plasma-Provides: org.kde.plasma.launchermenu);
 // Meta+Shift+W opens it on the wallpapers; the wheel over the jewel steps this screen's wallpaper.
 // Open/closed lives in Atom.Shell (kind "launcher"), so every bar's launcher agrees on it.
@@ -258,7 +259,7 @@ PlasmoidItem {
         // numbers, which are Kicker's private enum and can move in a Plasma release
         function openFor(item, model, row) {
             clearMenuItems()
-            const roles = item.roles ?? item.model ?? {}      // an AppTile carries them as roles
+            const roles = item.roles ?? item.model ?? {}      // a HomeTile carries them as roles
             const fav = roles.favoriteId
             target = { model: model, row: row, favoriteId: fav }
             visualParent = item
