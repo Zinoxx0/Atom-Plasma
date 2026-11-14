@@ -28,9 +28,9 @@ PlasmoidItem {
     function closePanel() { Shell.close("claude") }
     function hoverPanel() { Shell.hover("claude", myScreenName, islandRect()) }
     onMyScreenNameChanged: Shell.portal(myScreenName, "claude", popup)
-    Component.onCompleted: Shell.portal(myScreenName, "claude", popup)
+    Component.onCompleted: { Shell.portal(myScreenName, "claude", popup); Qt.callLater(moveClawd) }
     // where its island is (for things that grow out of it unasked); again when the bar's layout settles
-    Timer { interval: 1500; running: root.myScreenName !== ""; onTriggered: { const r = root.islandRect(); if (r) Shell.place("claude", root.myScreenName, r) } }
+    Timer { interval: 1500; running: root.myScreenName !== ""; onTriggered: { const r = root.islandRect(); if (r) Shell.place("claude", root.myScreenName, r); root.measure() } }
 
     RicePalette { id: pal; output: Screen.name }
     readonly property var palValues: pal.values     // Clawd takes the raw palette (it has its own `pal`)
@@ -181,6 +181,7 @@ PlasmoidItem {
     // ---------- panel ----------
     compactRepresentation: MouseArea {
         id: compact
+        readonly property Item clawd: mini      // (ClawdRoof flies from and to it)
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton | Qt.MiddleButton
         // what this widget takes at each step (root.riceFit, for BarFit): Clawd and the two rings with the
@@ -213,8 +214,10 @@ PlasmoidItem {
 
         // the island around it lights up on hover (Panel Colorizer); Clawd says hi and its eyes follow
         // the pointer. A click on Clawd itself plays one of its acts, anywhere else opens the popup.
-        onContainsMouseChanged: if (containsMouse) { mini.greet(); root.hoverPanel() }
-        onPositionChanged: mouse => mini.lookAt(mini.mapFromItem(compact, mouse.x, mouse.y).x / mini.width)
+        // (whichever Clawd is out: the island's, or the one on its roof)
+        readonly property Item seen: root.place === "roof" ? roof.clawd : mini
+        onContainsMouseChanged: if (containsMouse) { seen.greet(); root.hoverPanel() }
+        onPositionChanged: mouse => seen.lookAt(seen.mapFromItem(compact, mouse.x, mouse.y).x / seen.width)
 
         RowLayout {
             id: row
@@ -248,6 +251,9 @@ PlasmoidItem {
                 onSummoned: root.summonClaude()
                 Layout.alignment: Qt.AlignVCenter
                 Layout.topMargin: 2
+                // only while Clawd is in its island (root.place); it leaves and drops back in from above
+                opacity: root.miniOpacity
+                transform: Translate { y: root.miniLift }
             }
             Repeater {
                 model: 2
@@ -295,11 +301,94 @@ PlasmoidItem {
                 }
             }
         }
-        Connections {
-            target: root
-            function onPanelOpenChanged() { if (root.panelOpen) mini.hop() }
+    }
+
+    // ---------- one Clawd, three places ----------
+    // "island": in its island, as always: a window covers the space above it, or the launcher or the power
+    //           overlay has the screen;
+    // "roof":   standing on the island's roof, bigger, in a little window of its own (ClawdRoof.qml) when
+    //           nothing covers that space;
+    // "popup":  in the popup while it's open.
+    // The other places show no Clawd; between them it jumps. A bar whose islands are on another screen
+    // (kwin/rice_islands) or under a fullscreen window shows none at all (its window is transparent).
+    readonly property var myScreen: Array.from(Qt.application.screens).find(s => s.name === myScreenName) ?? null
+    readonly property bool barSeen: Shell.barShown(myScreenName) && !Windows.isFullscreen(myScreenName)
+    readonly property bool screenBusy: (Shell.kind === "launcher" || Shell.kind === "power") && Shell.screen === myScreenName
+    readonly property real roofPx: 3.5 * uiScale                 // 1.75 x the island's Clawd
+    readonly property real roofClawdW: 22 * roofPx
+    readonly property real roofClawdH: 10 * roofPx
+    property real islandH: 0                // the island's height (it stands on the screen's bottom edge)
+    property real islandCx: 0               // where Clawd sits in it (its seat's centre), screen-local x: on the
+                                            // roof it stands right above its empty seat and jumps straight up
+    readonly property real roofWinW: roofClawdW + 16 * uiScale
+    readonly property real roofWinH: islandH + roofClawdH * 1.6 + 8 * uiScale
+    readonly property real roofWinX: islandCx - roofWinW / 2
+    readonly property var roofRect: myScreen && islandH > 0
+        ? { x: myScreen.virtualX + islandCx - roofClawdW / 2, y: myScreen.virtualY + myScreen.height - islandH - roofClawdH,
+            width: roofClawdW, height: roofClawdH } : null
+    function measure() {
+        const it = compactRepresentationItem, lay = fit.panelLayout, sc = myScreen
+        if (!it || !lay || !sc || !it.width) return
+        islandH = lay.height                // the layout runs from the island's top to the screen's edge
+        islandCx = it.clawd.mapToGlobal(it.clawd.width / 2, 0).x - sc.virtualX
+    }
+    Timer { id: remeasure; interval: 400; onTriggered: root.measure() }
+    Connections { target: fit; function onStepChanged() { remeasure.restart() } }
+    Connections { target: Shell; function onPinsChanged() { remeasure.restart() } function onBarChanged() { remeasure.restart() } }
+    Connections { target: root.compactRepresentationItem; function onWidthChanged() { remeasure.restart() } }
+    onMyScreenChanged: remeasure.restart()
+
+    readonly property bool roofFree: barSeen && !screenBusy && !!roofRect && !Windows.occupied(roofRect)
+    property bool roofOk: false             // roofFree for a moment: a window dragged past doesn't bounce Clawd
+    onRoofFreeChanged: { if (!roofFree) { roofSettle.stop(); roofOk = false } else roofSettle.restart() }
+    Timer { id: roofSettle; interval: 450; onTriggered: root.roofOk = root.roofFree }
+    readonly property string place: panelOpen ? "popup" : roofOk ? "roof" : "island"
+
+    property string clawdAt: ""             // where Clawd is now
+    property real miniOpacity: 1
+    property real miniLift: 0
+    property real popupIn: 0
+    onPlaceChanged: Qt.callLater(moveClawd)
+    function moveClawd() {
+        const from = clawdAt, to = place
+        if (from === to) return
+        clawdAt = to
+        measure()
+        for (const a of [miniLeave, miniDrop, popupLand, popupLeave]) a.stop()
+        if (from === "" || !barSeen) {      // nobody's watching: no jump
+            roof.stopAll(); roof.rest(to === "roof")
+            miniOpacity = to === "island" ? 1 : 0; miniLift = 0; popupIn = to === "popup" ? 1 : 0
+            return
+        }
+        if (to === "roof") from === "island" ? roof.up() : roof.arrive()
+        else if (to === "island") from === "roof" ? roof.down() : miniDrop.start()
+        else { from === "roof" ? roof.leave() : miniLeave.start(); popupLand.start() }
+        if (from === "popup") popupLeave.start()
+    }
+    readonly property real liftPx: Math.round(14 * uiScale)
+    ParallelAnimation {
+        id: miniLeave       // up and out of the island, into the popup
+        NumberAnimation { target: root; property: "miniLift"; to: -root.liftPx; duration: Tokens.ms(240); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmOut }
+        NumberAnimation { target: root; property: "miniOpacity"; to: 0; duration: Tokens.ms(240); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmOut }
+    }
+    SequentialAnimation {
+        id: miniDrop        // back from the popup: drops into the island
+        PropertyAction { target: root; property: "miniLift"; value: -root.liftPx }
+        PropertyAction { target: root; property: "miniOpacity"; value: 0 }
+        PauseAnimation { duration: Tokens.ms(120) }
+        ParallelAnimation {
+            NumberAnimation { target: root; property: "miniLift"; to: 0; duration: Tokens.ms(420); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn }
+            NumberAnimation { target: root; property: "miniOpacity"; to: 1; duration: Tokens.ms(260) }
         }
     }
+    SequentialAnimation {
+        id: popupLand       // lands in the popup once it has grown out of the island
+        PropertyAction { target: root; property: "popupIn"; value: 0 }
+        PauseAnimation { duration: Tokens.ms(170) }
+        NumberAnimation { target: root; property: "popupIn"; to: 1; duration: Tokens.ms(420); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn }
+    }
+    NumberAnimation { id: popupLeave; target: root; property: "popupIn"; to: 0; duration: Tokens.ms(160); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmOut }
+    ClawdRoof { id: roof; w: root; scr: root.myScreen }
 
     // ---------- popup ----------
     // the popup, drawn on the shell's sheet (Atom panels/Portal.qml makes it there, in this context, so it
@@ -466,6 +555,9 @@ PlasmoidItem {
                             Clawd {
                                 anchors.centerIn: parent
                                 anchors.verticalCenterOffset: 4
+                                // it jumped here from the bar (root.place): lands from above
+                                opacity: root.popupIn
+                                transform: Translate { y: (1 - root.popupIn) * -16 }
                                 px: 4.2
                                 mood: root.mood
                                 usage: root.peak

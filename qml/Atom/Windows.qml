@@ -14,6 +14,12 @@ QtObject {
     property string activeApp: ""               // its app id, lower case
     property var fullscreen: ({})               // screen name -> true while a fullscreen window covers it
     function isFullscreen(name) { return fullscreen[name] === true }
+    // where the windows are (not minimized), global logical rects: what sits over a spot of the desktop
+    property var rects: []
+    function occupied(r) {
+        if (!r) return false
+        return rects.some(g => g.x < r.x + r.width && r.x < g.x + g.width && g.y < r.y + r.height && r.y < g.y + g.height)
+    }
 
     property TaskManager.TasksModel tasks: TaskManager.TasksModel {
         groupMode: TaskManager.TasksModel.GroupDisabled
@@ -46,12 +52,14 @@ QtObject {
     }
     function scan() {
         const R = TaskManager.AbstractTasksModel
-        const seen = {}, fs = {}
+        const seen = {}, fs = {}, rs = []
         let act = "", app = ""
         // most recent first: the first window met on a screen is the one on top there
         for (let i = 0; i < tasks.count; i++) {
             const idx = tasks.index(i, 0)
             if (tasks.data(idx, R.IsWindow) !== true || tasks.data(idx, R.IsMinimized) === true) continue
+            const g = tasks.data(idx, R.Geometry)
+            if (g && g.width > 0) rs.push({ x: g.x, y: g.y, width: g.width, height: g.height })
             const s = screenAt(tasks.data(idx, R.ScreenGeometry))
             if (!s) continue
             if (tasks.data(idx, R.IsActive) === true && !act) {
@@ -66,6 +74,7 @@ QtObject {
         if (act !== activeScreen) activeScreen = act
         if (app !== activeApp) activeApp = app
         if (JSON.stringify(fs) !== JSON.stringify(fullscreen)) fullscreen = fs
+        if (JSON.stringify(rs) !== JSON.stringify(rects)) rects = rs
     }
     Component.onCompleted: schedule()
 
