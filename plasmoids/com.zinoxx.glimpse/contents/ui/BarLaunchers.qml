@@ -15,8 +15,11 @@ import "Rice/Color.js" as C
 Item {
     id: bar
     property var g                          // the Glimpse root
-    readonly property int iconSize: Math.max(16, Math.min(Math.round(Kirigami.Units.iconSizes.medium * g.uiScale), height - 12))
-    readonly property int pinW: iconSize + 12
+    // the icons fill the island (the bar gives this widget its whole height: CanFillArea). App icons carry
+    // ~15% of empty margin inside their box, so a box of ~78% of the height shows a glyph of ~55%, and the
+    // pins sit close: their own margins already part them
+    readonly property int iconSize: Math.max(16, Math.min(Math.round(Kirigami.Units.iconSizes.medium * g.uiScale * 1.6), Math.round(height * 0.78)))
+    readonly property int pinW: iconSize + Math.round(iconSize * 0.08)
     readonly property int count: g.launchers.count
     // every pin, 1 px apart; folded as far as it goes: one pin and the folder
     readonly property real natural: count > 0 ? count * (pinW + 1) - 1 : 0
@@ -79,6 +82,7 @@ Item {
             delegate: PinTile {
                 g: bar.g
                 iconSize: bar.iconSize
+                width: bar.pinW
                 height: bar.height
                 visible: index < bar.shown
             }

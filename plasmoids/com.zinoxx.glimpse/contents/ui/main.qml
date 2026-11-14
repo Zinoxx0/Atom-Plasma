@@ -25,6 +25,8 @@ PlasmoidItem {
     id: root
 
     preferredRepresentation: fullRepresentation
+    // the whole island's height, no panel margins: the pins size themselves to it (BarLaunchers)
+    Plasmoid.constraintHints: Plasmoid.CanFillArea
     fullRepresentation: BarLaunchers { g: root }
     // fitting the bar (Rice/BarFit.qml): on a bar too wide for its screen, pins fold at step 3
     BarFit { id: barFit; widget: root }

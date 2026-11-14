@@ -42,6 +42,29 @@ STATUS = "com.zinoxx.status"               # the status island (tray icons, syst
                                            # replaces Plasma's system tray
 LEGACY_TASKS = ["org.kde.plasma.icontasks", "org.kde.plasma.taskmanager"]
 ISLAND_RADIUS = TOKENS["radius"]["md"]     # islands share the windows' corner radius
+# Islands are notches: flush with the screen's bottom edge, rounded only at the top, outlined on three sides.
+# The bar isn't floating and Colorizer's fixed panel padding (BAR_PAD) replaces Plasma's own, so the widgets
+# get the island's whole height and their icons fill it instead of floating in padding.
+BAR_PAD = {"top": 6, "bottom": 0, "left": 10, "right": 10}
+
+
+def notch(o):
+    """One island state (Colorizer `widgets.<state>`) shaped as a notch, in place."""
+    r = ISLAND_RADIUS
+    o["radius"] = {"enabled": True, "corner": {"topLeft": r, "topRight": r, "bottomRight": 0, "bottomLeft": 0}}
+    o["margin"] = {"enabled": True, "side": {"left": 0, "right": 0, "top": 0, "bottom": 0}}
+    o["spacing"] = 6
+    o["border"].update(enabled=True, width=1, customSides=True)
+    o["border"]["custom"]["widths"] = {"left": 1, "right": 1, "top": 1, "bottom": 0}
+    return o
+
+
+def panel_settings():
+    """Colorizer's `panel` section: no background of its own (the islands are the bar), only BAR_PAD."""
+    ps = preset()["panel"]
+    ps["normal"]["enabled"] = False
+    ps["normal"]["padding"] = {"enabled": True, "side": dict(BAR_PAD)}
+    return ps
 
 
 @functools.cache
@@ -71,10 +94,7 @@ def widget_settings(p=None):
     w["backgroundColor"].update(enabled=True, sourceType=1, systemColor="backgroundColor",
                                 systemColorSet="View", alpha=0.72)
     w["foregroundColor"]["enabled"] = False
-    w["radius"] = {"enabled": True, "corner": {k: ISLAND_RADIUS for k in ("topLeft", "topRight", "bottomRight", "bottomLeft")}}
-    w["margin"] = {"enabled": True, "side": {"left": 0, "right": 0, "top": 4, "bottom": 4}}
-    w["spacing"] = 6
-    w["border"].update(enabled=True, width=1, customSides=False)
+    notch(w)
     w["border"]["color"].update(enabled=True, sourceType=1, systemColor="highlightColor",
                                 systemColorSet="View", alpha=0.32)
     w["shadow"]["background"].update(enabled=True, size=6, xOffset=0, yOffset=2)
@@ -132,10 +152,7 @@ def island_style(p, acc, states=True, fg=False):
                                         saturationEnabled=False, lightnessEnabled=False)
         else:
             o["foregroundColor"]["enabled"] = False
-        o["radius"] = {"enabled": True, "corner": {k: ISLAND_RADIUS for k in ("topLeft", "topRight", "bottomRight", "bottomLeft")}}
-        o["margin"] = {"enabled": True, "side": {"left": 0, "right": 0, "top": 4, "bottom": 4}}
-        o["spacing"] = 6
-        o["border"].update(enabled=True, width=1, customSides=False)
+        notch(o)
         o["border"]["color"].update(color(acc, edge))
         o["borderSecondary"].update(enabled=True, customSides=True)
         o["borderSecondary"]["custom"]["widths"] = {"left": 0, "right": 0, "top": 1, "bottom": 0}
@@ -180,10 +197,7 @@ def launcher_style(p):
             {"color": argb(mix(a, "#ffffff", 0.10 + sheen * 0.2), fill), "position": 0},
             {"color": argb(mix(b, "#000000", 0.08), fill * 0.92), "position": 1}]}
         o["foregroundColor"]["enabled"] = False
-        o["radius"] = {"enabled": True, "corner": {k: ISLAND_RADIUS for k in ("topLeft", "topRight", "bottomRight", "bottomLeft")}}
-        o["margin"] = {"enabled": True, "side": {"left": 0, "right": 0, "top": 4, "bottom": 4}}
-        o["spacing"] = 6
-        o["border"].update(enabled=True, width=1, customSides=False)
+        notch(o)
         o["border"]["color"].update(color(mix(p["primary"], "#ffffff", 0.25), edge))
         # no top sheen line: Colorizer draws it straight across, past the rounded corners, which shows
         # on a bright island (the gradient carries the light instead)
@@ -229,7 +243,7 @@ def colorizer_settings():
     g["widgets"] = widget_settings()
     w = g["widgets"]["normal"]
 
-    g["panel"]["normal"]["enabled"] = False
+    g["panel"] = panel_settings()
     g["trayWidgets"]["normal"]["enabled"] = False
     g["nativePanel"] = {"background": {"enabled": True, "opacity": 0, "shadow": False},
                         "floatingDialogs": True, "floatingDialogsAllowOverride": True}

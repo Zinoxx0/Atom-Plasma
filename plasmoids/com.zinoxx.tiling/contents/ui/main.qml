@@ -68,7 +68,7 @@ PlasmoidItem {
             color: root.tiled ? pal.primary : compact.containsMouse ? pal.fg : pal.fgDim
             opacity: root.pending ? 0.5 : 1
             font.family: Tokens.font.icons
-            font.pixelSize: Math.round(19 * root.uiScale)
+            font.pixelSize: Math.round(23 * root.uiScale)
             scale: compact.pressed ? 0.88 : 1
             Behavior on color { ColorAnimation { duration: Tokens.fast } }
             Behavior on scale { NumberAnimation { duration: Tokens.fast; easing.type: Easing.OutCubic } }

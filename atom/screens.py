@@ -237,7 +237,8 @@ def apply_screens(ss, cfg, fallback):
             continue
         p = pals[bar["screen"]]
         try:    # one bar that can't be styled (Colorizer changed, say) must not stop the rest of the theme
-            patch = {"widgets": panel.widget_settings(p), "configurationOverrides": panel.island_overrides(p, bar)}
+            patch = {"widgets": panel.widget_settings(p), "panel": panel.panel_settings(),
+                     "configurationOverrides": panel.island_overrides(p, bar)}
         except Exception as e:
             util.warn("bar %s: islands not restyled: %s", bar["panel"], e)
             continue

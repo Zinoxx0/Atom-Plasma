@@ -443,7 +443,7 @@ PlasmoidItem {
                     readonly property bool hovered: beadArea.containsMouse
                     onHoveredChanged: beads.hoverCheck()
                     Kirigami.ImageColors { id: beadColors; source: bead.modelData.icon }
-                    width: root.u(24); height: width
+                    width: root.u(28); height: width
                     z: Notify.unseen.length - index
                     mainText: bead.modelData.name
                     subText: bead.modelData.unread + " new"
@@ -451,7 +451,7 @@ PlasmoidItem {
                     Behavior on scale { NumberAnimation { duration: Tokens.base; easing.type: Tokens.enter } }
                     Rectangle {     // the candy: the app's colour, glassy
                         anchors.centerIn: parent
-                        width: root.u(20); height: width; radius: width / 2
+                        width: root.u(24); height: width; radius: width / 2
                         gradient: Gradient {
                             GradientStop { position: 0; color: Qt.lighter(bead.tint, 1.25) }
                             GradientStop { position: 1; color: Qt.darker(bead.tint, 1.15) }
@@ -460,7 +460,7 @@ PlasmoidItem {
                         border.color: Qt.rgba(1, 1, 1, 0.35)
                         Kirigami.Icon {
                             anchors.centerIn: parent
-                            width: root.u(13); height: width
+                            width: root.u(15); height: width
                             source: bead.modelData.icon
                         }
                     }
@@ -503,8 +503,8 @@ PlasmoidItem {
             id: apps
             property alias icons: appIcons
             property alias island: stackIsland
-            readonly property real slot: root.u(28)
-            readonly property real step: root.u(9)      // how much of a stacked icon shows past the one in front
+            readonly property real slot: root.u(32)
+            readonly property real step: root.u(10)      // how much of a stacked icon shows past the one in front
             readonly property real rise: root.u(2)      // each step stands this much higher
             readonly property int glide: Tokens.ms(380)
             property int quiet: 0                       // icons in the stack
@@ -605,13 +605,13 @@ PlasmoidItem {
                     subText: inStack ? "" : lines.slice(1).join("\n")
                     Rectangle {
                         anchors.centerIn: parent
-                        width: root.u(26); height: width; radius: width / 2
+                        width: root.u(31); height: width; radius: width / 2
                         color: C.alpha(pal.fg, app.inStack ? 0 : area.pressed ? 0.16 : area.containsMouse ? 0.1 : 0)
                         Behavior on color { ColorAnimation { duration: Tokens.fast } }
                     }
                     AppIcon {
                         anchors.centerIn: parent
-                        width: root.u(18); height: width
+                        width: root.u(22); height: width
                         iconName: app.iconName
                         iconSource: app.iconSource
                         scale: area.pressed ? 0.9 : 1
@@ -655,7 +655,7 @@ PlasmoidItem {
                 text: "notifications"
                 color: stackIsland.open ? pal.primary : pal.fg
                 font.family: Tokens.font.icons
-                font.pixelSize: root.u(18)
+                font.pixelSize: root.u(22)
                 Behavior on color { ColorAnimation { duration: Tokens.fast } }
             }
             // the stack, as one island over its icons: a click opens the apps' panel (root.appsPopup)
@@ -674,7 +674,7 @@ PlasmoidItem {
             id: roomBtn
             kind: "room"
             visible: RoomLight.present
-            Layout.preferredWidth: root.u(28)
+            Layout.preferredWidth: root.u(32)
             Layout.fillHeight: true
             cursorShape: Qt.PointingHandCursor
             property real wheelRest: 0
@@ -687,7 +687,7 @@ PlasmoidItem {
             }
             Rectangle {
                 anchors.centerIn: parent
-                width: root.u(26); height: width; radius: width / 2
+                width: root.u(31); height: width; radius: width / 2
                 color: C.alpha(roomBtn.open ? pal.primary : pal.fg, roomBtn.open ? 0.22 : roomBtn.pressed ? 0.16 : roomBtn.containsMouse ? 0.1 : 0)
                 Behavior on color { ColorAnimation { duration: Tokens.fast } }
             }
@@ -696,7 +696,7 @@ PlasmoidItem {
                 text: "lightbulb"
                 color: roomBtn.open ? pal.primary : RoomLight.anyOn ? pal.fg : pal.muted
                 font.family: Tokens.font.icons
-                font.pixelSize: root.u(18)
+                font.pixelSize: root.u(22)
                 scale: roomBtn.pressed ? 0.9 : 1
                 Behavior on scale { NumberAnimation { duration: Tokens.fast } }
                 Behavior on color { ColorAnimation { duration: Tokens.fast } }
@@ -749,7 +749,7 @@ PlasmoidItem {
                         text: modelData.g
                         color: sys.open ? pal.primary : modelData.c
                         font.family: Tokens.font.icons
-                        font.pixelSize: root.u(18)
+                        font.pixelSize: root.u(22)
                         Behavior on color { ColorAnimation { duration: Tokens.fast } }
                     }
                 }

@@ -30,7 +30,7 @@ PlasmoidItem {
             text: "power_settings_new"
             color: compact.containsMouse || compact.open ? pal.bad : pal.fg
             font.family: Tokens.font.icons
-            font.pixelSize: Math.round(20 * root.uiScale)
+            font.pixelSize: Math.round(24 * root.uiScale)
             rotation: compact.containsMouse || compact.open ? 90 : 0
             // one turn per hover, barely past the mark: not a loop, and no bouncy overshoot
             Behavior on rotation { NumberAnimation { duration: Tokens.slow; easing.type: Easing.OutBack; easing.overshoot: 0.8 } }

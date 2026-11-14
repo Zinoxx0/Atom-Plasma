@@ -8,7 +8,7 @@ want.forEach(function (w) {
         p = new Panel("org.kde.panel");
         p.screen = w.screen;
         p.location = "bottom";
-        p.floating = true;
+        p.floating = false;     // islands are notches on the screen edge (atom/panel.py)
         p.lengthMode = "fill";
         w.widgets.forEach(function (name) {
             var x = p.addWidget(name === "|" || name === "~" ? ARGS.spacer : name);
