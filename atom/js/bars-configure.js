@@ -85,7 +85,7 @@ panels().forEach(function (p) {
     expanding.currentConfigGroup = ["General"];
     expanding.writeConfig("expanding", true);
     var small = spacers.slice(1).map(function (w) { return w.id; });
-    var need = 7;
+    var need = 7;            // (atom/panel.py order_for: s[0..6])
     while (small.length < need) small.push(spacer(p).id);
     ids.expanding = expanding.id;
     ids.small = small;
