@@ -41,6 +41,9 @@ QtObject {
     // is the pointer's screen. null until KWin has spoken (a bar then counts as shown, as before).
     readonly property var bar: Bus.state.bar ?? null
     function barShown(screenName) { return !bar || bar.screen === screenName }
+    // the screen the shell's things open on (the launcher, the clipboard, notification cards): where the
+    // islands are, else the active window's screen, else `fallback`
+    function home(fallback) { return (bar && bar.screen) || Windows.activeScreen || fallback || "" }
     onBarChanged: if (debug) console.warn("ATOM bar", JSON.stringify(bar))
     // one set of pins on every bar (Glimpse): the last list a bar changed to, the others follow
     property var pins: null

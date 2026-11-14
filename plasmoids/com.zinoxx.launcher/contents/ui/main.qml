@@ -64,9 +64,8 @@ PlasmoidItem {
         target: Plasmoid
         function onActivated() {
             if (Shell.kind === "launcher") { Shell.close("launcher"); return }
-            // where the islands are (kwin/rice_islands: the pointer's screen unless fullscreen covers it), else
-            // the active window's
-            const scr = (Shell.bar && Shell.bar.screen) || Windows.activeScreen || root.myScreenName
+            // where the islands are (kwin/rice_islands: the pointer's screen unless fullscreen covers it)
+            const scr = Shell.home(root.myScreenName)
             Shell.open("launcher", scr, Shell.island("launcher", scr))
         }
     }
@@ -80,8 +79,7 @@ PlasmoidItem {
     Connections {
         target: KRunner
         function onRequested(action, query) {
-            const scr = (Shell.bar && Shell.bar.screen) || Windows.activeScreen || (Shell.bar && Shell.bar.pointer)
-                      || (root.screens[0] ? root.screens[0].name : "")
+            const scr = Shell.home((Shell.bar && Shell.bar.pointer) || (root.screens[0] ? root.screens[0].name : ""))
             if (scr === root.myScreenName) root.find(action, query)
         }
     }

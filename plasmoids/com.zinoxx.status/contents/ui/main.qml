@@ -66,13 +66,13 @@ PlasmoidItem {
         return g
     }
 
-    // its global shortcut (Meta+V, set by panel/build.py) opens the clipboard's history on the active screen;
+    // its global shortcut (Meta+V, set by panel/build.py) opens the clipboard's history where the islands are;
     // Plasma also expands the applet on activation: there's no popup, so it folds straight back
     Connections {
         target: Plasmoid
         function onActivated() {
             if (Shell.kind === "clipboard") { Shell.close("clipboard"); return }
-            const scr = Windows.activeScreen || Screen.name
+            const scr = Shell.home(Screen.name)
             Shell.open("clipboard", scr, Shell.island("control", scr))
         }
     }

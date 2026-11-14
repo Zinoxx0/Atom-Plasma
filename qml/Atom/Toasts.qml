@@ -22,8 +22,9 @@ Item {
     property bool blocked: false                // the apps' panel is open here: news goes there
     function u(n) { return Math.round(n * ui) }
 
-    // the screen they show on
-    readonly property string home: Windows.activeScreen || mainScreen
+    // the screen they show on: where the bar's islands are (they grow out of its status island; kwin/rice_islands
+    // keeps the islands off a fullscreen game, so the cards stay off it too), else the active window's
+    readonly property string home: Shell.home(mainScreen)
     readonly property string mainScreen: {
         for (const k in Shell.islands) if (k.endsWith("/control")) return k.split("/")[0]
         return ""
