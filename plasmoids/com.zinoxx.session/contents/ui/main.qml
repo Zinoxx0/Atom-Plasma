@@ -4,6 +4,7 @@ import QtQuick.Window
 import org.kde.plasma.plasmoid
 import Atom
 import "Rice"
+import "Rice/Color.js" as C
 
 // The session island: the power glyph on the bar. A click opens the power overlay (Atom PowerWindow): a
 // ripple of blur spreads from this island over every screen and the session's actions come up big here.
@@ -20,10 +21,19 @@ PlasmoidItem {
     compactRepresentation: Island {
         id: compact
         kind: "power"
-        // a single-widget island: the same side padding as every rice bar widget
+        // the same side padding as every rice bar widget
         Layout.minimumWidth: power.implicitWidth + 2 * Tokens.space.md * root.uiScale
         Layout.preferredWidth: Layout.minimumWidth
         Layout.fillHeight: true
+        // it shares the status island: a hairline from what's before it, in the 6 px Colorizer leaves
+        // between widgets (as the status island's own divider)
+        Rectangle {
+            x: -3
+            anchors.verticalCenter: parent.verticalCenter
+            width: 1
+            height: Math.round(16 * root.uiScale)
+            color: C.alpha(pal.fg, 0.18)
+        }
         Text {      // the island around it lights up on hover (Panel Colorizer); the icon turns and warms
             id: power
             anchors.centerIn: parent

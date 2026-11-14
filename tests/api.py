@@ -50,6 +50,7 @@ tokens_qml = tokens.qml
 limine_conf = boot.limine_conf
 island_style = panel.island_style
 launcher_style = panel.launcher_style
+panel_settings = panel.panel_settings
 vivid = rgb.vivid
 led = rgb.led
 key_frame = rgb.frame

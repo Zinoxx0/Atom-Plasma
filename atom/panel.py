@@ -4,8 +4,11 @@ bars themselves (main(), `panel/build.py`).
 
 Every screen's bar, left to right (the same islands everywhere: they show on ONE screen at a time, the
 pointer's unless a fullscreen window covers it; kwin/rice_islands fades the bars in and out):
-  [launcher]  [tasks] ........ [Claude] [system rings] [status] [tiling] [clock] [power]
+  [launcher]  [tasks] ........ [Claude | system rings] [status | tiling | power] [clock]
 [tiling] is com.zinoxx.tiling (auto-tiling on/off for that screen).
+Two looks per bar: free (islands over the wallpaper) and docked (a window is maximized or touches the bar:
+a floor fills the gaps up to the window's edge and the islands flatten into it). Both are Colorizer presets
+(dock_presets) that its preset auto-loading switches between; its property animations do the morph.
 [launcher] is com.zinoxx.launcher (replaces Kickoff); [tasks] is Glimpse (com.zinoxx.glimpse):
 pinned apps here, open windows in its top strip.
 A stock task manager found on a bar is replaced by it, pins included.
@@ -19,6 +22,7 @@ import copy
 import functools
 import json
 import math
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -52,9 +56,8 @@ ISLAND_RADIUS = TOKENS["radius"]["md"]     # islands share the windows' corner r
 BAR_PAD = {"top": 6, "bottom": 0, "left": 0, "right": -1}
 
 
-def notch(o):
-    """One island state (Colorizer `widgets.<state>`) shaped as a notch, in place."""
-    r = ISLAND_RADIUS
+def notch(o, r=ISLAND_RADIUS):
+    """One island state (Colorizer `widgets.<state>`) shaped as a notch, in place (r=0: docked, square)."""
     o["radius"] = {"enabled": True, "corner": {"topLeft": r, "topRight": r, "bottomRight": 0, "bottomLeft": 0}}
     o["margin"] = {"enabled": True, "side": {"left": 0, "right": 0, "top": 0, "bottom": 0}}
     o["spacing"] = 6
@@ -74,11 +77,39 @@ def corner(o, side):
     return o
 
 
-def panel_settings():
-    """Colorizer's `panel` section: no background of its own (the islands are the bar), only BAR_PAD."""
+FLOOR_ALPHA = 0.86        # the docked bar's floor
+
+
+def panel_settings(p=None, docked=False):
+    """Colorizer's `panel` section: BAR_PAD, and (with a palette) the floor. Free, the floor is there but
+    clear (the islands are the bar); docked, it fills the gaps and the stretch over the bar's whole height,
+    up to the window's edge, with one hairline along its top and the white sheen under it. It stays enabled
+    in both looks so its colours ease from one to the other; only its blur switches (Colorizer can't fade a
+    blur region)."""
     ps = preset()["panel"]
-    ps["normal"]["enabled"] = False
-    ps["normal"]["padding"] = {"enabled": True, "side": dict(BAR_PAD)}
+    n = ps["normal"]
+    n["padding"] = {"enabled": True, "side": dict(BAR_PAD)}
+    if not p:
+        n["enabled"] = False
+        return ps
+    bg, k = p["background"], 1 if docked else 0
+
+    def color(c, alpha):
+        return {"enabled": True, "sourceType": 0, "custom": c, "alpha": alpha}
+
+    n["enabled"] = True
+    n["blurBehind"] = docked
+    n["backgroundColor"].update(color(mix(mix(bg, "#ffffff", 0.03), p["primary"], 0.03), FLOOR_ALPHA * k))
+    n["foregroundColor"]["enabled"] = False
+    n["radius"] = {"enabled": True, "corner": {"topLeft": 0, "topRight": 0, "bottomRight": 0, "bottomLeft": 0}}
+    n["border"].update(enabled=True, width=1, customSides=True)
+    n["border"]["custom"]["widths"] = {"left": 0, "right": 0, "top": 1, "bottom": 0}
+    n["border"]["color"].update(color(mix(p["primary"], p.get("tertiary", p["primary"]), 0.5), 0.34 * k))
+    n["borderSecondary"].update(enabled=True, customSides=True)
+    n["borderSecondary"]["custom"]["widths"] = {"left": 0, "right": 0, "top": 1, "bottom": 0}
+    n["borderSecondary"]["color"].update(color("#ffffff", 0.06 * k))
+    n["shadow"]["background"]["enabled"] = False
+    n["shadow"]["foreground"]["enabled"] = False
     return ps
 
 
@@ -97,11 +128,11 @@ def preset():
     return copy.deepcopy(_preset())
 
 
-def widget_settings(p=None):
+def widget_settings(p=None, docked=False):
     """Island look. Without a palette the colours follow the KDE colour scheme; with one
     (rice.py passes each screen's) they are fixed to it, so every bar matches its own wallpaper."""
     if p:
-        return island_style(p, p["primary"], states=False)
+        return island_style(p, p["primary"], states=False, docked=docked)
     ws = preset()["widgets"]
     w = ws["normal"]
     w["enabled"] = True
@@ -134,62 +165,71 @@ def argb(c, alpha):
     return "#%02x%s" % (round(alpha * 255), c.lstrip("#"))
 
 
-def island_style(p, acc, states=True, fg=False):
-    """Obsidian glass: a dark body, a breath lighter at the top, a white sheen along the top
-    edge, a hairline outline in the island's accent and a soft neutral shadow. Text and
-    icons keep their own colours. Hovering brightens the outline; an open popup lights it
-    fully and adds a faint accent glow; attention turns it red. states=False: no state
-    changes (islands holding several widgets, which would light up only the hovered part).
-    On a light screen (palette `_scheme` light) the same recipe makes white frost: a brighter top
-    sheen and a softer shadow. fg=True: Colorizer recolours the island's text and symbolic icons to
-    the screen's text colour (stock widgets, the tray and the clock, which otherwise follow the
-    global colour scheme; ours already read their screen's palette, and Colorizer would flatten
-    their accent-coloured text)."""
+def island_style(p, acc, states=True, fg=False, docked=False):
+    """Obsidian glass: a dark body, a white sheen along the top edge, a hairline outline in the island's
+    accent and a soft neutral shadow. Text and icons keep their own colours. Hovering brightens the
+    outline; an open popup lights it fully and adds a faint accent glow; attention turns it red.
+    states=False: no state changes (islands holding several widgets, which would light up only the hovered
+    part). On a light screen (palette `_scheme` light) the same recipe makes white frost: a brighter top
+    sheen and a softer shadow. fg=True: Colorizer recolours the island's text and symbolic icons to the
+    screen's text colour (stock widgets, which otherwise follow the global colour scheme; ours already read
+    their screen's palette, and Colorizer would flatten their accent-coloured text).
+    docked=True: the same island flattened into the docked bar's floor (panel_settings): clear, square,
+    no outline, sheen or shadow; hover and an open popup show as a faint plate, attention as a red edge.
+    The body is one solid colour (it was a top-lit gradient): Colorizer eases colours, radii, borders and
+    shadows between the two looks, but not gradients."""
     ws = preset()["widgets"]
     w = ws["normal"]
     bg = p["background"]
     light = p.get("_scheme") == "light"
+    red = p.get("red", "#f38ba8")
 
     def color(c, alpha):
         return {"enabled": True, "sourceType": 0, "custom": c, "alpha": alpha}
 
-    def look(lift, edge, sheen, glow=None):
+    def look(lift, fill, edge, sheen, glow=None, shade=None):
         o = copy.deepcopy(w)
         o["enabled"] = True
         o["blurBehind"] = True
-        o["backgroundColor"].update(enabled=True, sourceType=5, alpha=1)
-        top = mix(mix(bg, "#ffffff", 0.035 + lift), acc, 0.05)
-        o["backgroundColor"]["gradient"] = {"orientation": 1, "stops": [
-            {"color": argb(top, 0.80), "position": 0},
-            {"color": argb(mix(bg, "#ffffff", lift / 2), 0.72), "position": 1}]}
+        o["backgroundColor"].update(color(mix(mix(bg, "#ffffff", 0.02 + lift), acc, 0.03), fill))
         if fg:
             o["foregroundColor"].update(enabled=True, sourceType=0, custom=p["on_surface"], alpha=1,
                                         saturationEnabled=False, lightnessEnabled=False)
         else:
             o["foregroundColor"]["enabled"] = False
-        notch(o)
-        o["border"]["color"].update(color(acc, edge))
+        notch(o, 0 if docked else ISLAND_RADIUS)
+        o["border"]["color"].update(color(edge[0], edge[1]) if isinstance(edge, tuple) else color(acc, edge))
         o["borderSecondary"].update(enabled=True, customSides=True)
         o["borderSecondary"]["custom"]["widths"] = {"left": 0, "right": 0, "top": 1, "bottom": 0}
         o["borderSecondary"]["color"].update(color("#ffffff", min(1.0, sheen * 8) if light else sheen))
+        # (the same shadow shape in both looks, so only its colour eases)
         o["shadow"]["background"].update(enabled=True, size=glow[1] if glow else 12, xOffset=0, yOffset=glow[2] if glow else 4)
-        o["shadow"]["background"]["color"].update(color(glow[0], glow[3]) if glow else color("#000000", 0.16 if light else 0.38))
+        o["shadow"]["background"]["color"].update(color(glow[0], glow[3]) if glow
+                                                  else color("#000000", (0.16 if light else 0.38) if shade is None else shade))
         o["shadow"]["foreground"]["enabled"] = False
         return o
 
-    out = {"normal": look(0, 0.26, 0.07)}
+    if docked:
+        out = {"normal": look(0, 0, 0, 0, shade=0)}
+        if states:
+            out["hovered"] = look(0.06, 0.55, 0, 0, shade=0)
+            out["expanded"] = look(0.08, 0.7, 0, 0, shade=0)
+            out["needsAttention"] = look(0.04, 0.5, (red, 0.75), 0, shade=0)
+        return out
+    out = {"normal": look(0, 0.76, 0.26, 0.07)}
     if states:
-        out["hovered"] = look(0.025, 0.55, 0.10)
-        out["expanded"] = look(0.04, 0.85, 0.12, glow=(acc, 14, 3, 0.24))
-        out["needsAttention"] = look(0.02, 0.75, 0.08, glow=(p.get("red", "#f38ba8"), 12, 3, 0.2))
-        out["needsAttention"]["border"]["color"].update(color(p.get("red", "#f38ba8"), 0.75))
+        out["hovered"] = look(0.025, 0.8, 0.55, 0.10)
+        out["expanded"] = look(0.04, 0.82, 0.85, 0.12, glow=(acc, 14, 3, 0.24))
+        out["needsAttention"] = look(0.02, 0.8, (red, 0.75), 0.08, glow=(red, 12, 3, 0.2))
     return out
 
 
-def launcher_style(p):
+def launcher_style(p, docked=False):
     """The launcher's island is the bar's one jewel: filled with the screen's accent (primary to
     tertiary, left to right) instead of neutral glass, a bright sheen along the top, a brighter
-    outline and a soft glow of its own colour. Hover lights it up; an open launcher glows fully."""
+    outline and a soft glow of its own colour. Hover lights it up; an open launcher glows fully.
+    docked=True: still the jewel (same fill and outline), squared off and without its glow, as the
+    docked bar's end cap."""
 
     def deep(c, top):
         """The accent as a jewel tone: no lighter than `top`, with enough colour to glow (greys stay grey)."""
@@ -212,13 +252,13 @@ def launcher_style(p):
             {"color": argb(mix(a, "#ffffff", 0.10 + sheen * 0.2), fill), "position": 0},
             {"color": argb(mix(b, "#000000", 0.08), fill * 0.92), "position": 1}]}
         o["foregroundColor"]["enabled"] = False
-        notch(o)
+        notch(o, 0 if docked else ISLAND_RADIUS)
         o["border"]["color"].update(color(mix(p["primary"], "#ffffff", 0.25), edge))
         # no top sheen line: Colorizer draws it straight across, past the rounded corners, which shows
         # on a bright island (the gradient carries the light instead)
         o["borderSecondary"]["enabled"] = False
         o["shadow"]["background"].update(enabled=True, size=14, xOffset=0, yOffset=3)
-        o["shadow"]["background"]["color"].update(color(p["primary"], glow))
+        o["shadow"]["background"]["color"].update(color(p["primary"], 0 if docked else glow))
         o["shadow"]["foreground"]["enabled"] = False
         return o
 
@@ -230,10 +270,10 @@ def launcher_style(p):
 PADS = {"org.kde.plasma.digitalclock": 10, "org.kde.plasma.showdesktop": 5}
 
 
-def island_overrides(p, panel):
+def island_overrides(p, panel, docked=False):
     """Colorizer overrides lighting the islands' outlines with one gradient across the bar,
     primary on the left to tertiary on the right (the top band's rim, mirrored), and padding
-    lone clock/show-desktop widgets (PADS)."""
+    lone clock/show-desktop widgets (PADS). docked=True: the docked look of the same islands."""
     overrides, assoc = {}, []
     isl = islands(panel)
     seen = [n for n, g in enumerate(isl) if any(w != SHELL for _, w in g)]
@@ -248,9 +288,9 @@ def island_overrides(p, panel):
         name = f"Island {n}"
         stock = all(not w.startswith("com.zinoxx.") for w in real)
         if "com.zinoxx.launcher" in real:
-            overrides[name] = launcher_style(p)
+            overrides[name] = launcher_style(p, docked)
         else:
-            overrides[name] = island_style(p, acc, states=len(real) == 1, fg=stock)
+            overrides[name] = island_style(p, acc, states=len(real) == 1, fg=stock, docked=docked)
         if pad:
             for o in overrides[name].values():
                 o["margin"] = {"enabled": True, "side": dict(o["margin"]["side"], left=pad, right=pad)}
@@ -258,6 +298,43 @@ def island_overrides(p, panel):
             corner(o, sides.get(n))
         assoc += [{"id": i, "name": w, "presets": [name]} for i, w in group]
     return {"overrides": overrides, "associations": assoc}
+
+
+def bar_looks(p, panel):
+    """A bar's two looks as Colorizer globalSettings patches: (free, docked)."""
+    return tuple({"widgets": widget_settings(p, d), "panel": panel_settings(p, d),
+                  "configurationOverrides": island_overrides(p, panel, d)} for d in (False, True))
+
+
+# the docked morph: Colorizer eases every colour, radius, border and shadow over this long (OutCubic)
+DOCK_MS = 260
+# the looks' preset files (Colorizer's auto-loading reads a preset from a folder); the nested test session
+# keeps its own, so its panels never touch the real ones
+PRESETS = Path(os.environ["ATOM_NESTED"]) / "state/colorizer" if os.environ.get("ATOM_NESTED") \
+    else util.STATE / "colorizer"
+
+
+def dock_presets(panel, looks, key):
+    """Writes a bar's two looks as Colorizer presets and returns its preset auto-loading settings: the
+    free look normally, the docked one while a window touches the bar or one is maximized on its screen.
+    Each look gets a new folder per `key` (a hash of both): Colorizer reloads a preset only when its
+    folder changes. The bar's older folders go."""
+    pid, tag = panel["panel"], key[:12]
+    dirs = {}
+    for state, look in zip(("free", "docked"), looks):
+        g = colorizer_settings()
+        g.update(copy.deepcopy(look))
+        d = PRESETS / f"{pid}-{tag}-{state}"
+        d.mkdir(parents=True, exist_ok=True)
+        util.write_if_changed(d / "settings.json", json.dumps({"globalSettings": g}, sort_keys=True) + "\n")
+        dirs[state] = str(d)
+    for old in PRESETS.glob(f"{pid}-*"):
+        if str(old) not in dirs.values() and old.is_dir():
+            for f in old.iterdir():
+                f.unlink()
+            old.rmdir()
+    return {"enabled": True, "normal": dirs["free"], "touchingWindow": dirs["docked"],
+            "maximized": dirs["docked"], "filterByScreen": True, "filterByActive": False}
 
 
 def colorizer_settings():
@@ -332,12 +409,13 @@ def islands(panel):
     return out + ([cur] if cur else [])
 
 
-def colorizer_apply(panel, patch):
+def colorizer_apply(panel, patch, config=None):
     """Replace top-level sections of one panel's Colorizer settings (e.g. widgets,
     configurationOverrides) in one write through plasmashell's scripting API; the widget
     picks it up live. (Its D-Bus route silently drops messages over ~50 KB, and per-island
-    overrides are bigger than that.)"""
-    js = util.script("colorizer-apply", patch=patch, panel=panel["panel"], colorizer=COLORIZER)
+    overrides are bigger than that.) `config`: Colorizer's own top-level keys, written alongside
+    (presetAutoloading, animationDuration)."""
+    js = util.script("colorizer-apply", patch=patch, config=config or {}, panel=panel["panel"], colorizer=COLORIZER)
     try:
         return "ok" in shell(js)
     except subprocess.CalledProcessError:
@@ -362,12 +440,14 @@ def order_for(ids, others=()):
     of the bar would keep the corner islands off the screen's edge)."""
     s = list(ids["small"])
     k = lambda name: ids.get(name)
+    # (meters: Claude and the system rings share one island; status: the tray, the system's state, tiling
+    # and power share another)
     seq = [k(LAUNCHER), s[0],
            k(TASKS), ids["expanding"], k(SHELL), k(COLORIZER), s[1],
-           k("com.zinoxx.claudeusage"), s[2], k("com.zinoxx.sysstats"), s[3],
-           k(STATUS), s[4], k(TILING), s[5], k("com.zinoxx.session"), s[6],
+           k("com.zinoxx.claudeusage"), k("com.zinoxx.sysstats"), s[2],
+           k(STATUS), k(TILING), k("com.zinoxx.session"), s[3],
            k(CLOCK)]
-    extra = s[7:]
+    extra = s[4:]
     # a widget that isn't there (its feature is off) leaves its spacer spare
     keep = []
     for i, w in enumerate(seq):
@@ -402,7 +482,8 @@ def configure():
     from . import caps
     free_clipboard_key()
     return json.loads(shell(util.script(
-        "bars-configure", settings=colorizer_settings(), spacer=SPACER, colorizer=COLORIZER, clockpad=CLOCK_PAD,
+        "bars-configure", settings=colorizer_settings(), spacer=SPACER, spacer_px=SPACER_PX, colorizer=COLORIZER,
+        clockpad=CLOCK_PAD,
         tasks=TASKS, legacy=LEGACY_TASKS, launcher=LAUNCHER, tiling=TILING, shell=SHELL, clock=CLOCK, status=STATUS,
         with_tiling=caps.feature("tiling"), with_claude=caps.feature("claude"))))
 
@@ -412,8 +493,9 @@ def configure():
 # Every screen's bar holds the same islands: they show on one screen at a time (kwin/rice_islands).
 # The launcher and the clock are the corner notches, so nothing sits outside them: the shell's host (no width,
 # but Colorizer would still draw its island's end) and spare spacers go in the stretch.
-TEMPLATE = [LAUNCHER, "|", TASKS, "~", SHELL, COLORIZER, "|", "com.zinoxx.claudeusage", "|", "com.zinoxx.sysstats",
-            "|", STATUS, "|", TILING, "|", "com.zinoxx.session", "|", CLOCK]
+TEMPLATE = [LAUNCHER, "|", TASKS, "~", SHELL, COLORIZER, "|", "com.zinoxx.claudeusage", "com.zinoxx.sysstats",
+            "|", STATUS, TILING, "com.zinoxx.session", "|", CLOCK]
+SPACER_PX = 4      # a small spacer's length: with Colorizer's 6 px spacing either side, 16 px between islands
 BAR_PX = 49        # a bar's thickness at UI size 1 (logical px): 56 on the desk monitors at today's size
 
 

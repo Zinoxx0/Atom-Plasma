@@ -3,7 +3,7 @@
 #
 #   tools/nested/run.sh [--plasma APPLETSRC] INNER.sh [SECONDS]
 #
-# KWin runs on a virtual 1600x900 output (ATOM_NESTED_OUTPUTS=2: two of them side by side; ATOM_NESTED_SCALE=1.15: at a
+# KWin runs on a virtual 1600x900 output (ATOM_NESTED_W/H: another size; ATOM_NESTED_OUTPUTS=2: two of them side by side; ATOM_NESTED_SCALE=1.15: at a
 # fractional scale, set once the inner script sources env.sh, for anything that must stay pixel-exact; socket
 # "atom-spike") inside its own D-Bus session with service
 # activation OFF (an activating bus spawns a second xdg-document-portal that kills the user's). Config,
@@ -66,5 +66,5 @@ timeout "$secs" dbus-run-session --config-file="$N/session.conf" -- \
   env XDG_CONFIG_HOME="$N/config" XDG_DATA_HOME="$N/data" XDG_CACHE_HOME="$N/cache" XDG_STATE_HOME="$N/state" \
       QT_FORCE_STDERR_LOGGING=1 KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 \
   kwin_wayland --virtual --no-lockscreen --no-global-shortcuts --socket atom-spike \
-      --width 1600 --height 900 --output-count "${ATOM_NESTED_OUTPUTS:-1}" --exit-with-session "$inner" > "$N/out/kwin.log" 2>&1 || true
+      --width "${ATOM_NESTED_W:-1600}" --height "${ATOM_NESTED_H:-900}" --output-count "${ATOM_NESTED_OUTPUTS:-1}" --exit-with-session "$inner" > "$N/out/kwin.log" 2>&1 || true
 echo "$N"

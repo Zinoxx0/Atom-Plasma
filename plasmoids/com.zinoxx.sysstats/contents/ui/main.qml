@@ -152,31 +152,15 @@ PlasmoidItem {
         return "up " + (d ? d + "d " : "") + (h ? h + "h " : "") + m + "m";
     }
 
-    // ---------- fitting the bar (Rice/BarFit.qml): a bar too wide for its screen takes the numbers off
-    // the CPU, RAM and GPU rings first (step 1; the rings still show the load), the battery's last (step 4)
+    // ---------- fitting the bar (Rice/BarFit.qml): rings only, no numbers on the bar (the user, 2026-11-14:
+    // they live in the popup and the tooltip), so the same width at every step
     BarFit { id: fit; widget: root }
-    readonly property bool numbers: fit.step < 1
-    readonly property bool batteryNumber: fit.step < 4
-    Text {
-        id: numFont
-        visible: false
-        font.family: Tokens.font.ui
-        font.weight: Font.DemiBold
-        font.pixelSize: Math.round(Tokens.size.label * root.uiScale)
-        font.features: { "tnum": 1 }
-    }
-    // a number keeps the room of "00%", so the islands never shift as it changes
-    TextMetrics { id: widest; font: numFont.font; text: "00%" }
     readonly property real ringW: 22 * uiScale
-    readonly property real numW: Tokens.space.xs * uiScale + Math.ceil(widest.advanceWidth)
-    function barWidth(nums, batNum) {
+    readonly property real barWidth: {
         const cells = unplugged ? 4 : 3
         return 2 * Tokens.space.md * uiScale + cells * ringW + (cells - 1) * Tokens.space.sm * uiScale
-             + (nums ? 3 * numW : 0) + (unplugged && batNum ? numW : 0)
     }
-    // what this widget takes at each step (BarFit reads it, the compact uses it)
-    readonly property var riceFit: [barWidth(true, true), barWidth(false, true), barWidth(false, true),
-                                    barWidth(false, true), barWidth(false, false)]
+    readonly property var riceFit: [barWidth, barWidth, barWidth, barWidth, barWidth]
 
     toolTipMainText: "System"
     toolTipSubText: stats.concat(unplugged ? [battery] : []).map(s => s.label + " " + Math.round(s.value) + "%").join("  ·  ")
@@ -186,12 +170,9 @@ PlasmoidItem {
     compactRepresentation: MouseArea {
         id: compact
         hoverEnabled: true
-        // the rings with the same side padding as every rice bar widget (root.barWidth), at the bar's
-        // fit step; giving numbers up (or taking them back) glides
-        property real shown: root.riceFit[Math.min(fit.step, root.riceFit.length - 1)]
-        Behavior on shown { enabled: fit.animate; NumberAnimation { duration: Tokens.ms(450); easing.type: Tokens.move } }
-        Layout.minimumWidth: shown
-        Layout.preferredWidth: shown
+        // the rings with the same side padding as every rice bar widget (root.barWidth)
+        Layout.minimumWidth: root.barWidth
+        Layout.preferredWidth: root.barWidth
         Layout.fillHeight: true
         onClicked: root.togglePanel()
         onContainsMouseChanged: if (containsMouse) root.hoverPanel()
@@ -205,57 +186,28 @@ PlasmoidItem {
                 // model destroyed and rebuilt (blank, then sweeping from 0) every ring each time.
                 // The fourth is the battery, hidden while plugged in
                 model: 4
-                RowLayout {
+                Item {
                     id: cell
                     required property int index
                     readonly property var stat: index < 3 ? root.stats[index] : root.battery
-                    readonly property bool showNum: index < 3 ? root.numbers : root.batteryNumber
                     visible: index < 3 || root.unplugged
-                    spacing: 0
-                    Item {
-                        implicitWidth: root.ringW; implicitHeight: implicitWidth
-                        Ring {
-                            anchors.fill: parent
-                            thickness: 2.5 * root.uiScale
-                            instant: true    // a 1.1 s sweep per update kept the panel redrawing
-                            value: cell.stat.value
-                            from: root.tint(cell.stat, cell.stat.from)
-                            to: root.tint(cell.stat, cell.stat.to)
-                            track: C.alpha(pal.fg, 0.14)
-                            showText: false
-                        }
-                        Text {
-                            anchors.centerIn: parent
-                            text: cell.stat.icon
-                            color: root.tint(cell.stat, cell.stat.from)
-                            font.family: Tokens.font.icons
-                            font.pixelSize: Math.round(12 * root.uiScale)
-                        }
+                    implicitWidth: root.ringW; implicitHeight: implicitWidth
+                    Ring {
+                        anchors.fill: parent
+                        thickness: 2.5 * root.uiScale
+                        instant: true    // a 1.1 s sweep per update kept the panel redrawing
+                        value: cell.stat.value
+                        from: root.tint(cell.stat, cell.stat.from)
+                        to: root.tint(cell.stat, cell.stat.to)
+                        track: C.alpha(pal.fg, 0.14)
+                        showText: false
                     }
-                    Item {
-                        // the number; on a tight bar it fades out as its room closes. Explicit layout
-                        // widths: an item whose implicit width drops to 0 keeps the width the layout last
-                        // gave it (Qt Quick Layouts), so a closed one is hidden outright
-                        property real room: cell.showNum ? root.numW : 0
-                        Behavior on room { enabled: fit.animate; NumberAnimation { duration: Tokens.ms(450); easing.type: Tokens.move } }
-                        visible: room > 0.5
-                        Layout.minimumWidth: room
-                        Layout.preferredWidth: room
-                        Layout.maximumWidth: room
-                        implicitHeight: pct.implicitHeight
-                        clip: true
-                        Text {
-                            id: pct
-                            x: Tokens.space.xs * root.uiScale
-                            anchors.verticalCenter: parent.verticalCenter
-                            opacity: cell.showNum ? 1 : 0
-                            Behavior on opacity { enabled: fit.animate; NumberAnimation { duration: Tokens.ms(350) } }
-                            // a full 100 drops its sign: "100" fits in the room kept for "00%", so the
-                            // panel islands never shift, and 1% doesn't trail two empty digits
-                            text: Math.round(cell.stat.value) >= 100 ? "100" : Math.round(cell.stat.value) + "%"
-                            color: pal.fg
-                            font: numFont.font
-                        }
+                    Text {
+                        anchors.centerIn: parent
+                        text: cell.stat.icon
+                        color: root.tint(cell.stat, cell.stat.from)
+                        font.family: Tokens.font.icons
+                        font.pixelSize: Math.round(12 * root.uiScale)
                     }
                 }
             }

@@ -5,10 +5,10 @@ import QtQuick.Layouts
 // widgets need more room than the bar has (a bar made on the 4K monitor, now on the laptop), they give
 // things up in this order, the least useful first, and take them back as soon as there's room:
 //   0  everything
-//   1  the system rings (CPU, RAM, GPU) drop their numbers; the battery keeps its %
-//   2  the Claude rings drop theirs
+//   1  the system rings dropped their numbers here     } nothing since 2026-11-14: the meters show
+//   2  the Claude rings dropped theirs                  } no numbers on the bar at all (the popups and
+//   4  the battery dropped its %                        } tooltips have them); the steps stay for others
 //   3  pinned apps that don't fit fold into a folder tile; Glimpse takes whatever room is left
-//   4  the battery drops its % too (only when even a folded bar is too wide)
 //
 //   BarFit { id: fit; widget: root }      then fit.step (0..4), fit.animate
 //

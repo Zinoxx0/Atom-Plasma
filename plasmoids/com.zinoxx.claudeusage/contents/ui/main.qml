@@ -168,12 +168,14 @@ PlasmoidItem {
                             : "No usage data yet"
     preferredRepresentation: compactRepresentation
 
-    // ---------- fitting the bar (Rice/BarFit.qml): on a bar too wide for its screen the rings drop their
-    // numbers at step 2, after the system rings (the tooltip and the popup still have them)
+    // ---------- fitting the bar (Rice/BarFit.qml): nothing to give up any more (no numbers on the bar,
+    // the user 2026-11-14: they live in the popup and the tooltip), so the same width at every step
     BarFit { id: fit; widget: root }
-    readonly property bool numbers: fit.step < 2
     readonly property var riceFit: compactRepresentationItem ? compactRepresentationItem.fitWidths : []
-    function numText(i) { return hasData ? Math.round((i === 0 ? session : weekly).pct) + "%" : "–" }
+    // beside the rings: how long until the session window resets (or, out of energy, the limit's window)
+    readonly property real resetAt: mood === "limited" && limitWin.reset ? limitWin.reset
+                                  : hasData && !session.expired && session.reset ? session.reset : 0
+    readonly property string resetText: resetAt > 0 ? until(resetAt) : "–"
 
     // ---------- panel ----------
     compactRepresentation: MouseArea {
@@ -181,28 +183,27 @@ PlasmoidItem {
         readonly property Item clawd: mini      // (ClawdRoof flies from and to it)
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton | Qt.MiddleButton
-        // what this widget takes at each step (root.riceFit, for BarFit): Clawd and the two rings with the
-        // same side padding as every rice bar widget, plus the numbers until step 2
+        // what this widget takes (root.riceFit, for BarFit): Clawd's seat, the double ring and the reset
+        // countdown (room kept for "0h 00m", so the island never shifts as it counts down). It shares its
+        // island with the system rings on its right: a narrower right padding, and a hairline between them
         Text {
-            id: numFont
+            id: cdFont
             visible: false
             font.family: Tokens.font.ui
-            font.weight: Font.DemiBold
-            font.pixelSize: Math.round(Tokens.size.body * root.uiScale)
+            font.weight: Font.Medium
+            font.pixelSize: Math.round(Tokens.size.label * root.uiScale)
             font.features: { "tnum": 1 }
         }
-        TextMetrics { id: num0; font: numFont.font; text: root.numText(0) }
-        TextMetrics { id: num1; font: numFont.font; text: root.numText(1) }
-        function numWidth(i) { return Tokens.space.xs * root.uiScale + Math.ceil((i === 0 ? num0 : num1).advanceWidth) }
-        readonly property real ringW: 15 * root.uiScale
+        TextMetrics { id: cdWidest; font: cdFont.font; text: "0h 00m" }
+        readonly property real ringW: 22 * root.uiScale                                       // as the system rings
+        readonly property real cdW: Tokens.space.sm * root.uiScale + Math.ceil(cdWidest.advanceWidth)
+        readonly property real padL: Tokens.space.md * root.uiScale
+        readonly property real padR: Tokens.space.sm * root.uiScale
         readonly property real seatW: mini.implicitWidth + Tokens.space.sm * root.uiScale      // Clawd's seat
-        readonly property real bare: 2 * Tokens.space.md * root.uiScale + seatW
-                                     + Tokens.space.sm * root.uiScale + 2 * ringW
+        readonly property real bare: padL + seatW + ringW + cdW + padR
         // (BarFit plans with Clawd's seat open: the bar never has to refit when he goes up to the roof)
-        readonly property var fitWidths: [bare + numWidth(0) + numWidth(1), bare + numWidth(0) + numWidth(1), bare]
-        // giving the numbers up (or taking them back) glides
-        property real shown: fitWidths[Math.min(fit.step, fitWidths.length - 1)]
-        Behavior on shown { enabled: fit.animate; NumberAnimation { duration: Tokens.ms(450); easing.type: Tokens.move } }
+        readonly property var fitWidths: [bare, bare, bare]
+        readonly property real shown: bare
         // while Clawd is up on the roof his seat closes, so the rings sit in the middle of their island
         // (the stretch is on the island's left: its right edge, and the rings, stay put)
         Layout.minimumWidth: shown - (1 - root.seat) * seatW
@@ -220,9 +221,19 @@ PlasmoidItem {
         onContainsMouseChanged: if (containsMouse) { seen.greet(); root.hoverPanel() }
         onPositionChanged: mouse => seen.lookAt(seen.mapFromItem(compact, mouse.x, mouse.y).x / seen.width)
 
+        // the hairline between this and the system rings, halfway across the gap (its own right padding,
+        // Colorizer's 6 px between widgets, the system rings' left padding)
+        Rectangle {
+            x: compact.width - compact.padR + Math.round((compact.padR + 6 + Tokens.space.md * root.uiScale) / 2)
+            anchors.verticalCenter: parent.verticalCenter
+            width: 1
+            height: Math.round(16 * root.uiScale)     // (as the status island's own divider)
+            color: C.alpha(pal.fg, 0.18)
+        }
         RowLayout {
             id: row
-            anchors.centerIn: parent
+            x: compact.padL            // (the seat shrinks itself as it closes)
+            anchors.verticalCenter: parent.verticalCenter
             spacing: 0
             Item {
                 // Clawd's seat: it closes from the left, and Clawd keeps his place beside the rings, so
@@ -236,7 +247,7 @@ PlasmoidItem {
                     anchors.rightMargin: Tokens.space.sm * root.uiScale
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.verticalCenterOffset: 1
-                    px: 2 * root.uiScale
+                    px: root.seatPx
                     continuous: false
                     mood: root.mood
                     usage: root.peak
@@ -265,51 +276,43 @@ PlasmoidItem {
                     transform: Translate { y: root.miniLift }
                 }
             }
-            Repeater {
-                model: 2
-                RowLayout {
-                    id: meter
-                    required property int index
-                    readonly property var info: index === 0 ? root.session : root.weekly
-                    readonly property bool hot: info.pct >= 90
-                    spacing: 0
-                    Layout.leftMargin: index === 1 ? Tokens.space.sm * root.uiScale : 0
-                    Ring {
-                        implicitWidth: compact.ringW; implicitHeight: implicitWidth
-                        thickness: 3 * root.uiScale
-                        instant: true    // a sweep per update would keep the panel redrawing
-                        value: meter.info.pct
-                        from: root.ringFrom(meter.index, meter.hot)
-                        to: root.ringTo(meter.index, meter.hot)
-                        track: C.alpha(pal.fg, 0.15)
-                        showText: false
-                        Layout.alignment: Qt.AlignVCenter
-                    }
-                    Item {
-                        // the number; on a tight bar it fades out as its room closes. Explicit layout
-                        // widths: an item whose implicit width drops to 0 keeps the width the layout last
-                        // gave it (Qt Quick Layouts), so a closed one is hidden outright
-                        property real room: root.numbers ? compact.numWidth(meter.index) : 0
-                        Behavior on room { enabled: fit.animate; NumberAnimation { duration: Tokens.ms(450); easing.type: Tokens.move } }
-                        visible: room > 0.5
-                        Layout.minimumWidth: room
-                        Layout.preferredWidth: room
-                        Layout.maximumWidth: room
-                        implicitHeight: numLabel.implicitHeight
-                        clip: true
-                        Layout.alignment: Qt.AlignVCenter
-                        Text {
-                            id: numLabel
-                            x: Tokens.space.xs * root.uiScale
-                            anchors.verticalCenter: parent.verticalCenter
-                            opacity: root.numbers ? 1 : 0
-                            Behavior on opacity { enabled: fit.animate; NumberAnimation { duration: Tokens.ms(350) } }
-                            text: root.numText(meter.index)
-                            color: meter.hot ? pal.red : pal.fg
-                            font: numFont.font
-                        }
-                    }
+            // one double ring: the session (5 h) outside, the week (7 d) inside
+            Item {
+                implicitWidth: compact.ringW; implicitHeight: implicitWidth
+                Layout.alignment: Qt.AlignVCenter
+                readonly property real thick: 2.5 * root.uiScale
+                Ring {
+                    id: outer
+                    anchors.fill: parent
+                    readonly property bool hot: root.session.pct >= 90
+                    thickness: parent.thick
+                    instant: true    // a sweep per update would keep the panel redrawing
+                    value: root.session.pct
+                    from: root.ringFrom(0, hot)
+                    to: root.ringTo(0, hot)
+                    track: C.alpha(pal.fg, 0.14)
+                    showText: false
                 }
+                Ring {
+                    anchors.centerIn: parent
+                    readonly property bool hot: root.weekly.pct >= 90
+                    width: parent.width - 2 * (parent.thick + 1.5 * root.uiScale); height: width
+                    thickness: parent.thick
+                    instant: true
+                    value: root.weekly.pct
+                    from: root.ringFrom(1, hot)
+                    to: root.ringTo(1, hot)
+                    track: C.alpha(pal.fg, 0.14)
+                    showText: false
+                }
+            }
+            Text {
+                Layout.leftMargin: Tokens.space.sm * root.uiScale
+                Layout.preferredWidth: compact.cdW - Tokens.space.sm * root.uiScale
+                Layout.alignment: Qt.AlignVCenter
+                text: root.resetText
+                color: root.mood === "limited" ? pal.red : pal.fgDim
+                font: cdFont.font
             }
         }
     }
@@ -326,7 +329,10 @@ PlasmoidItem {
     readonly property bool barSeen: Shell.barShown(myScreenName) && !Windows.isFullscreen(myScreenName)
     readonly property bool screenBusy: Shell.screen === myScreenName && (Shell.kind === "power"
         || (Shell.kind === "launcher" && !(Shell.args && Shell.args.searchOnly)))    // (the finder leaves the bar be)
-    readonly property real roofPx: 3.5 * uiScale                 // 1.75 x the island's Clawd
+    readonly property real roofPx: 3.5 * uiScale
+    // in his island he stays big (the user, 2026-11-14: he's the bar's whimsy), short of the roof's size
+    // only so what he holds over his head still fits under the bar's top edge
+    readonly property real seatPx: 3 * uiScale
     readonly property real roofClawdW: 22 * roofPx
     readonly property real roofClawdH: 10 * roofPx
     property real islandH: 0                // the island's height (it stands on the screen's bottom edge)

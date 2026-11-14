@@ -7,8 +7,8 @@ import Atom
 import "Rice"
 import "Rice/Color.js" as C
 
-// The clock island: "Sun 8  04:10" in the bar's type (Inter Display, bold, ui.clock_pt x the screen's UI
-// size, like the stock clock it replaces). A click opens the calendar on the shell's sheet (Atom
+// The clock island: "Sun 8  04:10" in the bar's type (Inter Display, ui.clock_pt x the screen's UI size,
+// like the stock clock it replaces): the time bright and bold, the date dimmer and lighter. A click opens the calendar on the shell's sheet (Atom
 // panels/Calendar.qml), grown out of this island. A small dot lights up when an event starts within half
 // an hour. It keeps the agenda fresh: agenda.py every 15 minutes (it throttles: several clocks, one fetch).
 PlasmoidItem {
@@ -65,12 +65,14 @@ PlasmoidItem {
             id: row
             anchors.centerIn: parent
             spacing: Math.round(7 * root.ui)
+            // the time leads (bright, bold, digits of one width: the island never shifts by the minute);
+            // the date steps back (dimmer, lighter)
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: Qt.formatDate(root.now, "ddd d")
-                color: compact.open ? pal.primary : pal.fg
+                color: compact.open ? C.alpha(pal.primary, 0.8) : pal.fgDim
                 font.family: "Inter Display"
-                font.weight: Font.Bold
+                font.weight: Font.Medium
                 font.pointSize: Math.max(6, Math.round(11 * root.ui))
                 Behavior on color { ColorAnimation { duration: Tokens.fast } }
             }
@@ -81,6 +83,7 @@ PlasmoidItem {
                 font.family: "Inter Display"
                 font.weight: Font.Bold
                 font.pointSize: Math.max(6, Math.round(11 * root.ui))
+                font.features: { "tnum": 1 }
                 Behavior on color { ColorAnimation { duration: Tokens.fast } }
             }
             Rectangle {     // an event within half an hour

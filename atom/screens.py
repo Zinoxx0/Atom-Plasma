@@ -237,21 +237,23 @@ def apply_screens(ss, cfg, fallback):
             continue
         p = pals[bar["screen"]]
         try:    # one bar that can't be styled (Colorizer changed, say) must not stop the rest of the theme
-            patch = {"widgets": panel.widget_settings(p), "panel": panel.panel_settings(),
-                     "configurationOverrides": panel.island_overrides(p, bar)}
+            looks = panel.bar_looks(p, bar)     # (free, docked)
         except Exception as e:
             util.warn("bar %s: islands not restyled: %s", bar["panel"], e)
             continue
         # only bars whose islands change: each apply runs in plasmashell and restyles the whole bar
         # (a pick on one screen leaves the other two bars as they are)
         seen = CACHE / "colorizer" / f"{bar['panel']}-{bar['colorizer']}.sha1"
-        key = hashlib.sha1(json.dumps(patch, sort_keys=True).encode()).hexdigest()
+        key = hashlib.sha1(json.dumps([looks, panel.DOCK_MS], sort_keys=True).encode()).hexdigest()
         try:
             if seen.read_text() == key:
                 continue
         except OSError:
             pass
-        if panel.colorizer_apply(bar, patch):
+        # the free look now, and both as presets Colorizer switches between when a window touches the bar
+        config = {"presetAutoloading": panel.dock_presets(bar, looks, key),
+                  "animatePropertyChanges": True, "animationDuration": panel.DOCK_MS}
+        if panel.colorizer_apply(bar, looks[0], config):
             util.write_if_changed(seen, key)
         else:
             util.warn("bar %s: Colorizer didn't take the new islands", bar["panel"])

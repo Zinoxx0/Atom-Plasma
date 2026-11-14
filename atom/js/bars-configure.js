@@ -21,7 +21,7 @@ function add(p, plugin, cfg) {
     }
     return w;
 }
-function spacer(p) { return add(p, ARGS.spacer, {"General": {"expanding": false, "length": 8}}); }
+function spacer(p) { return add(p, ARGS.spacer, {"General": {"expanding": false, "length": ARGS.spacer_px}}); }
 panels().forEach(function (p) {
     var main = p.screen === 0;
     var have = {};
@@ -81,11 +81,21 @@ panels().forEach(function (p) {
     pc.writeConfig("animationDuration", 220);
     // spacers: keep one expanding, make sure there are enough small ones
     var spacers = have[ARGS.spacer] || [];
-    var expanding = spacers[0] || add(p, ARGS.spacer);
+    // the expanding one is the one set to expand (else the first): the rest are the small ones
+    var expanding = spacers.filter(function (w) {
+        w.currentConfigGroup = ["General"];
+        var e = w.readConfig("expanding");
+        return e === true || e === "true";
+    })[0] || spacers[0] || add(p, ARGS.spacer);
+    spacers = [expanding].concat(spacers.filter(function (w) { return w.id !== expanding.id; }));
     expanding.currentConfigGroup = ["General"];
     expanding.writeConfig("expanding", true);
-    var small = spacers.slice(1).map(function (w) { return w.id; });
-    var need = 7;            // (atom/panel.py order_for: s[0..6])
+    var small = spacers.slice(1).map(function (w) {
+        w.currentConfigGroup = ["General"];
+        w.writeConfig("length", ARGS.spacer_px);        // (the gaps between islands)
+        return w.id;
+    });
+    var need = 4;            // (atom/panel.py order_for: s[0..3]; spare ones wait in the stretch)
     while (small.length < need) small.push(spacer(p).id);
     ids.expanding = expanding.id;
     ids.small = small;

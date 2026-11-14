@@ -100,7 +100,7 @@ Window {
         const g = mini.mapToGlobal(mini.width / 2, mini.height)
         return { x: g.x - (scr.virtualX + Math.round(w.roofWinX)), y: g.y - (scr.virtualY + scr.height - height) }
     }
-    readonly property real miniK: w.roofPx > 0 ? (2 * w.uiScale) / w.roofPx : 1
+    readonly property real miniK: w.roofPx > 0 ? w.seatPx / w.roofPx : 1
     function fromMini() {
         const f = miniFeet()
         return { x: f.x - (restX + clawd.width / 2), y: f.y - (restY + clawd.height) }

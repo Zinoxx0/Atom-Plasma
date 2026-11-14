@@ -37,12 +37,19 @@ and Panel Colorizer. Optional: Darkly, Klassy, KWin better-blur-dx, Krohnkite (t
   They follow the pointer at once, with a quick fade (a pointer just sweeping across a screen on the way
   somewhere else moves nothing; `kwin/rice_islands`, a KWin script; hidden bars keep their place, so no
   window ever resizes). The islands are notches on the screen's bottom edge, rounded only at the top; the
-  launcher and the clock sit in the screen's corners.
+  launcher and the clock sit in the screen's corners. Five of them: the launcher, your pins, the meters
+  (Claude's double ring with the time until its session resets, then the CPU/RAM/GPU rings: no numbers on
+  the bar, they're in the popups), the status island (tray apps, the system's state, tiling, power) and
+  the clock.
+- **The bar docks under a window.** When a window is maximized or touches the bar, the islands fuse into
+  one full-width bar that meets the window's edge: the gaps fill with the same glass, corners straighten,
+  outlines and shadows give way to one hairline along the top. When the window lets go they come apart
+  again. Nothing moves, only fills, corners and lines ease (Panel Colorizer's preset auto-loading switches
+  between the two looks and its animations do the morph).
 - **Bars fit their screen.** When a bar needs more room than its screen has (the islands moving from a
-  desk monitor to the laptop panel), its widgets give things up in a fixed order, least useful first, and
-  take them back as soon as there's room: the CPU/RAM/GPU numbers (the rings stay), then the Claude
-  numbers, then the pinned apps that don't fit fold into a folder tile that opens them in a popup, and
-  last of all the battery's %. It follows the bar's real room live: screens, tray icons, new pins.
+  desk monitor to the laptop panel), the pinned apps that don't fit fold into a folder tile that opens them
+  in a popup, and come back as soon as there's room. It follows the bar's real room live: screens, tray
+  icons, new pins.
 - **Monitors are known by their EDID** (maker, model, serial), not by connector. A monitor keeps its
   colours, size and place in your themes when it moves to another port. Run `./rice.py displays` to see them.
 - **Odd arrangements get flagged.** Overlapping screens shrink each other's maximize area, and a screen
@@ -120,10 +127,10 @@ snowman gets its hat), and now and then someone drops by (a bird, a falling leaf
 Hover it for a hello, stroke it back and forth, click it for one of its acts; a double click opens Claude
 Code in a terminal. Every Clawd on every screen does the same thing at the same moment.
 
-On the bar there is one Clawd at a time, in one of three places: standing on the Claude island's roof,
-bigger and over the middle of its rings, when nothing covers the space above it (his seat in the island
-closes meanwhile); back inside the island when a window does; in the popup while it's open. Between them
-it jumps.
+On the bar there is one Clawd at a time, in one of three places: standing on the meters island's roof
+over the middle of Claude's ring, when nothing covers the space above it (his seat in the island closes
+meanwhile); back inside the island, nearly as big, when a window does; in the popup while it's open.
+Between them it jumps.
 
 Each one is a single canvas, repainted only when its picture changes, and it holds still behind a
 fullscreen window (`qml/Rice/Clawd.qml`; the art is in `ClawdArt.js`, the acts and hobbies in

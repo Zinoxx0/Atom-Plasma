@@ -5,6 +5,7 @@ import QtCore
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import "Rice"
+import "Rice/Color.js" as C
 
 // Auto-tiling for the screen this bar is on, like "Peek at Desktop": one glyph, click to flip it.
 // The state is rice.py's (~/.local/state/rice/tiling.json, written by atom/tiling.py): screens float
@@ -55,11 +56,20 @@ PlasmoidItem {
     fullRepresentation: MouseArea {
         id: compact
         hoverEnabled: true
-        // a single-widget island: the same side padding as every rice bar widget
+        // the same side padding as every rice bar widget
         Layout.minimumWidth: glyph.implicitWidth + 2 * Tokens.space.md * root.uiScale
         Layout.preferredWidth: Layout.minimumWidth
         Layout.fillHeight: true
         onClicked: root.toggle()
+        // it shares the status island: a hairline from the system's glyphs, in the 6 px Colorizer leaves
+        // between widgets (as the status island's own divider)
+        Rectangle {
+            x: -3
+            anchors.verticalCenter: parent.verticalCenter
+            width: 1
+            height: Math.round(16 * root.uiScale)
+            color: C.alpha(pal.fg, 0.18)
+        }
         Text {
             id: glyph
             anchors.centerIn: parent
