@@ -313,7 +313,8 @@ PlasmoidItem {
     // (kwin/rice_islands) or under a fullscreen window shows none at all (its window is transparent).
     readonly property var myScreen: Array.from(Qt.application.screens).find(s => s.name === myScreenName) ?? null
     readonly property bool barSeen: Shell.barShown(myScreenName) && !Windows.isFullscreen(myScreenName)
-    readonly property bool screenBusy: (Shell.kind === "launcher" || Shell.kind === "power") && Shell.screen === myScreenName
+    readonly property bool screenBusy: Shell.screen === myScreenName && (Shell.kind === "power"
+        || (Shell.kind === "launcher" && !(Shell.args && Shell.args.searchOnly)))    // (the finder leaves the bar be)
     readonly property real roofPx: 3.5 * uiScale                 // 1.75 x the island's Clawd
     readonly property real roofClawdW: 22 * roofPx
     readonly property real roofClawdH: 10 * roofPx

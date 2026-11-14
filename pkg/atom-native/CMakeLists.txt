@@ -2,6 +2,7 @@
 #   BlurBehind   KWin's blur under a set of rounded rects of a window, kept in step with a shape that moves
 #   InputMask    the part of a window that takes the pointer (the rest lets clicks through to what's below)
 #   Bus          one message bus for every widget in the process, whatever QML engine loaded it
+#   KRunner      KRunner's place on the bus: its shortcut and the desktop's type-to-search open the launcher's search
 #   Tray         the apps' tray icons (a StatusNotifierHost) and their menus (DBusMenu), for the status island
 # Built and installed per user (no root): ./build.sh puts the module in ~/.local/lib/qt6/qml/Atom/Native,
 # which plasmashell finds through QML_IMPORT_PATH (systemd/plasma-plasmashell.service.d/rice.conf).
@@ -25,6 +26,7 @@ qt_add_qml_module(atomnative
         src/blurbehind.h src/blurbehind.cpp
         src/inputmask.h src/inputmask.cpp
         src/bus.h src/bus.cpp
+        src/krunner.h src/krunner.cpp
         src/regions.h src/regions.cpp
         src/tray.h src/tray.cpp
 )

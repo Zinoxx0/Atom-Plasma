@@ -73,14 +73,19 @@ Window {
     property string phase: "closed"             // closed, opening, open, closing
     signal opened()
     onWantedChanged: wanted ? begin() : end()
+    // the finder: only the search field and its results, over whatever is on the screen (no backdrop, no
+    // home, the windows stay): what KRunner's shortcut and typing on the desktop open (Atom.Native's krunner
+    // bridge: Shell.open("launcher", screen, null, { searchOnly: true, query }))
+    property bool finder: false
     function begin() {
         pointerAt = ""
+        finder = !!(Shell.args && Shell.args.searchOnly)
         if (phase === "closed") {
             phase = "opening"
             waitFrame = true            // the desk clears on the first frame (onFrameSwapped)
             opened()
         } else {
-            if (launcher.clearDesk) Windows.clear(screenName)
+            if (launcher.clearDesk && !finder) Windows.clear(screenName)
             phase = "opening"
             closeClock.stop()
             startOpen()
@@ -103,7 +108,7 @@ Window {
     property bool waitFrame: false
     onFrameSwapped: if (waitFrame) {
         waitFrame = false
-        if (launcher.clearDesk) Windows.clear(screenName)
+        if (launcher.clearDesk && !finder) Windows.clear(screenName)
         startOpen()
     }
 
@@ -132,11 +137,12 @@ Window {
     }
     function applyOpen(t) {
         const d = openMs
-        bgO = M.track(t, 0, d * 0.65, M.enter)
-        planeO = M.track(t, d * 0.06, d * 0.8, M.enter)
+        const home = finder ? 0 : 1
+        bgO = home * M.track(t, 0, d * 0.65, M.enter)
+        planeO = home * M.track(t, d * 0.06, d * 0.8, M.enter)
         planeS = M.lerp(1.06, 1, planeO)
-        topO = M.track(t, d * 0.16, d * 0.62, M.enter)
-        heroO = M.track(t, d * 0.2, d * 0.66, M.enter)
+        topO = home * M.track(t, d * 0.16, d * 0.62, M.enter)
+        heroO = home * M.track(t, d * 0.2, d * 0.66, M.enter)
         // the rows: their tiles come in from the right, one after another (a dozen a row at most)
         const st = pageState()
         for (let k = 0; k < page.rows.length; k++) {
@@ -211,7 +217,7 @@ Window {
         const there = Shell.island("launcher", name)
         if (Shell.debug) console.warn("ATOM stage pointer moved from", before, "to", name, there ? "(following)" : "(no launcher there)")
         if (!there) return
-        Shell.open("launcher", name, there, { query: launcher.query })
+        Shell.open("launcher", name, there, { query: launcher.query, searchOnly: finder })
     }
 
     // The upper bar (Glimpse's strip, the top band) is never covered, moved or resized: the stage starts
@@ -392,7 +398,7 @@ Window {
         Qt.callLater(() => keys.forceActiveFocus())
         sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" launcher-data #data')
         tm.reload()         // the Theme page's data, ready before it's asked for (rebuilt only if it changed)
-        if (Shell.args && Shell.args.query) Qt.callLater(() => stage.openSearch(Shell.args.query))
+        if (finder || (Shell.args && Shell.args.query)) Qt.callLater(() => stage.openSearch(Shell.args.query || ""))
     }
     RiceShell { id: sh; onNewData: (source, data) => disconnectSource(source) }
 
@@ -968,6 +974,7 @@ Window {
             visible: stage.searchP > 0.001
             readonly property rect from: {
                 stage.planeO
+                if (stage.finder) { const t = to; return Qt.rect(t.x + t.width * 0.08, t.y - stage.u(10), t.width * 0.84, t.height) }
                 const p = searchButton.mapToItem(searchLayer, 0, 0)
                 return Qt.rect(p.x, p.y, searchButton.width, searchButton.height)
             }
@@ -976,6 +983,30 @@ Window {
                 return Qt.rect((stage.width - w) / 2, stage.u(30) + stage.u(23) - h / 2, w, h)
             }
             MouseArea { anchors.fill: parent; enabled: stage.searchOpen; onClicked: stage.closeSearch() }
+            // the finder's card: the field and the results on one glass plate (no blur: just the plate)
+            RectangularShadow {
+                anchors.fill: finderCard
+                visible: finderCard.visible
+                opacity: finderCard.opacity
+                radius: finderCard.radius; blur: stage.u(44); offset.y: stage.u(16); spread: -stage.u(10)
+                color: Qt.rgba(0, 0, 0, 0.5)
+            }
+            Rectangle {
+                id: finderCard
+                visible: stage.finder && stage.searchP > 0.001
+                opacity: Math.min(1, stage.searchP * 1.6)
+                readonly property real pad: stage.u(18)
+                x: Math.min(field.x, results.x) - pad
+                y: field.y - pad
+                width: Math.max(field.width, results.opacity > 0.01 ? results.width : 0) + 2 * pad
+                height: (results.opacity > 0.01 && results.contentH > 0 ? results.y + results.height : field.y + field.height) - y + pad
+                Behavior on height { NumberAnimation { duration: Tokens.ms(260); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
+                radius: stage.u(34)
+                color: C.alpha(stage.rice.surfaceLowest, 0.93)
+                border.width: 1
+                border.color: C.alpha(stage.rice.edge, 0.14)
+                MouseArea { anchors.fill: parent }     // a click on the plate isn't a click outside
+            }
             Rectangle {
                 id: field
                 x: M.lerp(searchLayer.from.x, searchLayer.to.x, stage.searchP)
@@ -1034,7 +1065,9 @@ Window {
                 x: (stage.width - width) / 2
                 y: stage.u(132) + (1 - opacity) * -stage.u(14)
                 width: Math.min(stage.u(1120), stage.width * 0.9)
-                height: stage.height - y - stage.u(50)
+                // the finder's results take what they need (at most the rest of the screen)
+                height: stage.finder ? Math.min(stage.height - y - stage.u(50), Math.max(stage.u(120), contentH))
+                                     : stage.height - y - stage.u(50)
                 launcher: stage.launcher
                 rice: stage.rice
                 unit: stage.unit
@@ -1245,6 +1278,7 @@ Window {
         query.forceActiveFocus()
     }
     function closeSearch() {
+        if (finder) { launcher.close(); return }    // the finder is only the search
         if (!searchOpen) return
         searchOpen = false
         searchP = 0

@@ -152,6 +152,11 @@ def install(dry=False):
         want.append("atom-plasma-rgb-watch.service")
     if caps.feature("update_check", cfg):
         want += ["atom-plasma-update-check.timer", "atom-plasma-update-tidy.timer"]
+    # KRunner is replaced by the launcher's search (Atom.Native's KRunner holds its place on the bus, so its
+    # shortcut and typing on the desktop open the finder): its own daemon must never start
+    r = util.run("systemctl", "--user", "is-enabled", "plasma-krunner.service", quiet=True)
+    if r is None or r.stdout.strip() != "masked":
+        p.run("systemctl", "--user", "mask", "--now", "plasma-krunner.service")
     if not dry and p.done:
         util.run("systemctl", "--user", "daemon-reload")
     for u in want:

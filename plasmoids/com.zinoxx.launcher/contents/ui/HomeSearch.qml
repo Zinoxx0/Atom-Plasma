@@ -17,6 +17,7 @@ Item {
     readonly property var runner: launcher.runnerModel
     property var sel: null                  // the selected match: { name, desc, icon } (its delegate fills it in)
     readonly property bool hasResults: list.contentHeight > hs.u(20)
+    readonly property real contentH: hasResults ? Math.max(card.height, list.contentHeight) : 0   // (the finder's card fits it)
 
     Kirigami.ImageColors { id: colors; source: hs.sel ? hs.sel.icon : "" }
     readonly property color tint: C.appTint(colors, rice.primary)

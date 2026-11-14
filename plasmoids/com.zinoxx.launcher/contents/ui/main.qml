@@ -11,7 +11,9 @@ import org.kde.plasma.extras as PlasmaExtras
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.private.kicker as Kicker
 import org.kde.plasma.plasma5support as P5Support
+import org.kde.plasma.workspace.dbus as DBus
 import Atom
+import Atom.Native
 import "Rice"
 import "Rice/Color.js" as C
 
@@ -67,6 +69,37 @@ PlasmoidItem {
             const scr = (Shell.bar && Shell.bar.screen) || Windows.activeScreen || root.myScreenName
             Shell.open("launcher", scr, Shell.island("launcher", scr))
         }
+    }
+
+    // ------------------------------------------------------------------ KRunner, replaced
+    // Atom.Native's KRunner holds KRunner's place on the bus: its shortcut (Alt+Space, Alt+F2, Search; Alt+Shift+F2
+    // with the clipboard) and typing on the desktop open the finder, the launcher's search alone (Stage's
+    // search-only mode: no backdrop, no home, the windows stay). Every bar has a launcher: the one on the islands'
+    // screen answers.
+    Component.onCompleted: KRunner.active = true
+    Connections {
+        target: KRunner
+        function onRequested(action, query) {
+            const scr = (Shell.bar && Shell.bar.screen) || Windows.activeScreen || (Shell.bar && Shell.bar.pointer)
+                      || (root.screens[0] ? root.screens[0].name : "")
+            if (scr === root.myScreenName) root.find(action, query)
+        }
+    }
+    function find(action, query) {
+        if (action === "toggle" && Shell.kind === "launcher") { Shell.close("launcher"); return }
+        if (action === "clipboard") {
+            const reply = DBus.SessionBus.asyncCall({ service: "org.kde.klipper", path: "/klipper", iface: "org.kde.klipper.klipper",
+                                                      member: "getClipboardContents", arguments: [] })
+            reply.finished.connect(() => {
+                const v = reply.isError ? "" : reply.value
+                reply.destroy()
+                root.find("query", String((v && typeof v === "object" && "value" in v) ? v.value : (v ?? "")).split("\n")[0])
+            })
+            return
+        }
+        const st = stages.objectAt(0)
+        if (Shell.kind === "launcher" && Shell.screen === myScreenName && st) { st.openSearch(query || ""); return }
+        Shell.open("launcher", myScreenName, null, { searchOnly: true, query: query || "" })
     }
 
     RiceShell {
@@ -347,6 +380,7 @@ PlasmoidItem {
 
     // ------------------------------------------------------------------ the stage (fullscreen, its own surface)
     Instantiator {
+        id: stages
         model: root.myScreen ? [root.myScreen] : []
         delegate: Stage {
             required property var modelData
