@@ -32,13 +32,16 @@ PlasmoidItem {
     // ---------- data ----------
     // the limits, watched (no polling); the 80% / 95% notifications come from ~/.claude/statusline.sh
     // when the data changes (contents/code/alerts.py)
-    ClaudeUsage { id: limits; fast: root.panelOpen }
+    // every bar has this widget, the islands show on one (kwin/rice_islands): the others' data rests (each
+    // source reads its file again the moment it's live)
+    readonly property bool live: Shell.barShown(myScreenName) || panelOpen
+    ClaudeUsage { id: limits; fast: root.panelOpen; active: root.live }
     readonly property var usage: limits.usage
     readonly property real now: limits.now
     RiceShell { id: sh }
     // a check-in Claude asked for (~/.config/plasma-rice/ask.sh): a big "!" over Clawd until "Done"
     // (or until Claude clears it); ClaudeAsk watches the file, no polling
-    ClaudeAsk { id: checkIn }
+    ClaudeAsk { id: checkIn; active: root.live }
     readonly property var ask: checkIn.ask
     readonly property bool asking: checkIn.asking
     // the island turns red for a check-in, or while Claude Code waits on a permission / a question form
@@ -48,6 +51,7 @@ PlasmoidItem {
     // Clawd and a card in the popup, until it's marked seen or the update is installed
     ClaudeAsk {
         id: cachy
+        active: root.live
         file: "update.json"
         ackCommand: 'python3 "$HOME/.config/plasma-rice/update-check.py" --ack'
     }
@@ -98,7 +102,7 @@ PlasmoidItem {
     // the status line rewrites the cache on every Claude Code update
     readonly property bool working: limits.working
     // what Claude Code is doing right now (its hooks write it, ClaudeActivity watches)
-    ClaudeActivity { id: claude }
+    ClaudeActivity { id: claude; active: root.live }
     readonly property string activity: claude.activity
     readonly property bool warm: limits.warm
     readonly property bool celebrate: limits.celebrate      // a window that was half used or more just reset
