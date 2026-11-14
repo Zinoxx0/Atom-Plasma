@@ -43,7 +43,7 @@ source "$ATOM_NESTED/env.sh"
 start_plasma 7
 qml6 "$REPO/tools/nested/app.qml" >> "$N/out/app.log" 2>&1 & app=$!
 for i in $(seq 30); do grep -q "island a at" "$L" && break; sleep 0.3; done
-S=$(grep -o 'ATOM island session at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $5, $6}')
+S=$(grep -o 'ATOM island power at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $5, $6}')
 [ -n "$S" ] || S="1570 877"
 step() { mark "$1"; echo "## $1" >> "$N/out/app.log"; }
 step "focus app";     $F move 800 450 click wait 300 type "a" wait 300
@@ -79,6 +79,10 @@ notbetween "...and left the overlay open"   "esc cancels" "enter again" 'phase c
 between "the ring ran out and restarted (dry)" "enter again" "open, click" 'ATOM power run reboot'
 between "a click on Sleep ran it at once (dry)" "open, click" "end" 'ATOM power run sleep'
 notbetween "nothing ran when it shouldn't have" "focus app" "enter again" 'ATOM power run' 
+# the ripple's pacing (Shell.debug logs every open and close): no frame waits long, after the first opening (which
+# builds the overlay). Building its blur region was once quadratic in the ripple's radius: 100+ ms a frame.
+gaps=$(grep -o 'frames [0-9]* worst gap [0-9]*' "$L" | awk '{print $NF}' | tail -n +2 | sort -n | tail -1)
+[ "${gaps:-999}" -le 60 ] && echo "ok   the ripple keeps pace (worst frame gap ${gaps} ms)" || { echo "FAIL the ripple stalls (a frame waited ${gaps} ms)"; fail=1; }
 errs=$(grep -E "Power|power|Atom|Session" "$L" | grep -E "Error|TypeError|ReferenceError|Cannot|Unable|not a type|is not defined|Could not set|Invalid property|no panel for" | sort -u | head)
 [ -n "$errs" ] && { echo "$errs"; fail=1; }
 echo "logs: $N/out"

@@ -120,7 +120,17 @@ Window {
         closeClock.restart()
     }
     property bool waitFrame: false
-    onFrameSwapped: if (waitFrame) { waitFrame = false; openClock.restart() }
+    onFrameSwapped: {
+        if (waitFrame) { waitFrame = false; openClock.restart() }
+        if (Shell.debug && (phase === "opening" || phase === "closing")) {     // frame pacing, for the tests
+            const now = Date.now()
+            if (lastFrame) { frames++; worstGap = Math.max(worstGap, now - lastFrame) }
+            lastFrame = now
+        }
+    }
+    property double lastFrame: 0
+    property int frames: 0
+    property int worstGap: 0
 
     // the ripple: a circle from the origin that reaches the farthest corner
     readonly property real reach: Math.max(Math.hypot(origin.x, origin.y), Math.hypot(width - origin.x, origin.y),
@@ -462,6 +472,10 @@ Window {
     }
     onPhaseChanged: {
         if (!Shell.debug) return
+        if (phase === "open" || phase === "closed") {
+            console.warn("ATOM power", screenName, "frames", frames, "worst gap", worstGap, "ms while", phase === "open" ? "opening" : "closing")
+            frames = 0; worstGap = 0; lastFrame = 0
+        }
         console.warn("ATOM power", screenName, "phase", phase, "lead", wasLead)
         if (phase === "open" && wasLead) for (let i = 0; i < actsRep.count; i++) {     // where the tiles sit (the tests click them)
             const o = actsRep.itemAt(i).orbItem, q = o.mapToItem(null, o.width / 2, o.height / 2)
