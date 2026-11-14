@@ -332,10 +332,19 @@ PlasmoidItem {
         islandH = lay.height                // the layout runs from the island's top to the screen's edge
         islandCx = it.clawd.mapToGlobal(it.clawd.width / 2, 0).x - sc.virtualX
     }
-    Timer { id: remeasure; interval: 400; onTriggered: root.measure() }
-    Connections { target: fit; function onStepChanged() { remeasure.restart() } }
-    Connections { target: Shell; function onPinsChanged() { remeasure.restart() } function onBarChanged() { remeasure.restart() } }
+    // again whenever the island may have moved: the bar reflowed (its container moved), the bar itself
+    // moved or resized, this widget's width changed (numbers folding), the islands came to this screen
+    Timer { id: remeasure; interval: 250; onTriggered: root.measure() }
+    readonly property Item container: {
+        const lay = fit.panelLayout
+        let it = compactRepresentationItem
+        while (it && it.parent && it.parent !== lay) it = it.parent
+        return it && lay && it.parent === lay ? it : null
+    }
+    Connections { target: root.container; function onXChanged() { remeasure.restart() } function onWidthChanged() { remeasure.restart() } }
+    Connections { target: root.Window.window; function onXChanged() { remeasure.restart() } function onWidthChanged() { remeasure.restart() } }
     Connections { target: root.compactRepresentationItem; function onWidthChanged() { remeasure.restart() } }
+    Connections { target: Shell; function onBarChanged() { remeasure.restart() } }
     onMyScreenChanged: remeasure.restart()
 
     readonly property bool roofFree: barSeen && !screenBusy && !!roofRect && !Windows.occupied(roofRect)
