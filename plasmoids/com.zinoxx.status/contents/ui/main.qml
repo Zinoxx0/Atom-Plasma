@@ -407,8 +407,10 @@ PlasmoidItem {
     compactRepresentation: RowLayout {
         id: compact
         spacing: root.u(4)
-        Layout.minimumWidth: implicitWidth
-        Layout.preferredWidth: implicitWidth
+        // whole pixels: the panel sizes a widget to the floor of a fractional width but keeps the room,
+        // and the island's glass then parts at the joint (a hairline of wallpaper)
+        Layout.minimumWidth: Math.ceil(implicitWidth)
+        Layout.preferredWidth: Layout.minimumWidth
         Layout.fillHeight: true
 
         Item { implicitWidth: root.u(Tokens.space.sm) }

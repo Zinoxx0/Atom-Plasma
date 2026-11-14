@@ -22,7 +22,9 @@ PlasmoidItem {
         id: compact
         kind: "power"
         // the same side padding as every rice bar widget
-        Layout.minimumWidth: power.implicitWidth + 2 * Tokens.space.md * root.uiScale
+        // whole pixels: the panel sizes a widget to the floor of a fractional width but keeps the room,
+        // and the island's glass then parts at the joint (a hairline of wallpaper)
+        Layout.minimumWidth: Math.ceil(power.implicitWidth + 2 * Tokens.space.md * root.uiScale)
         Layout.preferredWidth: Layout.minimumWidth
         Layout.fillHeight: true
         // it shares the status island: a hairline from what's before it, in the 6 px Colorizer leaves

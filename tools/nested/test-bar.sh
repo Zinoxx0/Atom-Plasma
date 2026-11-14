@@ -26,7 +26,7 @@ bar_applets 0 1 30 "$wall" "$pins" > "$t/appletsrc"
 cat > "$t/inner.sh" <<'I'
 #!/bin/bash
 source "$ATOM_NESTED/env.sh"
-printf '[PlasmaViews][Panel 1]\nfloating=0\n\n[PlasmaViews][Panel 1][Defaults]\nthickness=69\n' > "$N/config/plasmashellrc"
+printf '[PlasmaViews][Panel 1]\nfloating=0\n\n[PlasmaViews][Panel 1][Defaults]\nthickness=%s\n' "${BAR_THICK:-69}" > "$N/config/plasmashellrc"
 cp "$HOME/.cache/claude-usage.json" "$N/cache/" 2>/dev/null       # (the meters read it from the cache dir)
 start_plasma 10
 qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "desktops().forEach(d => { d.currentConfigGroup = ['Wallpaper', 'org.kde.image', 'General']; d.writeConfig('Image', 'file://$WALL') })" >/dev/null
@@ -34,13 +34,13 @@ kw() { python3 -c "import sys; sys.path.insert(0, sys.argv[2]); from atom import
 # the rice's settings and both looks, as rice.py gives them to a bar (slowed down to be seen)
 python3 "$REPO/tools/nested/bar_looks.py" "$REPO" "${DOCK_MS_TEST:-2400}" >> "$N/out/app.log" 2>&1
 sleep 4
-mark "free"; shot free
+mark "free"; shot free; spectacle -b -n -m -o "$N/out/free-native.png" >/dev/null 2>&1
 qml6 "$REPO/tools/nested/app.qml" >> "$N/out/app.log" 2>&1 & app=$!
 sleep 2
 mark "window"; shot window
 mark "maximize"
 kw 'workspace.windowList().filter(w => w.caption === "user app").forEach(w => w.setMaximize(true, true)); answer("ok")' >> "$N/out/app.log"
-shot dock-early; sleep 0.5; shot dock-mid; sleep 3; mark "docked"; shot dock-end
+shot dock-early; sleep 0.5; shot dock-mid; sleep 3; mark "docked"; shot dock-end; spectacle -b -n -m -o "$N/out/docked-native.png" >/dev/null 2>&1
 mark "restore"
 kw 'workspace.windowList().filter(w => w.caption === "user app").forEach(w => w.setMaximize(false, false)); answer("ok")' >> "$N/out/app.log"
 sleep 0.4; shot undock-mid; sleep 3; mark "freed"; shot undock-end

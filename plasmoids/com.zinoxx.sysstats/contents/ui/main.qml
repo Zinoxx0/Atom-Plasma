@@ -171,8 +171,10 @@ PlasmoidItem {
         id: compact
         hoverEnabled: true
         // the rings with the same side padding as every rice bar widget (root.barWidth)
-        Layout.minimumWidth: root.barWidth
-        Layout.preferredWidth: root.barWidth
+        // whole pixels: the panel sizes a widget to the floor of a fractional width but keeps the room,
+        // and the island's glass then parts at the joint (a hairline of wallpaper)
+        Layout.minimumWidth: Math.ceil(root.barWidth)
+        Layout.preferredWidth: Layout.minimumWidth
         Layout.fillHeight: true
         onClicked: root.togglePanel()
         onContainsMouseChanged: if (containsMouse) root.hoverPanel()

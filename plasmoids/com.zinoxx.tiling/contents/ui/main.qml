@@ -57,7 +57,9 @@ PlasmoidItem {
         id: compact
         hoverEnabled: true
         // the same side padding as every rice bar widget
-        Layout.minimumWidth: glyph.implicitWidth + 2 * Tokens.space.md * root.uiScale
+        // whole pixels: the panel sizes a widget to the floor of a fractional width but keeps the room,
+        // and the island's glass then parts at the joint (a hairline of wallpaper)
+        Layout.minimumWidth: Math.ceil(glyph.implicitWidth + 2 * Tokens.space.md * root.uiScale)
         Layout.preferredWidth: Layout.minimumWidth
         Layout.fillHeight: true
         onClicked: root.toggle()

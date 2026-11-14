@@ -58,7 +58,9 @@ PlasmoidItem {
     compactRepresentation: Island {
         id: compact
         kind: "calendar"
-        Layout.minimumWidth: row.implicitWidth + 2 * Math.round(Tokens.space.md * root.ui)
+        // whole pixels: the panel sizes a widget to the floor of a fractional width but keeps the room,
+        // and the island's glass then parts at the joint (a hairline of wallpaper)
+        Layout.minimumWidth: Math.ceil(row.implicitWidth) + 2 * Math.round(Tokens.space.md * root.ui)
         Layout.preferredWidth: Layout.minimumWidth
         Layout.fillHeight: true
         Row {

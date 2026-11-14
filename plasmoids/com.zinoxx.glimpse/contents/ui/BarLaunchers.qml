@@ -29,9 +29,11 @@ Item {
     // pins fold only from step 3: until then the numbers on the right go first
     readonly property bool folding: g.fit.step >= 3
     Layout.fillHeight: true
-    Layout.minimumWidth: folding ? tightest : natural
-    Layout.preferredWidth: natural
-    Layout.maximumWidth: natural
+    // whole pixels: the panel sizes a widget to the floor of a fractional width but keeps the room,
+    // and the island's glass then parts at the joint (a hairline of wallpaper)
+    Layout.minimumWidth: Math.ceil(folding ? tightest : natural)
+    Layout.preferredWidth: Math.ceil(natural)
+    Layout.maximumWidth: Math.ceil(natural)
 
     // how many pins the room holds: all, or as many as fit beside the folder (which takes 2 at least)
     readonly property int shown: {

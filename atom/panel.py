@@ -51,9 +51,14 @@ ISLAND_RADIUS = TOKENS["radius"]["md"]     # islands share the windows' corner r
 # The first and last islands (the launcher, the clock) are corner notches: flush with the screen's side too,
 # rounded only on their inner top corner (corner()). The bar isn't floating and Colorizer's fixed panel
 # padding (BAR_PAD) replaces Plasma's own, so the widgets get the island's whole height and their icons fill
-# it instead of floating in padding. (right -1: Plasma's panel layout rounds its widgets' widths down and leaves
-# the last logical pixel empty; the bar window clips the one it overshoots by)
-BAR_PAD = {"top": 6, "bottom": 0, "left": 0, "right": -1}
+# it instead of floating in padding.
+# The outline is Colorizer's plain border, which follows the rounded corners (its custom sides are straight
+# strips cut off by the glass: the hairline broke at every top corner, plainest on small islands) and hides
+# itself between the widgets of one island. It runs on all four sides, so the bar's content overshoots the
+# window wherever an outline mustn't show (the window clips it): the bottom (the screen's edge), the left
+# (the launcher's side) and the right (the clock's). Two pixels: Plasma's panel layout leaves its first and
+# last logical pixel empty, and a fractional scale can stretch the window's last row a little past it.
+BAR_PAD = {"top": 6, "bottom": -2, "left": -2, "right": -2}
 
 
 def notch(o, r=ISLAND_RADIUS):
@@ -61,14 +66,13 @@ def notch(o, r=ISLAND_RADIUS):
     o["radius"] = {"enabled": True, "corner": {"topLeft": r, "topRight": r, "bottomRight": 0, "bottomLeft": 0}}
     o["margin"] = {"enabled": True, "side": {"left": 0, "right": 0, "top": 0, "bottom": 0}}
     o["spacing"] = 6
-    o["border"].update(enabled=True, width=1, customSides=True)
-    o["border"]["custom"]["widths"] = {"left": 1, "right": 1, "top": 1, "bottom": 0}
+    o["border"].update(enabled=True, width=1, customSides=False)     # (see BAR_PAD)
     return o
 
 
 def corner(o, side):
     """A notch (one island state, in place) in the screen's bottom-left or bottom-right corner: no rounding
-    and no outline on the screen's side."""
+    on the screen's side (its outline there is past the screen's edge: BAR_PAD)."""
     if side in ("left", "right"):
         o["radius"]["corner"]["topLeft" if side == "left" else "topRight"] = 0
         for b in ("border", "borderSecondary"):
@@ -206,10 +210,15 @@ def island_style(p, acc, states=True, fg=False, docked=False):
         else:
             o["foregroundColor"]["enabled"] = False
         notch(o, 0 if docked else ISLAND_RADIUS)
-        o["border"]["color"].update(color(edge[0], edge[1]) if isinstance(edge, tuple) else color(acc, edge))
-        o["borderSecondary"].update(enabled=True, customSides=True)
-        o["borderSecondary"]["custom"]["widths"] = {"left": 0, "right": 0, "top": 1, "bottom": 0}
-        o["borderSecondary"]["color"].update(color("#ffffff", min(1.0, sheen * 8) if light else sheen))
+        # Colorizer has two borders: the outline goes in the second, plain (it follows the rounded corners:
+        # see BAR_PAD), the sheen in the first, as a custom top side: Colorizer cuts custom sides to the
+        # glass's shape only when the FIRST border has them, and a straight sheen left uncut runs past the
+        # rounded corners into the wallpaper.
+        o["border"].update(enabled=True, width=1, customSides=True)
+        o["border"]["custom"]["widths"] = {"left": 0, "right": 0, "top": 1, "bottom": 0}
+        o["border"]["color"].update(color("#ffffff", min(1.0, sheen * 8) if light else sheen))
+        o["borderSecondary"].update(enabled=True, width=1, customSides=False)
+        o["borderSecondary"]["color"].update(color(edge[0], edge[1]) if isinstance(edge, tuple) else color(acc, edge))
         # (the same shadow shape in both looks, so only its colour eases)
         o["shadow"]["background"].update(enabled=True, size=glow[1] if glow else 12, xOffset=0, yOffset=glow[2] if glow else 4)
         o["shadow"]["background"]["color"].update(color(glow[0], glow[3]) if glow

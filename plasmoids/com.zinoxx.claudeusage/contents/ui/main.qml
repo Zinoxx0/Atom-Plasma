@@ -206,7 +206,9 @@ PlasmoidItem {
         readonly property real shown: bare
         // while Clawd is up on the roof his seat closes, so the rings sit in the middle of their island
         // (the stretch is on the island's left: its right edge, and the rings, stay put)
-        Layout.minimumWidth: shown - (1 - root.seat) * seatW
+        // whole pixels: the panel sizes a widget to the floor of a fractional width but keeps the room,
+        // and the island's glass then parts at the joint (a hairline of wallpaper)
+        Layout.minimumWidth: Math.ceil(shown - (1 - root.seat) * seatW)
         Layout.preferredWidth: Layout.minimumWidth
         Layout.fillHeight: true
         onClicked: mouse => {
