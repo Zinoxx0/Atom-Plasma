@@ -21,6 +21,8 @@ Item {
     property string status: ""              // what the last command said when it failed
     property var rows: []
     property int rev: 0
+    property string pageRaw: ""
+    property string lightsRaw: ""
 
     readonly property var screens: page ? page.screens : []
     readonly property var targets: target === "all" ? screens : screens.filter(s => s.name === target)
@@ -31,8 +33,9 @@ Item {
         onNewData: (source, data) => {
             const out = data["stdout"] ?? ""
             const kind = (source.match(/#(\w+)(?: \d+)?$/) || [])[1]
-            if (kind === "tpage") { try { tm.page = JSON.parse(out); tm.build() } catch (e) { } }
-            else if (kind === "tlights") { try { tm.lights = JSON.parse(out); tm.build() } catch (e) { } }
+            // the same answer as last time changes nothing (the stage asks on every opening)
+            if (kind === "tpage") { if (out && out !== tm.pageRaw) try { tm.page = JSON.parse(out); tm.pageRaw = out; tm.build() } catch (e) { } }
+            else if (kind === "tlights") { if (out && out !== tm.lightsRaw) try { tm.lights = JSON.parse(out); tm.lightsRaw = out; tm.build() } catch (e) { } }
             else if (kind === "tapply") {
                 const code = data["exit code"] ?? 0
                 tm.status = code !== 0 ? String(data["stderr"] ?? "").trim().split("\n").pop() : ""

@@ -1,7 +1,7 @@
 // Pointer and keys for the NESTED KWin of tools/nested/run.sh only (refuses any other compositor:
 // WAYLAND_DISPLAY must be atom-spike). Uses KWin's fake-input protocol, allowed there by
 // KWIN_WAYLAND_NO_PERMISSION_CHECKS.
-// usage: fakein move X Y | click [left|right] | key CODE | type TEXT | wait MS | wheel N ...
+// usage: fakein move X Y | click [left|right] | drag X1 Y1 X2 Y2 | key CODE | type TEXT | wait MS | wheel N ...
 #include <wayland-client.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -47,6 +47,19 @@ int main(int argc, char **argv) {
             org_kde_kwin_fake_input_button(fi, b, 1); wl_display_roundtrip(dpy); usleep(30000); org_kde_kwin_fake_input_button(fi, b, 0); }
         else if (!strcmp(argv[i], "key") && i + 1 < argc) { int c = atoi(argv[++i]); key(dpy, c, 1); key(dpy, c, 0); }
         else if (!strcmp(argv[i], "type") && i + 1 < argc) { for (const char *s = argv[++i]; *s; s++) { int sh, c = keycode(*s, &sh); if (!c) continue; if (sh) key(dpy, KEY_LEFTSHIFT, 1); key(dpy, c, 1); key(dpy, c, 0); if (sh) key(dpy, KEY_LEFTSHIFT, 0); } }
+        else if (!strcmp(argv[i], "drag") && i + 4 < argc) {     // press at X1 Y1, glide to X2 Y2 (a finger's pace), let go
+            double x1 = atof(argv[i+1]), y1 = atof(argv[i+2]), x2 = atof(argv[i+3]), y2 = atof(argv[i+4]);
+            org_kde_kwin_fake_input_pointer_motion_absolute(fi, wl_fixed_from_double(x1 + 1), wl_fixed_from_double(y1)); wl_display_roundtrip(dpy); usleep(16000);
+            org_kde_kwin_fake_input_pointer_motion_absolute(fi, wl_fixed_from_double(x1), wl_fixed_from_double(y1)); wl_display_roundtrip(dpy); usleep(16000);
+            org_kde_kwin_fake_input_button(fi, BTN_LEFT, 1); wl_display_roundtrip(dpy); usleep(30000);
+            for (int k = 1; k <= 20; k++) {
+                org_kde_kwin_fake_input_pointer_motion_absolute(fi, wl_fixed_from_double(x1 + (x2 - x1) * k / 20), wl_fixed_from_double(y1 + (y2 - y1) * k / 20));
+                wl_display_roundtrip(dpy); usleep(16000);
+            }
+            usleep(60000);      // held still before letting go: a drag, not a flick
+            org_kde_kwin_fake_input_button(fi, BTN_LEFT, 0);
+            i += 4;
+        }
         else if (!strcmp(argv[i], "wheel") && i + 1 < argc) { org_kde_kwin_fake_input_axis(fi, 0, wl_fixed_from_double(atof(argv[++i]))); }
         else if (!strcmp(argv[i], "wait") && i + 1 < argc) { wl_display_roundtrip(dpy); usleep(atoi(argv[++i]) * 1000); }
         wl_display_roundtrip(dpy);

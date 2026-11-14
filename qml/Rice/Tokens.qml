@@ -29,8 +29,7 @@ QtObject {
     readonly property int exit: Easing.InCubic       // things leaving
     readonly property int move: Easing.InOutCubic    // things moving between states
     readonly property int grow: Easing.OutQuart      // shapes growing and reshaping (no overshoot)
-    // the launcher's calm curves (Easing.BezierSpline, CSS cubic-bezier's x1 y1 x2 y2 then the end point):
-    // long soft landings for things arriving, a quiet start for things leaving, both for moves
+    // the calm curves, for easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn
     readonly property var calmIn: [0.16, 1, 0.3, 1, 1, 1]
     readonly property var calmOut: [0.55, 0, 0.75, 0.2, 1, 1]
     readonly property var calmMove: [0.65, 0, 0.35, 1, 1, 1]

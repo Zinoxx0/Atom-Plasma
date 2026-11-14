@@ -61,10 +61,13 @@ step "meta";            qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaSh
 T=$(grep -o 'ATOM home tabs at .* theme at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $(NF-1), $NF}')
 step "theme [$T]";      $F move ${T:-1470 50} click wait 1400; shot l-theme
 step "theme down";      $F move 800 20 key 108 wait 1200; shot l-theme-walls
+step "drag walls";      $F drag 1300 550 500 550 wait 1200; shot l-drag
 X=$(grep -o 'ATOM theme action fine:walls at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $(NF-1), $NF}')
 step "fine-tune [$X]";  $F move ${X:-400 390} click wait 1400; shot l-fine
 step "fine-tune back";  $F key 1 wait 900
 step "theme back";      $F key 1 wait 1200; shot l-theme-back
+step "wheel down";      $F move 800 620 wait 300 wheel 15 wait 1000; shot l-wheel
+step "wheel up";        $F move 802 620 wait 300 wheel -15 wait 1000
 step "meta closes";     qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu; $F wait 1200; shot l-meta-closed
 step "type y (app?)";   $F type "y" wait 300
 step end
@@ -87,6 +90,11 @@ check "down walked the Theme page"  'ATOM home tab 3 row 1' "$L"
 check "Fine-tune opened the panels" 'ATOM stage view walls' "$L"
 after() { sed -n "/ATOM ## $2/,\$p" "$L" | grep -q -- "$3" && echo "ok   $1" || { echo "FAIL $1"; fail=1; }; }
 after "Esc left the Theme page"     "theme back" 'ATOM home tab 0 row'
+after "dragging moved the wallpapers" "drag walls" 'ATOM row walls dragged to'
+after "the wheel walked down a row"   "wheel down" 'ATOM home tab 0 row 1'
+after "...and back up"                "wheel up" 'ATOM home tab 0 row 0'
+swap=$(grep -o 'ATOM home tab swap [0-9]*' "$L" | awk '{print $NF}' | sort -n | tail -1)
+[ "${swap:-999}" -lt 200 ] && echo "ok   page switches are quick (slowest ${swap} ms)" || { echo "FAIL a page switch took ${swap} ms"; fail=1; }
 grep -q "ATOM home apply" "$L" && { echo "FAIL something was applied"; fail=1; }
 errs=$(grep -E "launcher|Stage|Home|Theme|Atom|Jewel|TopButton|DeskMap" "$L" | grep -E "Error|error:|TypeError|ReferenceError|Cannot|Unable|not a type|is not defined|Invalid property|no panel for" | sort -u | head -20)
 [ -n "$errs" ] && { echo "$errs"; fail=1; }

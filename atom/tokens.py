@@ -22,6 +22,10 @@ TOKENS = {
     # morph / collapse: the shell's sheets growing out of an island and shrinking back; stagger: between
     # children entering one after another
     "dur": {"fast": 150, "base": 250, "slow": 400, "morph": 360, "collapse": 220, "stagger": 30},
+    # the calm curves (the launcher and the power overlay; qml/Rice/Motion.js has the same points for its
+    # clocks): CSS cubic-bezier x1 y1 x2 y2, for QML's Easing.BezierSpline (which wants the end point too).
+    # Long soft landings for things arriving, a quiet start for things leaving, both for moves.
+    "curve": {"calmIn": [0.16, 1, 0.3, 1], "calmOut": [0.55, 0, 0.75, 0.2], "calmMove": [0.65, 0, 0.35, 1]},
     # alpha levels over the palette's surfaces / accents
     "alpha": {"glass": 0.78, "card": 0.55, "hover": 0.08, "press": 0.14, "selected": 0.16,
               "outline": 0.10, "outlineStrong": 0.22, "wash": 0.12, "shadow": 0.45},
@@ -80,6 +84,8 @@ def qml():
         "    readonly property int exit: Easing.InCubic       // things leaving",
         "    readonly property int move: Easing.InOutCubic    // things moving between states",
         "    readonly property int grow: Easing.OutQuart      // shapes growing and reshaping (no overshoot)",
+        "    // the calm curves, for easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn",
+        *[f"    readonly property var {k}: {json.dumps(v + [1, 1])}" for k, v in t["curve"].items()],
         "}",
     ]
     return "\n".join(lines) + "\n"

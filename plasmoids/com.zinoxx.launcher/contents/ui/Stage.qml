@@ -14,10 +14,12 @@ import "Rice/Motion.js" as M
 // The launcher as a home screen for the computer ("Atom Home"), on the bare desktop of its screen. One
 // focus at a time drives everything: the hero (the focused item large, with its actions) and the backdrop
 // (a game fills the room with its own art; an app lights it in its colour). Pages of rows under a top bar
-// (Home, Games, Apps); the focused tile stays at its anchor while its row glides under it.
-// It opens out of the jewel: a window of the screen's frosted wallpaper grows out of the bar's jewel to the
-// whole screen while the jewel lifts off and flies up to lead the top bar; closing folds it all back. The
-// windows of its screen fly into their pins as it opens and come back as it closes (Atom Windows).
+// (Home, Games, Apps; the palette opens a fourth, the Theme page); the focused tile stays at its anchor while
+// its row glides under it (rows are lazy ListViews: only what shows exists; drag or wheel them sideways).
+// It fades in (the lab's "fade": the frosted backdrop, then the content settling from a little closer, the
+// top bar, the hero, the tiles one after another) and fades out. The windows of its screen fly into their
+// pins as it opens and come back as it closes (Atom Windows). Each page is built the first time it shows
+// and then kept, so switching pages costs only the cross-fade.
 // Launching grows the tile into the screen (a game's cover becomes its banner) before it lets go.
 // Typing searches (KRunner): the magnifier opens into a field, the results come down under it.
 // Everything is the screen's palette (the theme engine): accents, text, surfaces, the glow, light moods.
@@ -65,15 +67,9 @@ Window {
     // ------------------------------------------------------------------ open / close
     readonly property bool wanted: Shell.kind === "launcher" && Shell.screen === screenName
     property string phase: "closed"             // closed, opening, open, closing
-    property rect jewel: Qt.rect(0, 0, 0, 0)    // the bar's jewel (window coordinates)
     signal opened()
-    function local(r) {
-        if (!r || !screenObj) return Qt.rect(u(16), height - u(48), u(74), u(46))
-        return Qt.rect(r.x - screenObj.virtualX, r.y - screenObj.virtualY, r.width, r.height)
-    }
     onWantedChanged: wanted ? begin() : end()
     function begin() {
-        jewel = local(Shell.anchor || Shell.island("launcher", screenName))
         pointerAt = ""
         if (phase === "closed") {
             phase = "opening"
@@ -95,7 +91,6 @@ Window {
         startClose()
     }
     onPhaseChanged: {
-        if (phase === "closed") keepWall.restart()
         if (Shell.debug) console.warn("ATOM stage", screenName, "phase", phase, Date.now() % 100000)
         if (Shell.debug && phase === "open") { logFocus(); logLayout() }
     }
@@ -108,51 +103,46 @@ Window {
         startOpen()
     }
 
+
     // ------------------------------------------------------------------ the choreography (Motion.js tracks)
-    // what the moves set: the window (0 = the jewel, 1 = the screen), the jewel's flight, the content
-    property real winP: 0
-    property real washO: 0
-    property real flyP: 0
-    property bool flying: false
-    property bool flyHome: false                // the flight goes back to the bar
+    // the lab's "fade": the backdrop fades in, the content comes forward from a little closer (1.06), then the
+    // top bar, the hero and the tiles one after another; closing fades it all, the content going a little
+    // closer as it leaves. One clock per move.
+    property real bgO: 0
     property real planeO: 0
     property real planeS: 1
     property real topO: 0
     property real heroO: 0
-    property real coverO: 0                     // the bar under the wallpaper
     property real openT: 0
     property real closeT: 0
     property var closeFrom: ({})
-    NumberAnimation { id: openClock; target: stage; property: "openT"; from: 0; to: stage.openTotal; duration: stage.openTotal; onFinished: stage.phase = "open" }
+    NumberAnimation { id: openClock; target: stage; property: "openT"; from: 0; to: stage.openTotal; duration: stage.openTotal
+                      onFinished: { stage.applyOpen(1e9); stage.phase = "open" } }    // everything at rest, whatever lagged
     NumberAnimation { id: closeClock; target: stage; property: "closeT"; from: 0; to: stage.closeMs; duration: stage.closeMs; onFinished: stage.closed() }
-    readonly property real openTotal: openMs * 1.06 + 12 * staggerMs
+    readonly property real openTotal: openMs * 0.9 + 16 * staggerMs
     onOpenTChanged: if (phase === "opening") applyOpen(openT)
     onCloseTChanged: if (phase === "closing") applyClose(closeT)
     function startOpen() {
-        flyHome = false
         applyOpen(0)
         openClock.restart()
     }
     function applyOpen(t) {
         const d = openMs
-        coverO = 1
-        winP = M.track(t, 0, d * 0.72, M.enter)
-        washO = 1 - M.track(t, d * 0.02, d * 0.42, M.move)
-        flyP = M.track(t, d * 0.02, d * 0.48, M.move)
-        flying = t < d * 0.52
-        planeO = M.track(t, d * 0.2, d * 0.8, M.enter)
-        planeS = M.lerp(1.04, 1, planeO)
-        topO = M.track(t, d * 0.3, d * 0.62, M.enter)
-        heroO = M.track(t, d * 0.34, d * 0.66, M.enter)
-        // the rows: their tiles come in from the right, one after another
-        for (let k = 0; k < rowsRep.count; k++) {
-            const row = rowsRep.itemAt(k)
+        bgO = M.track(t, 0, d * 0.65, M.enter)
+        planeO = M.track(t, d * 0.06, d * 0.8, M.enter)
+        planeS = M.lerp(1.06, 1, planeO)
+        topO = M.track(t, d * 0.16, d * 0.62, M.enter)
+        heroO = M.track(t, d * 0.2, d * 0.66, M.enter)
+        // the rows: their tiles come in from the right, one after another (a dozen a row at most)
+        const st = pageState()
+        for (let k = 0; k < page.rows.length; k++) {
+            const row = rowItem(k)
             if (!row) continue
-            const n = k - pageState().scroll
-            row.titleO = n < 0 ? 0 : M.track(t, d * 0.36 + n * 3 * staggerMs, d * 0.6, M.enter)
+            const n = k - st.scroll
+            row.titleO = n < 0 ? 0 : M.track(t, d * 0.22 + n * 3 * staggerMs, d * 0.6, M.enter)
             const tiles = row.shown()
             for (let i = 0; i < tiles.length; i++) {
-                const v = n < 0 ? 0 : M.track(t, d * 0.36 + (n * 3 + i) * staggerMs, d * 0.66, M.enter)
+                const v = n < 0 ? 0 : M.track(t, d * 0.22 + (n * 3 + Math.min(i, 11)) * staggerMs, d * 0.66, M.enter)
                 tiles[i].opacity = v
                 tiles[i].enter = (1 - v) * u(80)
             }
@@ -160,8 +150,7 @@ Window {
         if (t > 0 && !contentIn) contentIn = true
     }
     function startClose() {
-        closeFrom = { plane: planeO, wash: washO, win: winP, fly: launchFly.visible ? 1 : 0 }
-        flyHome = true
+        closeFrom = { plane: planeO, bg: bgO }
         applyClose(0)
         closeClock.restart()
     }
@@ -169,16 +158,11 @@ Window {
         const d = closeMs, f = closeFrom
         planeO = (f.plane ?? 1) * (1 - M.track(t, 0, d * 0.55, M.exit))
         planeS = M.lerp(1, 1.035, M.track(t, 0, d * 0.55, M.exit))
-        flying = true
-        flyP = 1 - M.track(t, 0, d * 0.88, M.move)
-        winP = (f.win ?? 1) * (1 - M.track(t, d * 0.12, d * 0.88, M.move))
-        washO = M.lerp(f.wash ?? 0, 1, M.track(t, d * 0.45, d * 0.5, M.enter))
-        launchFly.opacity = 1 - M.track(t, 0, d * 0.8, M.move)
+        bgO = (f.bg ?? 1) * (1 - M.track(t, d * 0.12, d * 0.88, M.move))
+        launchFly.opacity = 1 - M.track(t, 0, d * 0.9, M.move)
     }
     function closed() {
         phase = "closed"
-        flying = false
-        coverO = 0
         contentIn = false
         launchFly.visible = false
         searchOpen = false
@@ -229,40 +213,6 @@ Window {
         }
     }
 
-    // ------------------------------------------------------------------ the bar steps aside under the wallpaper
-    // (drawn as the desktop draws it), so the jewel can leave it; loaded while open and a while after
-    readonly property rect barArea: {
-        const r = launcher.panelRect
-        if (!r || r.width <= 0 || !screenObj) return Qt.rect(0, 0, 0, 0)
-        const m = u(20)
-        const x0 = Math.max(0, r.x - screenObj.virtualX - m), y0 = Math.max(0, r.y - screenObj.virtualY - m)
-        const x1 = Math.min(width, r.x - screenObj.virtualX + r.width + m), y1 = Math.min(height, r.y - screenObj.virtualY + r.height + m)
-        return Qt.rect(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0))
-    }
-    Timer { id: keepWall; interval: 120000 }
-    Item {
-        enabled: false
-        x: stage.barArea.x
-        y: stage.barArea.y
-        width: stage.barArea.width
-        height: stage.barArea.height
-        clip: true
-        visible: opacity > 0.001
-        opacity: bareWall.status === Image.Ready ? stage.coverO : 0
-        Image {
-            id: bareWall
-            x: -parent.x
-            y: -parent.y
-            width: stage.width
-            height: stage.height
-            fillMode: Image.PreserveAspectCrop
-            asynchronous: true
-            smooth: true
-            readonly property real dpr: stage.screenObj ? stage.screenObj.devicePixelRatio : 1
-            sourceSize: Qt.size(Math.round(stage.width * dpr), Math.round(stage.height * dpr))
-            source: stage.rice.wallpaper && (stage.phase !== "closed" || keepWall.running) ? "file://" + stage.rice.wallpaper : ""
-        }
-    }
 
     // ------------------------------------------------------------------ the data and the focus
     HomeModel { id: hm; launcher: stage.launcher }
@@ -270,8 +220,10 @@ Window {
     readonly property int themeTab: 3
     property int tab: 0                         // 0 Home, 1 Games, 2 Apps, 3 the Theme page (no tab: the palette)
     property int tabBefore: 0                   // where the Theme page goes back to
-    readonly property var page: tab === themeTab ? ({ id: "theme", rows: tm.rows, rev: tm.rev })
-                              : hm.pages.length ? hm.pages[Math.min(tab, hm.pages.length - 1)] : ({ rows: [] })
+    readonly property var themePage: ({ id: "theme", rows: tm.rows })
+    readonly property var emptyPage: ({ id: "", rows: [] })
+    function pageAt(p) { return p === themeTab ? themePage : hm.pages[p] || emptyPage }
+    readonly property var page: pageAt(tab)
     readonly property bool theming: tab === themeTab
     // per page: the active row, the row at the top, each row's focus (by row id)
     property var states: [{ row: 0, scroll: 0, idx: {} }, { row: 0, scroll: 0, idx: {} }, { row: 0, scroll: 0, idx: {} }, { row: 0, scroll: 0, idx: {} }]
@@ -284,13 +236,20 @@ Window {
         const r = rowObj(pageState().row)
         return r ? r.items[Math.min(idxOf(r.id), r.items.length - 1)] || null : null
     }
+    // the shown page's row ri (each page is a column of rows, made the first time it shows)
+    function rowItem(ri, p) { const pg = pagesRep.itemAt(p === undefined ? tab : p); return pg ? pg.rowAt(ri) : null }
     function currentTile() {
-        const row = rowsRep.itemAt(pageState().row)
-        return row ? row.tileAt(idxOf(page.rows[pageState().row].id)) : null
+        const r = rowObj(pageState().row), row = rowItem(pageState().row)
+        return row && r ? row.tileAt(idxOf(r.id)) : null
     }
     // from "key", the row and the page move to keep the focus at its anchors; from the pointer they don't
     // (the content would slide out from under it)
+    // the pointer only focuses what it was moved onto: not what slides under it while the keys, the wheel or
+    // a drag move the rows (Qt reports those as hovers too: the focus, the hero and the backdrop would churn)
+    property double quietUntil: 0
+    function rowsMoving() { for (let k = 0; k < page.rows.length; k++) { const r = rowItem(k); if (r && r.moving) return true } return false }
     function focusAt(ri, i, from) {
+        if (from === "mouse" && (Date.now() < quietUntil || rowsMoving())) return
         const st = pageState()
         const r = rowObj(ri)
         if (!r) return
@@ -298,13 +257,16 @@ Window {
         if (st.row === ri && idxOf(r.id) === i) return
         st.row = ri
         st.idx[r.id] = i
+        if (from === "key") quietUntil = Date.now() + focusMs * 1.5 + 80
+        const scrolled = from === "key" && st.scroll !== ri
         if (from === "key") st.scroll = ri
         focusRev++
         if (from === "key") {
-            const row = rowsRep.itemAt(ri)
+            const row = rowItem(ri)
             if (row) row.settle(true)
+            if (scrolled) scrollPage(true)
         }
-        if (Shell.debug) logFocus()
+        if (Shell.debug) logFocus(from)
     }
     function step(dx, dy) {
         const st = pageState()
@@ -322,7 +284,7 @@ Window {
             if (i < 0) return
             st.idx[r.id] = i
             moved = true
-            const row = theming ? rowsRep.itemAt(k) : null
+            const row = rowItem(k, themeTab)
             if (row) row.settle(false)
         })
         if (moved) focusRev++
@@ -338,9 +300,9 @@ Window {
         else { const once = () => { tm.revChanged.disconnect(once); Qt.callLater(go) }; tm.revChanged.connect(once) }
     }
     Connections { target: stage.launcher; function onThemeAskChanged() { stage.openTheme(stage.launcher.themeRow) } }
-    function logFocus() {
+    function logFocus(from) {
         const it = currentItem
-        console.warn("ATOM home tab", tab, "row", pageState().row, "item", it ? (it.name || it.key || "") : "-")
+        console.warn("ATOM home tab", tab, "row", pageState().row, "item", it ? (it.name || it.key || "") : "-", from ? "(" + from + ", top row " + pageState().scroll + ")" : "")
         if (theming) Qt.callLater(() => {      // the hero's own actions, where they sit (once it has laid out)
             const h = heroRep.itemAt(heroSlot)
             const th = h ? h.th : null
@@ -357,7 +319,7 @@ Window {
     function setTab(i) {
         if (i !== themeTab) i = (i + 3) % 3
         if (i === tab) return
-        if (i === themeTab) { tabBefore = tab; tm.reload(); Qt.callLater(focusInUse) }
+        if (i === themeTab) { tabBefore = tab; tm.reload(); focusInUse() }
         const dir = i > tab ? 1 : -1
         tabSwap.dir = dir
         tabSwap.next = i
@@ -371,19 +333,43 @@ Window {
             NumberAnimation { target: rowsBox; property: "opacity"; to: 0; duration: Tokens.ms(170); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmOut }
             NumberAnimation { target: rowsSlide; property: "x"; to: -tabSwap.dir * stage.u(36); duration: Tokens.ms(170); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmOut }
         }
-        ScriptAction { script: { stage.tab = tabSwap.next; rowsSlide.x = tabSwap.dir * stage.u(56); Qt.callLater(stage.settleAll); if (Shell.debug) stage.logFocus() } }
+        ScriptAction { script: {
+            const t0 = Date.now()
+            stage.tab = tabSwap.next
+            rowsSlide.x = tabSwap.dir * stage.u(56)
+            stage.settleAll()
+            if (Shell.debug) { console.warn("ATOM home tab swap", Date.now() - t0, "ms"); stage.logFocus() }
+        } }
         ParallelAnimation {
             NumberAnimation { target: rowsBox; property: "opacity"; to: 1; duration: Tokens.ms(520); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn }
             NumberAnimation { target: rowsSlide; property: "x"; to: 0; duration: Tokens.ms(520); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn }
         }
     }
     function settleAll() {
-        for (let k = 0; k < rowsRep.count; k++) { const r = rowsRep.itemAt(k); if (r) r.settle(false) }
-        pageY.enabled = false
-        pageCol.y = -rowTop(pageState().scroll)
-        pageY.enabled = true
+        for (let k = 0; k < page.rows.length; k++) { const r = rowItem(k); if (r) r.settle(false) }
+        scrollPage(false)
     }
-    function rowTop(ri) { let y = 0; for (let k = 0; k < ri; k++) { const r = rowsRep.itemAt(k); if (r) y += r.height } return y }
+    // the page: the row at the top (its scroll) sits under the hero; the ones above have gone
+    function scrollPage(animate) { const pg = pagesRep.itemAt(tab); if (pg) pg.scrollTo(animate) }
+    // the wheel walks the rows (a notch, or a touchpad's worth, a row); sideways it moves the row under it
+    property real wheelAcc: 0
+    function onWheel(ev, pos) {
+        const sideways = (ev.modifiers & Qt.ShiftModifier) || Math.abs(ev.angleDelta.x) > Math.abs(ev.angleDelta.y)
+        if (sideways) {
+            for (let k = 0; k < page.rows.length; k++) {
+                const r = rowItem(k)
+                if (!r || r.opacity < 0.5) continue
+                const q = r.mapFromItem(wheelLayer, pos.x, pos.y)
+                if (q.y >= 0 && q.y < r.height) { r.slide(ev); return }
+            }
+            return
+        }
+        wheelAcc += ev.angleDelta.y
+        if (Math.abs(wheelAcc) < 120) return
+        const d = wheelAcc < 0 ? 1 : -1
+        wheelAcc = 0
+        step(0, d)
+    }
 
     // fresh every time it opens: Home, the first pin, no query
     onOpened: {
@@ -399,30 +385,20 @@ Window {
         Qt.callLater(settleAll)
         Qt.callLater(() => keys.forceActiveFocus())
         sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" launcher-data #data')
+        tm.reload()         // the Theme page's data, ready before it's asked for (rebuilt only if it changed)
         if (Shell.args && Shell.args.query) Qt.callLater(() => stage.openSearch(Shell.args.query))
     }
     RiceShell { id: sh; onNewData: (source, data) => disconnectSource(source) }
 
-    // ------------------------------------------------------------------ the window: the backdrop, out of the jewel
+    // ------------------------------------------------------------------ the backdrop
     Item {
         id: win
-        readonly property real p: stage.winP
-        readonly property real jr: Math.round(stage.jewel.height * 0.32)
-        x: M.lerp(stage.jewel.x, 0, p)
-        y: M.lerp(stage.jewel.y, 0, p)
-        width: M.lerp(stage.jewel.width, stage.width, p)
-        height: M.lerp(stage.jewel.height, stage.height, p)
-        visible: stage.phase !== "closed" && p > 0.001
-        clip: true
-        readonly property real round: M.lerp(jr, 0, p) + Math.sin(p * Math.PI) * stage.u(30)
-        layer.enabled: p > 0 && p < 1
-        layer.effect: MultiEffect { maskEnabled: true; maskSource: winMask; maskThresholdMin: 0.5; maskSpreadAtMin: 1 }
+        anchors.fill: parent
+        opacity: stage.bgO
+        visible: stage.phase !== "closed" && opacity > 0.001
         Item {
             id: backdrop
-            x: -win.x
-            y: -win.y
-            width: stage.width
-            height: stage.height
+            anchors.fill: parent
 
             Image {     // the screen's wallpaper, frosted (the theme engine's glass)
                 anchors.fill: parent
@@ -441,6 +417,7 @@ Window {
                     required property int index
                     anchors.fill: parent
                     opacity: stage.bgSlot === index ? stage.bgGlow[index] : 0
+                    visible: opacity > 0.001
                     property var item: stage.bgItems[index]
                     Kirigami.ImageColors { id: glowColors; source: glow.item ? glow.item.icon : "" }
                     readonly property color c: C.appTint(glowColors, stage.rice.primary)
@@ -466,7 +443,7 @@ Window {
                         width: parent.height * 0.46; height: width
                         source: glow.item ? glow.item.icon : ""
                         opacity: 0.5
-                        layer.enabled: true
+                        layer.enabled: glow.visible
                         layer.effect: MultiEffect { blurEnabled: true; blur: 1; blurMax: 64; saturation: 0.4 }
                     }
                 }
@@ -485,8 +462,9 @@ Window {
                     asynchronous: true
                     source: stage.bgItems[index] && stage.bgItems[index].art ? stage.bgItems[index].art.hero : ""
                     opacity: stage.bgSlot === index ? stage.bgArt[index] : 0
+                    visible: opacity > 0.001
                     transformOrigin: Item.Top
-                    layer.enabled: true
+                    layer.enabled: visible
                     layer.effect: MultiEffect {     // fades into the room at the bottom
                         maskEnabled: true
                         maskSource: artMask
@@ -545,41 +523,6 @@ Window {
             }
             Rectangle { anchors.fill: parent; color: C.alpha(stage.rice.surfaceLowest, 0.26) }
         }
-        // the jewel's colour, fading into the backdrop as the window opens
-        Shape {
-            x: -win.x
-            y: -win.y
-            width: stage.width
-            height: stage.height
-            opacity: stage.washO
-            visible: opacity > 0.01
-            preferredRendererType: Shape.CurveRenderer
-            readonly property real cx: stage.jewel.x + stage.jewel.width / 2
-            readonly property real cy: stage.jewel.y + stage.jewel.height / 2
-            readonly property real r: Math.hypot(Math.max(cx, stage.width - cx), Math.max(cy, stage.height - cy)) * 0.9
-            ShapePath {
-                strokeWidth: -1
-                fillGradient: RadialGradient {
-                    centerX: washShape.cx; centerY: washShape.cy; centerRadius: washShape.r
-                    focalX: centerX; focalY: centerY
-                    GradientStop { position: 0; color: C.alpha(stage.rice.primary, 0.85) }
-                    GradientStop { position: 0.12; color: C.alpha(stage.rice.primary, 0.5) }
-                    GradientStop { position: 0.35; color: C.alpha(stage.rice.tertiary, 0.18) }
-                    GradientStop { position: 0.65; color: C.alpha(stage.rice.tertiary, 0) }
-                }
-                PathRectangle { x: 0; y: 0; width: stage.width; height: stage.height }
-            }
-            QtObject { id: washShape; readonly property real cx: stage.jewel.x + stage.jewel.width / 2; readonly property real cy: stage.jewel.y + stage.jewel.height / 2
-                       readonly property real r: Math.hypot(Math.max(cx, stage.width - cx), Math.max(cy, stage.height - cy)) * 0.9 }
-        }
-    }
-    Rectangle {     // the window's shape while it grows (the mask)
-        id: winMask
-        width: win.width
-        height: win.height
-        radius: win.round
-        visible: false
-        layer.enabled: true
     }
     Rectangle {     // the game art's fade into the room
         id: artMask
@@ -686,7 +629,6 @@ Window {
                         id: homeJewel
                         width: stage.u(64); height: stage.u(44)
                         rice: stage.rice
-                        opacity: stage.flying ? 0 : 1
                         onClicked: stage.tab !== 0 ? stage.setTab(0) : stage.launcher.close()
                     }
                     Row {
@@ -913,50 +855,74 @@ Window {
                     id: rowsSlide
                     width: parent.width
                     height: parent.height
-                    Column {
-                        id: pageCol
-                        width: parent.width
-                        y: { stage.focusRev; return -stage.rowTop(stage.pageState().scroll) }
-                        Behavior on y { id: pageY; NumberAnimation { duration: Math.round(stage.focusMs * 1.45); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
-                        Repeater {
-                            id: rowsRep
-                            // by count, so a page rebuilt with the same rows (a theme applied, the data refreshed)
-                            // keeps its rows and tiles and only rebinds them: nothing flashes
-                            model: stage.page.rows.length
-                            delegate: HomeRow {
-                                id: hrow
-                                required property int index
-                                readonly property var entry: stage.page.rows[index] || ({ id: "", title: "", shape: "square", items: [], divider: -1 })
-                                width: pageCol.width
-                                row: entry
-                                rice: stage.rice
-                                unit: stage.unit
-                                side: stage.side
-                                focusMs: stage.focusMs
-                                current: stage.idxOf(entry.id)
-                                active: (stage.focusRev, index === stage.pageState().row)
-                                opacity: (stage.focusRev, index < stage.pageState().scroll) ? 0 : 1
-                                Behavior on opacity { NumberAnimation { duration: Tokens.ms(320) } }
-                                onPointed: i => stage.focusAt(index, i, "mouse")
-                                onActivated: (i, tile) => { stage.focusAt(index, i, "mouse"); stage.activateItem(entry.items[i], tile) }
-                                onMenu: (i, tile) => { const it = entry.items[i]; if (it.model) stage.launcher.menu.openFor(tile, it.model, it.row) }
-                                Component.onCompleted: Qt.callLater(() => settle(false))
+                    Repeater {
+                        id: pagesRep
+                        model: 4
+                        delegate: Item {
+                            id: pg
+                            required property int index
+                            readonly property var pageObj: stage.pageAt(index)
+                            readonly property var st: stage.states[index]
+                            property bool made: false           // its rows exist (from the first time it shows on)
+                            onVisibleChanged: if (visible) made = true
+                            Component.onCompleted: made = visible
+                            visible: index === stage.tab
+                            width: rowsSlide.width
+                            height: rowsSlide.height
+                            function rowAt(ri) { return made ? rowsRep.itemAt(ri) : null }
+                            function rowTop(ri) { let y = 0; for (let k = 0; k < ri; k++) { const r = rowsRep.itemAt(k); if (r) y += r.height } return y }
+                            function scrollTo(animate) {
+                                const t = -rowTop(stage.states[index].scroll)
+                                scrollAnim.stop()
+                                if (animate) { scrollAnim.from = col.y; scrollAnim.to = t; scrollAnim.start() }
+                                else col.y = t
+                            }
+                            NumberAnimation { id: scrollAnim; target: col; property: "y"; duration: Math.round(stage.focusMs * 1.45); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove }
+                            Column {
+                                id: col
+                                width: parent.width
+                                Repeater {
+                                    id: rowsRep
+                                    // by count, so a page rebuilt with the same rows (a theme applied, the data
+                                    // refreshed) keeps its rows and only rebinds them: nothing flashes
+                                    model: pg.made ? pg.pageObj.rows.length : 0
+                                    delegate: HomeRow {
+                                        required property int index
+                                        readonly property var entry: pg.pageObj.rows[index] || ({ id: "", title: "", shape: "square", items: [], divider: -1 })
+                                        width: col.width
+                                        row: entry
+                                        rice: stage.rice
+                                        unit: stage.unit
+                                        side: stage.side
+                                        focusMs: stage.focusMs
+                                        current: (stage.focusRev, pg.st.idx[entry.id] ?? 0)
+                                        active: (stage.focusRev, index === pg.st.row)
+                                        z: active ? 1 : 0
+                                        opacity: (stage.focusRev, index < pg.st.scroll) ? 0 : 1
+                                        Behavior on opacity { NumberAnimation { duration: Tokens.ms(320) } }
+                                        onPointed: i => stage.focusAt(index, i, "mouse")
+                                        onActivated: (i, tile) => { stage.focusAt(index, i, "mouse"); stage.activateItem(entry.items[i], tile) }
+                                        onMenu: (i, tile) => { const it = entry.items[i]; if (it.model) stage.launcher.menu.openFor(tile, it.model, it.row) }
+                                        Component.onCompleted: Qt.callLater(() => { settle(false); pg.scrollTo(false) })
+                                    }
+                                }
                             }
                         }
                     }
                 }
-                // the wheel walks the rows (and along a row with shift or a sideways wheel)
+            }
+
+            // ---- the wheel, anywhere on the home: up and down walks the rows, sideways (or with Shift) moves
+            // the row under the pointer. A layer over everything that takes only the wheel (a scrolling row
+            // would otherwise keep it: a Flickable sees its children's wheel first)
+            Item {
+                id: wheelLayer
+                anchors.fill: parent
+                z: 50
                 WheelHandler {
-                    property real acc: 0
-                    onWheel: ev => {
-                        const sideways = (ev.modifiers & Qt.ShiftModifier) || Math.abs(ev.angleDelta.x) > Math.abs(ev.angleDelta.y)
-                        acc += sideways ? (ev.angleDelta.x || ev.angleDelta.y) : ev.angleDelta.y
-                        if (Math.abs(acc) < 120) return
-                        const d = acc < 0 ? 1 : -1
-                        acc = 0
-                        if (sideways) stage.step(d, 0)
-                        else stage.step(0, d)
-                    }
+                    id: wheelAll
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                    onWheel: ev => stage.onWheel(ev, wheelAll.point.position)
                 }
             }
 
@@ -1155,21 +1121,6 @@ Window {
         }
     }
 
-    // ------------------------------------------------------------------ the jewel's flight, between the bar and the top bar
-    JewelChip {
-        id: flyJewel
-        visible: stage.flying && stage.phase !== "closed"
-        rice: stage.rice
-        readonly property real v: stage.flyP
-        readonly property real bow: Math.sin(v * Math.PI) * stage.u(70)
-        readonly property real lift: 1 + Math.sin(v * Math.PI) * 0.1
-        width: M.lerp(stage.jewel.width, stage.u(64), v) * lift
-        height: M.lerp(stage.jewel.height, stage.u(44), v) * lift
-        x: M.lerp(stage.jewel.x + stage.jewel.width / 2, stage.side + stage.u(32), v) + bow - width / 2
-        y: M.lerp(stage.jewel.y + stage.jewel.height / 2, stage.u(30) + stage.u(23), v) - height / 2
-        radius: M.lerp(win.jr, stage.u(15), v)
-        glowing: true
-    }
 
     // ------------------------------------------------------------------ launching: the tile grows into the screen
     Item {
