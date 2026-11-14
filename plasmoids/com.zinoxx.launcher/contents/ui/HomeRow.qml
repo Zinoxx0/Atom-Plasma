@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import Atom
 import "Rice"
 import "Rice/Color.js" as C
@@ -10,7 +9,7 @@ import "Rice/Color.js" as C
 // row's ends (the last tile stops at the right margin). The keyboard moves the strip (settle(true)); the
 // pointer focuses where it is, so nothing slides out from under it; dragging, or a sideways wheel / touchpad
 // (the stage hands it over: slide(ev)), moves the strip by hand. A divider can part the row (pins | recents).
-// Depth: the focused row is the near one; the others sit behind it, smaller, dimmer and a little blurred.
+// Depth: the focused row is the near one; the others sit behind it, smaller and see-through.
 // Tiles that slide past the left margin fade out there: nothing runs off the left edge of the screen.
 Item {
     id: hr
@@ -56,10 +55,10 @@ Item {
     Item {
         id: body
         anchors.fill: parent
-        opacity: 1 - 0.28 * hr.depth
+        opacity: 1 - 0.55 * hr.depth
         transform: Scale { origin.x: hr.side; origin.y: hr.height / 2; xScale: 1 - 0.1 * hr.depth; yScale: xScale }
+        // faded as one picture (a tile's shadow doesn't show through it)
         layer.enabled: hr.depth > 0.01
-        layer.effect: MultiEffect { blurEnabled: true; blur: 0.25 * hr.depth; blurMax: 20; autoPaddingEnabled: false }
 
         Text {
             x: hr.side

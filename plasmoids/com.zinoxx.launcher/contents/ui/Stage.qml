@@ -987,7 +987,9 @@ Window {
                 return Qt.rect((stage.width - w) / 2, stage.u(30) + stage.u(23) - h / 2, w, h)
             }
             MouseArea { anchors.fill: parent; enabled: stage.searchOpen; onClicked: stage.closeSearch() }
-            // the finder's card: the field and the results on one glass plate (no blur: just the plate)
+            // the finder's card: the field and the results on one glass plate, blurred behind (only the
+            // plate: the screen around it stays as it is). It's the field's size until results come, then
+            // grows with them.
             RectangularShadow {
                 anchors.fill: finderCard
                 visible: finderCard.visible
@@ -1000,16 +1002,27 @@ Window {
                 visible: stage.finder && stage.searchP > 0.001
                 opacity: Math.min(1, stage.searchP * 1.6)
                 readonly property real pad: stage.u(18)
-                x: Math.min(field.x, results.x) - pad
+                readonly property real k: results.contentH > 0 ? results.opacity : 0      // the results' share
+                property real resB: results.y + results.height      // (results coming in stretch it smoothly)
+                Behavior on resB { NumberAnimation { duration: Tokens.ms(260); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
+                x: Math.min(field.x, M.lerp(field.x, results.x, k)) - pad
                 y: field.y - pad
-                width: Math.max(field.width, results.opacity > 0.01 ? results.width : 0) + 2 * pad
-                height: (results.opacity > 0.01 && results.contentH > 0 ? results.y + results.height : field.y + field.height) - y + pad
-                Behavior on height { NumberAnimation { duration: Tokens.ms(260); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
-                radius: stage.u(34)
-                color: C.alpha(stage.rice.surfaceLowest, 0.93)
+                width: Math.max(field.x + field.width, M.lerp(field.x + field.width, results.x + results.width, k)) + pad - x
+                height: Math.max(field.y + field.height, M.lerp(field.y + field.height, resB, k)) + pad - y
+                radius: Math.min(stage.u(34), height / 2)
+                color: C.alpha(stage.rice.surfaceLowest, 0.82)
                 border.width: 1
                 border.color: C.alpha(stage.rice.edge, 0.14)
                 MouseArea { anchors.fill: parent }     // a click on the plate isn't a click outside
+            }
+            BlurBehind {
+                window: stage
+                shapes: {
+                    if (!finderCard.visible || finderCard.opacity < 0.5) return []
+                    finderCard.x; finderCard.y          // (mapToItem alone doesn't follow them)
+                    const p = finderCard.mapToItem(null, 0, 0)
+                    return [{ x: p.x, y: p.y, width: finderCard.width, height: finderCard.height, radius: finderCard.radius }]
+                }
             }
             Rectangle {
                 id: field
