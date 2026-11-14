@@ -1443,7 +1443,7 @@ Window {
     function itemMenu(it, tile) {
         if (!it || !tile) return
         if (it.model) { launcher.menu.openFor(tile, it.model, it.row); return }
-        if (it.kind === "look") { lookMenu.it = it; lookMenu.visualParent = tile; lookMenu.openRelative() }
+        if (it.kind === "look") { lookMenu.it = it; lookMenu.visualParent = tile; lookMenu.open(0, tile.height + u(10)) }     // (under it)
         else if (it.kind === "accent") accentEd.openFor(it, tile)
     }
     PlasmaExtras.Menu {

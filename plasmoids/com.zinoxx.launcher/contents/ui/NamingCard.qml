@@ -34,6 +34,13 @@ FocusScope {
         card.y = above >= u(70) ? above : p.y + anchorItem.height + u(26)
     }
 
+    Rectangle {     // a quiet scrim: the page steps back while the card is out
+        anchors.fill: parent
+        color: Qt.rgba(0, 0, 0, 0.32)
+        opacity: nc.open ? 1 : 0
+        visible: opacity > 0.01
+        Behavior on opacity { NumberAnimation { duration: Tokens.ms(220) } }
+    }
     MouseArea { anchors.fill: parent; enabled: nc.open; hoverEnabled: true; onClicked: nc.cancel() }
     Item {
         id: card

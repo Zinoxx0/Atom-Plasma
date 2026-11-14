@@ -83,6 +83,14 @@ FocusScope {
         e.accepted = true
     }
 
+    // a quiet scrim: the page steps back while the card is out
+    Rectangle {
+        anchors.fill: parent
+        color: Qt.rgba(0, 0, 0, 0.32)
+        opacity: ed.open ? 1 : 0
+        visible: opacity > 0.01
+        Behavior on opacity { NumberAnimation { duration: Tokens.ms(220) } }
+    }
     // a click outside keeps it and closes the card (and the tiles under it don't take the pointer meanwhile)
     MouseArea {
         anchors.fill: parent
