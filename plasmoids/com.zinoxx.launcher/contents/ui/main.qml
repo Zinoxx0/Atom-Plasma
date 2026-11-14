@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import QtQuick.Layouts
+import QtQuick.Shapes
 import QtCore
 import QtQuick.Controls as QQC2
 import QtQuick.Window
@@ -42,6 +43,10 @@ PlasmoidItem {
     readonly property var myScreen: root.Window.window ? (screens.find(sc => sc.name === Screen.name) ?? null) : null
     readonly property string myScreenName: myScreen ? myScreen.name : ""
     readonly property bool shown: Shell.kind === "launcher" && Shell.screen === myScreenName
+    // the bar is docked (a window touches it or is maximized on its screen: its islands flatten, square):
+    // Plasma's own panel item says so (Panel.qml touchingWindow, what the bar's looks switch on)
+    readonly property var panelElement: { let c = root.parent; while (c) { if (c.hasOwnProperty("touchingWindow")) return c; c = c.parent } return null }
+    readonly property bool docked: !!(panelElement && panelElement.touchingWindow)
     // the bar this jewel sits on (global logical px; Plasma places its panel windows itself, so Qt knows
     // where they are): the stage covers it with the wallpaper while open
     readonly property var panelWindow: root.Window.window
@@ -359,16 +364,33 @@ PlasmoidItem {
             glow: "#ffffff"
         }
         // under the pointer it speaks the launcher's focus language: the white ring its tiles wear (the
-        // island's own glow brightens with it: panel launcher_style "hovered"). The island's glass is this
-        // item's rect (Colorizer moves the applet by its margins), so the ring sits on its outline.
-        Rectangle {
+        // island's own glow brightens with it: panel launcher_style "hovered"). The ring traces the island
+        // as it is: a corner notch (atom/panel.py notch + corner), flush with the screen's left and bottom
+        // edges, so it runs along the top and the right side only, round only at the top right; square when
+        // the bar is docked under a window (its looks flatten the islands: radius 0). The island's glass is
+        // this item's rect (Colorizer moves the applet by its margins).
+        Shape {
+            id: ring
             anchors.fill: parent
-            radius: Tokens.radius.md
-            color: "transparent"
-            border.width: Math.max(2, Math.round(2.5 * root.s))
-            border.color: C.alpha(pal.light ? pal.fg : "#ffffff", 0.95)
+            preferredRendererType: Shape.CurveRenderer
+            readonly property real sw: Math.max(2, Math.round(2.5 * root.s))
+            readonly property real r: Math.max(0, cornerR - sw / 2)       // concentric with the island's corner
+            property real cornerR: root.docked ? 0 : Tokens.radius.md
+            Behavior on cornerR { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }    // (the bar's morph: panel DOCK_MS)
             opacity: compact.containsMouse && !root.shown ? 1 : 0
+            visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: Tokens.ms(compact.containsMouse ? 240 : 380); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
+            ShapePath {
+                strokeColor: C.alpha(pal.light ? pal.fg : "#ffffff", 0.95)
+                strokeWidth: ring.sw
+                fillColor: "transparent"
+                capStyle: ShapePath.FlatCap
+                joinStyle: ShapePath.MiterJoin
+                startX: 0; startY: ring.sw / 2
+                PathLine { x: ring.width - ring.sw / 2 - ring.r; y: ring.sw / 2 }
+                PathArc { x: ring.width - ring.sw / 2; y: ring.sw / 2 + ring.r; radiusX: ring.r; radiusY: ring.r }
+                PathLine { x: ring.width - ring.sw / 2; y: ring.height }
+            }
         }
     }
 
