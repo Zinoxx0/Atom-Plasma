@@ -30,9 +30,14 @@ and Panel Colorizer. Optional: Darkly, Klassy, KWin better-blur-dx, Krohnkite (t
 
 - **Every screen gets the whole rice.** When screens are plugged in, unplugged, moved or rescaled,
   `atom-plasma-displayd` (a user unit that sleeps until KWin or udev reports a change) runs the reconciler.
-  It gives a new screen the main screen's wallpaper, a desk clock, a bar (the main bar on Plasma's primary
-  screen, a secondary one elsewhere) and floating windows.
-- **Bars fit their screen.** When a bar needs more room than its screen has (the main bar moving from a
+  It gives a new screen the main screen's wallpaper, a desk clock, a bar and floating windows.
+- **One set of islands, on the screen you're on.** Every screen has a bar, but the islands show on one at
+  a time: the screen the pointer rests on, unless a fullscreen window (a game, a movie) covers it; then the
+  free screen with the most pixels, the nearest on a tie (none at all when every screen is fullscreen).
+  They fade from one screen to the next a beat after the pointer settles, so crossing a screen on the way
+  somewhere else moves nothing (`kwin/rice_islands`, a KWin script; hidden bars keep their place, so no
+  window ever resizes). The islands are notches on the screen's bottom edge, rounded only at the top.
+- **Bars fit their screen.** When a bar needs more room than its screen has (the islands moving from a
   desk monitor to the laptop panel), its widgets give things up in a fixed order, least useful first, and
   take them back as soon as there's room: the CPU/RAM/GPU numbers (the rings stay), then the Claude
   numbers, then the pinned apps that don't fit fold into a folder tile that opens them in a popup, and
@@ -69,11 +74,17 @@ The bar's widgets are islands, and their panels all open on one morphing sheet p
 the island you clicked, glides to the next one while you point along the bar, and folds back into its
 island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on every bar).
 
-- **Launcher** (the jewel, Meta): that screen's windows fly into their pins, its bar fades away, and the
-  launcher presents itself on the bare wallpaper: the jewel lifts into a search capsule, pinned apps come
-  out as glass bubbles and the app library as category decks that open as folders. Other screens keep
-  their windows; move the pointer to one and the launcher follows (your search comes along). Closing, or
-  picking a window in the top band, brings the windows back where they were.
+- **Launcher** ("Atom Home": the jewel, Meta): that screen's windows fly into their pins and Home fades in
+  on the frosted wallpaper, under the top band (never over it): pages Home, Games and Apps as rows of
+  tiles, the focused row in front and sharp, the others behind it, smaller and softly blurred; a hero for
+  whatever has the focus; typing searches. The palette opens the Theme page (themes, wallpapers, colours,
+  size, lighting). Its size follows the screen's UI size, so a big monitor shows more, not the same bigger.
+  Other screens keep their windows; move the pointer to one and the launcher follows (your search comes
+  along). Closing, or picking a window in the top band, brings the windows back where they were.
+- **Finder** (KRunner's replacement): Alt+Space, Alt+F2, the Search key, the desktop menu's Run Command and
+  typing on the bare desktop open the launcher's search on its own: the field and its results on one glass
+  plate at the top of the screen, over whatever is there (Alt+Shift+F2 searches the clipboard). The shell
+  holds KRunner's place on the bus and KRunner's own daemon is masked (`rice.py install`).
 - **Power** (the power island, or the launcher's power button): a ripple of blur spreads over every screen
   and the session's actions come up big on yours.
 - **Status island** (replaces Plasma's system tray): your apps' tray icons with menus in the rice's look
@@ -90,7 +101,8 @@ island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on ev
   (`./agenda.py set-url <the calendar's secret iCal address>`; it stays in `~/.config/atom-plasma/secrets.json`).
 - **Clipboard history** on Meta+V.
 
-The shell needs a small native module (`pkg/atom-native`: blur behind the sheet, input masks, the tray host;
+The shell needs a small native module (`pkg/atom-native`: blur behind the sheet, input masks, the tray host,
+the bus the KWin script talks to, KRunner's place;
 `rice.py install` builds it into `~/.local/lib/qt6/qml`; needs `libdbusmenu-lxqt`) and, for the calendar,
 `python-icalendar` and `python-recurring-ical-events`. After a Qt or Frameworks upgrade, rebuild it with
 `pkg/atom-native/build.sh`.
@@ -106,6 +118,10 @@ with a little project that moves on while you watch (a scarf gets longer, a mars
 snowman gets its hat), and now and then someone drops by (a bird, a falling leaf, a ghost at Halloween).
 Hover it for a hello, stroke it back and forth, click it for one of its acts; a double click opens Claude
 Code in a terminal. Every Clawd on every screen does the same thing at the same moment.
+
+On the bar there is one Clawd at a time, in one of three places: standing on the Claude island's roof,
+bigger, when nothing covers the space above it; back inside the island when a window does; in the popup
+while it's open. Between them it jumps.
 
 Each one is a single canvas, repainted only when its picture changes, and it holds still behind a
 fullscreen window (`qml/Rice/Clawd.qml`; the art is in `ClawdArt.js`, the acts and hobbies in
@@ -138,7 +154,7 @@ Theme page; Meta+Alt+T toggles tiling.
 | `plasmoids/` | the launcher, Glimpse (task strip and top band), desk clock, the clock and status islands, system rings, Claude usage, session, tiling toggle, the shell's host |
 | `agenda.py` | the calendar's data: holidays and your Google Calendar |
 | `lnf/` | look-and-feel: splash and logout screen |
-| `plasma-style/`, `kwin/`, `templates/`, `shell/` | Plasma Style generator, KWin effects, config templates, shell rice |
+| `plasma-style/`, `kwin/`, `templates/`, `shell/` | Plasma Style generator, KWin effects and the islands script, config templates, shell rice |
 | `systemd/` | user units: display watcher, keyboard lights, update check |
 | `pkg/` | PKGBUILDs for patched dependencies (per-output rounded corners) and the shell's native module |
 | `tests/` | `python3 -m unittest discover -s tests` (golden outputs, 20+ display topologies) |
