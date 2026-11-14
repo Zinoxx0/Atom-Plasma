@@ -100,15 +100,19 @@ void Gamepad::scan()
     const QStringList nodes = QDir(QStringLiteral("/dev/input")).entryList({QStringLiteral("event*")}, QDir::System);
     QSet<QString> seen;
     for (const QString &n : nodes) {
-        const QString path = QStringLiteral("/dev/input/") + n;
-        seen.insert(path);
-        if (!m_pads.contains(path)) {
-            open(path);
+        seen.insert(QStringLiteral("/dev/input/") + n);
+    }
+    // unplugged, or unplugged and another device given the same node meanwhile (the kernel reuses the
+    // lowest free eventN): the open one isn't the one at that path any more
+    for (Pad *p : m_pads.values()) {
+        int version = 0;                    // (a removed device answers nothing but ENODEV)
+        if (!seen.contains(p->path) || ioctl(p->fd, EVIOCGVERSION, &version) < 0) {
+            close(p);
         }
     }
-    for (Pad *p : m_pads.values()) {        // unplugged
-        if (!seen.contains(p->path)) {
-            close(p);
+    for (const QString &path : std::as_const(seen)) {
+        if (!m_pads.contains(path)) {
+            open(path);
         }
     }
 }
@@ -175,7 +179,8 @@ void Gamepad::read(Pad *p)
         const ssize_t n = ::read(p->fd, ev, sizeof(ev));
         if (n <= 0) {
             if (n == 0 || (errno != EAGAIN && errno != EINTR)) {
-                close(p);                   // gone (ENODEV)
+                close(p);                   // gone (ENODEV): another may be on its way at the same node
+                m_rescan->start();
             }
             return;
         }
