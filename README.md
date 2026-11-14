@@ -34,9 +34,10 @@ and Panel Colorizer. Optional: Darkly, Klassy, KWin better-blur-dx, Krohnkite (t
 - **One set of islands, on the screen you're on.** Every screen has a bar, but the islands show on one at
   a time: the screen the pointer rests on, unless a fullscreen window (a game, a movie) covers it; then the
   free screen with the most pixels, the nearest on a tie (none at all when every screen is fullscreen).
-  They fade from one screen to the next a beat after the pointer settles, so crossing a screen on the way
-  somewhere else moves nothing (`kwin/rice_islands`, a KWin script; hidden bars keep their place, so no
-  window ever resizes). The islands are notches on the screen's bottom edge, rounded only at the top.
+  They follow the pointer at once, with a quick fade (a pointer just sweeping across a screen on the way
+  somewhere else moves nothing; `kwin/rice_islands`, a KWin script; hidden bars keep their place, so no
+  window ever resizes). The islands are notches on the screen's bottom edge, rounded only at the top; the
+  launcher and the clock sit in the screen's corners.
 - **Bars fit their screen.** When a bar needs more room than its screen has (the islands moving from a
   desk monitor to the laptop panel), its widgets give things up in a fixed order, least useful first, and
   take them back as soon as there's room: the CPU/RAM/GPU numbers (the rings stay), then the Claude
@@ -76,14 +77,14 @@ island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on ev
 
 - **Launcher** ("Atom Home": the jewel, Meta): that screen's windows fly into their pins and Home fades in
   on the frosted wallpaper, under the top band (never over it): pages Home, Games and Apps as rows of
-  tiles, the focused row in front and sharp, the others behind it, smaller and softly blurred; a hero for
+  tiles, the focused row in front, the others behind it, smaller and see-through; a hero for
   whatever has the focus; typing searches. The palette opens the Theme page (themes, wallpapers, colours,
   size, lighting). Its size follows the screen's UI size, so a big monitor shows more, not the same bigger.
   Other screens keep their windows; move the pointer to one and the launcher follows (your search comes
   along). Closing, or picking a window in the top band, brings the windows back where they were.
 - **Finder** (KRunner's replacement): Alt+Space, Alt+F2, the Search key, the desktop menu's Run Command and
-  typing on the bare desktop open the launcher's search on its own: the field and its results on one glass
-  plate at the top of the screen, over whatever is there (Alt+Shift+F2 searches the clipboard). The shell
+  typing on the bare desktop open the launcher's search on its own: the field and its results on one
+  frosted glass plate at the top of the screen, over whatever is there (Alt+Shift+F2 searches the clipboard). The shell
   holds KRunner's place on the bus and KRunner's own daemon is masked (`rice.py install`).
 - **Power** (the power island, or the launcher's power button): a ripple of blur spreads over every screen
   and the session's actions come up big on yours.
@@ -120,8 +121,9 @@ Hover it for a hello, stroke it back and forth, click it for one of its acts; a 
 Code in a terminal. Every Clawd on every screen does the same thing at the same moment.
 
 On the bar there is one Clawd at a time, in one of three places: standing on the Claude island's roof,
-bigger, when nothing covers the space above it; back inside the island when a window does; in the popup
-while it's open. Between them it jumps.
+bigger and over the middle of its rings, when nothing covers the space above it (his seat in the island
+closes meanwhile); back inside the island when a window does; in the popup while it's open. Between them
+it jumps.
 
 Each one is a single canvas, repainted only when its picture changes, and it holds still behind a
 fullscreen window (`qml/Rice/Clawd.qml`; the art is in `ClawdArt.js`, the acts and hobbies in
