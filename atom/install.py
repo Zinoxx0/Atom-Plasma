@@ -19,7 +19,7 @@ import importlib.util
 import shutil
 import subprocess
 
-from . import caps, kde, util
+from . import caps, kde, kwin, util
 from .util import HOME, ROOT
 
 APPS = HOME / ".local/share/applications"
@@ -129,8 +129,8 @@ def install(dry=False):
         p.link(HOME / ".local/share/plasma/plasmoids" / d.name, d)
     for d in sorted(x for x in (ROOT / "lnf").iterdir() if x.is_dir()):
         p.link(HOME / ".local/share/plasma/look-and-feel" / d.name, d)
-    for d in sorted(x for x in (ROOT / "kwin").iterdir() if x.is_dir()):
-        p.link(HOME / ".local/share/kwin/effects" / d.name, d)
+    for src, link in kwin.packages():         # effects and scripts, each where KWin looks for it
+        p.link(link, src)
     for f in sorted((ROOT / "systemd").glob("*.service")) + sorted((ROOT / "systemd").glob("*.timer")):
         p.link(UNITS / f.name, f)
     p.write(DROPIN, DROPIN_TEXT, ours_marker="Atom Plasma")

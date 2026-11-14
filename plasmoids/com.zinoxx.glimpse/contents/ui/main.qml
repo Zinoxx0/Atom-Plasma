@@ -306,6 +306,21 @@ PlasmoidItem {
         l.splice(i, 1)
         cfg.launchers = l
     }
+    // every screen's bar is the same set of islands (kwin/rice_islands): a pin added, moved or removed on
+    // one bar is on all of them (Atom Shell.pins carries the last list one of them changed to)
+    function samePins(a, b) { return !!a && !!b && JSON.stringify(Array.from(a)) === JSON.stringify(Array.from(b)) }
+    Connections {
+        target: root.cfg
+        function onValueChanged(key, value) {
+            if (key === "launchers" && !root.samePins(Shell.pins, root.cfg.launchers)) Shell.pins = Array.from(root.cfg.launchers)
+        }
+    }
+    Connections {
+        target: Shell
+        function onPinsChanged() {
+            if (Shell.pins && !root.samePins(Shell.pins, root.cfg.launchers)) root.cfg.launchers = Shell.pins.slice()
+        }
+    }
 
     // ------------------------------------------------------------------ live state
     property var running: ({})          // app key -> { count, active, attention }

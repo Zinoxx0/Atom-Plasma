@@ -2,9 +2,9 @@
 on every re-theme (widget_settings, island_overrides, colorizer_apply), and the one-time rebuild of the
 bars themselves (main(), `panel/build.py`).
 
-Main panel (screen 0), left to right:
+Every screen's bar, left to right (the same islands everywhere: they show on ONE screen at a time, the
+pointer's unless a fullscreen window covers it; kwin/rice_islands fades the bars in and out):
   [launcher]  [tasks] ........ [Claude] [system rings] [status] [tiling] [clock] [power]
-Other screens: [launcher] [tasks] ........ [tiling] [clock] [show desktop]
 [tiling] is com.zinoxx.tiling (auto-tiling on/off for that screen).
 [launcher] is com.zinoxx.launcher (replaces Kickoff); [tasks] is Glimpse (com.zinoxx.glimpse):
 pinned apps here, open windows in its top strip.
@@ -327,23 +327,17 @@ def _pos(bar, wid):
     return order.index(wid) if wid in order else len(order)
 
 
-def order_for(ids, main, others=()):
-    """A bar's AppletOrder: its template's widgets in place; widgets the template doesn't know (added by the
-    user, e.g. the Claude widget on a secondary bar) each get an island right after the stretch."""
+def order_for(ids, others=()):
+    """A bar's AppletOrder: the template's widgets in place; widgets the template doesn't know (added by the
+    user) each get an island right after the stretch."""
     s = list(ids["small"])
     k = lambda name: ids.get(name)
-    if main:
-        seq = [k(LAUNCHER), s[0],
-               k(TASKS), ids["expanding"],
-               k("com.zinoxx.claudeusage"), s[1], k("com.zinoxx.sysstats"), s[2],
-               k(STATUS), s[3], k(TILING), s[4], k(CLOCK), s[5],
-               k("com.zinoxx.session"), k(SHELL), k(COLORIZER)]
-        extra = s[6:]
-    else:
-        seq = [k(LAUNCHER), s[0], k(TASKS), ids["expanding"],
-               k(TILING), s[1], k(CLOCK), s[2], k("org.kde.plasma.showdesktop"), k(SHELL),
-               k(COLORIZER)]
-        extra = s[3:]
+    seq = [k(LAUNCHER), s[0],
+           k(TASKS), ids["expanding"],
+           k("com.zinoxx.claudeusage"), s[1], k("com.zinoxx.sysstats"), s[2],
+           k(STATUS), s[3], k(TILING), s[4], k(CLOCK), s[5],
+           k("com.zinoxx.session"), k(SHELL), k(COLORIZER)]
+    extra = s[6:]
     # a widget that isn't there (its feature is off) leaves its spacer spare
     keep = []
     for i, w in enumerate(seq):
@@ -382,28 +376,22 @@ def configure():
 
 # a new bar's widgets in order ("|" = a small spacer, "~" = the expanding one): added in this order, a new
 # panel needs no reordering (an existing one does: AppletOrder, with plasmashell stopped, main())
-TEMPLATES = {
-    "main": [LAUNCHER, "|", TASKS, "~", "com.zinoxx.claudeusage", "|", "com.zinoxx.sysstats", "|",
-             STATUS, "|", TILING, "|", CLOCK, "|", "com.zinoxx.session",
-             SHELL, COLORIZER],
-    "secondary": [LAUNCHER, "|", TASKS, "~", TILING, "|", CLOCK, "|",
-                  "org.kde.plasma.showdesktop", SHELL, COLORIZER],
-}
+# Every screen's bar holds the same islands: they show on one screen at a time (kwin/rice_islands).
+TEMPLATE = [LAUNCHER, "|", TASKS, "~", "com.zinoxx.claudeusage", "|", "com.zinoxx.sysstats", "|",
+            STATUS, "|", TILING, "|", CLOCK, "|", "com.zinoxx.session", SHELL, COLORIZER]
 BAR_PX = 49        # a bar's thickness at UI size 1 (logical px): 56 on the desk monitors at today's size
 
 
 
 def ensure_bars(ss, cfg):
-    """One rice bar on every screen: a screen without a panel gets one from its template (the main bar on
-    Plasma screen 0), and every bar's thickness follows its screen's UI size. Returns the new panels' ids."""
+    """One rice bar on every screen: a screen without a panel gets one from TEMPLATE, and every bar's
+    thickness follows its screen's UI size. Returns the new panels' ids."""
     from . import caps
     off = {w for f, w in (("claude", "com.zinoxx.claudeusage"), ("tiling", TILING)) if not caps.feature(f, cfg)}
 
-    def template(name):     # without the widgets of features that are off (and the spacer after each)
-        t = TEMPLATES[name]
-        return [w for i, w in enumerate(t) if w not in off and not (w == "|" and i and t[i - 1] in off)]
-    want = [{"screen": s["screen"], "height": round(BAR_PX * s["ui"]),
-             "widgets": template("main" if s["screen"] == 0 else "secondary")} for s in ss]
+    t = TEMPLATE            # without the widgets of features that are off (and the spacer after each)
+    widgets = [w for i, w in enumerate(t) if w not in off and not (w == "|" and i and t[i - 1] in off)]
+    want = [{"screen": s["screen"], "height": round(BAR_PX * s["ui"]), "widgets": widgets} for s in ss]
     made = json.loads(shell(util.script("bars-new", want=want, spacer=SPACER)) or "[]")
     if made:
         configure()         # the new bars' widget settings (Colorizer, clock), as for the rest
@@ -427,7 +415,7 @@ def main():
     for pid, panel_ids in ids.items():
         screen = subprocess.run(["kreadconfig6", "--file", rc, "--group", "Containments", "--group", pid,
                                  "--key", "lastScreen"], capture_output=True, text=True).stdout.strip()
-        order = ";".join(str(i) for i in order_for(panel_ids, screen == "0", others.get(pid, ())))
+        order = ";".join(str(i) for i in order_for(panel_ids, others.get(pid, ())))
         subprocess.run(["kwriteconfig6", "--file", rc, "--group", "Containments", "--group", pid,
                         "--group", "General", "--key", "AppletOrder", order], check=True)
         print(pid, "->", order)

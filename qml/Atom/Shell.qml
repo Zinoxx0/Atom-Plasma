@@ -1,5 +1,6 @@
 pragma Singleton
 import QtQuick
+import Atom.Native
 
 // The rice shell's switchboard: which panel is open, on which screen, and the island it grew from.
 // Bar widgets (islands) ask for panels; each screen's host (com.zinoxx.shell) draws them on its sheet.
@@ -33,6 +34,16 @@ QtObject {
     property var args: ({})
     readonly property bool busy: kind !== ""
     property bool debug: false              // tests: log every transition (console.warn "ATOM")
+
+    // The bar's islands live on ONE screen at a time; KWin's rice_islands script picks it and fades the bars
+    // (kwin/rice_islands), and says so over D-Bus (Atom.Native Bus, topic "bar"): `screen` holds the islands
+    // ("" = none, every screen fullscreen), `covered` lists the screens a fullscreen window covers, `pointer`
+    // is the pointer's screen. null until KWin has spoken (a bar then counts as shown, as before).
+    readonly property var bar: Bus.state.bar ?? null
+    function barShown(screenName) { return !bar || bar.screen === screenName }
+    onBarChanged: if (debug) console.warn("ATOM bar", JSON.stringify(bar))
+    // one set of pins on every bar (Glimpse): the last list a bar changed to, the others follow
+    property var pins: null
     function logIsland(key, r) {
         const parts = key.split("/")
         console.warn("ATOM island", parts[1], "at", Math.round(r.x + r.width / 2), Math.round(r.y + r.height / 2), "on", parts[0])

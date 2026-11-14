@@ -47,7 +47,8 @@ PlasmoidItem {
     property real uptime: 0
     onPanelOpenChanged: if (panelOpen) sh.connectSource('cut -d" " -f1 /proc/uptime #up')
 
-    readonly property int rate: panelOpen ? 1000 : 2500
+    // a bar whose islands are on another screen (kwin/rice_islands) samples slowly: its graph stays filled
+    readonly property int rate: panelOpen ? 1000 : Shell.barShown(myScreenName) ? 2500 : 10000
     Sensors.Sensor { id: cpu;     sensorId: "cpu/all/usage";               updateRateLimit: root.rate }
     Sensors.Sensor { id: cpuTemp; sensorId: "cpu/all/averageTemperature";  updateRateLimit: root.rate }
     Sensors.Sensor { id: mem;     sensorId: "memory/physical/usedPercent"; updateRateLimit: root.rate }

@@ -12,9 +12,31 @@ KWIN_EFFECTS = {   # effect id -> on; rice_* live in plasma-rice/kwin (setup_chr
     # colours each window's border from its own screen's palette, under its own id
     "kwin4_effect_shapecorners": False, "kwin4_effect_shapecorners_rice": True,
 }
+# KWin scripts of the rice (plasma-rice/kwin, by id) -> on. rice_islands: the bar's islands on one screen at a time
+KWIN_SCRIPTS = {"rice_islands": True}
 CORNERS = "kwin4_effect_shapecorners_rice"
 BLUR_CLASSES = ["zen", "dolphin", "Alacritty"]   # force-blurred: these don't ask for blur KWin 6.7 understands
 FX = "org.kde.kwin.Effects"
+
+
+def packages():
+    """The rice's KWin packages (plasma-rice/kwin/*) and where KWin looks for each: effects or scripts, by
+    the package's own KPackageStructure."""
+    out = []
+    for src in sorted(x for x in (ROOT / "kwin").iterdir() if x.is_dir()):
+        kind = (util.load_json(src / "metadata.json") or {}).get("KPackageStructure", "KWin/Effect")
+        out.append((src, HOME / ".local/share/kwin" / ("scripts" if kind == "KWin/Script" else "effects") / src.name))
+    return out
+
+
+def start_scripts():
+    """The rice's KWin scripts switched on (or off) in kwinrc, then loaded: KWin's Scripting.start loads the
+    enabled scripts that aren't running yet; one switched off is unloaded by name."""
+    kde.kde_set("kwinrc", {"Plugins": {f"{s}Enabled": on for s, on in KWIN_SCRIPTS.items()}})
+    util.run("qdbus6", "org.kde.KWin", "/Scripting", "org.kde.kwin.Scripting.start")
+    for s, on in KWIN_SCRIPTS.items():
+        if not on:
+            util.run("qdbus6", "org.kde.KWin", "/Scripting", "org.kde.kwin.Scripting.unloadScript", s)
 
 
 def effects(method, *args):
@@ -63,13 +85,12 @@ def setup_chrome():
         effects("reconfigureEffect", "better_blur_dx")
     if deco:    # decorations only re-read their settings on a KWin reconfigure (scripts stay as they are)
         util.run("qdbus6", "org.kde.KWin", "/KWin", "org.kde.KWin.reconfigure")
-    installed = HOME / ".local/share/kwin/effects"
-    for src in (ROOT / "kwin").iterdir():
-        link = installed / src.name
+    for src, link in packages():
         if link.is_symlink() or link.exists():
             continue
-        installed.mkdir(parents=True, exist_ok=True)
+        link.parent.mkdir(parents=True, exist_ok=True)
         link.symlink_to(src)
+    start_scripts()
     loaded = set(effects("loadedEffects").stdout.split())
     for e, on in KWIN_EFFECTS.items():
         if on != (e in loaded):

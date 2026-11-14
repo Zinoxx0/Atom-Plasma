@@ -1,11 +1,15 @@
 #include "bus.h"
 
+#include <QDBusConnection>
 #include <QJSEngine>
+#include <QJsonDocument>
 #include <QQmlEngine>
 
 Bus::Bus(QObject *parent)
     : QObject(parent)
 {
+    // a second process importing Atom.Native has its own connection: the path never clashes
+    QDBusConnection::sessionBus().registerObject(QStringLiteral("/Atom"), this, QDBusConnection::ExportScriptableSlots);
 }
 
 Bus *Bus::instance()
@@ -33,4 +37,11 @@ void Bus::set(const QString &key, const QVariant &value)
     }
     m_state.insert(key, value);
     Q_EMIT stateChanged();
+}
+
+void Bus::Post(const QString &topic, const QString &json)
+{
+    const QVariant data = QJsonDocument::fromJson(json.toUtf8()).toVariant();
+    set(topic, data);
+    send(topic, data);
 }

@@ -67,8 +67,9 @@ PlasmoidItem {
     // what the bar's Clawd is up to off duty (every Clawd works it out the same way from the clock)
     property string barHobby: ""            // "Knitting a scarf."
     property bool barIdle: false
-    // behind a fullscreen window nobody sees the bar: its Clawd holds still (no timers, no redraws)
-    readonly property bool covered: Windows.isFullscreen(myScreenName)
+    // behind a fullscreen window, or on a bar whose islands are on another screen (kwin/rice_islands),
+    // nobody sees it: its Clawd holds still (no timers, no redraws)
+    readonly property bool covered: Windows.isFullscreen(myScreenName) || !Shell.barShown(myScreenName)
     // rain or snow outside, from the desk's weather (weather.py caches it): an umbrella, a scarf
     WatchedJson { id: weatherFile; path: sh.home + "/.cache/rice/weather.json" }
     readonly property string sky: {

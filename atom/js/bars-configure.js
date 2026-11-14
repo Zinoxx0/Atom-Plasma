@@ -1,5 +1,18 @@
+// Every bar gets the same islands (atom/panel.py TEMPLATE): they show on one screen at a time (KWin's
+// rice_islands), so each bar is the whole set, pins included (the main bar's, copied to the others; Glimpse
+// keeps them in step from then on).
 var SETTINGS = ARGS.settings;
 var out = {};
+var mainPins = null;
+panels().forEach(function (p) {
+    if (p.screen !== 0) return;
+    p.widgets(ARGS.tasks).forEach(function (w) {
+        w.currentConfigGroup = ["General"];
+        var l = w.readConfig("launchers");
+        if (typeof l === "string") l = l ? l.split(",") : [];
+        if (mainPins === null && l && l.length) mainPins = l;
+    });
+});
 function add(p, plugin, cfg) {
     var w = p.addWidget(plugin);
     for (var group in (cfg || {})) {
@@ -36,21 +49,24 @@ panels().forEach(function (p) {
         pins = legacy.readConfig("launchers") || [];
         if (typeof pins === "string") pins = pins ? pins.split(",") : [];
     }
-    one(ARGS.tasks, {"General": {"launchers": pins}});
+    var tasks = one(ARGS.tasks, {"General": {"launchers": pins}});
+    if (!main && mainPins) {
+        tasks.currentConfigGroup = ["General"];
+        tasks.writeConfig("launchers", mainPins);
+    }
     // the wallpaper picker lives inside the launcher now (Meta+Shift+W, the wheel over the emblem)
     old = old.concat(have["com.zinoxx.wallpicker"] || []);
     old.forEach(function (w) { w.remove(); });
     if (ARGS.with_tiling) one(ARGS.tiling);
-    if (main) {
-        var st = one(ARGS.status);
-        // Meta+V: the clipboard's history (plasmashell's own binding is released first, atom/panel.py)
-        if (!st.globalShortcut) st.globalShortcut = "Meta+V";
-        if (ARGS.with_claude) one("com.zinoxx.claudeusage");
-        one("com.zinoxx.sysstats");
-        one("com.zinoxx.session");
-    } else {
-        one("org.kde.plasma.showdesktop");
-    }
+    var st = one(ARGS.status);
+    // Meta+V: the clipboard's history (plasmashell's own binding is released first, atom/panel.py); a global
+    // shortcut belongs to one widget: the main bar's
+    if (main && !st.globalShortcut) st.globalShortcut = "Meta+V";
+    if (ARGS.with_claude) one("com.zinoxx.claudeusage");
+    one("com.zinoxx.sysstats");
+    one("com.zinoxx.session");
+    // the old secondary bars' show-desktop button isn't one of the islands
+    (have["org.kde.plasma.showdesktop"] || []).forEach(function (w) { w.remove(); });
     one(ARGS.shell);            // the panels' host (no width on the bar)
     var pc = one(ARGS.colorizer);
     var settings = JSON.parse(JSON.stringify(SETTINGS));
@@ -69,7 +85,7 @@ panels().forEach(function (p) {
     expanding.currentConfigGroup = ["General"];
     expanding.writeConfig("expanding", true);
     var small = spacers.slice(1).map(function (w) { return w.id; });
-    var need = main ? 7 : 3;
+    var need = 7;
     while (small.length < need) small.push(spacer(p).id);
     ids.expanding = expanding.id;
     ids.small = small;
