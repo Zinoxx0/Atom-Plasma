@@ -1,10 +1,12 @@
 import QtQuick
+import Atom
 import "Rice"
 
 // Atom Home's Theme page: what `rice.py page` says (the collection, the screens, the saved themes, the moods,
 // the size settings) and `rgb.py status` (the keyboards), as rows of items, and the actions that change them
 // (the same commands the Theme panels run: rice.py <image> / preset load / theme set / ui set, rgb.py set).
-// Applying re-themes the desktop, and the launcher with it: its palette follows.
+// Applying re-themes the desktop, and the launcher with it: its palette follows. Under the nested tests
+// (Shell.debug) nothing is run: "ATOM theme run <args>" says what would have been.
 // Items: { kind: look | save | wall | colours-auto | mood | accent | size | light, key, name, ... }
 Item {
     id: tm
@@ -47,6 +49,7 @@ Item {
     function riceCmd(args) { return ["python3", sh.home + "/.config/plasma-rice/rice.py"].concat(args) }
     function run(key, argv) {
         if (busy) return
+        if (Shell.debug) { console.warn("ATOM theme run", argv.slice(1).join(" ")); return }   // the nested tests: never for real
         busy = key
         status = ""
         sh.exec("tapply", argv)

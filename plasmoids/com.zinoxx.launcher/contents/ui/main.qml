@@ -325,6 +325,18 @@ PlasmoidItem {
             c4: C.mix(pal.teal, "#ffffff", 0.15)
             glow: "#ffffff"
         }
+        // under the pointer it speaks the launcher's focus language: the white ring its tiles wear (the
+        // island's own glow brightens with it: panel launcher_style "hovered"). The island's glass is this
+        // item's rect (Colorizer moves the applet by its margins), so the ring sits on its outline.
+        Rectangle {
+            anchors.fill: parent
+            radius: Tokens.radius.md
+            color: "transparent"
+            border.width: Math.max(2, Math.round(2.5 * root.s))
+            border.color: C.alpha(pal.light ? pal.fg : "#ffffff", 0.95)
+            opacity: compact.containsMouse && !root.shown ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: Tokens.ms(compact.containsMouse ? 240 : 380); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
+        }
     }
 
     // never shown (activation and clicks open the stage), but a panel applet draws nothing without one
