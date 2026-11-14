@@ -86,6 +86,7 @@ step "to the right";       \$F move 2400 450 wait 400 move 2410 460 wait 1800
 step "type there";         \$F type "fox" wait 1200; shot s-moved-right
 step "back to the left";   \$F move 800 450 wait 400 move 810 460 wait 1800; shot s-moved-left
 step "esc clears";         \$F key 1 wait 600
+step "esc leaves search";  \$F key 1 wait 600
 step "esc closes";         \$F key 1 wait 1200; shot s-closed
 step "type z (A?)";        \$F type "z" wait 300
 step "jewel again";        \$F move \$J0 click wait 2200
