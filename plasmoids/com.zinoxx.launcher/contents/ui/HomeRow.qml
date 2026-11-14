@@ -1,4 +1,5 @@
 import QtQuick
+import org.kde.plasma.core as PlasmaCore
 import Atom
 import "Rice"
 import "Rice/Color.js" as C
@@ -9,21 +10,29 @@ import "Rice/Color.js" as C
 // row's ends (the last tile stops at the right margin). The keyboard moves the strip (settle(true)); the
 // pointer focuses where it is, so nothing slides out from under it; dragging, or a sideways wheel / touchpad
 // (the stage hands it over: slide(ev)), moves the strip by hand. A divider can part the row (pins | recents).
-// Depth: the focused row is the near one; the others sit behind it, smaller and see-through.
+// Depth: the focused row is the near one; the others sit behind it, their tiles a little smaller and every
+// part of them see-through (the title keeps its size: the rows keep one rhythm whichever is near).
 // Tiles that slide past the left margin fade out there: nothing runs off the left edge of the screen.
+// A row can carry its own settings (the Theme page's: Shuffle, Intensity, Brightness...): they sit in its
+// header, after the title, always in sight; `toolFocus` rings the one the keys are on.
 Item {
     id: hr
     required property var row               // HomeModel's: { id, title, shape, items, divider, labeled, count }
     required property RicePalette rice
     property int current: 0
     property bool active: false
+    property bool tilesFocused: true        // the keys are on its tiles (not on its header's tools)
     property real unit: 1
     property real side: 76
     property int anchor: 1
     property int focusMs: Tokens.ms(380)
     property real titleO: 1                 // the stage's entrance
+    readonly property var tools: row.tools || []
+    property int toolFocus: -1              // the header tool the keys are on (-1: none)
+    signal toolActivated(string id)
     signal activated(int i, Item tile)
-    signal pointed(int i)
+    signal pointed(int i, point at)         // the pointer is over tile i (at: where, in the window)
+    signal pointerOut(int i)
     signal menu(int i, Item tile)
     function u(n) { return Math.round(n * unit) }
 
@@ -34,14 +43,14 @@ Item {
                                    : row.shape === "look" ? Qt.size(Math.round(base * 2.05), Math.round(base * 1.2))
                                    : row.labeled ? Qt.size(Math.round(base * 0.86), Math.round(base * 0.86))
                                    : Qt.size(base, base)
-    readonly property real pad: u(16)
-    readonly property real gap: u(18)
-    readonly property real gapDivider: u(30)
-    readonly property real titleH: row.title ? u(26) : 0
-    readonly property real labelH: row.labeled ? u(30) : 0
+    readonly property real pad: u(22)       // clear of the focused tile's lift and ring
+    readonly property real gap: u(24)
+    readonly property real gapDivider: u(40)
+    readonly property real titleH: row.title ? u(34) : 0
+    readonly property real labelH: row.labeled ? u(42) : 0
     readonly property int count: row.items ? row.items.length : 0
     readonly property bool moving: strip.moving || glide.running   // dragged, flicked or gliding
-    implicitHeight: titleH + pad + tileSize.height + pad + labelH + u(20)
+    implicitHeight: titleH + pad + tileSize.height + pad + labelH + u(16)
 
     // where tile i starts on the strip (no tile has to exist for this: they all have the row's size)
     function slotX(i) { return i * (tileSize.width + gap) + (row.divider >= 0 && i >= row.divider ? gapDivider : 0) }
@@ -56,38 +65,68 @@ Item {
         id: body
         anchors.fill: parent
         opacity: 1 - 0.55 * hr.depth
-        transform: Scale { origin.x: hr.side; origin.y: hr.height / 2; xScale: 1 - 0.1 * hr.depth; yScale: xScale }
         // faded as one picture (a tile's shadow doesn't show through it)
         layer.enabled: hr.depth > 0.01
 
-        Text {
+        Row {
+            id: header
             x: hr.side
             height: hr.titleH
-            visible: !!hr.row.title
+            spacing: hr.u(18)
             opacity: hr.titleO
-            verticalAlignment: Text.AlignVCenter
-            text: hr.row.title + (hr.row.count ? "   " : "")
-            color: hr.active ? hr.rice.fg : hr.rice.fgDim
-            font.family: Tokens.font.ui
-            font.weight: Font.DemiBold
-            font.pixelSize: hr.u(18.5)
-            Behavior on color { ColorAnimation { duration: Tokens.base } }
             Text {
-                anchors.left: parent.right
-                anchors.baseline: parent.baseline
-                visible: hr.row.count
-                text: hr.count
-                color: hr.rice.muted
+                id: titleText
+                height: hr.titleH
+                visible: !!hr.row.title
+                verticalAlignment: Text.AlignVCenter
+                text: hr.row.title
+                color: hr.active ? hr.rice.fg : hr.rice.fgDim
                 font.family: Tokens.font.ui
                 font.weight: Font.DemiBold
-                font.pixelSize: hr.u(13.5)
+                font.pixelSize: hr.u(20)
+                Behavior on color { ColorAnimation { duration: Tokens.base } }
+                rightPadding: hr.row.count ? countText.implicitWidth + hr.u(10) : 0
+                Text {
+                    id: countText
+                    anchors.right: parent.right
+                    anchors.baseline: parent.baseline
+                    visible: !!hr.row.count
+                    text: hr.count
+                    color: hr.rice.muted
+                    font.family: Tokens.font.ui
+                    font.weight: Font.DemiBold
+                    font.pixelSize: hr.u(14.5)
+                }
+            }
+            Rectangle {     // title | tools
+                visible: hr.tools.length > 0
+                anchors.verticalCenter: parent.verticalCenter
+                width: 1; height: hr.u(18)
+                color: C.alpha(hr.rice.fg, 0.16)
+            }
+            Row {
+                spacing: hr.u(8)
+                anchors.verticalCenter: parent.verticalCenter
+                Repeater {
+                    id: toolRep
+                    model: hr.tools.length
+                    delegate: Tool {
+                        required property int index
+                        tool: hr.tools[index] || ({})
+                        focused: hr.toolFocus === index
+                        rice: hr.rice
+                        unit: hr.unit
+                        onActivate: id => hr.toolActivated(id)
+                    }
+                }
             }
         }
-
 
         ListView {
             id: strip
             y: hr.titleH + hr.pad
+            // behind: the tiles a little smaller, from the row's top left (they stay under their title)
+            transform: Scale { origin.x: hr.side; origin.y: 0; xScale: 1 - 0.08 * hr.depth; yScale: xScale }
             width: hr.width
             height: hr.tileSize.height + hr.labelH
             orientation: ListView.Horizontal
@@ -142,9 +181,10 @@ Item {
                     unit: hr.unit
                     labeled: hr.row.labeled
                     current: slot.index === hr.current
-                    rowActive: hr.active
+                    rowActive: hr.active && hr.tilesFocused
                     focusMs: hr.focusMs
-                    onPointed: hr.pointed(slot.index)
+                    onPointed: at => hr.pointed(slot.index, at)
+                    onPointerOut: hr.pointerOut(slot.index)
                     onActivated: hr.activated(slot.index, t)
                     onMenu: hr.menu(slot.index, t)
                 }
@@ -154,6 +194,86 @@ Item {
     }
 
     function tileAt(i) { const s = strip.itemAtIndex(i); return s ? s.tile : null }
+    function toolAt(i) { return toolRep.itemAt(i) }
+
+    // a header tool: a glass pill (icon and label), a round − / +, a toggle with its state, or a value
+    component Tool: Rectangle {
+        id: tl
+        property var tool: ({})
+        property bool focused: false
+        property RicePalette rice: null     // (an inline component sees no ids of its file: all passed in)
+        property real unit: 1
+        function u(n) { return Math.round(n * unit) }
+        signal activate(string id)
+        readonly property string kind: tool.kind || "button"
+        readonly property bool round: kind === "minus" || kind === "plus"
+        readonly property bool hot: tma.containsMouse
+        height: tl.u(34)
+        width: round ? height : tlRow.implicitWidth + (kind === "value" ? tl.u(4) : tl.u(30))
+        radius: height / 2
+        color: kind === "value" ? "transparent" : C.alpha(tl.rice.fg, (focused ? 0.16 : hot ? 0.13 : 0.07) + (kind === "toggle" && tool.on ? 0.05 : 0))
+        border.width: kind === "value" ? 0 : 1
+        border.color: C.alpha(tl.rice.edge, focused ? 0.22 : 0.12)
+        scale: tma.pressed ? 0.95 : 1
+        Behavior on scale { NumberAnimation { duration: Tokens.fast } }
+        Behavior on color { ColorAnimation { duration: Tokens.fast } }
+        Row {
+            id: tlRow
+            anchors.centerIn: parent
+            spacing: tl.u(7)
+            Rectangle {     // a toggle's state
+                visible: tl.kind === "toggle"
+                anchors.verticalCenter: parent.verticalCenter
+                width: tl.u(8); height: width; radius: width / 2
+                color: tl.tool.on ? tl.rice.primary : "transparent"
+                border.width: tl.tool.on ? 0 : 1
+                border.color: C.alpha(tl.rice.fg, 0.4)
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: tl.tool.icon || ""
+                color: tl.focused || tl.hot || tl.kind === "value" ? tl.rice.fg : tl.rice.fgDim
+                font.family: Tokens.font.icons
+                font.pixelSize: tl.u(19)
+            }
+            Text {
+                visible: !tl.round && !!tl.tool.label
+                anchors.verticalCenter: parent.verticalCenter
+                text: tl.tool.label || ""
+                color: tl.focused || tl.hot || tl.kind === "value" ? tl.rice.fg : tl.rice.fgDim
+                font.family: Tokens.font.ui
+                font.weight: Font.DemiBold
+                font.pixelSize: tl.u(14.5)
+                font.features: { "tnum": 1 }
+            }
+        }
+        Rectangle {     // the keys' ring: the tiles' language (outside, with a gap)
+            readonly property real g: Math.max(2, tl.u(3))
+            readonly property real w: Math.max(2, tl.u(2))
+            anchors.fill: parent
+            anchors.margins: -(g + w)
+            radius: height / 2
+            color: "transparent"
+            border.width: w
+            border.color: tl.rice.light ? tl.rice.fg : "#ffffff"
+            opacity: tl.focused ? 1 : 0
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: Tokens.fast } }
+        }
+        PlasmaCore.ToolTipArea {        // (around the MouseArea: under it, it would take the clicks)
+            anchors.fill: parent
+            active: !!tl.tool.tip
+            mainText: tl.tool.tip || ""
+            MouseArea {
+                id: tma
+                anchors.fill: parent
+                enabled: tl.kind !== "value"
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: tl.activate(tl.tool.id)
+            }
+        }
+    }
     // the strip's place for the focus: the focused tile at the anchor, the row's ends kept
     function settle(animate) {
         if (count === 0) return

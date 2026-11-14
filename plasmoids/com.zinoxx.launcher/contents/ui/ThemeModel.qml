@@ -8,6 +8,10 @@ import "Rice"
 // Applying re-themes the desktop, and the launcher with it: its palette follows. Under the nested tests
 // (Shell.debug) nothing is run: "ATOM theme run <args>" says what would have been.
 // Items: { kind: look | save | wall | colours-auto | mood | accent | size | light, key, name, ... }
+// Each row also carries its own settings, shown in its header (nothing hides behind a settings button):
+// tools: [{ id, kind: button | toggle | minus | plus | value, icon, label, tip, on }] (tool(id) does them).
+// Live edits (an accent's colour, the intensity, the keyboards' brightness) queue: one command runs at a time
+// and only the latest value waits behind it.
 Item {
     id: tm
     visible: false
@@ -23,6 +27,8 @@ Item {
     property int rev: 0
     property string pageRaw: ""
     property string lightsRaw: ""
+    property var live: null                 // the live edit waiting behind a running one: { key, argv }
+    property var draft: ({})                // values shown while they're on their way: { "accent:primary": "#hex", intensity, brightness }
 
     readonly property var screens: page ? page.screens : []
     readonly property var targets: target === "all" ? screens : screens.filter(s => s.name === target)
@@ -40,7 +46,8 @@ Item {
                 const code = data["exit code"] ?? 0
                 tm.status = code !== 0 ? String(data["stderr"] ?? "").trim().split("\n").pop() : ""
                 tm.busy = ""
-                tm.reload()
+                if (tm.live) { const l = tm.live; tm.live = null; tm.run(l.key, l.argv) }
+                else tm.reload()
             }
             disconnectSource(source)
         }
@@ -51,7 +58,7 @@ Item {
     }
     function riceCmd(args) { return ["python3", sh.home + "/.config/plasma-rice/rice.py"].concat(args) }
     function run(key, argv) {
-        if (busy) return
+        if (busy) { if (key.startsWith("live:")) live = { key: key, argv: argv }; return }
         if (Shell.debug) { console.warn("ATOM theme run", argv.slice(1).join(" ")); return }   // the nested tests: never for real
         busy = key
         status = ""
@@ -68,6 +75,55 @@ Item {
         else if (it.kind === "light") run(it.key, ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", "all"].concat(it.args))
     }
 
+    // ------------------------------------------------------------------ live edits and the rows' tools
+    function setDraft(k, v) { const d = Object.assign({}, draft); d[k] = v; draft = d; build() }
+    function setAccent(role, hex) {
+        setDraft("accent:" + role, hex)
+        run("live:accent", riceCmd(["theme", "set", "--screen", target, "--" + role, hex]))
+    }
+    function resetAccent(role) {
+        setDraft("accent:" + role, undefined)
+        run("live:accent", riceCmd(["theme", "set", "--screen", target, "--" + role, "auto"]))
+    }
+    readonly property real intensity: { const d = draft.intensity; if (d !== undefined) return d; const ov = here().overrides || {}; return ov.intensity !== undefined && ov.intensity !== "auto" ? Number(ov.intensity) : 1 }
+    readonly property var lightDevs: tm.lights && tm.lights.devices ? tm.lights.devices.filter(d => d.ready) : []
+    readonly property int brightness: draft.brightness !== undefined ? draft.brightness : lightDevs.length ? (lightDevs[0].settings || {}).brightness ?? 0 : 0
+    function here() { return screens.find(s => s.name === screenName) || screens.find(s => s.main) || screens[0] || {} }
+    // presets: names up to 10 characters (rice.py trims them the same way)
+    function savePreset(name) { const n = String(name || "").trim().slice(0, 10); if (n) run("save", riceCmd(["preset", "save", n])) }
+    function deletePreset(name) { run("delete:" + name, riceCmd(["preset", "delete", name])) }
+    function suggestName() {
+        const used = (page ? page.presets : []).map(p => p.name)
+        const base = Qt.formatDate(new Date(), "MMM d").toLowerCase()
+        let n = base, i = 2
+        while (used.indexOf(n) >= 0) n = base + " " + i++
+        return n.slice(0, 10)
+    }
+    // what a tool in a row's header does
+    signal openFinder()                     // "Find more online": the wallhaven search (the old detailed panel)
+    function tool(id) {
+        if (id === "walls:random") run(id, riceCmd(["random", "--screen", target]))
+        else if (id === "walls:folder") { if (page && page.dir) Qt.openUrlExternally("file://" + page.dir) }
+        else if (id === "walls:discover") openFinder()
+        else if (id === "intensity-" || id === "intensity+") {
+            const v = Math.round(Math.max(0.3, Math.min(1.5, intensity + (id === "intensity+" ? 0.1 : -0.1))) * 10) / 10
+            setDraft("intensity", v)
+            run("live:intensity", riceCmd(["theme", "set", "--screen", target, "--intensity", String(v)]))
+        } else if (id === "bright-" || id === "bright+") {
+            const v = Math.max(0, Math.min(100, Math.round(brightness / 10) * 10 + (id === "bright+" ? 10 : -10)))
+            setDraft("brightness", v)
+            run("live:bright", ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", "all", "--brightness", String(v)])
+        } else if (id.startsWith("power:")) {
+            const dev = lightDevs.find(d => d.id === id.slice(6))
+            if (!dev) return
+            const on = !((draft["on:" + dev.id] ?? (dev.settings || {}).on) !== false)
+            setDraft("on:" + dev.id, on)
+            run("live:power", ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", dev.id, "--on", String(on)])
+        }
+    }
+    // a fresh answer from rice.py / rgb.py replaces what was shown while on its way
+    onPageRawChanged: if (!busy && !live) draft = ({})
+
     // ------------------------------------------------------------------ the rows
     function fileName(p) { return p ? String(p).split("/").pop() : "" }
     function build() {
@@ -83,8 +139,8 @@ Item {
             meta: [(p.layout || []).length + " screens", p.current ? "On screen now" : ""].filter(Boolean),
             desc: "Every screen's wallpaper and hand-picked colours, together. Screens it doesn't know mirror the main one.",
         }))
-        looks.push({ kind: "save", key: "save", name: "Save this look", meta: [], desc: "Keep every screen's wallpaper and colours under a short name, to come back to in one step (Fine-tune names it)." })
-        out.push({ id: "looks", title: "Themes", shape: "look", items: looks, divider: -1, labeled: false, count: true })
+        looks.push({ kind: "save", key: "save", name: "Save this look", meta: [], desc: "Keep every screen's wallpaper and colours under a short name, to come back to in one step." })
+        out.push({ id: "looks", title: "Themes", shape: "look", items: looks, divider: -1, labeled: false, count: true, tools: [] })
         // the collection
         const on = name => screens.filter(s => fileName(s.image) === name).map(s => s.label)
         const walls = page.walls.map((w, i) => ({
@@ -92,7 +148,11 @@ Item {
             onScreens: on(w.name), current: targets.some(s => fileName(s.image) === w.name),
             meta: on(w.name).length ? ["On the " + on(w.name).join(" and ")] : [], desc: w.name,
         }))
-        out.push({ id: "walls", title: "Wallpapers", shape: "wall", items: walls, divider: -1, labeled: false, count: true })
+        out.push({ id: "walls", title: "Wallpapers", shape: "wall", items: walls, divider: -1, labeled: false, count: true, tools: [
+            { id: "walls:random", kind: "button", icon: "shuffle", label: "Shuffle" },
+            { id: "walls:folder", kind: "button", icon: "folder_open", label: "Folder" },
+            { id: "walls:discover", kind: "button", icon: "travel_explore", label: "Find more online" },
+        ] })
         // colours: the wallpaper's own, a mood, or an accent of your own
         const ov = here.overrides || {}
         const mood = ov.mood || "auto"
@@ -104,10 +164,14 @@ Item {
             colours.push({ kind: "mood", key: "mood:" + m, mood: m, name: m[0].toUpperCase() + m.slice(1), current: mood === m,
                            meta: [mood === m ? "Hand-picked" : "A mood"], desc: moodWords[m] || "" })
         for (const r of ["primary", "secondary", "tertiary"])
-            colours.push({ kind: "accent", key: "accent:" + r, role: r, name: r[0].toUpperCase() + r.slice(1), hex: String(tm.rice[r]),
+            colours.push({ kind: "accent", key: "accent:" + r, role: r, name: r[0].toUpperCase() + r.slice(1), hex: draft["accent:" + r] || String(tm.rice[r]),
                            current: !!ov[r], meta: [ov[r] ? "Hand-picked" : "From the wallpaper"],
                            desc: "Pick your own to mismatch on purpose; a new wallpaper on that screen brings the automatic one back." })
-        out.push({ id: "colours", title: "Colours", shape: "chip", items: colours, divider: -1, labeled: true, count: false })
+        out.push({ id: "colours", title: "Colours", shape: "chip", items: colours, divider: -1, labeled: true, count: false, tools: [
+            { id: "intensity-", kind: "minus", icon: "remove", tip: "Calmer accents" },
+            { id: "intensity", kind: "value", icon: "contrast", label: "Intensity " + Math.round(intensity * 100) + "%" },
+            { id: "intensity+", kind: "plus", icon: "add", tip: "Stronger accents" },
+        ] })
         // size
         const ui = page.ui || {}
         const sizes = [{ kind: "size", key: "size:auto", v: "auto", name: "Automatic", current: !!ui.auto,
@@ -115,7 +179,7 @@ Item {
         for (const v of [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6])
             sizes.push({ kind: "size", key: "size:" + v, v: v, name: v.toFixed(1) + "×", current: !ui.auto && Math.abs((ui.size || 0) - v) < 0.001,
                          meta: [!ui.auto && Math.abs((ui.size || 0) - v) < 0.001 ? "Now" : "Overall"], desc: "Bars, the top band, popups and clocks on every screen, " + v.toFixed(1) + "× their standard size." })
-        out.push({ id: "size", title: "Size", shape: "chip", items: sizes, divider: -1, labeled: true, count: false })
+        out.push({ id: "size", title: "Size", shape: "chip", items: sizes, divider: -1, labeled: true, count: false, tools: [] })
         // lighting: both keyboards at once (each one's own settings: Fine-tune)
         const dev = tm.lights && tm.lights.devices ? tm.lights.devices.find(d => d.ready) || tm.lights.devices[0] : null
         const st = dev ? dev.settings || {} : {}
@@ -128,7 +192,14 @@ Item {
             L("spectrum", "Spectrum", ["--mode", "manual", "--effect", "spectrum", "--on", "true"], "Every colour in turn.", st.on !== false && st.mode === "manual" && st.effect === "spectrum"),
             L("off", "Off", ["--on", "false"], "Dark keyboards.", st.on === false),
         ]
-        out.push({ id: "lighting", title: "Lighting", shape: "chip", items: lighting, divider: -1, labeled: true, count: false })
+        const ltools = lightDevs.length ? [
+            { id: "bright-", kind: "minus", icon: "remove", tip: "Dimmer" },
+            { id: "bright", kind: "value", icon: "light_mode", label: "Brightness " + brightness + "%" },
+            { id: "bright+", kind: "plus", icon: "add", tip: "Brighter" },
+        ].concat(lightDevs.map(d => ({ id: "power:" + d.id, kind: "toggle", icon: d.id === "laptop" ? "laptop" : "keyboard",
+                                       label: d.id === "laptop" ? "Laptop" : (String(d.name || d.id).split(" ")[0]),
+                                       on: (draft["on:" + d.id] ?? (d.settings || {}).on) !== false }))) : []
+        out.push({ id: "lighting", title: "Lighting", shape: "chip", items: lighting, divider: -1, labeled: true, count: false, tools: ltools })
         rows = out
         rev++
     }

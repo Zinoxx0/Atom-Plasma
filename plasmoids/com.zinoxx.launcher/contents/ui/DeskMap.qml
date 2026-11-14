@@ -17,6 +17,7 @@ Item {
     property string focusName: ""
     property bool linked: false
     property var preview: null              // {connector: {thumb, how: same|role|mirror, from}} or null
+    property string keyName: ""             // the screen the keys are on (the launcher's Theme page): ringed
     signal picked(string name)
 
     readonly property real gap: 4
@@ -123,6 +124,17 @@ Item {
                 border.width: mon.focused && !dm.linked ? 2 : mon.selected ? 1.5 : mon.hot ? 1 : 0
                 border.color: mon.selected ? dm.pal.primary : C.alpha(dm.pal.fg, 0.5)
                 Behavior on border.color { ColorAnimation { duration: Tokens.fast } }
+            }
+            Rectangle {     // the keys' ring (the launcher's language: white, outside, with a gap)
+                anchors.fill: parent
+                anchors.margins: -5
+                radius: Tokens.radius.xs + 5
+                color: "transparent"
+                border.width: 2
+                border.color: dm.pal.light ? dm.pal.fg : "#ffffff"
+                opacity: dm.keyName === mon.modelData.name ? 1 : 0
+                visible: opacity > 0
+                Behavior on opacity { NumberAnimation { duration: Tokens.fast } }
             }
             PlasmaCore.ToolTipArea {
                 anchors.fill: parent

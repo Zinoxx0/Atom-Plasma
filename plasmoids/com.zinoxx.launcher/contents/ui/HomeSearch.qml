@@ -65,7 +65,7 @@ Item {
                 elide: Text.ElideRight
                 color: C.alpha("#ffffff", 0.72)
                 font.family: Tokens.font.ui
-                font.pixelSize: hs.u(14)
+                font.pixelSize: hs.u(15.5)
             }
             Item { width: 1; height: hs.u(10) }
             Rectangle {
@@ -111,8 +111,8 @@ Item {
                 color: hs.rice.muted
                 font.family: Tokens.font.ui
                 font.weight: Font.DemiBold
-                font.pixelSize: hs.u(12)
-                font.letterSpacing: hs.u(1)
+                font.pixelSize: hs.u(13)
+                font.letterSpacing: hs.u(1.2)
             }
             Repeater {
                 id: rows
@@ -123,25 +123,28 @@ Item {
                     required property var model
                     readonly property bool selected: hs.launcher.selGroup === group.index && hs.launcher.selRow === index
                     width: group.width
-                    height: hs.u(54)
+                    height: hs.u(62)
                     radius: hs.u(16)
-                    color: selected ? C.alpha(hs.rice.fg, 0.1) : mm.containsMouse ? C.alpha(hs.rice.fg, 0.05) : "transparent"
-                    border.width: selected ? Math.max(1.5, hs.u(1.5)) : 0
-                    border.color: C.alpha(hs.rice.light ? hs.rice.fg : "#ffffff", 0.6)
+                    // the selection is a lit row (a glass fill and a hairline), hover a fainter one: never a
+                    // ring (that read as a text field)
+                    color: selected ? C.alpha(hs.rice.fg, 0.12) : mm.containsMouse ? C.alpha(hs.rice.fg, 0.05) : "transparent"
+                    border.width: selected ? 1 : 0
+                    border.color: C.alpha(hs.rice.edge, 0.18)
+                    Behavior on color { ColorAnimation { duration: Tokens.fast } }
                     function publish() { hs.sel = { name: String(match.model.display || ""), desc: String(match.model.description || group.matches.name || ""), icon: match.model.decoration } }
                     onSelectedChanged: if (selected) publish()
                     Component.onCompleted: if (selected) publish()
                     Row {
-                        anchors { left: parent.left; leftMargin: hs.u(14); verticalCenter: parent.verticalCenter }
+                        anchors { left: parent.left; leftMargin: hs.u(16); verticalCenter: parent.verticalCenter }
                         spacing: hs.u(14)
                         Kirigami.Icon {
                             anchors.verticalCenter: parent.verticalCenter
-                            width: hs.u(34); height: width
+                            width: hs.u(36); height: width
                             source: match.model.decoration
                         }
                         Column {
                             anchors.verticalCenter: parent.verticalCenter
-                            width: match.width - hs.u(80)
+                            width: match.width - hs.u(130)
                             Text {
                                 width: parent.width
                                 text: match.model.display
@@ -149,7 +152,7 @@ Item {
                                 color: hs.rice.fg
                                 font.family: Tokens.font.ui
                                 font.weight: Font.DemiBold
-                                font.pixelSize: hs.u(15.5)
+                                font.pixelSize: hs.u(17)
                             }
                             Text {
                                 width: parent.width
@@ -158,9 +161,19 @@ Item {
                                 elide: Text.ElideRight
                                 color: hs.rice.fgDim
                                 font.family: Tokens.font.ui
-                                font.pixelSize: hs.u(13)
+                                font.pixelSize: hs.u(14.5)
                             }
                         }
+                    }
+                    Rectangle {     // what Enter does, on the selected row
+                        anchors { right: parent.right; rightMargin: hs.u(14); verticalCenter: parent.verticalCenter }
+                        width: hs.u(30); height: hs.u(24); radius: hs.u(7)
+                        color: "transparent"
+                        border.width: 1
+                        border.color: C.alpha(hs.rice.fg, 0.22)
+                        opacity: match.selected ? 1 : 0
+                        Behavior on opacity { NumberAnimation { duration: Tokens.fast } }
+                        Text { anchors.centerIn: parent; text: "keyboard_return"; color: hs.rice.fgDim; font.family: Tokens.font.icons; font.pixelSize: hs.u(16) }
                     }
                     MouseArea {
                         id: mm

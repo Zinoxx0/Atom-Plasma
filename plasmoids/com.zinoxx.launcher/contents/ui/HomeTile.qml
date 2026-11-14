@@ -9,8 +9,10 @@ import "Rice/Color.js" as C
 //   poster  an app in a row of covers: a cover of its own (its colour, its icon's light, the icon on it)
 //   float   an app in a row of icons: the icon alone over a soft shadow; a glass plate comes with the focus
 //   theme   a Theme page item (ThemeFace draws it)
-// The focused tile (of the active row) grows, wears the ring and glows in its own colour (the palette's
-// glow sets how much), and a glint crosses it once as it takes the focus.
+// The focused tile (of the active row) lifts a little, wears the ring (a white line just outside it, with a
+// gap, so it never covers the art) and glows in its own colour (the palette's glow sets how much); a glint
+// crosses it once as it takes the focus. Under the pointer (before the focus settles on it, or in a row
+// behind) it only brightens: hovered and focused never look alike.
 // Cheap by design (a row can hold hundreds, and the strip makes and reuses them as it moves): each look is
 // built only for the tiles that wear it, the glow and the glint only around the focus, and the colour is
 // read off the image only where it's shown (a poster's fill, a focused tile's glow).
@@ -25,16 +27,20 @@ Item {
     property real unit: 1
     property int focusMs: Tokens.ms(380)
     signal activated()
-    signal pointed()
+    signal pointed(point at)                // the pointer is over it (where, in the window)
+    signal pointerOut()
     signal menu()
 
     readonly property bool focused: current && rowActive
+    readonly property bool hovered: hit.containsMouse && !focused
     readonly property var roles: item ? item.roles : null      // the launcher's menu reads favoriteId and actionList
     readonly property bool hasArt: !!(item && item.art && item.art.portrait)
     readonly property bool themed: !!(item && item.kind)
     readonly property string look: themed ? "theme" : shape === "square" ? "float" : hasArt ? "cover" : "poster"
-    readonly property real radius: Math.round(22 * unit)
+    readonly property real radius: Math.round(20 * unit)
     readonly property color ring: rice.light ? rice.fg : "#ffffff"
+    readonly property real ringGap: Math.max(3, u(4))          // between the tile and its ring
+    readonly property real ringW: Math.max(2, u(2.5))
     readonly property real glowK: Math.max(0.4, rice.glow)
     function u(n) { return Math.round(n * unit) }
 
@@ -55,7 +61,7 @@ Item {
     property real enter: 0                  // the stage's entrance: how far right it still is
     transform: Translate { x: tile.enter }
     z: focused ? 2 : 0
-    scale: focused ? 1.12 : 1
+    scale: focused ? 1.07 : hovered ? 1.025 : 1
     Behavior on scale { NumberAnimation { duration: tile.focusMs; easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
 
     // the light it gives off when focused, in its own colour (made while it shows)
@@ -68,7 +74,7 @@ Item {
             radius: tile.radius
             blur: tile.u(52)
             spread: -tile.u(6)
-            color: C.alpha(tile.glowColor, 0.8 * tile.glowK)
+            color: C.alpha(tile.glowColor, 0.65 * tile.glowK)
             opacity: tile.glowV
         }
     }
@@ -149,39 +155,26 @@ Item {
                 color: "#ffffff"
                 font.family: Tokens.font.ui
                 font.weight: Font.DemiBold
-                font.pixelSize: tile.u(13)
+                font.pixelSize: tile.u(14)
             }
         }
     }
 
-    // ---- float: the icon alone; a glass plate only with the focus
+    // ---- float: the icon on a faint glass plate (every one: the focus brightens it, it doesn't appear)
     Component {
         id: floatLook
         Item {
             Rectangle {
                 anchors.fill: parent
                 radius: tile.radius
-                color: C.alpha(tile.rice.fg, 0.1)
+                color: C.alpha(tile.rice.fg, 0.045 + 0.075 * tile.glowV + (tile.hovered ? 0.035 : 0))
                 border.width: 1
-                border.color: C.alpha(tile.rice.edge, 0.16)
-                opacity: tile.glowV
-                visible: opacity > 0
-            }
-            RectangularShadow {         // its shadow on the ground
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: parent.height * 0.82
-                width: parent.width * 0.5
-                height: Math.max(2, parent.height * 0.07)
-                radius: height / 2
-                blur: tile.u(10)
-                color: Qt.rgba(0, 0, 0, 0.5)
-                opacity: tile.focused ? 0.4 : 0.85
+                border.color: C.alpha(tile.rice.edge, 0.08 + 0.08 * tile.glowV)
+                Behavior on color { ColorAnimation { duration: Tokens.fast } }
             }
             Kirigami.Icon {
                 anchors.centerIn: parent
-                anchors.verticalCenterOffset: -parent.height * 0.03
-                width: Math.round(parent.width * (tile.focused ? 0.72 : 0.68)); height: width
-                Behavior on width { NumberAnimation { duration: tile.focusMs; easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
+                width: Math.round(parent.width * 0.62); height: width
                 source: tile.item ? tile.item.icon : ""
             }
         }
@@ -193,12 +186,13 @@ Item {
         ThemeFace { item: tile.item; rice: tile.rice; unit: tile.unit; radius: tile.radius }
     }
 
-    // ---- the focus: the ring, and a glint once (made only while it crosses)
+    // ---- the focus: the ring (outside, with a gap), and a glint once (made only while it crosses)
     Rectangle {
         anchors.fill: parent
-        radius: tile.radius
+        anchors.margins: -(tile.ringGap + tile.ringW)
+        radius: tile.radius + tile.ringGap + tile.ringW
         color: "transparent"
-        border.width: Math.max(2, tile.u(2.5))
+        border.width: tile.ringW
         border.color: tile.ring
         opacity: tile.focused ? 1 : 0
         visible: opacity > 0
@@ -237,7 +231,7 @@ Item {
     Text {      // its name, under it (rows of many apps)
         visible: tile.labeled
         anchors.horizontalCenter: parent.horizontalCenter
-        y: parent.height + tile.u(11)
+        y: parent.height + tile.u(17)
         width: parent.width + tile.u(16)
         horizontalAlignment: Text.AlignHCenter
         elide: Text.ElideRight
@@ -245,18 +239,22 @@ Item {
         color: tile.focused ? tile.rice.fg : tile.rice.fgDim
         font.family: Tokens.font.ui
         font.weight: Font.Medium
-        font.pixelSize: tile.u(13)
+        font.pixelSize: tile.u(15)
         scale: 1 / tile.scale       // stays its size while the tile grows
         Behavior on color { ColorAnimation { duration: Tokens.fast } }
     }
 
     MouseArea {
+        id: hit
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         acceptedButtons: Qt.LeftButton | Qt.RightButton
-        onEntered: tile.pointed()
-        onPositionChanged: if (!tile.focused) tile.pointed()      // moved on it after the rows came to rest
+        // the stage decides whether the pointer means it (it rests here, or is slowing down on it) or is
+        // only passing over on its way somewhere else (to the hero's buttons): only the first takes the focus
+        onEntered: tile.pointed(mapToItem(null, mouseX, mouseY))
+        onPositionChanged: if (!tile.focused) tile.pointed(mapToItem(null, mouseX, mouseY))
+        onExited: tile.pointerOut()
         onClicked: mouse => mouse.button === Qt.RightButton ? tile.menu() : tile.activated()
     }
 }

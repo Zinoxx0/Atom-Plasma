@@ -2,8 +2,9 @@
 # The launcher (Atom Home) in a nested Plasma (tools/nested/run.sh): it opens out of the jewel, the arrows
 # walk the rows, Tab switches pages, typing searches; Esc clears the query, leaves the search, then closes
 # it and the keyboard goes back to the app; Meta (plasmashell's activateLauncherMenu) opens it on the
-# active window's screen; the palette opens the Theme page (a page of rows: the arrows walk it, a hero action
-# opens the detailed panels, Esc leaves them, then the page). Nothing on the Theme page is APPLIED here: rice.py
+# active window's screen; the palette opens the Theme page (a page of rows: the arrows walk it, up reaches a
+# row's own tools in its header, "Find more online" opens the detailed panels, Esc leaves them, then the
+# page); a pretend game controller (pad.py) walks and opens it too. Nothing on the Theme page is APPLIED here: rice.py
 # and rgb.py would change the user's real theme and keyboards. Screenshots in the logs folder. Exit 0 = all good.
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
@@ -60,15 +61,19 @@ step "type x (app?)";   $F type "x" wait 300
 step "meta";            qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu; $F wait 2200; shot l-meta
 T=$(grep -o 'ATOM home tabs at .* theme at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $(NF-1), $NF}')
 step "theme [$T]";      $F move ${T:-1470 50} click wait 1400; shot l-theme
-step "theme down";      $F move 800 20 key 108 wait 1200; shot l-theme-walls
+step "theme down";      $F move 800 20 key 108 wait 900; shot l-tools          # down: the wallpapers' header tools first
+step "tools right";     $F key 106 wait 500
+step "down to the walls"; $F key 108 wait 1200; shot l-theme-walls
 W=$(grep -o 'ATOM home focus at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $NF}')      # the walls row (it has the focus)
 step "drag walls [$W]";  $F drag 1300 ${W:-550} 500 ${W:-550} wait 1200; shot l-drag
-X=$(grep -o 'ATOM theme action fine:walls at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $(NF-1), $NF}')
-step "fine-tune [$X]";  $F move ${X:-400 390} click wait 1400; shot l-fine
-step "fine-tune back";  $F key 1 wait 900
+X=$(grep -o 'ATOM theme tool walls:discover at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $(NF-1), $NF}')
+step "find more [$X]";  $F move ${X:-400 390} click wait 1400; shot l-fine
+step "fine-tune back";  $F key 1 wait 600 key 1 wait 900      # the search it opened on, then the panel
 step "theme back";      $F key 1 wait 1200; shot l-theme-back
 step "wheel down";      $F move 800 620 wait 300 wheel 15 wait 1000; shot l-wheel
 step "wheel up";        $F move 802 620 wait 300 wheel -15 wait 1000
+step "pad";             python3 "$REPO/tools/nested/pad.py" down right north; $F wait 1200; shot l-pad
+step "pad back";        python3 "$REPO/tools/nested/pad.py" east; $F wait 900
 step "meta closes";     qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu; $F wait 1200; shot l-meta-closed
 step "type y (app?)";   $F type "y" wait 300
 step end
@@ -87,13 +92,18 @@ check "down moved the focus a row"  'ATOM home tab 0 row 1' "$L"
 check "tab switched to Games"       'ATOM home tab 1' "$L"
 check "typing opened the search"    'ATOM home search "f"' "$L"
 check "the palette opened the Theme page" 'ATOM home tab 3 row 0' "$L"
-check "down walked the Theme page"  'ATOM home tab 3 row 1' "$L"
-check "Fine-tune opened the panels" 'ATOM stage view walls' "$L"
+check "down walked the Theme page"  'ATOM theme line tiles row 1' "$L"
+check "down reached the row's tools" 'ATOM theme line tools row 1 tool walls:random' "$L"
+check "right walked the tools"      'ATOM theme line tools row 1 tool walls:folder' "$L"
+check "Find more opened the panels" 'ATOM stage view walls' "$L"
 after() { sed -n "/ATOM ## $2/,\$p" "$L" | grep -q -- "$3" && echo "ok   $1" || { echo "FAIL $1"; fail=1; }; }
 after "Esc left the Theme page"     "theme back" 'ATOM home tab 0 row'
 after "dragging moved the wallpapers" "drag walls" 'ATOM row walls dragged to'
 after "the wheel walked down a row"   "wheel down" 'ATOM home tab 0 row 1'
 after "...and back up"                "wheel up" 'ATOM home tab 0 row 0'
+after "the pad walked down"           "pad" 'ATOM home tab 0 row 1 .*(key'
+after "...and its Y opened the Theme page" "pad" 'ATOM home tab 3'
+after "...and its B left it"          "pad back" 'ATOM home tab 0 row'
 swap=$(grep -o 'ATOM home tab swap [0-9]*' "$L" | awk '{print $NF}' | sort -n | tail -1)
 [ "${swap:-999}" -lt 200 ] && echo "ok   page switches are quick (slowest ${swap} ms)" || { echo "FAIL a page switch took ${swap} ms"; fail=1; }
 grep -q "ATOM home apply" "$L" && { echo "FAIL something was applied"; fail=1; }

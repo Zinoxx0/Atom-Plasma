@@ -5,6 +5,7 @@ import QtQuick.Window
 import org.kde.layershell as LayerShell
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.workspace.dbus as DBus
+import org.kde.plasma.extras as PlasmaExtras
 import Atom
 import Atom.Native
 import "Rice"
@@ -62,7 +63,10 @@ Window {
     readonly property real unit: Math.max(0.6, Math.min(rice.uiScale * 0.68, width / 1440, height / 900))
     function u(n) { return Math.round(n * unit) }
     readonly property real side: u(76)
-    readonly property real rowsTop: u(448)
+    // the rows start under the hero; on a tall screen they sit lower (the hero and the art above get the
+    // room), so the page isn't all in its top half
+    readonly property real rowsTop: Math.max(u(448), Math.round(height * 0.45))
+    readonly property real ctlH: u(44)          // the top bar's one control height
     readonly property int openMs: Tokens.ms(900)
     readonly property int closeMs: Tokens.ms(420)
     readonly property int focusMs: Tokens.ms(380)
@@ -79,6 +83,9 @@ Window {
     property bool finder: false
     function begin() {
         pointerAt = ""
+        pointerKnown = false
+        aim = null
+        aimTrail = []
         finder = !!(Shell.args && Shell.args.searchOnly)
         if (phase === "closed") {
             phase = "opening"
@@ -238,7 +245,9 @@ Window {
     readonly property var page: pageAt(tab)
     readonly property bool theming: tab === themeTab
     // per page: the active row, the row at the top, each row's focus (by row id)
-    property var states: [{ row: 0, scroll: 0, idx: {} }, { row: 0, scroll: 0, idx: {} }, { row: 0, scroll: 0, idx: {} }, { row: 0, scroll: 0, idx: {} }]
+    // (the Theme page also has lines: "tiles", a row's header "tools" (tool: which), or the "desk" map (desk: which))
+    function freshStates() { return [0, 1, 2, 3].map(() => ({ row: 0, scroll: 0, idx: {}, line: "tiles", tool: 0, desk: 0 })) }
+    property var states: freshStates()
     property int focusRev: 0
     function pageState() { return states[tab] }
     function idxOf(rowId) { focusRev; const i = pageState().idx[rowId]; return i === undefined ? 0 : i }
@@ -259,6 +268,43 @@ Window {
     // the pointer only focuses what it was moved onto: not what slides under it while the keys, the wheel or
     // a drag move the rows (Qt reports those as hovers too: the focus, the hero and the backdrop would churn)
     property double quietUntil: 0
+    // The pointer's intent. A tile takes the focus when the pointer rests on it or slows down over it, not
+    // while the pointer only passes over it on its way somewhere else (up to the hero's buttons, across
+    // other rows: the focus, and the hero's buttons with it, would change under it before it got there).
+    // Only real pointer moves count: when content slides under a still pointer Qt reports a hover too, at the
+    // same place in the window.
+    property var aim: null                      // { ri, i }: the tile under the pointer
+    property var aimTrail: []                   // its recent places: [{ x, y, t }]
+    property bool pointerKnown: false           // a first position seen since opening (that one isn't a move)
+    property point pointerAt0: Qt.point(0, 0)
+    readonly property real aimSpeed: 0.35       // logical px per ms: slower than this is meant (~350 px/s)
+    Timer { id: aimTimer; interval: 60; onTriggered: stage.aimCheck() }
+    function pointed(ri, i, at) {
+        const moved = !pointerKnown || Math.abs(at.x - pointerAt0.x) + Math.abs(at.y - pointerAt0.y) > 0.5
+        const first = !pointerKnown
+        pointerKnown = true
+        pointerAt0 = at
+        aim = { ri: ri, i: i }
+        if (first || !moved) return             // where it was when the page came, or content sliding under it
+        const now = Date.now()
+        aimTrail = aimTrail.filter(p => now - p.t < 150).concat([{ x: at.x, y: at.y, t: now }])
+        aimCheck()
+    }
+    function unpointed(ri, i) { if (aim && aim.ri === ri && aim.i === i) { aim = null; aimTimer.stop() } }
+    function aimCheck() {
+        if (!aim) return
+        const now = Date.now()
+        aimTrail = aimTrail.filter(p => now - p.t < 150)
+        // its speed: from the oldest place kept to the newest, over the time since the oldest (so a pointer
+        // that stops slows down to nothing); one place alone says nothing yet, unless nothing came after it
+        // (the trail is kept across tiles and commits: a hand sweeping on doesn't look still on the next tile)
+        const tr = aimTrail
+        let v = 0
+        if (tr.length >= 2) v = Math.hypot(tr[tr.length - 1].x - tr[0].x, tr[tr.length - 1].y - tr[0].y) / Math.max(16, now - tr[0].t)
+        else if (tr.length === 1 && now - tr[0].t < 50) v = Infinity
+        if (v < aimSpeed) focusAt(aim.ri, aim.i, "mouse")
+        else aimTimer.restart()                 // still on its way: look again (a pointer that stops sends nothing)
+    }
     function rowsMoving() { for (let k = 0; k < page.rows.length; k++) { const r = rowItem(k); if (r && r.moving) return true } return false }
     function focusAt(ri, i, from) {
         if (from === "mouse" && (Date.now() < quietUntil || rowsMoving())) return
@@ -266,12 +312,14 @@ Window {
         const r = rowObj(ri)
         if (!r) return
         i = Math.max(0, Math.min(r.items.length - 1, i))
+        if (from === "mouse" && st.line !== "tiles") { st.line = "tiles"; focusRev++ }     // the pointer is on a tile
         if (st.row === ri && idxOf(r.id) === i) return
         st.row = ri
         st.idx[r.id] = i
         if (from === "key") quietUntil = Date.now() + focusMs * 1.5 + 80
-        const scrolled = from === "key" && st.scroll !== ri
-        if (from === "key") st.scroll = ri
+        const scroll = from === "key" ? scrollFor(ri) : st.scroll
+        const scrolled = scroll !== st.scroll
+        st.scroll = scroll
         focusRev++
         if (from === "key") {
             const row = rowItem(ri)
@@ -281,11 +329,75 @@ Window {
         if (Shell.debug) logFocus(from)
     }
     function step(dx, dy) {
+        if (theming) { themeStep(dx, dy); return }
         const st = pageState()
         if (dy) { const ri = st.row + dy; const r = rowObj(ri); if (r) focusAt(ri, idxOf(r.id), "key") }
         else { const r = rowObj(st.row); if (r) focusAt(st.row, idxOf(r.id) + dx, "key") }
     }
     function toggleTheme() { setTab(theming ? tabBefore : themeTab) }
+    // ---- the Theme page's lines, walked spatially: the desk map at the top; per row its header's tools,
+    // then its tiles. Up and down go to the line above or below, left and right along it.
+    readonly property var deskTargets: tm.screens.map(x => x.name).concat(["all"])
+    function toolsOf(r) { return r && r.tools ? r.tools : [] }
+    function canFocusTool(r, i) { const t = toolsOf(r)[i]; return !!t && t.kind !== "value" }
+    function firstTool(r, from, d) {
+        const n = toolsOf(r).length
+        for (let i = Math.max(0, Math.min(n - 1, from)); i >= 0 && i < n; i += d) if (canFocusTool(r, i)) return i
+        for (let i = Math.max(0, Math.min(n - 1, from)); i >= 0 && i < n; i -= d) if (canFocusTool(r, i)) return i
+        return -1
+    }
+    function setLine(line, ri, extra) {
+        const st = pageState()
+        st.line = line
+        if (extra !== undefined) { if (line === "tools") st.tool = extra; else if (line === "desk") st.desk = extra }
+        if (ri !== undefined && ri !== st.row) { const r = rowObj(ri); focusAt(ri, idxOf(r.id), "key") }
+        else { quietUntil = Date.now() + focusMs * 1.5 + 80; focusRev++; if (line === "desk" && st.scroll !== 0) { st.scroll = 0; scrollPage(true) } }
+        if (Shell.debug) {
+            console.warn("ATOM theme line", line, "row", st.row, line === "tools" ? "tool " + toolsOf(rowObj(st.row))[st.tool].id : line === "desk" ? "desk " + deskTargets[st.desk] : "")
+            logFocus()          // (and where the tools sit now: the tests click them)
+        }
+    }
+    function themeStep(dx, dy) {
+        const st = pageState(), line = st.line || "tiles", r = rowObj(st.row)
+        if (dy < 0) {
+            if (line === "desk") return
+            if (line === "tiles" && firstTool(r, 0, 1) >= 0) { setLine("tools", st.row, firstTool(r, 0, 1)); return }
+            if (st.row > 0) { setLine("tiles", st.row - 1); return }
+            setLine("desk", undefined, Math.max(0, deskTargets.indexOf(tm.target)))
+            return
+        }
+        if (dy > 0) {
+            if (line === "desk") { const t = firstTool(rowObj(0), 0, 1); if (t >= 0) setLine("tools", 0, t); else setLine("tiles", 0); return }
+            if (line === "tools") { setLine("tiles"); return }
+            const nr = rowObj(st.row + 1)
+            if (!nr) return
+            const t = firstTool(nr, 0, 1)
+            if (t >= 0) setLine("tools", st.row + 1, t); else setLine("tiles", st.row + 1)
+            return
+        }
+        if (line === "tiles") { const rr = rowObj(st.row); if (rr) focusAt(st.row, idxOf(rr.id) + dx, "key") }
+        else if (line === "tools") {
+            for (let i = st.tool + dx; i >= 0 && i < toolsOf(r).length; i += dx) if (canFocusTool(r, i)) { setLine("tools", undefined, i); return }
+        } else if (line === "desk") setLine("desk", undefined, Math.max(0, Math.min(deskTargets.length - 1, st.desk + dx)))
+    }
+    // Enter on the Theme page: the tile, the tool or the screen the keys are on
+    function themeEnter() {
+        const st = pageState()
+        if (st.line === "tools") { const t = toolsOf(rowObj(st.row))[st.tool]; if (t) toolDo(t.id) }
+        else if (st.line === "desk") { const n = deskTargets[st.desk]; if (n) tm.target = n }
+        else activateItem(currentItem, currentTile())
+    }
+    function toolDo(id) {
+        if (Shell.debug) console.warn("ATOM theme tool", id)
+        tm.tool(id)
+    }
+    Connections {
+        target: tm
+        function onOpenFinder() {       // the wallhaven search lives in the detailed panel, opened on it
+            stage.launcher.openWallpapers("desktop", "walls")
+            Qt.callLater(() => { if (stage.launcher.wallsPane) stage.launcher.wallsPane.discover = true })
+        }
+    }
     // the Theme page's rows open on what's in use (the theme, this screen's wallpaper, its colours...)
     function focusInUse() {
         const st = states[themeTab]
@@ -319,6 +431,15 @@ Window {
             const h = heroRep.itemAt(heroSlot)
             const th = h ? h.th : null
             if (th) th.extra.forEach((x, i) => { const p = h.extraAt(i); if (p) console.warn("ATOM theme action", x.id, "at", Math.round(screenObj.virtualX + p.x), Math.round(screenObj.virtualY + topGap + p.y)) })
+            for (let k = 0; k < page.rows.length; k++) {      // the rows' tools, where they sit
+                const row = rowItem(k), tools = toolsOf(rowObj(k))
+                for (let i = 0; row && i < tools.length; i++) {
+                    const b = row.toolAt(i)
+                    if (!b) continue
+                    const p = b.mapToItem(null, b.width / 2, b.height / 2)
+                    console.warn("ATOM theme tool", tools[i].id, "at", Math.round(screenObj.virtualX + p.x), Math.round(screenObj.virtualY + topGap + p.y))
+                }
+            }
         })
     }
     function logLayout() {
@@ -361,7 +482,23 @@ Window {
         for (let k = 0; k < page.rows.length; k++) { const r = rowItem(k); if (r) r.settle(false) }
         scrollPage(false)
     }
-    // the page: the row at the top (its scroll) sits under the hero; the ones above have gone
+    // the page scrolls only as far as it must to show the active row whole (and the one after it, when there
+    // is room): rows that fit stay where they are, so a short page keeps every row in sight. The row at the
+    // top (its scroll) sits under the hero; the ones above it have gone.
+    function scrollFor(ri) {
+        const pg = pagesRep.itemAt(tab), st = pageState()
+        if (!pg) return ri
+        const view = rowsBox.height, rowH = k => { const r = rowItem(k); return r ? r.height : 0 }
+        const top = k => pg.rowTop(k)
+        if (ri <= st.scroll) return Math.max(0, ri)
+        const want = Math.min(page.rows.length - 1, ri + 1)         // the next row peeking in, if it fits
+        for (let sc = st.scroll; sc <= ri; sc++) {
+            if (top(want) + rowH(want) - top(sc) <= view) return sc
+            if (top(ri) + rowH(ri) - top(sc) <= view && want === ri) return sc
+        }
+        for (let sc = st.scroll; sc <= ri; sc++) if (top(ri) + rowH(ri) - top(sc) <= view) return sc
+        return ri
+    }
     function scrollPage(animate) { const pg = pagesRep.itemAt(tab); if (pg) pg.scrollTo(animate) }
     // the wheel walks the rows (a notch, or a touchpad's worth, a row); sideways it moves the row under it
     property real wheelAcc: 0
@@ -386,7 +523,7 @@ Window {
     // fresh every time it opens: Home, the first pin, no query
     onOpened: {
         tab = 0
-        states = [{ row: 0, scroll: 0, idx: {} }, { row: 0, scroll: 0, idx: {} }, { row: 0, scroll: 0, idx: {} }, { row: 0, scroll: 0, idx: {} }]
+        states = freshStates()
         focusRev++
         launcher.query = ""
         launcher.category = 0
@@ -540,6 +677,18 @@ Window {
             Rectangle { anchors.fill: parent; color: C.alpha(stage.rice.surfaceLowest, 0.26) }
         }
     }
+    Rectangle {     // the rows' fade at the bottom (when there are more below)
+        id: rowsMask
+        width: rowsBox.width
+        height: rowsBox.height
+        visible: false
+        layer.enabled: true
+        gradient: Gradient {
+            GradientStop { position: 0; color: "black" }
+            GradientStop { position: Math.max(0, 1 - stage.u(70) / Math.max(1, rowsBox.height)); color: "black" }
+            GradientStop { position: 1; color: "transparent" }
+        }
+    }
     Rectangle {     // the game art's fade into the room
         id: artMask
         width: stage.width
@@ -624,7 +773,8 @@ Window {
         Item {
             id: plane
             anchors.fill: parent
-            opacity: stage.planeO * (stage.searchOpen ? 1 - 0.9 * stage.searchP : 1) * (stage.launcher.view === "walls" ? 0 : 1)
+            // the search takes the whole room: the page under it goes (only the frosted backdrop stays)
+            opacity: stage.planeO * (stage.searchOpen ? 1 - stage.searchP : 1) * (stage.launcher.view === "walls" ? 0 : 1)
             visible: opacity > 0.01
             scale: stage.planeS
             Behavior on opacity { enabled: stage.phase === "open"; NumberAnimation { duration: Tokens.base } }
@@ -643,7 +793,7 @@ Window {
                     anchors.verticalCenter: parent.verticalCenter
                     JewelChip {
                         id: homeJewel
-                        width: stage.u(64); height: stage.u(44)
+                        width: stage.u(60); height: stage.ctlH
                         rice: stage.rice
                         onClicked: stage.tab !== 0 ? stage.setTab(0) : stage.launcher.close()
                     }
@@ -664,11 +814,11 @@ Window {
                         visible: opacity > 0.01
                         opacity: stage.theming ? 0 : 1
                         Behavior on opacity { NumberAnimation { duration: Tokens.ms(320) } }
-                        height: stage.u(42)
+                        height: stage.ctlH
                         anchors.verticalCenter: parent.verticalCenter
                         Rectangle {
                             id: tabPill
-                            readonly property Item at: tabRep.itemAt(stage.tab)
+                            readonly property Item at: (tabRep.count, tabRep.itemAt(stage.tab))     // (count: itemAt doesn't notify)
                             x: at ? at.x : 0
                             width: at ? at.width : 0
                             height: parent.height
@@ -689,7 +839,7 @@ Window {
                                     required property string modelData
                                     required property int index
                                     width: tabText.implicitWidth + stage.u(40)
-                                    height: stage.u(42)
+                                    height: stage.ctlH
                                     Text {
                                         id: tabText
                                         anchors.centerIn: parent
@@ -697,7 +847,7 @@ Window {
                                         color: stage.tab === index || tabMouse.containsMouse ? stage.rice.fg : stage.rice.fgDim
                                         font.family: Tokens.font.ui
                                         font.weight: Font.DemiBold
-                                        font.pixelSize: stage.u(16.5)
+                                        font.pixelSize: stage.u(18)
                                         Behavior on color { ColorAnimation { duration: Tokens.fast } }
                                     }
                                     MouseArea { id: tabMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: stage.setTab(index) }
@@ -749,7 +899,7 @@ Window {
                         color: stage.rice.fg
                         font.family: Tokens.font.ui
                         font.weight: Font.DemiBold
-                        font.pixelSize: stage.u(18)
+                        font.pixelSize: stage.u(19)
                         font.features: { "tnum": 1 }
                         leftPadding: stage.u(4)
                         rightPadding: stage.u(4)
@@ -777,7 +927,7 @@ Window {
                 x: stage.side
                 y: stage.u(104)
                 width: Math.min(stage.u(760), stage.width * 0.6)
-                height: stage.u(312)
+                height: stage.rowsTop - y - stage.u(30)
                 opacity: stage.heroO
                 transform: Translate { y: (1 - stage.heroO) * stage.u(24) }
                 Repeater {
@@ -829,32 +979,43 @@ Window {
                     focusName: tm.target === "all" ? stage.screenName : tm.target
                     linked: tm.target === "all"
                     preview: stage.previewMap
+                    keyName: (stage.focusRev, stage.theming && stage.pageState().line === "desk") ? stage.deskTargets[stage.pageState().desk] || "" : ""
                     onPicked: name => { tm.target = name }
                 }
                 Row {
                     id: capRow
                     anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: stage.u(16) }
-                    height: stage.u(28)
+                    height: stage.u(32)
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         width: parent.width - allChip.width
                         text: tm.status || ("Editing " + tm.targetLabel)
                         elide: Text.ElideRight
-                        color: tm.status ? stage.rice.bad : stage.rice.muted
+                        color: tm.status ? stage.rice.bad : stage.rice.fgDim
                         font.family: Tokens.font.ui
                         font.weight: Font.DemiBold
-                        font.pixelSize: stage.u(12.5)
+                        font.pixelSize: stage.u(14.5)
                     }
                     Rectangle {
                         id: allChip
                         anchors.verticalCenter: parent.verticalCenter
-                        width: allText.implicitWidth + stage.u(24)
-                        height: stage.u(28)
+                        width: allText.implicitWidth + stage.u(28)
+                        height: stage.u(32)
                         radius: height / 2
                         color: tm.target === "all" ? stage.rice.primary : C.alpha(stage.rice.fg, 0.08)
-                        Text { id: allText; anchors.centerIn: parent; text: "All screens"; color: tm.target === "all" ? stage.rice.onPrimary : stage.rice.fgDim
-                               font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: stage.u(12.5) }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: stage.themeExtra("all") }
+                        Text { id: allText; anchors.centerIn: parent; text: "All screens"; color: tm.target === "all" ? stage.rice.onPrimary : stage.rice.fg
+                               font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: stage.u(14.5) }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: tm.target = tm.target === "all" ? stage.screenName : "all" }
+                        Rectangle {     // the keys' ring
+                            anchors.fill: parent
+                            anchors.margins: -Math.max(4, stage.u(4))
+                            radius: height / 2
+                            color: "transparent"
+                            border.width: Math.max(2, stage.u(2))
+                            border.color: stage.rice.light ? stage.rice.fg : "#ffffff"
+                            opacity: (stage.focusRev, stage.theming && stage.pageState().line === "desk" && stage.deskTargets[stage.pageState().desk] === "all") ? 1 : 0
+                            Behavior on opacity { NumberAnimation { duration: Tokens.fast } }
+                        }
                     }
                 }
             }
@@ -865,8 +1026,12 @@ Window {
                 x: 0
                 y: stage.rowsTop
                 width: stage.width
-                height: stage.height - stage.rowsTop - stage.u(58)
+                height: stage.height - stage.rowsTop - stage.u(76)
                 clip: true
+                // a page taller than the room fades out at the bottom (more below) instead of being cut
+                readonly property bool overflow: (stage.focusRev, pagesRep.count, pagesRep.itemAt(stage.tab) ? pagesRep.itemAt(stage.tab).overflow : false)
+                layer.enabled: overflow
+                layer.effect: MultiEffect { maskEnabled: true; maskSource: rowsMask; maskThresholdMin: 0.5; maskSpreadAtMin: 1.0 }
                 Item {
                     id: rowsSlide
                     width: parent.width
@@ -886,6 +1051,7 @@ Window {
                             width: rowsSlide.width
                             height: rowsSlide.height
                             function rowAt(ri) { return made ? rowsRep.itemAt(ri) : null }
+                            readonly property bool overflow: col.y + col.height > height + 1
                             function rowTop(ri) { let y = 0; for (let k = 0; k < ri; k++) { const r = rowsRep.itemAt(k); if (r) y += r.height } return y }
                             function scrollTo(animate) {
                                 const t = -rowTop(stage.states[index].scroll)
@@ -916,9 +1082,13 @@ Window {
                                         z: active ? 1 : 0
                                         opacity: (stage.focusRev, index < pg.st.scroll) ? 0 : 1
                                         Behavior on opacity { NumberAnimation { duration: Tokens.ms(320) } }
-                                        onPointed: i => stage.focusAt(index, i, "mouse")
+                                        tilesFocused: (stage.focusRev, (pg.st.line || "tiles") === "tiles")
+                                        toolFocus: (stage.focusRev, index === pg.st.row && pg.st.line === "tools") ? pg.st.tool : -1
+                                        onToolActivated: id => stage.toolDo(id)
+                                        onPointed: (i, at) => stage.pointed(index, i, at)
+                                        onPointerOut: i => stage.unpointed(index, i)
                                         onActivated: (i, tile) => { stage.focusAt(index, i, "mouse"); stage.activateItem(entry.items[i], tile) }
-                                        onMenu: (i, tile) => { const it = entry.items[i]; if (it.model) stage.launcher.menu.openFor(tile, it.model, it.row) }
+                                        onMenu: (i, tile) => stage.itemMenu(entry.items[i], tile)
                                         Component.onCompleted: Qt.callLater(() => { settle(false); pg.scrollTo(false) })
                                     }
                                 }
@@ -942,30 +1112,33 @@ Window {
                 }
             }
 
-            // ---- the keys, quietly
+            // ---- the keys, quietly (a controller's buttons once it's the one in use)
             Row {
                 x: stage.side
                 anchors.bottom: parent.bottom
-                anchors.bottomMargin: stage.u(24)
-                spacing: stage.u(22)
+                anchors.bottomMargin: stage.u(26)
+                spacing: stage.u(24)
                 opacity: stage.topO
                 Repeater {
-                    model: stage.theming ? [["←→↑↓", "Move"], ["Enter", "Apply"], ["Esc", "Back"]]
+                    model: Gamepad.inUse ? (stage.theming ? [["✥", "Move"], ["A", "Apply"], ["X", "Options"], ["Y", "Home"], ["B", "Back"]]
+                                                          : [["✥", "Move"], ["A", "Open"], ["X", "Options"], ["LB  RB", "Switch"], ["Y", "Theme"], ["B", "Close"]])
+                         : stage.theming ? [["←→↑↓", "Move"], ["Enter", "Apply"], ["Esc", "Back"]]
                                          : [["←→↑↓", "Move"], ["Enter", "Open"], ["Tab", "Switch"], ["Type", "Search"], ["Esc", "Close"]]
                     Row {
                         required property var modelData
                         spacing: stage.u(7)
+                        readonly property bool face: modelData[0].length === 1      // a pad's round face button
                         Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
-                            width: Math.max(stage.u(22), kt.implicitWidth + stage.u(12))
-                            height: stage.u(22)
-                            radius: stage.u(6)
+                            width: Math.max(stage.u(26), kt.implicitWidth + stage.u(14))
+                            height: stage.u(26)
+                            radius: parent.face ? height / 2 : stage.u(7)
                             color: "transparent"
                             border.width: 1
-                            border.color: C.alpha(stage.rice.fg, 0.2)
-                            Text { id: kt; anchors.centerIn: parent; text: modelData[0]; color: stage.rice.fgDim; font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: stage.u(11.5) }
+                            border.color: C.alpha(stage.rice.fg, 0.22)
+                            Text { id: kt; anchors.centerIn: parent; text: modelData[0]; color: stage.rice.fgDim; font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: stage.u(13) }
                         }
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: modelData[1]; color: stage.rice.muted; font.family: Tokens.font.ui; font.weight: Font.Medium; font.pixelSize: stage.u(12.5) }
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: modelData[1]; color: stage.rice.muted; font.family: Tokens.font.ui; font.weight: Font.Medium; font.pixelSize: stage.u(14.5) }
                     }
                 }
             }
@@ -1092,6 +1265,26 @@ Window {
                 visible: opacity > 0.01
                 Behavior on opacity { NumberAnimation { duration: Tokens.ms(320); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
             }
+        }
+
+        // ---- the Theme page's editors, at their tiles (an accent's colour; naming a look)
+        AccentEditor {
+            id: accentEd
+            anchors.fill: parent
+            z: 60
+            rice: stage.rice
+            model: tm
+            unit: stage.unit
+            onClosed: { focus = false; keys.forceActiveFocus() }      // (a FocusScope remembers its focused child)
+        }
+        NamingCard {
+            id: naming
+            anchors.fill: parent
+            z: 60
+            rice: stage.rice
+            model: tm
+            unit: stage.unit
+            onClosed: { focus = false; keys.forceActiveFocus() }      // (a FocusScope remembers its focused child)
         }
 
         // ---- the Theme page (WallpaperPane) in a frosted card, for now
@@ -1224,20 +1417,21 @@ Window {
     // the Theme page's items: what the hero says and offers for each
     function themeHero(it) {
         if (!it || !it.kind) return null
+        // only what Enter (or a click on the tile) does: every other setting sits in its row's header, the
+        // screens in the desk map (nothing here for the pointer to travel to across the other rows)
         const busy = tm.busy === it.key
-        const all = { id: "all", icon: "select_all", tip: tm.target === "all" ? "Edit only this screen" : "Edit every screen", on: tm.target === "all" }
-        const fine = t => ({ id: "fine:" + t, icon: "tune", tip: "Fine-tune" })
         const n = tm.page ? tm.page.walls.length : 0
         const t = {
-            wall: { eyebrow: "Wallpaper · " + it.n + " of " + n, primary: "Set on " + tm.targetLabel, icon: "wallpaper", extra: [all, { id: "fine:walls", icon: "travel_explore", tip: "Find more (wallhaven), the whole collection" }] },
-            look: { eyebrow: "Theme", primary: "Load theme", icon: "style", extra: [fine("walls")] },
-            save: { eyebrow: "Theme", primary: "Name it", icon: "bookmark_add", extra: [] },
-            "colours-auto": { eyebrow: "Colours", primary: "Use automatic", icon: "auto_awesome", extra: [all, fine("colours")] },
-            mood: { eyebrow: "Mood", primary: "Use " + String(it.name).toLowerCase(), icon: "palette", extra: [all, fine("colours")] },
-            accent: { eyebrow: "Accent · " + it.role, primary: "Pick a colour", icon: "colorize", extra: [fine("colours")] },
-            size: { eyebrow: "Size", primary: "Use this size", icon: "format_size", extra: [fine("size")] },
-            light: { eyebrow: "Lighting", primary: "Use on both keyboards", icon: "keyboard", extra: [fine("lights")] },
+            wall: { eyebrow: "Wallpaper · " + it.n + " of " + n, primary: "Set on " + tm.targetLabel, icon: "wallpaper" },
+            look: { eyebrow: "Theme", primary: "Load theme", icon: "style" },
+            save: { eyebrow: "Theme", primary: "Save as…", icon: "bookmark_add" },
+            "colours-auto": { eyebrow: "Colours", primary: "Use automatic", icon: "auto_awesome" },
+            mood: { eyebrow: "Mood", primary: "Use " + String(it.name).toLowerCase(), icon: "palette" },
+            accent: { eyebrow: "Accent · " + it.role, primary: "Edit colour", icon: "colorize" },
+            size: { eyebrow: "Size", primary: "Use this size", icon: "format_size" },
+            light: { eyebrow: "Lighting", primary: "Use on both keyboards", icon: "keyboard" },
         }[it.kind]
+        t.extra = []
         if (busy) t.primary = "Applying…"
         return t
     }
@@ -1245,12 +1439,27 @@ Window {
         if (id === "all") { tm.target = tm.target === "all" ? screenName : "all"; return }
         if (id.startsWith("fine:")) launcher.openWallpapers("desktop", id.slice(5))
     }
+    // the Menu key, a right click, a pad's X: an app's menu (pin, its actions), a theme's (load, update, delete)
+    function itemMenu(it, tile) {
+        if (!it || !tile) return
+        if (it.model) { launcher.menu.openFor(tile, it.model, it.row); return }
+        if (it.kind === "look") { lookMenu.it = it; lookMenu.visualParent = tile; lookMenu.openRelative() }
+        else if (it.kind === "accent") accentEd.openFor(it, tile)
+    }
+    PlasmaExtras.Menu {
+        id: lookMenu
+        property var it: null
+        PlasmaExtras.MenuItem { text: "Load"; icon: "view-refresh"; onClicked: if (lookMenu.it) tm.apply(lookMenu.it) }
+        PlasmaExtras.MenuItem { text: "Save the current look over it"; icon: "document-save"; onClicked: if (lookMenu.it) tm.savePreset(lookMenu.it.name) }
+        PlasmaExtras.MenuItem { separator: true }
+        PlasmaExtras.MenuItem { text: "Delete"; icon: "edit-delete"; onClicked: if (lookMenu.it) tm.deletePreset(lookMenu.it.name) }
+    }
     // Enter, a click or the bright pill: a Theme item applies (or opens the panel it needs), anything else launches
     function activateItem(it, tile) {
         if (!it) return
         if (!it.kind) { launchItem(it, tile); return }
-        if (it.kind === "save") launcher.openWallpapers("desktop", "walls")
-        else if (it.kind === "accent") launcher.openWallpapers("desktop", "colours")
+        if (it.kind === "save") naming.openAt(tile, tm.suggestName())
+        else if (it.kind === "accent") accentEd.openFor(it, tile)
         else tm.apply(it)
         if (Shell.debug) console.warn("ATOM home apply", it.key)
     }
@@ -1313,6 +1522,7 @@ Window {
 
     // ------------------------------------------------------------------ keys
     function onKey(event) {
+        if (!Gamepad.sending) Gamepad.inUse = false         // the keyboard again: its keys in the hints
         if (launcher.view === "walls") return
         const k = event.key
         if (k === Qt.Key_Escape) { if (searchOpen) closeSearch(); else if (theming) setTab(tabBefore); else launcher.close(); event.accepted = true; return }
@@ -1322,8 +1532,8 @@ Window {
         if (k === Qt.Key_Right) { step(1, 0); event.accepted = true; return }
         if (k === Qt.Key_Up) { step(0, -1); event.accepted = true; return }
         if (k === Qt.Key_Down) { step(0, 1); event.accepted = true; return }
-        if (k === Qt.Key_Return || k === Qt.Key_Enter) { activateItem(currentItem, currentTile()); event.accepted = true; return }
-        if (k === Qt.Key_Menu) { const t = currentTile(); if (t && currentItem && currentItem.model) launcher.menu.openFor(t, currentItem.model, currentItem.row); event.accepted = true; return }
+        if (k === Qt.Key_Return || k === Qt.Key_Enter || k === Qt.Key_Space) { if (theming) themeEnter(); else activateItem(currentItem, currentTile()); event.accepted = true; return }
+        if (k === Qt.Key_Menu) { itemMenu(currentItem, currentTile()); event.accepted = true; return }
         if ((event.modifiers & Qt.ControlModifier) && k === Qt.Key_F) { openSearch(""); event.accepted = true; return }
         if (event.text && event.text.trim() && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) {
             openSearch(event.text === "/" ? "" : event.text)
@@ -1331,6 +1541,14 @@ Window {
         }
     }
 
+    // the controller's buttons with no key of their own (Atom.Native Gamepad: the rest arrive as keys)
+    Connections {
+        target: Gamepad
+        enabled: stage.wanted && stage.phase === "open"
+        function onButton(name) {
+            if (name === "north" && stage.launcher.view !== "walls" && !stage.searchOpen) stage.toggleTheme()
+        }
+    }
     Connections { target: stage.launcher; function onViewChanged() { if (Shell.debug) console.warn("ATOM stage view", stage.launcher.view) } }
     property date now: new Date()
     Timer { running: stage.phase !== "closed"; repeat: true; interval: 10000; triggeredOnStart: true; onTriggered: stage.now = new Date() }

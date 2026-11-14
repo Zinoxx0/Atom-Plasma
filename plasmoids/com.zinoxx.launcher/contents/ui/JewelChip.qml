@@ -12,7 +12,7 @@ Rectangle {
     required property RicePalette rice
     property bool glowing: false            // in flight: it lights its way
     signal clicked()
-    radius: Math.round(height * 0.34)
+    radius: height / 2
     gradient: Gradient {
         orientation: Gradient.Horizontal
         GradientStop { position: 0; color: jc.rice.primary }

@@ -73,7 +73,7 @@ Item {
             color: hero.rice.primary
             font.family: Tokens.font.ui
             font.weight: Font.Bold
-            font.pixelSize: hero.u(13)
+            font.pixelSize: hero.u(14)
             font.letterSpacing: hero.u(1.6)
             bottomPadding: hero.u(8)
         }
@@ -138,7 +138,7 @@ Item {
                         color: hero.rice.fgDim
                         font.family: Tokens.font.ui
                         font.weight: Font.DemiBold
-                        font.pixelSize: hero.u(14)
+                        font.pixelSize: hero.u(16)
                     }
                 }
             }
@@ -156,7 +156,7 @@ Item {
                     color: hero.rice.fg
                     font.family: Tokens.font.ui
                     font.weight: Font.DemiBold
-                    font.pixelSize: hero.u(13)
+                    font.pixelSize: hero.u(14)
                 }
             }
         }
@@ -170,7 +170,7 @@ Item {
             elide: Text.ElideRight
             color: hero.rice.fgDim
             font.family: Tokens.font.ui
-            font.pixelSize: hero.u(16.5)
+            font.pixelSize: hero.u(18)
             lineHeight: 1.12
         }
         Item { width: 1; height: hero.u(24) }
@@ -257,7 +257,7 @@ Item {
                 color: pill.rice.light ? pill.rice.surfaceLowest : "#0a0d13"
                 font.family: Tokens.font.ui
                 font.weight: Font.DemiBold
-                font.pixelSize: pill.u(16.5)
+                font.pixelSize: pill.u(17.5)
             }
         }
         MouseArea { id: pm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: pill.clicked() }

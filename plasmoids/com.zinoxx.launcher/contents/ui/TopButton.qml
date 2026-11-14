@@ -14,7 +14,7 @@ Rectangle {
     signal clicked()
     readonly property bool hot: ma.containsMouse
     width: height
-    height: Math.round(42 * unit)
+    height: Math.round(44 * unit)
     radius: height / 2
     color: C.alpha(rice.fg, hot ? 0.1 : 0)
     Behavior on color { ColorAnimation { duration: Tokens.fast } }

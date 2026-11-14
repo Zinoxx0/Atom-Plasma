@@ -1,7 +1,7 @@
 // Pointer and keys for the NESTED KWin of tools/nested/run.sh only (refuses any other compositor:
 // WAYLAND_DISPLAY must be atom-spike). Uses KWin's fake-input protocol, allowed there by
 // KWIN_WAYLAND_NO_PERMISSION_CHECKS.
-// usage: fakein move X Y | click [left|right] | drag X1 Y1 X2 Y2 | key CODE | type TEXT | wait MS | wheel N ...
+// usage: fakein move X Y | click [left|right] | drag X1 Y1 X2 Y2 | glide X1 Y1 X2 Y2 MS | key CODE | type TEXT | wait MS | wheel N ...
 #include <wayland-client.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,6 +59,15 @@ int main(int argc, char **argv) {
             usleep(60000);      // held still before letting go: a drag, not a flick
             org_kde_kwin_fake_input_button(fi, BTN_LEFT, 0);
             i += 4;
+        }
+        else if (!strcmp(argv[i], "glide") && i + 5 < argc) {    // the pointer from X1 Y1 to X2 Y2 in MS, no button (a hand on its way)
+            double x1 = atof(argv[i+1]), y1 = atof(argv[i+2]), x2 = atof(argv[i+3]), y2 = atof(argv[i+4]);
+            int ms = atoi(argv[i+5]), n = ms / 8 > 2 ? ms / 8 : 2;
+            for (int k = 0; k <= n; k++) {
+                org_kde_kwin_fake_input_pointer_motion_absolute(fi, wl_fixed_from_double(x1 + (x2 - x1) * k / n), wl_fixed_from_double(y1 + (y2 - y1) * k / n));
+                wl_display_roundtrip(dpy); usleep(ms * 1000 / n);
+            }
+            i += 5;
         }
         else if (!strcmp(argv[i], "wheel") && i + 1 < argc) { org_kde_kwin_fake_input_axis(fi, 0, wl_fixed_from_double(atof(argv[++i]))); }
         else if (!strcmp(argv[i], "wait") && i + 1 < argc) { wl_display_roundtrip(dpy); usleep(atoi(argv[++i]) * 1000); }

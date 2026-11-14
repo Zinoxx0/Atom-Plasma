@@ -232,7 +232,8 @@ Item {
     function refreshState() { sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" page #state') }
     Timer { id: statusTimer; interval: 5000; onTriggered: wp.status = "" }
     onStatusChanged: if (status) statusTimer.restart()
-    onDiscoverChanged: if (discover) Qt.callLater(() => tagField.focusText())
+    // closing the search hands the keys back to the page (its field goes, and the focus with it: Esc reached nothing)
+    onDiscoverChanged: if (discover) Qt.callLater(() => tagField.focusText()); else Qt.callLater(() => wp.forceActiveFocus())
 
     onShownChanged: if (shown) { reload(); naming = false; Qt.callLater(grid.showCurrent) }
     Component.onCompleted: reload()
@@ -418,7 +419,7 @@ Item {
                 accent: pal.primary
                 onAccent: pal.onPrimary
                 onAccepted: wp.savePreset(text)
-                onEscaped: wp.naming = false
+                onEscaped: { wp.naming = false; wp.forceActiveFocus() }
             }
             Item { implicitWidth: Tokens.space.sm }
             Pill {
