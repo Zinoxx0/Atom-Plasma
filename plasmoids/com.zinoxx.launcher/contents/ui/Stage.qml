@@ -482,6 +482,8 @@ Window {
                     layer.effect: MultiEffect {     // fades into the room at the bottom
                         maskEnabled: true
                         maskSource: artMask
+                        maskThresholdMin: 0.5       // with the spread: smoothstep over the mask's whole 0..1 alpha
+                        maskSpreadAtMin: 1.0        // (the defaults let every pixel through: a hard cut where the art ends)
                     }
                     NumberAnimation on scale { id: drift; running: false; from: 1.07; to: 1; duration: Tokens.ms(9000); easing.type: Easing.BezierSpline; easing.bezierCurve: [0.22, 0.6, 0.3, 1, 1, 1] }
                     onSourceChanged: if (source != "" && !stage.launcher.unplugged && !stage.launcher.saverOn) drift.restart(); else { drift.stop(); scale = 1 }
