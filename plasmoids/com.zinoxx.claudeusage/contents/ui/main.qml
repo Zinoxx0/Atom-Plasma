@@ -389,14 +389,19 @@ PlasmoidItem {
         seatGlide.stop()
         if (glide && Math.abs(seat - v) > 0.001) { seatGlide.to = v; seatGlide.start() } else seat = v
     }
-    onPlaceChanged: Qt.callLater(moveClawd)
+    // The launcher or the power overlay coming over the bar sends him down into his seat: nobody sees that
+    // move (they cover the bar), so it's made at once, once they have (gliding the seat open reflowed the
+    // whole bar every frame under the power overlay's ripple, for nothing). Back up on the roof once they've
+    // gone is the jump everyone sees.
+    onPlaceChanged: { if (screenBusy && place === "island") coverMove.restart(); else Qt.callLater(moveClawd) }
+    Timer { id: coverMove; interval: Tokens.ms(700); onTriggered: if (root.screenBusy || !root.roofFree) root.moveClawd() }   // (gone already: the roof stands)
     function moveClawd() {
         const from = clawdAt, to = place
         if (from === to) return
         clawdAt = to
         measure()
         for (const a of [miniLeave, miniDrop, popupLand, popupLeave]) a.stop()
-        const glide = from !== "" && barSeen
+        const glide = from !== "" && barSeen && !screenBusy
         if (to !== "popup") seatTo(to === "roof" ? 0 : 1, glide)
         if (!glide) {                       // nobody's watching: no jump
             roof.stopAll(); roof.rest(to === "roof")
