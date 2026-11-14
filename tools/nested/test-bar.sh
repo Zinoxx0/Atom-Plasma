@@ -20,46 +20,8 @@ trap 'rm -f "$pal"' EXIT
 wall=$(python3 -c "import json; print(json.load(open('$state/palette-HDMI-A-1.json'))['_wallpaper'])")
 pins="preferred://filemanager,applications:org.kde.konsole.desktop,applications:zen.desktop,applications:discord.desktop,applications:steam.desktop,applications:com.microsoft.VSCode.desktop"
 t=$(mktemp -d)
-{
-cat <<A
-[Containments][1]
-activityId=
-formfactor=2
-immutability=1
-lastScreen=0
-location=4
-plugin=org.kde.panel
-wallpaperplugin=org.kde.image
-
-[Containments][1][General]
-AppletOrder=2;3;4;5;6;7;8;9;10;11;12;13;14;15;16
-
-[Containments][30]
-activityId=
-formfactor=0
-immutability=1
-lastScreen=0
-location=0
-plugin=org.kde.plasma.folder
-wallpaperplugin=org.kde.image
-
-[Containments][30][Wallpaper][org.kde.image][General]
-Image=file://$wall
-
-[Containments][1][Applets][4][Configuration][General]
-launchers=$pins
-A
-n=2
-for p in com.zinoxx.launcher S com.zinoxx.glimpse E com.zinoxx.shell luisbocanegra.panel.colorizer S \
-         com.zinoxx.claudeusage com.zinoxx.sysstats S com.zinoxx.status com.zinoxx.tiling com.zinoxx.session S com.zinoxx.clock; do
-    case $p in
-        S) printf '\n[Containments][1][Applets][%s]\nimmutability=1\nplugin=org.kde.plasma.panelspacer\n\n[Containments][1][Applets][%s][Configuration][General]\nexpanding=false\nlength=4\n' $n $n ;;
-        E) printf '\n[Containments][1][Applets][%s]\nimmutability=1\nplugin=org.kde.plasma.panelspacer\n\n[Containments][1][Applets][%s][Configuration][General]\nexpanding=true\n' $n $n ;;
-        *) printf '\n[Containments][1][Applets][%s]\nimmutability=1\nplugin=%s\n' $n "$p" ;;
-    esac
-    n=$((n + 1))
-done
-} > "$t/appletsrc"
+source "$here/bar-applets.sh"
+bar_applets 0 1 30 "$wall" "$pins" > "$t/appletsrc"
 
 cat > "$t/inner.sh" <<'I'
 #!/bin/bash
@@ -70,20 +32,7 @@ start_plasma 10
 qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "desktops().forEach(d => { d.currentConfigGroup = ['Wallpaper', 'org.kde.image', 'General']; d.writeConfig('Image', 'file://$WALL') })" >/dev/null
 kw() { python3 -c "import sys; sys.path.insert(0, sys.argv[2]); from atom import kwinscript; print(kwinscript.run(sys.argv[1], answer=True))" "$1" "$REPO"; }
 # the rice's settings and both looks, as rice.py gives them to a bar (slowed down to be seen)
-python3 - "$REPO" "${DOCK_MS_TEST:-2400}" >> "$N/out/app.log" 2>&1 <<'PY'
-import hashlib, json, sys
-sys.path.insert(0, sys.argv[1])
-from atom import panel, util
-p = json.load(open(util.STATE / "palette-HDMI-A-1.json"))
-print("configured", json.dumps(panel.configure()))
-for bar in panel.panels():
-    looks = panel.bar_looks(p, bar)
-    key = hashlib.sha1(json.dumps(looks, sort_keys=True).encode()).hexdigest()
-    cfg = {"presetAutoloading": panel.dock_presets(bar, looks, key), "animatePropertyChanges": True,
-           "animationDuration": int(sys.argv[2])}
-    print("islands", [[w.split(".")[-1] for _, w in g] for g in panel.islands(bar)])
-    print("applied", panel.colorizer_apply(bar, looks[0], cfg))
-PY
+python3 "$REPO/tools/nested/bar_looks.py" "$REPO" "${DOCK_MS_TEST:-2400}" >> "$N/out/app.log" 2>&1
 sleep 4
 mark "free"; shot free
 qml6 "$REPO/tools/nested/app.qml" >> "$N/out/app.log" 2>&1 & app=$!

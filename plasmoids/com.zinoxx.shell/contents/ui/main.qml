@@ -5,7 +5,8 @@ import org.kde.plasma.plasmoid
 import Atom
 
 // The shell's host: one per bar, takes no space on it. It draws its screen's panels (calendar, control
-// center...) on one morphing sheet (Atom.SheetWindow) and its part of the power overlay (Atom.PowerWindow); the bar's widgets are islands that ask
+// center...) on one morphing sheet (Atom.SheetWindow), its part of the power overlay (Atom.PowerWindow) and
+// the docked bar's floor while the islands are elsewhere (Atom.FloorWindow); the bar's widgets are islands that ask
 // for them through Atom.Shell. One host per screen: a second one on the same screen stays idle.
 PlasmoidItem {
     id: root
@@ -29,6 +30,16 @@ PlasmoidItem {
             required property var modelData
             screenObj: modelData
             panels: Shell.panels
+        }
+    }
+    // a docked bar's floor, kept while the islands are on another screen (no bare strip under a maximized
+    // window); the bar's thickness is this panel window's
+    Instantiator {
+        model: root.myScreen ? [root.myScreen] : []
+        delegate: FloorWindow {
+            required property var modelData
+            screenObj: modelData
+            barH: root.Window.window ? root.Window.window.height : 0
         }
     }
     // the power overlay: every screen blurs, the actions come up on the one it was opened from

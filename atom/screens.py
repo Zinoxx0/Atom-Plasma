@@ -224,7 +224,8 @@ def apply_screens(ss, cfg, fallback):
                  _topScale=round(s["ui"] * top, 2),                         # size of the Glimpse band up top
                  _display={k: s["display"][k] for k in ("id", "name", "label", "portrait", "sharedEdges", "scale")},
                  _layout=desk_layout(img, s),                               # the desktop widgets' places (com.zinoxx.desk)
-                 _desk={"media": s["name"] == music, "clawd": s["name"] == music, "theme": theme_name})
+                 _desk={"media": s["name"] == music, "clawd": s["name"] == music, "theme": theme_name},
+                 _floor=panel.floor(p))                                     # the docked bar's floor (Atom FloorWindow)
         util.write_if_changed(STATE / f"palette-{s['name']}.json", json.dumps(p, indent=2) + "\n")
         pals[s["screen"]] = p
     try:

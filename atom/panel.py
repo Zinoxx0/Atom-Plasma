@@ -80,6 +80,14 @@ def corner(o, side):
 FLOOR_ALPHA = 0.86        # the docked bar's floor
 
 
+def floor(p):
+    """The docked bar's floor, in one place: Colorizer draws it in the bar (panel_settings), and the shell
+    keeps the same glass on a docked screen whose islands went to another screen (Atom FloorWindow, which
+    reads it as the palette's `_floor`)."""
+    return {"color": mix(mix(p["background"], "#ffffff", 0.03), p["primary"], 0.03), "alpha": FLOOR_ALPHA,
+            "edge": mix(p["primary"], p.get("tertiary", p["primary"]), 0.5), "edgeAlpha": 0.34, "sheen": 0.06}
+
+
 def panel_settings(p=None, docked=False):
     """Colorizer's `panel` section: BAR_PAD, and (with a palette) the floor. Free, the floor is there but
     clear (the islands are the bar); docked, it fills the gaps and the stretch over the bar's whole height,
@@ -92,22 +100,22 @@ def panel_settings(p=None, docked=False):
     if not p:
         n["enabled"] = False
         return ps
-    bg, k = p["background"], 1 if docked else 0
+    fl, k = floor(p), 1 if docked else 0
 
     def color(c, alpha):
         return {"enabled": True, "sourceType": 0, "custom": c, "alpha": alpha}
 
     n["enabled"] = True
     n["blurBehind"] = docked
-    n["backgroundColor"].update(color(mix(mix(bg, "#ffffff", 0.03), p["primary"], 0.03), FLOOR_ALPHA * k))
+    n["backgroundColor"].update(color(fl["color"], fl["alpha"] * k))
     n["foregroundColor"]["enabled"] = False
     n["radius"] = {"enabled": True, "corner": {"topLeft": 0, "topRight": 0, "bottomRight": 0, "bottomLeft": 0}}
     n["border"].update(enabled=True, width=1, customSides=True)
     n["border"]["custom"]["widths"] = {"left": 0, "right": 0, "top": 1, "bottom": 0}
-    n["border"]["color"].update(color(mix(p["primary"], p.get("tertiary", p["primary"]), 0.5), 0.34 * k))
+    n["border"]["color"].update(color(fl["edge"], fl["edgeAlpha"] * k))
     n["borderSecondary"].update(enabled=True, customSides=True)
     n["borderSecondary"]["custom"]["widths"] = {"left": 0, "right": 0, "top": 1, "bottom": 0}
-    n["borderSecondary"]["color"].update(color("#ffffff", 0.06 * k))
+    n["borderSecondary"]["color"].update(color("#ffffff", fl["sheen"] * k))
     n["shadow"]["background"]["enabled"] = False
     n["shadow"]["foreground"]["enabled"] = False
     return ps
