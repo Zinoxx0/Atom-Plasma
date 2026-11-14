@@ -85,8 +85,14 @@ island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on ev
 - **Launcher** ("Atom Home": the jewel, Meta): that screen's windows fly into their pins and Home fades in
   on the frosted wallpaper, under the top band (never over it): pages Home, Games and Apps as rows of
   tiles, the focused row in front, the others behind it, smaller and see-through; a hero for
-  whatever has the focus; typing searches. The palette opens the Theme page (themes, wallpapers, colours,
-  size, lighting). Its size follows the screen's UI size, so a big monitor shows more, not the same bigger.
+  whatever has the focus; typing searches. The pointer focuses what it rests on, not what it sweeps across on
+  its way to the hero. The palette opens the Theme page (themes, wallpapers, colours, size, lighting), every
+  setting in sight: each row's own tools in its header (shuffle, the folder, finding more online, intensity,
+  the keyboards' brightness and power), an accent's colour edited at its tile, a look named where you save
+  it, the screens (one, or all) on the desk map. Its size follows the screen's UI size, so a big monitor
+  shows more, not the same bigger. A game controller drives it too (D-pad or stick to move, A to open,
+  B to go back, LB/RB for the pages, X for an item's options, Y for the Theme page), as it does the power
+  overlay; the hints at the bottom switch to its buttons once you use it.
   Other screens keep their windows; move the pointer to one and the launcher follows (your search comes
   along). Closing, or picking a window in the top band, brings the windows back where they were.
 - **Finder** (KRunner's replacement): Alt+Space, Alt+F2, the Search key, the desktop menu's Run Command and
