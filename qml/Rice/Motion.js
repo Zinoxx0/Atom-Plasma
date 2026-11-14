@@ -1,5 +1,5 @@
 .pragma library
-// Atom Home's choreography helpers. A move is one clock (0 -> its duration, linear) and tracks on it:
+// Choreography helpers (Atom Home, the power overlay). A move is one clock (0 -> its duration, linear) and tracks on it:
 // each track has a start, a duration and a curve, and gives its eased progress at any time (the launcher
 // lab's Timeline, so the timings tried there carry over as they are). Curves are CSS cubic-beziers.
 
