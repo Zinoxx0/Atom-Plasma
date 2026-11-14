@@ -61,7 +61,8 @@ step "meta";            qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaSh
 T=$(grep -o 'ATOM home tabs at .* theme at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $(NF-1), $NF}')
 step "theme [$T]";      $F move ${T:-1470 50} click wait 1400; shot l-theme
 step "theme down";      $F move 800 20 key 108 wait 1200; shot l-theme-walls
-step "drag walls";      $F drag 1300 550 500 550 wait 1200; shot l-drag
+W=$(grep -o 'ATOM home focus at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $NF}')      # the walls row (it has the focus)
+step "drag walls [$W]";  $F drag 1300 ${W:-550} 500 ${W:-550} wait 1200; shot l-drag
 X=$(grep -o 'ATOM theme action fine:walls at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $(NF-1), $NF}')
 step "fine-tune [$X]";  $F move ${X:-400 390} click wait 1400; shot l-fine
 step "fine-tune back";  $F key 1 wait 900

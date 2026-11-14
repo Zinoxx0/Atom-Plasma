@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import Atom
 import "Rice"
 import "Rice/Color.js" as C
@@ -9,6 +10,8 @@ import "Rice/Color.js" as C
 // row's ends (the last tile stops at the right margin). The keyboard moves the strip (settle(true)); the
 // pointer focuses where it is, so nothing slides out from under it; dragging, or a sideways wheel / touchpad
 // (the stage hands it over: slide(ev)), moves the strip by hand. A divider can part the row (pins | recents).
+// Depth: the focused row is the near one; the others sit behind it, smaller, dimmer and a little blurred.
+// Tiles that slide past the left margin fade out there: nothing runs off the left edge of the screen.
 Item {
     id: hr
     required property var row               // HomeModel's: { id, title, shape, items, divider, labeled, count }
@@ -41,98 +44,114 @@ Item {
     readonly property bool moving: strip.moving || glide.running   // dragged, flicked or gliding
     implicitHeight: titleH + pad + tileSize.height + pad + labelH + u(20)
 
-    Text {
-        x: hr.side
-        height: hr.titleH
-        visible: !!hr.row.title
-        opacity: hr.titleO
-        verticalAlignment: Text.AlignVCenter
-        text: hr.row.title + (hr.row.count ? "   " : "")
-        color: hr.active ? hr.rice.fg : hr.rice.fgDim
-        font.family: Tokens.font.ui
-        font.weight: Font.DemiBold
-        font.pixelSize: hr.u(18.5)
-        Behavior on color { ColorAnimation { duration: Tokens.base } }
-        Text {
-            anchors.left: parent.right
-            anchors.baseline: parent.baseline
-            visible: hr.row.count
-            text: hr.count
-            color: hr.rice.muted
-            font.family: Tokens.font.ui
-            font.weight: Font.DemiBold
-            font.pixelSize: hr.u(13.5)
-        }
-    }
-
     // where tile i starts on the strip (no tile has to exist for this: they all have the row's size)
     function slotX(i) { return i * (tileSize.width + gap) + (row.divider >= 0 && i >= row.divider ? gapDivider : 0) }
     readonly property real stripW: count ? slotX(count - 1) + tileSize.width : 0
     // the strip's travel: 0 = the first tile at the left margin, maxOffset = the last at the right one
     readonly property real maxOffset: Math.max(0, stripW - (width - 2 * side))
 
-    ListView {
-        id: strip
-        y: hr.titleH + hr.pad
-        width: hr.width
-        height: hr.tileSize.height + hr.labelH
-        orientation: ListView.Horizontal
-        spacing: hr.gap
-        leftMargin: hr.side
-        rightMargin: hr.side
-        model: hr.count                     // by count: a rebuilt row with as many items keeps its tiles
-        reuseItems: true
-        cacheBuffer: Math.round(hr.width / 2)
-        boundsBehavior: Flickable.StopAtBounds
-        flickDeceleration: 2600
-        maximumFlickVelocity: 5000
-        interactive: hr.maxOffset > 0
-        highlightFollowsCurrentItem: false
-        currentIndex: -1
-        onMovementStarted: glide.stop()
-        onMovementEnded: if (Shell.debug) console.warn("ATOM row", hr.row.id, "dragged to", Math.round(contentX))
-        NumberAnimation {
-            id: glide
-            target: strip; property: "contentX"
-            duration: Math.round(hr.focusMs * 1.4)
-            easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove
+    // 0 = the focused row, 1 = a row behind it
+    property real depth: active ? 0 : 1
+    Behavior on depth { NumberAnimation { duration: hr.focusMs; easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
+    Item {
+        id: body
+        anchors.fill: parent
+        opacity: 1 - 0.28 * hr.depth
+        transform: Scale { origin.x: hr.side; origin.y: hr.height / 2; xScale: 1 - 0.1 * hr.depth; yScale: xScale }
+        layer.enabled: hr.depth > 0.01
+        layer.effect: MultiEffect { blurEnabled: true; blur: 0.25 * hr.depth; blurMax: 20; autoPaddingEnabled: false }
+
+        Text {
+            x: hr.side
+            height: hr.titleH
+            visible: !!hr.row.title
+            opacity: hr.titleO
+            verticalAlignment: Text.AlignVCenter
+            text: hr.row.title + (hr.row.count ? "   " : "")
+            color: hr.active ? hr.rice.fg : hr.rice.fgDim
+            font.family: Tokens.font.ui
+            font.weight: Font.DemiBold
+            font.pixelSize: hr.u(18.5)
+            Behavior on color { ColorAnimation { duration: Tokens.base } }
+            Text {
+                anchors.left: parent.right
+                anchors.baseline: parent.baseline
+                visible: hr.row.count
+                text: hr.count
+                color: hr.rice.muted
+                font.family: Tokens.font.ui
+                font.weight: Font.DemiBold
+                font.pixelSize: hr.u(13.5)
+            }
         }
-        delegate: Item {
-            id: slot
-            required property int index
-            readonly property var entry: hr.row.items[index] || null
-            readonly property real lead: index === hr.row.divider ? hr.gapDivider : 0
-            readonly property Item tile: t
-            width: hr.tileSize.width + lead
+
+
+        ListView {
+            id: strip
+            y: hr.titleH + hr.pad
+            width: hr.width
             height: hr.tileSize.height + hr.labelH
-            z: t.focused ? 2 : 0
-            ListView.onReused: { t.opacity = 1; t.enter = 0 }
-            Rectangle {     // the divider (pins | recents)
-                visible: slot.lead > 0
-                x: Math.round(slot.lead / 2 - hr.gap / 2)
-                y: hr.tileSize.height * 0.22
-                width: 1
-                height: hr.tileSize.height * 0.56
-                color: C.alpha(hr.rice.fg, 0.16)
+            orientation: ListView.Horizontal
+            spacing: hr.gap
+            leftMargin: hr.side
+            rightMargin: hr.side
+            model: hr.count                     // by count: a rebuilt row with as many items keeps its tiles
+            reuseItems: true
+            cacheBuffer: Math.round(hr.width / 2)
+            boundsBehavior: Flickable.StopAtBounds
+            flickDeceleration: 2600
+            maximumFlickVelocity: 5000
+            interactive: hr.maxOffset > 0
+            highlightFollowsCurrentItem: false
+            currentIndex: -1
+            onMovementStarted: glide.stop()
+            onMovementEnded: if (Shell.debug) console.warn("ATOM row", hr.row.id, "dragged to", Math.round(contentX))
+            NumberAnimation {
+                id: glide
+                target: strip; property: "contentX"
+                duration: Math.round(hr.focusMs * 1.4)
+                easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove
             }
-            HomeTile {
-                id: t
-                x: slot.lead
-                width: hr.tileSize.width
-                height: hr.tileSize.height
-                item: slot.entry
-                shape: hr.row.shape
-                rice: hr.rice
-                unit: hr.unit
-                labeled: hr.row.labeled
-                current: slot.index === hr.current
-                rowActive: hr.active
-                focusMs: hr.focusMs
-                onPointed: hr.pointed(slot.index)
-                onActivated: hr.activated(slot.index, t)
-                onMenu: hr.menu(slot.index, t)
+            delegate: Item {
+                id: slot
+                required property int index
+                readonly property var entry: hr.row.items[index] || null
+                readonly property real lead: index === hr.row.divider ? hr.gapDivider : 0
+                readonly property Item tile: t
+                width: hr.tileSize.width + lead
+                height: hr.tileSize.height + hr.labelH
+                z: t.focused ? 2 : 0
+                // past the left margin it fades out (gone when half of it is past)
+                opacity: Math.max(0, Math.min(1, 1 + (slot.x + slot.lead - strip.contentX - hr.side) / (hr.tileSize.width * 0.5)))
+                ListView.onReused: { t.opacity = 1; t.enter = 0 }
+                Rectangle {     // the divider (pins | recents)
+                    visible: slot.lead > 0
+                    x: Math.round(slot.lead / 2 - hr.gap / 2)
+                    y: hr.tileSize.height * 0.22
+                    width: 1
+                    height: hr.tileSize.height * 0.56
+                    color: C.alpha(hr.rice.fg, 0.16)
+                }
+                HomeTile {
+                    id: t
+                    x: slot.lead
+                    width: hr.tileSize.width
+                    height: hr.tileSize.height
+                    item: slot.entry
+                    shape: hr.row.shape
+                    rice: hr.rice
+                    unit: hr.unit
+                    labeled: hr.row.labeled
+                    current: slot.index === hr.current
+                    rowActive: hr.active
+                    focusMs: hr.focusMs
+                    onPointed: hr.pointed(slot.index)
+                    onActivated: hr.activated(slot.index, t)
+                    onMenu: hr.menu(slot.index, t)
+                }
             }
         }
+
     }
 
     function tileAt(i) { const s = strip.itemAtIndex(i); return s ? s.tile : null }

@@ -34,9 +34,9 @@ Window {
 
     screen: screenObj
     x: screenObj ? screenObj.virtualX : 0
-    y: screenObj ? screenObj.virtualY : 0
+    y: screenObj ? screenObj.virtualY + topGap : 0
     width: screenObj ? screenObj.width : 0
-    height: screenObj ? screenObj.height : 0
+    height: screenObj ? screenObj.height - topGap : 0
     onScreenChanged: if (screenObj && screen?.name !== screenObj.name) screen = screenObj
     transientParent: null
     color: "transparent"
@@ -49,13 +49,17 @@ Window {
     LayerShell.Window.layer: LayerShell.Window.LayerTop
     LayerShell.Window.anchors: LayerShell.Window.AnchorTop | LayerShell.Window.AnchorBottom
                              | LayerShell.Window.AnchorLeft | LayerShell.Window.AnchorRight
+    LayerShell.Window.margins: ({ left: 0, top: topGap, right: 0, bottom: 0 })
     LayerShell.Window.exclusionZone: -1
     LayerShell.Window.keyboardInteractivity: LayerShell.Window.KeyboardInteractivityExclusive
     LayerShell.Window.activateOnShow: true
     LayerShell.Window.wantsToBeOnActiveScreen: false
 
     // ------------------------------------------------------------------ sizes: one design, fit to the screen
-    readonly property real unit: Math.max(0.6, Math.min(2.2, Math.min(width / 1440, height / 900)))
+    // one design (1440 x 900) sized by the screen's UI size (the rice's bar_scale: what the user picked as
+    // comfortable from where they sit), only shrunk further where it wouldn't fit: a big screen shows more,
+    // not the same bigger
+    readonly property real unit: Math.max(0.6, Math.min(rice.uiScale * 0.68, width / 1440, height / 900))
     function u(n) { return Math.round(n * unit) }
     readonly property real side: u(76)
     readonly property real rowsTop: u(448)
@@ -172,13 +176,21 @@ Window {
     onContentInChanged: if (contentIn) launcher.stageEntered()
 
     // ------------------------------------------------------------------ following the pointer
-    // While it's open, KWin is asked every 150 ms which screen the pointer is on; when it moved to another
-    // screen, the launcher goes there, query and all (only a move counts, not where it rested at first)
+    // While it's open it follows the pointer to another screen, query and all (only a move counts, not where
+    // it rested at first). KWin's rice_islands script says which screen the pointer is on the moment it
+    // crosses over (Shell.bar.pointer); without it, KWin is asked every 150 ms.
     property string pointerAt: ""
+    readonly property bool following: stage.wanted && (stage.phase === "opening" || stage.phase === "open") && stage.launcher.view !== "walls"
+    onFollowingChanged: if (following && Shell.bar) pointerSeen(Shell.bar.pointer || "")
+    Connections {
+        target: Shell
+        enabled: stage.following
+        function onBarChanged() { if (Shell.bar) stage.pointerSeen(Shell.bar.pointer || "") }
+    }
     Timer {
         interval: 150
         repeat: true
-        running: stage.wanted && (stage.phase === "opening" || stage.phase === "open") && stage.launcher.view !== "walls"
+        running: stage.following && !Shell.bar
         triggeredOnStart: true
         onTriggered: stage.askPointer()
     }
@@ -202,16 +214,10 @@ Window {
         Shell.open("launcher", name, there, { query: launcher.query })
     }
 
-    // Glimpse's strip (the top band) stays usable: the pointer goes through to it there
+    // The upper bar (Glimpse's strip, the top band) is never covered, moved or resized: the stage starts
+    // right under it (a top margin as tall as the band) and lays itself out in the space below
     readonly property var strip: Shell.island("strip", screenName)
-    InputMask {
-        window: stage
-        enabled: !!stage.strip && stage.screenObj !== null
-        shapes: {
-            const t = stage.strip ? Math.max(0, stage.strip.y + stage.strip.height - stage.screenObj.virtualY) : 0
-            return [{ x: 0, y: t, width: stage.width, height: Math.max(0, stage.height - t), radius: 0 }]
-        }
-    }
+    readonly property real topGap: strip && screenObj ? Math.max(0, Math.round(strip.y + strip.height - screenObj.virtualY)) : 0
 
 
     // ------------------------------------------------------------------ the data and the focus
@@ -306,15 +312,15 @@ Window {
         if (theming) Qt.callLater(() => {      // the hero's own actions, where they sit (once it has laid out)
             const h = heroRep.itemAt(heroSlot)
             const th = h ? h.th : null
-            if (th) th.extra.forEach((x, i) => { const p = h.extraAt(i); if (p) console.warn("ATOM theme action", x.id, "at", Math.round(screenObj.virtualX + p.x), Math.round(screenObj.virtualY + p.y)) })
+            if (th) th.extra.forEach((x, i) => { const p = h.extraAt(i); if (p) console.warn("ATOM theme action", x.id, "at", Math.round(screenObj.virtualX + p.x), Math.round(screenObj.virtualY + topGap + p.y)) })
         })
     }
     function logLayout() {
         const t = currentTile()
-        if (t) { const p = t.mapToItem(null, t.width / 2, t.height / 2); console.warn("ATOM home focus at", Math.round(screenObj.virtualX + p.x), Math.round(screenObj.virtualY + p.y)) }
+        if (t) { const p = t.mapToItem(null, t.width / 2, t.height / 2); console.warn("ATOM home focus at", Math.round(screenObj.virtualX + p.x), Math.round(screenObj.virtualY + topGap + p.y)) }
         const tabsP = tabs.mapToItem(null, 0, 0)
-        const at = b => { const q = b.mapToItem(null, b.width / 2, b.height / 2); return Math.round(screenObj.virtualX + q.x) + " " + Math.round(screenObj.virtualY + q.y) }
-        console.warn("ATOM home tabs at", Math.round(screenObj.virtualX + tabsP.x), Math.round(screenObj.virtualY + tabsP.y), "search at", at(searchButton), "theme at", at(themeButton))
+        const at = b => { const q = b.mapToItem(null, b.width / 2, b.height / 2); return Math.round(screenObj.virtualX + q.x) + " " + Math.round(screenObj.virtualY + topGap + q.y) }
+        console.warn("ATOM home tabs at", Math.round(screenObj.virtualX + tabsP.x), Math.round(screenObj.virtualY + topGap + tabsP.y), "search at", at(searchButton), "theme at", at(themeButton))
     }
     function setTab(i) {
         if (i !== themeTab) i = (i + 3) % 3

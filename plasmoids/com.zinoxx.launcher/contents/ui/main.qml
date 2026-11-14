@@ -62,7 +62,9 @@ PlasmoidItem {
         target: Plasmoid
         function onActivated() {
             if (Shell.kind === "launcher") { Shell.close("launcher"); return }
-            const scr = Windows.activeScreen || root.myScreenName
+            // where the islands are (kwin/rice_islands: the pointer's screen unless fullscreen covers it), else
+            // the active window's
+            const scr = (Shell.bar && Shell.bar.screen) || Windows.activeScreen || root.myScreenName
             Shell.open("launcher", scr, Shell.island("launcher", scr))
         }
     }
