@@ -522,9 +522,12 @@ def _qround(x):
 
 def bar_thickness(s):
     """A screen's bar thickness: BAR_PX at its UI size, nudged by a pixel or two where a fractional scale
-    would leave the screen's last row of pixels bare under the islands. KWin rounds such a screen's logical
-    height (1440 px at 1.15 = 1252.17 -> 1252) and puts a bottom bar's top and height each on the pixel grid,
-    so some thicknesses end a row short of the edge (69 on that screen: 1360 + 79 = 1439)."""
+    would misplace its edges. KWin rounds such a screen's logical height (1440 px at 1.15 = 1252.17 -> 1252)
+    and puts a bottom bar's top and height each on the pixel grid, so some thicknesses end a row short of the
+    edge (69 on that screen: 1360 + 79 = 1439). And a maximized window ends where the bar starts, but its
+    edge rounds down where the bar's rounds up: a bar whose top falls past the middle of a pixel leaves a row
+    of wallpaper between them (54 there: 1198 x 1.15 = 1377.7). Among the thicknesses that reach the edge,
+    the nearest whose top lands on a whole pixel, else in the first half of one, else the nearest."""
     want = round(BAR_PX * s["ui"])
     d = s.get("display") or {}
     scale, h = d.get("scale") or 1, d.get("h")
@@ -532,7 +535,10 @@ def bar_thickness(s):
         return want
     px, H = _qround(h * scale), round(h)
     reaches = lambda t: _qround((H - t) * scale) + _qround(t * scale) >= px
-    return next((t for t in (want, want - 1, want + 1, want - 2, want + 2) if reaches(t)), want)
+    top = lambda t: round(((H - t) * scale) % 1, 6) % 1      # where the bar's top falls inside a pixel
+    near = [t for t in (want, want - 1, want + 1, want - 2, want + 2) if reaches(t)]
+    return next((t for t in near if top(t) == 0), None) or next((t for t in near if top(t) < 0.5), None) \
+        or (near[0] if near else want)
 
 
 
