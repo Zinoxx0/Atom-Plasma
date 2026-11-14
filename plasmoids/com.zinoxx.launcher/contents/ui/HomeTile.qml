@@ -27,14 +27,19 @@ Item {
     readonly property bool focused: current && rowActive
     readonly property var roles: item ? item.roles : null      // the launcher's menu reads favoriteId and actionList
     readonly property bool hasArt: !!(item && item.art && item.art.portrait)
-    readonly property string look: shape === "square" ? "float" : hasArt ? "cover" : "poster"
+    readonly property bool themed: !!(item && item.kind)        // a Theme page item (ThemeFace draws it)
+    readonly property string look: themed ? "theme" : shape === "square" ? "float" : hasArt ? "cover" : "poster"
     readonly property real radius: Math.round(22 * unit)
     readonly property color tint: C.appTint(colors, rice.primary)
     readonly property color ring: rice.light ? rice.fg : "#ffffff"
     readonly property real glowK: Math.max(0.4, rice.glow)
     function u(n) { return Math.round(n * unit) }
 
-    Kirigami.ImageColors { id: colors; source: tile.hasArt ? tile.item.art.portrait : (tile.item ? tile.item.icon : "") }
+    Kirigami.ImageColors {
+        id: colors
+        source: tile.themed ? (tile.item.thumb ? "file://" + tile.item.thumb : "") : tile.hasArt ? tile.item.art.portrait : (tile.item ? tile.item.icon : "")
+    }
+    readonly property color glowColor: themed && item.kind === "accent" ? item.hex : themed && !item.thumb ? rice.primary : tint
 
     property real enter: 0                  // the stage's entrance: how far right it still is
     transform: Translate { x: tile.enter }
@@ -48,7 +53,7 @@ Item {
         radius: tile.radius
         blur: tile.u(52)
         spread: -tile.u(6)
-        color: C.alpha(tile.tint, 0.8 * tile.glowK)
+        color: C.alpha(tile.glowColor, 0.8 * tile.glowK)
         opacity: tile.focused ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: tile.focusMs } }
     }
@@ -155,6 +160,15 @@ Item {
         width: Math.round(parent.width * (tile.focused ? 0.72 : 0.68)); height: width
         Behavior on width { NumberAnimation { duration: tile.focusMs; easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
         source: tile.item ? tile.item.icon : ""
+    }
+
+    // ---- a Theme page item
+    Loader {
+        anchors.fill: parent
+        active: tile.themed
+        sourceComponent: Component {
+            ThemeFace { item: tile.item; rice: tile.rice; unit: tile.unit; radius: tile.radius }
+        }
     }
 
     // ---- the focus: the ring, and a glint once

@@ -25,6 +25,8 @@ Item {
     readonly property real base: u(118)
     readonly property size tileSize: row.shape === "portrait" ? Qt.size(Math.round(base * 0.98), Math.round(base * 1.47))
                                    : row.shape === "poster" ? Qt.size(Math.round(base * 1.34), Math.round(base * 2.0))
+                                   : row.shape === "wall" ? Qt.size(Math.round(base * 1.72), Math.round(base * 0.97))
+                                   : row.shape === "look" ? Qt.size(Math.round(base * 2.05), Math.round(base * 1.2))
                                    : row.labeled ? Qt.size(Math.round(base * 0.86), Math.round(base * 0.86))
                                    : Qt.size(base, base)
     readonly property real pad: u(16)
@@ -69,11 +71,11 @@ Item {
         spacing: hr.gap
         Repeater {
             id: rep
-            model: hr.row.items
+            model: hr.row.items.length      // by count: a rebuilt row with as many items keeps its tiles
             delegate: Item {
                 id: slot
-                required property var modelData
                 required property int index
+                readonly property var entry: hr.row.items[index] || null
                 readonly property real lead: index === hr.row.divider ? hr.gapDivider : 0
                 readonly property Item tile: t
                 width: hr.tileSize.width + lead
@@ -92,7 +94,7 @@ Item {
                     x: slot.lead
                     width: hr.tileSize.width
                     height: hr.tileSize.height
-                    item: slot.modelData
+                    item: slot.entry
                     shape: hr.row.shape
                     rice: hr.rice
                     unit: hr.unit

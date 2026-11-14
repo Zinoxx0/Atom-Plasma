@@ -72,7 +72,7 @@ PlasmoidItem {
         onNewData: (source, data) => {
             if (source.indexOf("#mode") >= 0) {      // the note names the Theme page's tab to open on
                 const tab = String(data["stdout"] ?? "").trim()
-                if (["walls", "colours", "lights"].indexOf(tab) >= 0) root.openWallpapers("desktop", tab)
+                if (["walls", "colours", "lights"].indexOf(tab) >= 0) root.openTheme(tab)
             }
             disconnectSource(source)
         }
@@ -87,7 +87,11 @@ PlasmoidItem {
         if (tab && wallsPane) wallsPane.tab = tab
         else openTab = tab || ""
     }
-    // the Theme page once its Loader (inside the popup, out of this scope's reach) has made it
+    // Atom Home's Theme page (the stage watches themeAsk), at a row: walls, colours or lights
+    property int themeAsk: 0
+    property string themeRow: ""
+    function openTheme(row) { themeRow = row || ""; themeAsk++ }
+    // the detailed Theme panels (Fine-tune) once its Loader (inside the popup, out of this scope's reach) has made it
     property Item wallsPane: null
     property string openTab: ""         // a tab asked for before the Theme page was first built
     // Meta+Shift+W (~/.local/share/applications/net.local.rice-wallpapers.desktop) leaves a note,

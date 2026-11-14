@@ -2,7 +2,9 @@
 # The launcher (Atom Home) in a nested Plasma (tools/nested/run.sh): it opens out of the jewel, the arrows
 # walk the rows, Tab switches pages, typing searches; Esc clears the query, leaves the search, then closes
 # it and the keyboard goes back to the app; Meta (plasmashell's activateLauncherMenu) opens it on the
-# active window's screen; the palette opens the Theme page. Screenshots in the logs folder. Exit 0 = all good.
+# active window's screen; the palette opens the Theme page (a page of rows: the arrows walk it, a hero action
+# opens the detailed panels, Esc leaves them, then the page). Nothing on the Theme page is APPLIED here: rice.py
+# and rgb.py would change the user's real theme and keyboards. Screenshots in the logs folder. Exit 0 = all good.
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
 t=$(mktemp -d)
@@ -58,7 +60,11 @@ step "type x (app?)";   $F type "x" wait 300
 step "meta";            qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu; $F wait 2200; shot l-meta
 T=$(grep -o 'ATOM home tabs at .* theme at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $(NF-1), $NF}')
 step "theme [$T]";      $F move ${T:-1470 50} click wait 1400; shot l-theme
-step "theme back";      $F key 1 wait 900
+step "theme down";      $F move 800 20 key 108 wait 1200; shot l-theme-walls
+X=$(grep -o 'ATOM theme action fine:walls at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $(NF-1), $NF}')
+step "fine-tune [$X]";  $F move ${X:-400 390} click wait 1400; shot l-fine
+step "fine-tune back";  $F key 1 wait 900
+step "theme back";      $F key 1 wait 1200; shot l-theme-back
 step "meta closes";     qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu; $F wait 1200; shot l-meta-closed
 step "type y (app?)";   $F type "y" wait 300
 step end
@@ -76,8 +82,13 @@ check "opening cleared the desk (the app was minimized)" 'app active false' "$N/
 check "down moved the focus a row"  'ATOM home tab 0 row 1' "$L"
 check "tab switched to Games"       'ATOM home tab 1' "$L"
 check "typing opened the search"    'ATOM home search "f"' "$L"
-check "the palette opened the Theme page" 'ATOM stage view walls' "$L"
-errs=$(grep -E "launcher|Stage|Home|Atom|Jewel|TopButton" "$L" | grep -E "Error|error:|TypeError|ReferenceError|Cannot|Unable|not a type|is not defined|Invalid property|no panel for" | sort -u | head -20)
+check "the palette opened the Theme page" 'ATOM home tab 3 row 0' "$L"
+check "down walked the Theme page"  'ATOM home tab 3 row 1' "$L"
+check "Fine-tune opened the panels" 'ATOM stage view walls' "$L"
+after() { sed -n "/ATOM ## $2/,\$p" "$L" | grep -q -- "$3" && echo "ok   $1" || { echo "FAIL $1"; fail=1; }; }
+after "Esc left the Theme page"     "theme back" 'ATOM home tab 0 row'
+grep -q "ATOM home apply" "$L" && { echo "FAIL something was applied"; fail=1; }
+errs=$(grep -E "launcher|Stage|Home|Theme|Atom|Jewel|TopButton|DeskMap" "$L" | grep -E "Error|error:|TypeError|ReferenceError|Cannot|Unable|not a type|is not defined|Invalid property|no panel for" | sort -u | head -20)
 [ -n "$errs" ] && { echo "$errs"; fail=1; }
 echo "logs: $N/out"
 exit $fail

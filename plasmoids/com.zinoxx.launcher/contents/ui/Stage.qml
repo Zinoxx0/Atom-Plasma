@@ -266,16 +266,21 @@ Window {
 
     // ------------------------------------------------------------------ the data and the focus
     HomeModel { id: hm; launcher: stage.launcher }
-    property int tab: 0                         // 0 Home, 1 Games, 2 Apps
-    readonly property var page: hm.pages.length ? hm.pages[Math.min(tab, hm.pages.length - 1)] : ({ rows: [] })
+    ThemeModel { id: tm; launcher: stage.launcher; rice: stage.rice; screenName: stage.screenName }
+    readonly property int themeTab: 3
+    property int tab: 0                         // 0 Home, 1 Games, 2 Apps, 3 the Theme page (no tab: the palette)
+    property int tabBefore: 0                   // where the Theme page goes back to
+    readonly property var page: tab === themeTab ? ({ id: "theme", rows: tm.rows, rev: tm.rev })
+                              : hm.pages.length ? hm.pages[Math.min(tab, hm.pages.length - 1)] : ({ rows: [] })
+    readonly property bool theming: tab === themeTab
     // per page: the active row, the row at the top, each row's focus (by row id)
-    property var states: [{ row: 0, scroll: 0, idx: {} }, { row: 0, scroll: 0, idx: {} }, { row: 0, scroll: 0, idx: {} }]
+    property var states: [{ row: 0, scroll: 0, idx: {} }, { row: 0, scroll: 0, idx: {} }, { row: 0, scroll: 0, idx: {} }, { row: 0, scroll: 0, idx: {} }]
     property int focusRev: 0
     function pageState() { return states[tab] }
     function idxOf(rowId) { focusRev; const i = pageState().idx[rowId]; return i === undefined ? 0 : i }
     function rowObj(ri) { return page.rows[ri] || null }
     readonly property var currentItem: {
-        focusRev; hm.rev
+        focusRev; hm.rev; tm.rev
         const r = rowObj(pageState().row)
         return r ? r.items[Math.min(idxOf(r.id), r.items.length - 1)] || null : null
     }
@@ -306,7 +311,42 @@ Window {
         if (dy) { const ri = st.row + dy; const r = rowObj(ri); if (r) focusAt(ri, idxOf(r.id), "key") }
         else { const r = rowObj(st.row); if (r) focusAt(st.row, idxOf(r.id) + dx, "key") }
     }
-    function logFocus() { const it = currentItem; console.warn("ATOM home tab", tab, "row", pageState().row, "item", it ? it.name : "-") }
+    function toggleTheme() { setTab(theming ? tabBefore : themeTab) }
+    // the Theme page's rows open on what's in use (the theme, this screen's wallpaper, its colours...)
+    function focusInUse() {
+        const st = states[themeTab]
+        let moved = false
+        tm.rows.forEach((r, k) => {
+            if (st.idx[r.id] !== undefined) return
+            const i = r.items.findIndex(it => it.current)
+            if (i < 0) return
+            st.idx[r.id] = i
+            moved = true
+            const row = theming ? rowsRep.itemAt(k) : null
+            if (row) row.settle(false)
+        })
+        if (moved) focusRev++
+    }
+    Connections { target: tm; function onRevChanged() { stage.focusInUse() } }   // also before the page swap ends
+    // Meta+Shift+W: the Theme page, at a row (walls, colours or lights)
+    function openTheme(rowId) {
+        if (!theming) setTab(themeTab)
+        if (!rowId) return
+        const id = rowId === "lights" ? "lighting" : rowId
+        const go = () => { const r = tm.rows.findIndex(x => x.id === id); if (r >= 0) focusAt(r, idxOf(id), "key") }
+        if (tm.rows.length) Qt.callLater(go)
+        else { const once = () => { tm.revChanged.disconnect(once); Qt.callLater(go) }; tm.revChanged.connect(once) }
+    }
+    Connections { target: stage.launcher; function onThemeAskChanged() { stage.openTheme(stage.launcher.themeRow) } }
+    function logFocus() {
+        const it = currentItem
+        console.warn("ATOM home tab", tab, "row", pageState().row, "item", it ? (it.name || it.key || "") : "-")
+        if (theming) Qt.callLater(() => {      // the hero's own actions, where they sit (once it has laid out)
+            const h = heroRep.itemAt(heroSlot)
+            const th = h ? h.th : null
+            if (th) th.extra.forEach((x, i) => { const p = h.extraAt(i); if (p) console.warn("ATOM theme action", x.id, "at", Math.round(screenObj.virtualX + p.x), Math.round(screenObj.virtualY + p.y)) })
+        })
+    }
     function logLayout() {
         const t = currentTile()
         if (t) { const p = t.mapToItem(null, t.width / 2, t.height / 2); console.warn("ATOM home focus at", Math.round(screenObj.virtualX + p.x), Math.round(screenObj.virtualY + p.y)) }
@@ -315,8 +355,9 @@ Window {
         console.warn("ATOM home tabs at", Math.round(screenObj.virtualX + tabsP.x), Math.round(screenObj.virtualY + tabsP.y), "search at", at(searchButton), "theme at", at(themeButton))
     }
     function setTab(i) {
-        i = (i + 3) % 3
+        if (i !== themeTab) i = (i + 3) % 3
         if (i === tab) return
+        if (i === themeTab) { tabBefore = tab; tm.reload(); Qt.callLater(focusInUse) }
         const dir = i > tab ? 1 : -1
         tabSwap.dir = dir
         tabSwap.next = i
@@ -347,7 +388,7 @@ Window {
     // fresh every time it opens: Home, the first pin, no query
     onOpened: {
         tab = 0
-        states = [{ row: 0, scroll: 0, idx: {} }, { row: 0, scroll: 0, idx: {} }, { row: 0, scroll: 0, idx: {} }]
+        states = [{ row: 0, scroll: 0, idx: {} }, { row: 0, scroll: 0, idx: {} }, { row: 0, scroll: 0, idx: {} }, { row: 0, scroll: 0, idx: {} }]
         focusRev++
         launcher.query = ""
         launcher.category = 0
@@ -454,6 +495,32 @@ Window {
                     onSourceChanged: if (source != "" && !stage.launcher.unplugged && !stage.launcher.saverOn) drift.restart(); else { drift.stop(); scale = 1 }
                 }
             }
+            Repeater {
+                model: 2
+                Item {
+                    id: paper
+                    required property int index
+                    anchors.fill: parent
+                    readonly property var it: stage.paperItems[index]
+                    opacity: stage.bgSlot === index ? stage.bgPaper[index] : 0
+                    visible: opacity > 0.001
+                    Image {
+                        anchors.fill: parent
+                        fillMode: Image.PreserveAspectCrop
+                        source: paper.it && paper.it.thumb ? "file://" + paper.it.thumb : ""
+                        smooth: true
+                    }
+                    Image {
+                        anchors.fill: parent
+                        fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                        sourceSize: Qt.size(stage.width, stage.height)
+                        source: paper.it && paper.it.image ? "file://" + paper.it.image : ""
+                        opacity: status === Image.Ready ? 1 : 0
+                        Behavior on opacity { NumberAnimation { duration: Tokens.ms(300) } }
+                    }
+                }
+            }
             // shade for the text: the palette's own darkest surface (light in a light mood), heavier at the left
             // and under the rows, and the dim over everything
             Rectangle {
@@ -529,17 +596,27 @@ Window {
 
     // ------------------------------------------------------------------ the backdrop follows the focus
     property var bgItems: [null, null]
+    property var paperItems: [null, null]       // the Theme page: { thumb, image } of the wallpaper shown
+    property var bgPaper: [0, 0]
     property var bgArt: [0, 0]
     property var bgGlow: [0, 0]
     property int bgSlot: 0
     property var bgShown: null
     Timer { id: bgDelay; interval: 110; onTriggered: stage.setBackdrop(stage.currentItem) }
     onCurrentItemChanged: { if (phase === "closed") return; heroShow(currentItem); bgDelay.restart() }
+    function paperOf(it) {
+        if (it.kind === "wall") return { thumb: it.thumb, image: it.path }
+        if (it.kind === "look") return { thumb: it.thumb, image: it.image }
+        const here = tm.screens.find(s => s.name === screenName)
+        return here ? { thumb: here.thumb, image: here.image } : { thumb: "", image: rice.wallpaper }
+    }
     function setBackdrop(it) {
         if (!it || it === bgShown) return
         bgShown = it
         const next = bgSlot ^ 1
-        const items = bgItems.slice(); items[next] = it; bgItems = items
+        const items = bgItems.slice(); items[next] = it.kind ? null : it; bgItems = items
+        const papers = paperItems.slice(); papers[next] = it.kind ? paperOf(it) : null; paperItems = papers
+        bgFade.paper = !!it.kind
         const hasArt = !!(it.art && it.art.hero)
         bgFade.slotFrom = bgSlot
         bgFade.slotTo = next
@@ -552,18 +629,22 @@ Window {
         property int slotFrom: 0
         property int slotTo: 1
         property bool art: false
+        property bool paper: false
         target: bgFade; property: "v"; from: 0; to: 1
         duration: Math.max(Tokens.ms(420), Math.round(stage.focusMs * 1.8))
         easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove
         property real v: 0
         onVChanged: {
-            const a = stage.bgArt.slice(), g = stage.bgGlow.slice()
-            a[slotTo] = art ? v * 0.9 : 0
-            g[slotTo] = art ? 0 : v * 0.6
+            const a = stage.bgArt.slice(), g = stage.bgGlow.slice(), w = stage.bgPaper.slice()
+            a[slotTo] = art && !paper ? v * 0.9 : 0
+            g[slotTo] = art || paper ? 0 : v * 0.6
+            w[slotTo] = paper ? v : 0
             a[slotFrom] = a[slotFrom] * (1 - v)
             g[slotFrom] = g[slotFrom] * (1 - v)
+            w[slotFrom] = w[slotFrom] * (1 - v)
             stage.bgArt = a
             stage.bgGlow = g
+            stage.bgPaper = w
         }
     }
 
@@ -608,9 +689,23 @@ Window {
                         opacity: stage.flying ? 0 : 1
                         onClicked: stage.tab !== 0 ? stage.setTab(0) : stage.launcher.close()
                     }
+                    Row {
+                        id: crumb
+                        visible: opacity > 0.01
+                        opacity: stage.theming ? 1 : 0
+                        Behavior on opacity { NumberAnimation { duration: Tokens.ms(320) } }
+                        width: stage.theming ? implicitWidth : 0
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: stage.u(8)
+                        TopButton { rice: stage.rice; unit: stage.unit; icon: "arrow_back"; tip: "Back (Esc)"; onClicked: stage.setTab(stage.tabBefore) }
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: "Theme"; color: stage.rice.fg; font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: stage.u(21) }
+                    }
                     Item {
                         id: tabs
-                        width: tabRow.width
+                        width: stage.theming ? 0 : tabRow.width
+                        visible: opacity > 0.01
+                        opacity: stage.theming ? 0 : 1
+                        Behavior on opacity { NumberAnimation { duration: Tokens.ms(320) } }
                         height: stage.u(42)
                         anchors.verticalCenter: parent.verticalCenter
                         Rectangle {
@@ -641,13 +736,13 @@ Window {
                                         id: tabText
                                         anchors.centerIn: parent
                                         text: modelData
-                                        color: stage.tab === index || tm.containsMouse ? stage.rice.fg : stage.rice.fgDim
+                                        color: stage.tab === index || tabMouse.containsMouse ? stage.rice.fg : stage.rice.fgDim
                                         font.family: Tokens.font.ui
                                         font.weight: Font.DemiBold
                                         font.pixelSize: stage.u(16.5)
                                         Behavior on color { ColorAnimation { duration: Tokens.fast } }
                                     }
-                                    MouseArea { id: tm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: stage.setTab(index) }
+                                    MouseArea { id: tabMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: stage.setTab(index) }
                                 }
                             }
                         }
@@ -658,7 +753,8 @@ Window {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: stage.u(10)
                     TopButton { id: searchButton; rice: stage.rice; unit: stage.unit; icon: "search"; tip: "Search (just type)"; onClicked: stage.openSearch("") }
-                    TopButton { id: themeButton; rice: stage.rice; unit: stage.unit; icon: "palette"; tip: "Theme"; onClicked: stage.launcher.openWallpapers("desktop") }
+                    TopButton { id: themeButton; rice: stage.rice; unit: stage.unit; icon: "palette"; tip: "Theme"; onClicked: stage.toggleTheme()
+                                color: stage.theming ? C.alpha(stage.rice.fg, 0.16) : C.alpha(stage.rice.fg, hot ? 0.1 : 0) }
                     TopButton {
                         id: powerButton
                         rice: stage.rice; unit: stage.unit
@@ -727,6 +823,7 @@ Window {
                 opacity: stage.heroO
                 transform: Translate { y: (1 - stage.heroO) * stage.u(24) }
                 Repeater {
+                    id: heroRep
                     model: 2
                     HomeHero {
                         required property int index
@@ -734,12 +831,72 @@ Window {
                         rice: stage.rice
                         unit: stage.unit
                         item: stage.heroItems[index]
-                        pinned: !!(item && stage.launcher.isFavorite(item.favId))
+                        readonly property var th: stage.themeHero(item)
+                        pinned: !th && !!(item && stage.launcher.isFavorite(item.favId))
+                        eyebrow: th ? th.eyebrow : ""
+                        primaryText: th ? th.primary : ""
+                        primaryIcon: th ? th.icon : ""
+                        extraActions: th ? th.extra : null
+                        onExtra: (i, from) => stage.themeExtra(th.extra[i].id)
                         opacity: stage.heroO2[index]
                         transform: Translate { x: stage.heroX[index] }
-                        onPrimary: { const t = stage.currentTile(); stage.launchItem(stage.currentItem, t) }
+                        onPrimary: { const t = stage.currentTile(); stage.activateItem(stage.currentItem, t) }
                         onPin: if (stage.currentItem) stage.launcher.toggleFavorite(stage.currentItem.favId)
                         onMore: from => { const t = stage.currentTile(); if (t && stage.currentItem) stage.launcher.menu.openFor(t, stage.currentItem.model, stage.currentItem.row) }
+                    }
+                }
+            }
+
+            // ---- the Theme page: the screens as they sit on the desk (the rice's DeskMap): the one being edited
+            // ringed, the one that themes the system starred; what the focused item would put on each
+            Rectangle {
+                id: screensCard
+                anchors.right: parent.right
+                anchors.rightMargin: stage.side
+                y: stage.u(118) + (stage.theming ? 0 : -stage.u(10))
+                width: stage.u(470)
+                height: stage.u(206)
+                radius: stage.u(26)
+                visible: opacity > 0.01
+                opacity: stage.theming ? stage.heroO : 0
+                Behavior on opacity { NumberAnimation { duration: Tokens.ms(380) } }
+                Behavior on y { NumberAnimation { duration: Tokens.ms(480); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
+                color: C.alpha(stage.rice.surfaceLowest, 0.5)
+                border.width: 1
+                border.color: C.alpha(stage.rice.edge, 0.1)
+                DeskMap {
+                    anchors { left: parent.left; right: parent.right; top: parent.top; bottom: capRow.top; margins: stage.u(18) }
+                    pal: stage.rice
+                    screens: tm.screens
+                    focusName: tm.target === "all" ? stage.screenName : tm.target
+                    linked: tm.target === "all"
+                    preview: stage.previewMap
+                    onPicked: name => { tm.target = name }
+                }
+                Row {
+                    id: capRow
+                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: stage.u(16) }
+                    height: stage.u(28)
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width - allChip.width
+                        text: tm.status || ("Editing " + tm.targetLabel)
+                        elide: Text.ElideRight
+                        color: tm.status ? stage.rice.bad : stage.rice.muted
+                        font.family: Tokens.font.ui
+                        font.weight: Font.DemiBold
+                        font.pixelSize: stage.u(12.5)
+                    }
+                    Rectangle {
+                        id: allChip
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: allText.implicitWidth + stage.u(24)
+                        height: stage.u(28)
+                        radius: height / 2
+                        color: tm.target === "all" ? stage.rice.primary : C.alpha(stage.rice.fg, 0.08)
+                        Text { id: allText; anchors.centerIn: parent; text: "All screens"; color: tm.target === "all" ? stage.rice.onPrimary : stage.rice.fgDim
+                               font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: stage.u(12.5) }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: stage.themeExtra("all") }
                     }
                 }
             }
@@ -763,24 +920,26 @@ Window {
                         Behavior on y { id: pageY; NumberAnimation { duration: Math.round(stage.focusMs * 1.45); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
                         Repeater {
                             id: rowsRep
-                            model: stage.page.rows
+                            // by count, so a page rebuilt with the same rows (a theme applied, the data refreshed)
+                            // keeps its rows and tiles and only rebinds them: nothing flashes
+                            model: stage.page.rows.length
                             delegate: HomeRow {
                                 id: hrow
-                                required property var modelData
                                 required property int index
+                                readonly property var entry: stage.page.rows[index] || ({ id: "", title: "", shape: "square", items: [], divider: -1 })
                                 width: pageCol.width
-                                row: modelData
+                                row: entry
                                 rice: stage.rice
                                 unit: stage.unit
                                 side: stage.side
                                 focusMs: stage.focusMs
-                                current: stage.idxOf(modelData.id)
+                                current: stage.idxOf(entry.id)
                                 active: (stage.focusRev, index === stage.pageState().row)
                                 opacity: (stage.focusRev, index < stage.pageState().scroll) ? 0 : 1
                                 Behavior on opacity { NumberAnimation { duration: Tokens.ms(320) } }
                                 onPointed: i => stage.focusAt(index, i, "mouse")
-                                onActivated: (i, tile) => { stage.focusAt(index, i, "mouse"); stage.launchItem(modelData.items[i], tile) }
-                                onMenu: (i, tile) => { const it = modelData.items[i]; stage.launcher.menu.openFor(tile, it.model, it.row) }
+                                onActivated: (i, tile) => { stage.focusAt(index, i, "mouse"); stage.activateItem(entry.items[i], tile) }
+                                onMenu: (i, tile) => { const it = entry.items[i]; if (it.model) stage.launcher.menu.openFor(tile, it.model, it.row) }
                                 Component.onCompleted: Qt.callLater(() => settle(false))
                             }
                         }
@@ -809,7 +968,8 @@ Window {
                 spacing: stage.u(22)
                 opacity: stage.topO
                 Repeater {
-                    model: [["←→↑↓", "Move"], ["Enter", "Open"], ["Tab", "Switch"], ["Type", "Search"], ["Esc", "Close"]]
+                    model: stage.theming ? [["←→↑↓", "Move"], ["Enter", "Apply"], ["Esc", "Back"]]
+                                         : [["←→↑↓", "Move"], ["Enter", "Open"], ["Tab", "Switch"], ["Type", "Search"], ["Esc", "Close"]]
                     Row {
                         required property var modelData
                         spacing: stage.u(7)
@@ -1054,6 +1214,55 @@ Window {
         NumberAnimation on p { id: launchGrow; running: false; from: 0; to: 1; duration: Tokens.ms(620); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove; onFinished: stage.launcher.close() }
     }
     Rectangle { id: flyMask; width: launchFly.width; height: launchFly.height; radius: M.lerp(stage.u(22), 0, launchFly.p); visible: false; layer.enabled: true }
+    // the Theme page's items: what the hero says and offers for each
+    function themeHero(it) {
+        if (!it || !it.kind) return null
+        const busy = tm.busy === it.key
+        const all = { id: "all", icon: "select_all", tip: tm.target === "all" ? "Edit only this screen" : "Edit every screen", on: tm.target === "all" }
+        const fine = t => ({ id: "fine:" + t, icon: "tune", tip: "Fine-tune" })
+        const n = tm.page ? tm.page.walls.length : 0
+        const t = {
+            wall: { eyebrow: "Wallpaper · " + it.n + " of " + n, primary: "Set on " + tm.targetLabel, icon: "wallpaper", extra: [all, { id: "fine:walls", icon: "travel_explore", tip: "Find more (wallhaven), the whole collection" }] },
+            look: { eyebrow: "Theme", primary: "Load theme", icon: "style", extra: [fine("walls")] },
+            save: { eyebrow: "Theme", primary: "Name it", icon: "bookmark_add", extra: [] },
+            "colours-auto": { eyebrow: "Colours", primary: "Use automatic", icon: "auto_awesome", extra: [all, fine("colours")] },
+            mood: { eyebrow: "Mood", primary: "Use " + String(it.name).toLowerCase(), icon: "palette", extra: [all, fine("colours")] },
+            accent: { eyebrow: "Accent · " + it.role, primary: "Pick a colour", icon: "colorize", extra: [fine("colours")] },
+            size: { eyebrow: "Size", primary: "Use this size", icon: "format_size", extra: [fine("size")] },
+            light: { eyebrow: "Lighting", primary: "Use on both keyboards", icon: "keyboard", extra: [fine("lights")] },
+        }[it.kind]
+        if (busy) t.primary = "Applying…"
+        return t
+    }
+    function themeExtra(id) {
+        if (id === "all") { tm.target = tm.target === "all" ? screenName : "all"; return }
+        if (id.startsWith("fine:")) launcher.openWallpapers("desktop", id.slice(5))
+    }
+    // Enter, a click or the bright pill: a Theme item applies (or opens the panel it needs), anything else launches
+    function activateItem(it, tile) {
+        if (!it) return
+        if (!it.kind) { launchItem(it, tile); return }
+        if (it.kind === "save") launcher.openWallpapers("desktop", "walls")
+        else if (it.kind === "accent") launcher.openWallpapers("desktop", "colours")
+        else tm.apply(it)
+        if (Shell.debug) console.warn("ATOM home apply", it.key)
+    }
+    // what the focused Theme item would put on each screen, for the desk map: {connector: {thumb, how, from}}
+    readonly property var previewMap: {
+        const it = currentItem
+        if (!theming || !it) return null
+        if (it.kind === "wall") {
+            const out = {}
+            for (const s of tm.targets) out[s.name] = { thumb: it.thumb, how: "same" }
+            return out
+        }
+        if (it.kind === "look" && it.preset && it.preset.plan) {
+            const out = {}
+            for (const conn in it.preset.plan) out[conn] = Object.assign({ thumb: (it.preset.thumbs || {})[conn] || "" }, it.preset.plan[conn])
+            return out
+        }
+        return null
+    }
     function launchItem(it, tile) {
         if (!it || (phase !== "open" && phase !== "opening")) return
         const r = tile ? tile.mapToItem(null, 0, 0, tile.width, tile.height) : Qt.rect(width / 2 - u(60), height / 2 - u(60), u(120), u(120))
@@ -1098,15 +1307,15 @@ Window {
     function onKey(event) {
         if (launcher.view === "walls") return
         const k = event.key
-        if (k === Qt.Key_Escape) { if (searchOpen) closeSearch(); else launcher.close(); event.accepted = true; return }
-        if (k === Qt.Key_Tab) { setTab(tab + 1); event.accepted = true; return }
-        if (k === Qt.Key_Backtab) { setTab(tab - 1); event.accepted = true; return }
+        if (k === Qt.Key_Escape) { if (searchOpen) closeSearch(); else if (theming) setTab(tabBefore); else launcher.close(); event.accepted = true; return }
+        if (k === Qt.Key_Tab) { setTab(theming ? tabBefore : tab + 1); event.accepted = true; return }
+        if (k === Qt.Key_Backtab) { setTab(theming ? tabBefore : tab - 1); event.accepted = true; return }
         if (k === Qt.Key_Left) { step(-1, 0); event.accepted = true; return }
         if (k === Qt.Key_Right) { step(1, 0); event.accepted = true; return }
         if (k === Qt.Key_Up) { step(0, -1); event.accepted = true; return }
         if (k === Qt.Key_Down) { step(0, 1); event.accepted = true; return }
-        if (k === Qt.Key_Return || k === Qt.Key_Enter) { launchItem(currentItem, currentTile()); event.accepted = true; return }
-        if (k === Qt.Key_Menu) { const t = currentTile(); if (t && currentItem) launcher.menu.openFor(t, currentItem.model, currentItem.row); event.accepted = true; return }
+        if (k === Qt.Key_Return || k === Qt.Key_Enter) { activateItem(currentItem, currentTile()); event.accepted = true; return }
+        if (k === Qt.Key_Menu) { const t = currentTile(); if (t && currentItem && currentItem.model) launcher.menu.openFor(t, currentItem.model, currentItem.row); event.accepted = true; return }
         if ((event.modifiers & Qt.ControlModifier) && k === Qt.Key_F) { openSearch(""); event.accepted = true; return }
         if (event.text && event.text.trim() && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) {
             openSearch(event.text === "/" ? "" : event.text)

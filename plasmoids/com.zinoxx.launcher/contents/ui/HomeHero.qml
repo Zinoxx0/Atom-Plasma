@@ -20,10 +20,25 @@ Item {
     signal primary()
     signal pin()
     signal more(Item from)
+    // where an extra action's button sits, in the window (the nested tests click it)
+    function extraAt(i) { const b = extraRep.itemAt(i); return b ? b.mapToItem(null, b.width / 2, b.height / 2) : null }
     signal extra(int i, Item from)
     function u(n) { return Math.round(n * unit) }
 
     readonly property bool game: !!(item && item.game)
+    // a wallpaper is named from its colours (Kirigami reads them off its thumbnail): "Amber", "Sky"...
+    Kirigami.ImageColors { id: wallColors; source: hero.item && hero.item.kind === "wall" && hero.item.thumb ? "file://" + hero.item.thumb : "" }
+    readonly property string colorName: {
+        const c = wallColors.dominant
+        if (!hero.item || hero.item.kind !== "wall" || !c || c.hslSaturation < 0.08) return hero.item && hero.item.kind === "wall" ? "Wallpaper " + hero.item.n : ""
+        const names = [[12, "Ember"], [32, "Amber"], [50, "Gold"], [80, "Lime"], [150, "Jade"], [172, "Teal"], [192, "Cyan"], [212, "Sky"],
+                       [232, "Azure"], [252, "Indigo"], [278, "Violet"], [308, "Orchid"], [335, "Rose"], [361, "Ember"]]
+        const h = Math.max(0, c.hslHue) * 360
+        const adj = c.hslLightness < 0.3 ? "Deep " : c.hslLightness > 0.72 ? "Pale " : c.hslSaturation < 0.3 ? "Smoky " : ""
+        const n = names.find(x => h <= x[0])[1]
+        return adj ? adj + n.toLowerCase() : n
+    }
+    readonly property var wallSwatches: hero.item && hero.item.kind === "wall" && wallColors.dominant ? [wallColors.dominant, wallColors.highlight, wallColors.average] : []
     readonly property string logo: item && item.art && item.art.logo ? item.art.logo : ""
     function ago(ts) {
         const s = Date.now() / 1000 - ts
@@ -63,11 +78,11 @@ Item {
             bottomPadding: hero.u(8)
         }
         Row {
-            visible: hero.swatches.length > 0
+            visible: (hero.swatches.length || hero.wallSwatches.length) > 0
             spacing: hero.u(10)
             bottomPadding: hero.u(14)
             Repeater {
-                model: hero.swatches
+                model: hero.swatches.length ? hero.swatches : hero.wallSwatches
                 Rectangle {
                     required property var modelData
                     width: hero.u(30); height: width; radius: width / 2
@@ -92,7 +107,7 @@ Item {
         Text {
             visible: !hero.logo
             width: parent.width
-            text: hero.item ? hero.item.name : ""
+            text: hero.item ? hero.item.name || hero.colorName : ""
             elide: Text.ElideRight
             color: hero.rice.fg
             font.family: Tokens.font.display
@@ -185,6 +200,7 @@ Item {
                 onClicked: hero.more(moreButton)
             }
             Repeater {
+                id: extraRep
                 model: hero.extraActions || []
                 Pill {
                     id: ex
