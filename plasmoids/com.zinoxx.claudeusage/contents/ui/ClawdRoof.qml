@@ -35,12 +35,12 @@ Window {
     LayerShell.Window.wantsToBeOnActiveScreen: false
 
     // mapped while its bar is the one showing (kwin/rice_islands) and the screen isn't the launcher's; it
-    // fades with the bar, so the roof Clawd leaves and arrives with the islands
+    // fades with the bar (kwin/rice_islands: fadeIn, fadeOut), so the roof Clawd leaves and arrives with the islands
     // (never before its screen is known: a layer surface stays on the output it was mapped on)
     readonly property bool wanted: !!scr && w.barSeen && !w.screenBusy && w.islandH > 0
     onScrChanged: if (visible) { visible = false; Qt.callLater(() => { visible = Qt.binding(() => wanted || shown > 0) }) }
     property real shown: wanted ? 1 : 0
-    Behavior on shown { NumberAnimation { duration: Tokens.ms(win.wanted ? 400 : 200); easing.type: Easing.BezierSpline; easing.bezierCurve: win.wanted ? Tokens.calmIn : Tokens.calmOut } }
+    Behavior on shown { NumberAnimation { duration: Tokens.ms(win.wanted ? 180 : 120); easing.type: Easing.BezierSpline; easing.bezierCurve: win.wanted ? Tokens.calmIn : Tokens.calmOut } }
     visible: wanted || shown > 0
 
     readonly property real dpr: win.devicePixelRatio || 1
@@ -52,8 +52,9 @@ Window {
             ? [{ x: clawd.x, y: clawd.y, width: clawd.width, height: clawd.height, radius: 0 }] : []
     }
 
-    // where Clawd rests on the roof (window coordinates): centred, its feet on the island's top edge
-    readonly property real restX: snap((width - clawd.width) / 2)
+    // where Clawd rests on the roof (window coordinates): over the middle of the rings, its feet on the
+    // island's top edge
+    readonly property real restX: snap(w.roofCx - w.roofWinX - clawd.width / 2)
     readonly property real restY: snap(height - w.islandH - clawd.height)
 
     Item {

@@ -195,14 +195,18 @@ PlasmoidItem {
         TextMetrics { id: num1; font: numFont.font; text: root.numText(1) }
         function numWidth(i) { return Tokens.space.xs * root.uiScale + Math.ceil((i === 0 ? num0 : num1).advanceWidth) }
         readonly property real ringW: 15 * root.uiScale
-        readonly property real bare: 2 * Tokens.space.md * root.uiScale + mini.implicitWidth
-                                     + 2 * (Tokens.space.sm * root.uiScale + ringW)
+        readonly property real seatW: mini.implicitWidth + Tokens.space.sm * root.uiScale      // Clawd's seat
+        readonly property real bare: 2 * Tokens.space.md * root.uiScale + seatW
+                                     + Tokens.space.sm * root.uiScale + 2 * ringW
+        // (BarFit plans with Clawd's seat open: the bar never has to refit when he goes up to the roof)
         readonly property var fitWidths: [bare + numWidth(0) + numWidth(1), bare + numWidth(0) + numWidth(1), bare]
         // giving the numbers up (or taking them back) glides
         property real shown: fitWidths[Math.min(fit.step, fitWidths.length - 1)]
         Behavior on shown { enabled: fit.animate; NumberAnimation { duration: Tokens.ms(450); easing.type: Tokens.move } }
-        Layout.minimumWidth: shown
-        Layout.preferredWidth: shown
+        // while Clawd is up on the roof his seat closes, so the rings sit in the middle of their island
+        // (the stretch is on the island's left: its right edge, and the rings, stay put)
+        Layout.minimumWidth: shown - (1 - root.seat) * seatW
+        Layout.preferredWidth: Layout.minimumWidth
         Layout.fillHeight: true
         onClicked: mouse => {
             if (mouse.button === Qt.MiddleButton) Qt.openUrlExternally("https://claude.ai/settings/usage");
@@ -219,38 +223,47 @@ PlasmoidItem {
         RowLayout {
             id: row
             anchors.centerIn: parent
-            spacing: Tokens.space.sm * root.uiScale
-            Clawd {
-                id: mini
-                px: 2 * root.uiScale
-                continuous: false
-                mood: root.mood
-                usage: root.peak
-                working: root.working
-                activity: root.activity
-                celebrate: root.celebrate
-                warm: root.warm
-                daypart: root.daypart
-                weekend: root.weekend
-                season: root.season
-                sand: root.sand
-                alert: root.asking
-                notice: root.updating
-                music: root.musicOn
-                weather: root.sky
-                pal: root.palValues
-                hovered: compact.containsMouse
-                animate: !root.covered
-                onHobbyTextChanged: root.barHobby = hobbyText
-                onIdleChanged: root.barIdle = idle
-                Component.onCompleted: { root.barHobby = hobbyText; root.barIdle = idle }
-                onAlertClicked: root.openPanel()        // the popup has the message and Done
-                onSummoned: root.summonClaude()
+            spacing: 0
+            Item {
+                // Clawd's seat: it closes from the left, and Clawd keeps his place beside the rings, so
+                // the roof's jumps always aim at the spot he lands in
+                Layout.preferredWidth: compact.seatW * root.seat
+                Layout.preferredHeight: mini.implicitHeight
                 Layout.alignment: Qt.AlignVCenter
-                Layout.topMargin: 2
-                // only while Clawd is in its island (root.place); it leaves and drops back in from above
-                opacity: root.miniOpacity
-                transform: Translate { y: root.miniLift }
+                Clawd {
+                    id: mini
+                    anchors.right: parent.right
+                    anchors.rightMargin: Tokens.space.sm * root.uiScale
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.verticalCenterOffset: 1
+                    px: 2 * root.uiScale
+                    continuous: false
+                    mood: root.mood
+                    usage: root.peak
+                    working: root.working
+                    activity: root.activity
+                    celebrate: root.celebrate
+                    warm: root.warm
+                    daypart: root.daypart
+                    weekend: root.weekend
+                    season: root.season
+                    sand: root.sand
+                    alert: root.asking
+                    notice: root.updating
+                    music: root.musicOn
+                    weather: root.sky
+                    pal: root.palValues
+                    hovered: compact.containsMouse
+                    animate: !root.covered
+                    onHobbyTextChanged: root.barHobby = hobbyText
+                    onIdleChanged: root.barIdle = idle
+                    Component.onCompleted: { root.barHobby = hobbyText; root.barIdle = idle }
+                    onAlertClicked: root.openPanel()        // the popup has the message and Done
+                    onSummoned: root.summonClaude()
+                    // only while Clawd is in its island (root.place); it leaves and drops back in from above
+                    opacity: root.miniOpacity
+                    transform: Translate { y: root.miniLift }
+                }
             }
             Repeater {
                 model: 2
@@ -260,6 +273,7 @@ PlasmoidItem {
                     readonly property var info: index === 0 ? root.session : root.weekly
                     readonly property bool hot: info.pct >= 90
                     spacing: 0
+                    Layout.leftMargin: index === 1 ? Tokens.space.sm * root.uiScale : 0
                     Ring {
                         implicitWidth: compact.ringW; implicitHeight: implicitWidth
                         thickness: 3 * root.uiScale
@@ -316,19 +330,25 @@ PlasmoidItem {
     readonly property real roofClawdW: 22 * roofPx
     readonly property real roofClawdH: 10 * roofPx
     property real islandH: 0                // the island's height (it stands on the screen's bottom edge)
-    property real islandCx: 0               // where Clawd sits in it (its seat's centre), screen-local x: on the
-                                            // roof it stands right above its empty seat and jumps straight up
-    readonly property real roofWinW: roofClawdW + 16 * uiScale
+    property real islandR: 0                // its right edge, screen-local x (it stays put: the stretch is on its left)
+    property real islandW: 0                // its width with Clawd's seat open
+    property real seatW: 0
+    // on the roof Clawd stands over the middle of the rings (the island without his seat)
+    readonly property real roofCx: islandR - (islandW - seatW) / 2
+    // his window spans the whole island (his jumps start and end in its seat) and the roof spot
+    readonly property real roofWinX: Math.floor(Math.min(islandR - islandW, roofCx - roofClawdW / 2) - 8 * uiScale)
+    readonly property real roofWinW: Math.ceil(Math.max(islandR, roofCx + roofClawdW / 2) + 8 * uiScale - roofWinX)
     readonly property real roofWinH: islandH + roofClawdH * 1.6 + 8 * uiScale
-    readonly property real roofWinX: islandCx - roofWinW / 2
     readonly property var roofRect: myScreen && islandH > 0
-        ? { x: myScreen.virtualX + islandCx - roofClawdW / 2, y: myScreen.virtualY + myScreen.height - islandH - roofClawdH,
+        ? { x: myScreen.virtualX + roofCx - roofClawdW / 2, y: myScreen.virtualY + myScreen.height - islandH - roofClawdH,
             width: roofClawdW, height: roofClawdH } : null
     function measure() {
         const it = compactRepresentationItem, lay = fit.panelLayout, sc = myScreen
         if (!it || !lay || !sc || !it.width) return
         islandH = lay.height                // the layout runs from the island's top to the screen's edge
-        islandCx = it.clawd.mapToGlobal(it.clawd.width / 2, 0).x - sc.virtualX
+        islandR = it.mapToGlobal(it.width, 0).x - sc.virtualX
+        islandW = it.shown
+        seatW = it.seatW
     }
     // again whenever the island may have moved: the bar reflowed (its container moved), the bar itself
     // moved or resized, this widget's width changed (numbers folding), the islands came to this screen
@@ -355,6 +375,12 @@ PlasmoidItem {
     property real miniOpacity: 1
     property real miniLift: 0
     property real popupIn: 0
+    property real seat: 1                   // Clawd's seat in the island: 1 open (he's in it), 0 closed (roof)
+    NumberAnimation { id: seatGlide; target: root; property: "seat"; duration: Tokens.ms(560); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove }
+    function seatTo(v, glide) {             // (the popup keeps the seat as it was: the island doesn't reflow under it)
+        seatGlide.stop()
+        if (glide && Math.abs(seat - v) > 0.001) { seatGlide.to = v; seatGlide.start() } else seat = v
+    }
     onPlaceChanged: Qt.callLater(moveClawd)
     function moveClawd() {
         const from = clawdAt, to = place
@@ -362,7 +388,9 @@ PlasmoidItem {
         clawdAt = to
         measure()
         for (const a of [miniLeave, miniDrop, popupLand, popupLeave]) a.stop()
-        if (from === "" || !barSeen) {      // nobody's watching: no jump
+        const glide = from !== "" && barSeen
+        if (to !== "popup") seatTo(to === "roof" ? 0 : 1, glide)
+        if (!glide) {                       // nobody's watching: no jump
             roof.stopAll(); roof.rest(to === "roof")
             miniOpacity = to === "island" ? 1 : 0; miniLift = 0; popupIn = to === "popup" ? 1 : 0
             return
