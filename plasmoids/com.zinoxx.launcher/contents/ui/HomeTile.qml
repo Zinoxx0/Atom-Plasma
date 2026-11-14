@@ -12,7 +12,9 @@ import "Rice/Color.js" as C
 // The focused tile (of the active row) lifts a little, wears the ring (a white line just outside it, with a
 // gap, so it never covers the art) and glows in its own colour (the palette's glow sets how much); a glint
 // crosses it once as it takes the focus. Under the pointer (before the focus settles on it, or in a row
-// behind) it only brightens: hovered and focused never look alike.
+// behind) it only brightens: hovered and focused never look alike. While the pointer is the input in use it
+// carries its own actions in its top corner (pin, and "..." = the right click's menu): a click launches,
+// so nothing has to be reached across other tiles.
 // Cheap by design (a row can hold hundreds, and the strip makes and reuses them as it moves): each look is
 // built only for the tiles that wear it, the glow and the glint only around the focus, and the colour is
 // read off the image only where it's shown (a poster's fill, a focused tile's glow).
@@ -24,15 +26,21 @@ Item {
     property bool labeled: false
     property bool current: false            // the row's focus
     property bool rowActive: false          // the row has the keyboard's focus
+    property bool pointerMode: false        // the pointer is the input in use (keys or a pad hide its hover)
+    property bool pinned: false
+    readonly property bool canPin: !!(item && !item.kind && item.favId)
+    readonly property bool hasMenu: !!(item && (item.model || item.kind === "look"))
     property real unit: 1
     property int focusMs: Tokens.ms(380)
     signal activated()
     signal pointed(point at)                // the pointer is over it (where, in the window)
     signal pointerOut()
     signal menu()
+    signal pinToggle()
 
     readonly property bool focused: current && rowActive
-    readonly property bool hovered: hit.containsMouse && !focused
+    readonly property bool pointerOn: pointerMode && (hit.containsMouse || corner.hot)
+    readonly property bool hovered: pointerOn && !focused
     readonly property var roles: item ? item.roles : null      // the launcher's menu reads favoriteId and actionList
     readonly property bool hasArt: !!(item && item.art && item.art.portrait)
     readonly property bool themed: !!(item && item.kind)
@@ -242,6 +250,52 @@ Item {
         font.pixelSize: tile.u(15)
         scale: 1 / tile.scale       // stays its size while the tile grows
         Behavior on color { ColorAnimation { duration: Tokens.fast } }
+    }
+
+    // its own actions, in its corner, while the pointer is on it
+    Row {
+        id: corner
+        readonly property bool hot: pinB.hot || moreB.hot
+        // inside the corner of a big tile (a cover, a wallpaper); on a small one (an app's icon) badges on
+        // its corner, half outside, so they never sit on the icon
+        readonly property bool small: tile.width < tile.u(140)
+        anchors { right: parent.right; top: parent.top
+                  rightMargin: small ? -Math.round(pinB.width * 0.4) : tile.u(8); topMargin: small ? -Math.round(pinB.width * 0.4) : tile.u(8) }
+        spacing: tile.u(small ? 4 : 6)
+        z: 5
+        opacity: tile.pointerOn ? 1 : 0
+        visible: opacity > 0.01
+        Behavior on opacity { NumberAnimation { duration: Tokens.fast } }
+        CornerButton { id: pinB; rice: tile.rice; unit: tile.unit; shown: tile.canPin; icon: "push_pin"; on: tile.pinned
+                       tip: tile.pinned ? "Unpin" : "Pin"; onClicked: tile.pinToggle() }
+        CornerButton { id: moreB; rice: tile.rice; unit: tile.unit; shown: tile.hasMenu; icon: "more_horiz"; tip: "More"; onClicked: tile.menu() }
+    }
+    component CornerButton: Rectangle {
+        id: cb
+        property RicePalette rice: null     // (an inline component sees no ids of its file: all passed in)
+        property real unit: 1
+        property string icon: ""
+        property string tip: ""
+        property bool on: false
+        property bool shown: true
+        readonly property bool hot: cbm.containsMouse
+        signal clicked()
+        visible: shown
+        width: Math.round(28 * unit); height: width; radius: width / 2
+        color: hot ? Qt.rgba(0.06, 0.07, 0.1, 0.96) : Qt.rgba(0.06, 0.07, 0.1, 0.86)
+        border.width: 1
+        border.color: C.alpha("#ffffff", hot ? 0.4 : 0.18)
+        scale: cbm.pressed ? 0.92 : 1
+        Behavior on color { ColorAnimation { duration: Tokens.fast } }
+        Text {
+            anchors.centerIn: parent
+            text: cb.icon
+            color: cb.on ? cb.rice.primary : "#ffffff"
+            font.family: Tokens.font.icons
+            font.pixelSize: Math.round(17 * cb.unit)
+            font.variableAxes: { "FILL": cb.on ? 1 : 0 }
+        }
+        MouseArea { id: cbm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: cb.clicked() }
     }
 
     MouseArea {

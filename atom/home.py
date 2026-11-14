@@ -87,11 +87,43 @@ def usage(db=ACTIVITY_DB):
     return out
 
 
+# A game's banner fills the launcher's top 78% (cropped to cover, from the top): how bright it gets under the
+# hero's text and the rows (palette.zone_light), so the launcher's scrim is as strong as contrast needs.
+# Measured once per file (LIGHT, keyed by path and modification time).
+BANNER_ZONES = {"top": (0.5, 0.0, 0.87, 0.13), "hero": (0.13, 0.13, 0.55, 0.54), "rows": (0.13, 0.46, 0.87, 1.0)}
+LIGHT = util.CACHE / "art-light.json"
+
+
+def banner_light(path, known):
+    try:
+        key = f"{path}:{os.stat(path).st_mtime_ns}:{len(BANNER_ZONES)}"      # (new zones: measured again)
+    except OSError:
+        return None
+    if key not in known:
+        from . import palette
+        try:
+            known[key] = palette.zone_light(path, BANNER_ZONES)
+        except Exception:                   # (an unreadable picture: no measure, the launcher stays careful)
+            return None
+    return known[key]
+
+
 def build(dirs=None, cache=STEAM_CACHE, db=ACTIVITY_DB):
     games = {}
+    try:
+        known = json.loads(LIGHT.read_text())
+    except (OSError, ValueError):
+        known = {}
+    before = dict(known)
     for did, appid in steam_games(dirs).items():
         a = art(appid, cache)
         games[did] = dict(a, appid=appid)
+        if a.get("hero"):
+            light = banner_light(a["hero"], known)
+            if light:
+                games[did]["light"] = light
+    if known != before:
+        util.write_if_changed(LIGHT, json.dumps(known) + "\n")
     return {"games": games, "usage": usage(db)}
 
 

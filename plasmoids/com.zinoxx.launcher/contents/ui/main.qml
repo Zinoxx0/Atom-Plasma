@@ -318,7 +318,7 @@ PlasmoidItem {
                 shown++
                 addMenuItem(menuItem.createObject(ctx, { text: a.text, icon: a.icon || "", enabled: !a.disabled, act: a }))
             }
-            openRelative()
+            open(0, item.height + Math.round(10 * root.s))      // under it (the tile it belongs to stays in sight)
         }
     }
     Component {

@@ -6,7 +6,7 @@
 #   tools/nested/look-launcher.sh OUTDIR step...
 #     open | meta            open it (the jewel; meta = the launcher shortcut)
 #     key:CODE               a key (evdev codes: 108 down, 103 up, 105 left, 106 right, 28 enter, 1 esc, 15 tab)
-#     type:TEXT  wait:MS  move:X,Y  click  rclick  wheel:N  drag:X1,Y1,X2,Y2  glide:X1,Y1,X2,Y2,MS (no button)
+#     type:TEXT  wait:MS  move:X,Y  click  clickat:X,Y (a move, then the click: fresh surface)  rclick  wheel:N  drag:X1,Y1,X2,Y2  glide:X1,Y1,X2,Y2,MS (no button)
 #     theme                  click the palette (Theme page);  shot:NAME   a screenshot (OUTDIR/NAME.png)
 #     pad:BUTTONS            a pretend gamepad (tools/nested/pad.py: south east dpad-down ...), if built
 #     log:WORDS              a mark in the log
@@ -81,7 +81,8 @@ while read -r s; do
         key:*)   $F key "${s#key:}" wait 120 ;;
         type:*)  $F type "${s#type:}" wait 200 ;;
         wait:*)  $F wait "${s#wait:}" ;;
-        move:*)  $F move ${s#move:} ;;
+        move:*)  $F move $(echo "${s#move:}" | tr ',' ' ') ;;
+        clickat:*) $F move $(echo "${s#clickat:}" | tr ',' ' ') click wait 120 ;;
         click)   $F click wait 120 ;;
         rclick)  $F click right wait 300 ;;
         wheel:*) $F wheel "${s#wheel:}" wait 100 ;;

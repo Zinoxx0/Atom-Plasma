@@ -10,8 +10,8 @@ import "Rice/Color.js" as C
 // row's ends (the last tile stops at the right margin). The keyboard moves the strip (settle(true)); the
 // pointer focuses where it is, so nothing slides out from under it; dragging, or a sideways wheel / touchpad
 // (the stage hands it over: slide(ev)), moves the strip by hand. A divider can part the row (pins | recents).
-// Depth: the focused row is the near one; the others sit behind it, their tiles a little smaller and every
-// part of them see-through (the title keeps its size: the rows keep one rhythm whichever is near).
+// Every row is drawn the same, at full strength (the focus outline alone says where you are; rows behind,
+// dimmed, read as disabled), and every row of apps has one tile size.
 // Tiles that slide past the left margin fade out there: nothing runs off the left edge of the screen.
 // A row can carry its own settings (the Theme page's: Shuffle, Intensity, Brightness...): they sit in its
 // header, after the title, always in sight; `toolFocus` rings the one the keys are on.
@@ -29,7 +29,10 @@ Item {
     property real titleO: 1                 // the stage's entrance
     readonly property var tools: row.tools || []
     property int toolFocus: -1              // the header tool the keys are on (-1: none)
+    property bool pointerMode: false        // the pointer is the input in use: tiles show its hover and their corner buttons
+    property var isPinned: null             // item -> pinned (the stage's)
     signal toolActivated(string id)
+    signal pinToggle(int i)
     signal activated(int i, Item tile)
     signal pointed(int i, point at)         // the pointer is over tile i (at: where, in the window)
     signal pointerOut(int i)
@@ -41,7 +44,7 @@ Item {
                                    : row.shape === "poster" ? Qt.size(Math.round(base * 1.34), Math.round(base * 2.0))
                                    : row.shape === "wall" ? Qt.size(Math.round(base * 1.72), Math.round(base * 0.97))
                                    : row.shape === "look" ? Qt.size(Math.round(base * 2.05), Math.round(base * 1.2))
-                                   : row.labeled ? Qt.size(Math.round(base * 0.86), Math.round(base * 0.86))
+                                   : row.labeled ? Qt.size(Math.round(base * 0.9), Math.round(base * 0.9))
                                    : Qt.size(base, base)
     readonly property real pad: u(22)       // clear of the focused tile's lift and ring
     readonly property real gap: u(24)
@@ -58,15 +61,9 @@ Item {
     // the strip's travel: 0 = the first tile at the left margin, maxOffset = the last at the right one
     readonly property real maxOffset: Math.max(0, stripW - (width - 2 * side))
 
-    // 0 = the focused row, 1 = a row behind it
-    property real depth: active ? 0 : 1
-    Behavior on depth { NumberAnimation { duration: hr.focusMs; easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
     Item {
         id: body
         anchors.fill: parent
-        opacity: 1 - 0.55 * hr.depth
-        // faded as one picture (a tile's shadow doesn't show through it)
-        layer.enabled: hr.depth > 0.01
 
         Row {
             id: header
@@ -80,11 +77,10 @@ Item {
                 visible: !!hr.row.title
                 verticalAlignment: Text.AlignVCenter
                 text: hr.row.title
-                color: hr.active ? hr.rice.fg : hr.rice.fgDim
+                color: hr.rice.fg
                 font.family: Tokens.font.ui
-                font.weight: Font.DemiBold
+                font.weight: Font.Bold
                 font.pixelSize: hr.u(20)
-                Behavior on color { ColorAnimation { duration: Tokens.base } }
                 rightPadding: hr.row.count ? countText.implicitWidth + hr.u(10) : 0
                 Text {
                     id: countText
@@ -125,8 +121,6 @@ Item {
         ListView {
             id: strip
             y: hr.titleH + hr.pad
-            // behind: the tiles a little smaller, from the row's top left (they stay under their title)
-            transform: Scale { origin.x: hr.side; origin.y: 0; xScale: 1 - 0.08 * hr.depth; yScale: xScale }
             width: hr.width
             height: hr.tileSize.height + hr.labelH
             orientation: ListView.Horizontal
@@ -183,6 +177,9 @@ Item {
                     current: slot.index === hr.current
                     rowActive: hr.active && hr.tilesFocused
                     focusMs: hr.focusMs
+                    pointerMode: hr.pointerMode
+                    pinned: !!(hr.isPinned && slot.entry && hr.isPinned(slot.entry))
+                    onPinToggle: hr.pinToggle(slot.index)
                     onPointed: at => hr.pointed(slot.index, at)
                     onPointerOut: hr.pointerOut(slot.index)
                     onActivated: hr.activated(slot.index, t)

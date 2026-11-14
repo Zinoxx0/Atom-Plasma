@@ -65,8 +65,11 @@ Window {
     readonly property real side: u(76)
     // the rows start under the hero; on a tall screen they sit lower (the hero and the art above get the
     // room), so the page isn't all in its top half
-    readonly property real rowsTop: Math.max(u(448), Math.round(height * 0.45))
-    readonly property real ctlH: u(44)          // the top bar's one control height
+    readonly property real rowsTop: heroTop + heroH + u(26)
+    readonly property real barH: u(58)          // the top bar's one control height (a fullscreen page: big)
+    // the hero right under the top bar, as tall as its content needs; the rows take everything below it
+    readonly property real heroTop: u(26) + barH + u(34)
+    readonly property real heroH: theming ? u(290) : u(236)
     readonly property int openMs: Tokens.ms(900)
     readonly property int closeMs: Tokens.ms(420)
     readonly property int focusMs: Tokens.ms(380)
@@ -83,6 +86,8 @@ Window {
     property bool finder: false
     function begin() {
         pointerAt = ""
+        pointerMode = false
+        pointerSeenAt = Qt.point(-1, -1)
         pointerKnown = false
         aim = null
         aimTrail = []
@@ -273,6 +278,18 @@ Window {
     // other rows: the focus, and the hero's buttons with it, would change under it before it got there).
     // Only real pointer moves count: when content slides under a still pointer Qt reports a hover too, at the
     // same place in the window.
+    // The input used last wins: the pointer moving (really moving: content sliding under a still one doesn't
+    // count) makes it the input in use (tiles show its hover and their corner actions, the key hints fade);
+    // a key or a pad's button gives it back to them, and a still pointer never takes the focus back.
+    property bool pointerMode: false
+    property point pointerSeenAt: Qt.point(-1, -1)
+    function pointerMoved(at) {
+        const known = pointerSeenAt.x >= 0
+        const moved = known && Math.abs(at.x - pointerSeenAt.x) + Math.abs(at.y - pointerSeenAt.y) > 1
+        pointerSeenAt = at
+        if (moved && phase === "open" && !pointerMode) { pointerMode = true; if (Shell.debug) console.warn("ATOM home input pointer") }
+    }
+    onPointerModeChanged: if (Shell.debug && !pointerMode) console.warn("ATOM home input keys")
     property var aim: null                      // { ri, i }: the tile under the pointer
     property var aimTrail: []                   // its recent places: [{ x, y, t }]
     property bool pointerKnown: false           // a first position seen since opening (that one isn't a move)
@@ -329,10 +346,30 @@ Window {
         if (Shell.debug) logFocus(from)
     }
     function step(dx, dy) {
-        if (theming) { themeStep(dx, dy); return }
         const st = pageState()
+        if (st.line === "top") {        // the top bar: along it, or back down to the rows (the desk map on the Theme page)
+            if (dy > 0) { if (theming) setLine("desk", undefined, Math.max(0, deskTargets.indexOf(tm.target))); else setLine("tiles") }
+            else if (dx) setLine("top", undefined, Math.max(0, Math.min(topItems.length - 1, st.top + dx)))
+            return
+        }
+        if (theming) { themeStep(dx, dy); return }
+        if (dy < 0 && st.row === 0) { setLine("top", undefined, Math.max(0, topItems.indexOf("tab" + tab))); return }
         if (dy) { const ri = st.row + dy; const r = rowObj(ri); if (r) focusAt(ri, idxOf(r.id), "key") }
         else { const r = rowObj(st.row); if (r) focusAt(st.row, idxOf(r.id) + dx, "key") }
+    }
+    // the top bar's parts the keys walk (Up from the first row; the desk map's line on the Theme page)
+    readonly property var topItems: theming ? ["back", "search", "theme", "power"] : ["tab0", "tab1", "tab2", "search", "theme", "power"]
+    function topEnter() {
+        const id = topItems[pageState().top] || ""
+        if (id.startsWith("tab")) { const i = Number(id.slice(3)); if (i !== tab) { setTab(i); Qt.callLater(() => setLine("top", undefined, topItems.indexOf("tab" + i))) } }
+        else if (id === "back") setTab(tabBefore)
+        else if (id === "search") openSearch("")
+        else if (id === "theme") toggleTheme()
+        else if (id === "power") openPowerHere()
+    }
+    function openPowerHere() {
+        const p = powerButton.mapToGlobal(0, 0)
+        launcher.openPower({ x: p.x, y: p.y, width: powerButton.width, height: powerButton.height })
     }
     function toggleTheme() { setTab(theming ? tabBefore : themeTab) }
     // ---- the Theme page's lines, walked spatially: the desk map at the top; per row its header's tools,
@@ -349,18 +386,19 @@ Window {
     function setLine(line, ri, extra) {
         const st = pageState()
         st.line = line
-        if (extra !== undefined) { if (line === "tools") st.tool = extra; else if (line === "desk") st.desk = extra }
+        if (extra !== undefined) { if (line === "tools") st.tool = extra; else if (line === "desk") st.desk = extra; else if (line === "top") st.top = extra }
         if (ri !== undefined && ri !== st.row) { const r = rowObj(ri); focusAt(ri, idxOf(r.id), "key") }
         else { quietUntil = Date.now() + focusMs * 1.5 + 80; focusRev++; if (line === "desk" && st.scroll !== 0) { st.scroll = 0; scrollPage(true) } }
         if (Shell.debug) {
-            console.warn("ATOM theme line", line, "row", st.row, line === "tools" ? "tool " + toolsOf(rowObj(st.row))[st.tool].id : line === "desk" ? "desk " + deskTargets[st.desk] : "")
+            console.warn("ATOM theme line", line, "row", st.row, line === "tools" ? "tool " + toolsOf(rowObj(st.row))[st.tool].id : line === "desk" ? "desk " + deskTargets[st.desk]
+                         : line === "top" ? "top " + topItems[st.top] : "")
             logFocus()          // (and where the tools sit now: the tests click them)
         }
     }
     function themeStep(dx, dy) {
         const st = pageState(), line = st.line || "tiles", r = rowObj(st.row)
         if (dy < 0) {
-            if (line === "desk") return
+            if (line === "desk") { setLine("top", undefined, topItems.indexOf("theme")); return }
             if (line === "tiles" && firstTool(r, 0, 1) >= 0) { setLine("tools", st.row, firstTool(r, 0, 1)); return }
             if (st.row > 0) { setLine("tiles", st.row - 1); return }
             setLine("desk", undefined, Math.max(0, deskTargets.indexOf(tm.target)))
@@ -427,6 +465,10 @@ Window {
     function logFocus(from) {
         const it = currentItem
         console.warn("ATOM home tab", tab, "row", pageState().row, "item", it ? (it.name || it.key || "") : "-", from ? "(" + from + ", top row " + pageState().scroll + ")" : "")
+        Qt.callLater(() => {        // where the focused tile is now (the tests drag its row)
+            const t = currentTile()
+            if (t) { const p = t.mapToItem(null, t.width / 2, t.height / 2); console.warn("ATOM home focus at", Math.round(screenObj.virtualX + p.x), Math.round(screenObj.virtualY + topGap + p.y)) }
+        })
         if (theming) Qt.callLater(() => {      // the hero's own actions, where they sit (once it has laid out)
             const h = heroRep.itemAt(heroSlot)
             const th = h ? h.th : null
@@ -552,6 +594,7 @@ Window {
             anchors.fill: parent
 
             Image {     // the screen's wallpaper, frosted (the theme engine's glass)
+                id: wallFrost
                 anchors.fill: parent
                 anchors.margins: -stage.u(20)
                 fillMode: Image.PreserveAspectCrop
@@ -560,7 +603,8 @@ Window {
                 source: pre ? "file://" + pre : stage.rice.wallpaper ? "file://" + stage.rice.wallpaper : ""
                 sourceSize.width: pre ? 0 : 96
             }
-            // an app lights the room in its colour (two layers, cross-faded)
+            // an app with no art of its own: the wallpaper, coloured with the app's own colour (its icon's
+            // dominant one), and the icon large on the right (two slots, cross-faded)
             Repeater {
                 model: 2
                 Item {
@@ -572,22 +616,13 @@ Window {
                     property var item: stage.bgItems[index]
                     Kirigami.ImageColors { id: glowColors; source: glow.item ? glow.item.icon : "" }
                     readonly property color c: C.appTint(glowColors, stage.rice.primary)
-                    Shape {
-                        x: parent.width * 0.27; y: -parent.height * 0.6
-                        width: parent.width * 0.85; height: width
-                        preferredRendererType: Shape.CurveRenderer
-                        ShapePath {
-                            strokeWidth: -1
-                            fillGradient: RadialGradient {
-                                centerX: glowShape.w / 2; centerY: glowShape.w / 2; centerRadius: glowShape.w / 2
-                                focalX: centerX; focalY: centerY
-                                GradientStop { position: 0; color: C.alpha(glow.c, 0.55 * Math.max(0.4, stage.rice.glow)) }
-                                GradientStop { position: 0.55; color: C.alpha(glow.c, 0.16 * Math.max(0.4, stage.rice.glow)) }
-                                GradientStop { position: 1; color: C.alpha(glow.c, 0) }
-                            }
-                            PathRectangle { x: 0; y: 0; width: glowShape.w; height: glowShape.w; radius: glowShape.w / 2 }
-                        }
-                        QtObject { id: glowShape; readonly property real w: stage.width * 0.85 }
+                    Image {
+                        anchors.fill: parent
+                        anchors.margins: -stage.u(20)
+                        fillMode: Image.PreserveAspectCrop
+                        source: wallFrost.source
+                        layer.enabled: glow.visible
+                        layer.effect: MultiEffect { colorization: 0.55; colorizationColor: glow.c; brightness: 0.04 }
                     }
                     Kirigami.Icon {
                         x: parent.width * 0.94 - width; y: parent.height * 0.04
@@ -652,29 +687,48 @@ Window {
                     }
                 }
             }
-            // shade for the text: the palette's own darkest surface (light in a light mood), heavier at the left
-            // and under the rows, and the dim over everything
-            Rectangle {
+            // Text over a picture reads by measure, not by luck: the theme engine says how bright the backdrop
+            // gets under the hero and under the rows (the palette's _backdrop for this screen's frosted
+            // wallpaper; a game's banner its own, launcher-data's light), and a scrim of the palette's darkest
+            // surface comes in exactly as strong as the dimmest text there needs for 4.5:1, and no stronger
+            // (a blanket shade turned every wallpaper into the same dark mud)
+            Rectangle {     // under the hero: from the left
                 anchors.fill: parent
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
-                    GradientStop { position: 0; color: C.alpha(stage.rice.surfaceLowest, 0.78) }
-                    GradientStop { position: 0.32; color: C.alpha(stage.rice.surfaceLowest, 0.45) }
-                    GradientStop { position: 0.62; color: C.alpha(stage.rice.surfaceLowest, 0.08) }
-                    GradientStop { position: 0.8; color: C.alpha(stage.rice.surfaceLowest, 0) }
+                    GradientStop { position: 0; color: C.alpha(stage.rice.surfaceLowest, stage.scrimHero) }
+                    GradientStop { position: 0.4; color: C.alpha(stage.rice.surfaceLowest, stage.scrimHero) }
+                    GradientStop { position: 0.62; color: C.alpha(stage.rice.surfaceLowest, stage.scrimHero * 0.45) }
+                    GradientStop { position: 0.85; color: C.alpha(stage.rice.surfaceLowest, 0) }
                 }
             }
-            Rectangle {
+            Rectangle {     // under the top bar: from the top
                 anchors.fill: parent
                 gradient: Gradient {
-                    GradientStop { position: 0; color: C.alpha(stage.rice.surfaceLowest, 0.35) }
-                    GradientStop { position: 0.18; color: C.alpha(stage.rice.surfaceLowest, 0) }
-                    GradientStop { position: 0.42; color: C.alpha(stage.rice.surfaceLowest, 0) }
-                    GradientStop { position: 0.68; color: C.alpha(stage.rice.surfaceLowest, 0.75) }
-                    GradientStop { position: 1; color: C.alpha(stage.rice.surfaceLowest, 0.9) }
+                    GradientStop { position: 0; color: C.alpha(stage.rice.surfaceLowest, stage.scrimTop) }
+                    GradientStop { position: (stage.u(26) + stage.barH + stage.u(12)) / Math.max(1, stage.height); color: C.alpha(stage.rice.surfaceLowest, stage.scrimTop) }
+                    GradientStop { position: (stage.u(26) + stage.barH + stage.u(70)) / Math.max(1, stage.height); color: C.alpha(stage.rice.surfaceLowest, 0) }
+                    GradientStop { position: 1; color: C.alpha(stage.rice.surfaceLowest, 0) }
                 }
             }
-            Rectangle { anchors.fill: parent; color: C.alpha(stage.rice.surfaceLowest, 0.26) }
+            Rectangle {     // under the rows: from the bottom
+                anchors.fill: parent
+                gradient: Gradient {
+                    GradientStop { position: 0; color: C.alpha(stage.rice.surfaceLowest, 0) }
+                    GradientStop { position: Math.max(0, (stage.rowsTop - stage.u(90)) / Math.max(1, stage.height)); color: C.alpha(stage.rice.surfaceLowest, 0) }
+                    GradientStop { position: Math.max(0, (stage.rowsTop - stage.u(10)) / Math.max(1, stage.height)); color: C.alpha(stage.rice.surfaceLowest, stage.scrimRows) }
+                    GradientStop { position: 1; color: C.alpha(stage.rice.surfaceLowest, stage.scrimRows) }
+                }
+            }
+            // a fine grain over it all: the dark, smooth gradients of a blurred picture band in 8 bits; noise
+            // breaks the bands up (dithering)
+            Image {
+                anchors.fill: parent
+                source: Qt.resolvedUrl("../images/grain.png")
+                fillMode: Image.Tile
+                smooth: false
+                opacity: stage.rice.light ? 0.035 : 0.05
+            }
         }
     }
     Rectangle {     // the rows' fade at the bottom (when there are more below)
@@ -685,7 +739,7 @@ Window {
         layer.enabled: true
         gradient: Gradient {
             GradientStop { position: 0; color: "black" }
-            GradientStop { position: Math.max(0, 1 - stage.u(70) / Math.max(1, rowsBox.height)); color: "black" }
+            GradientStop { position: Math.max(0, 1 - stage.u(40) / Math.max(1, rowsBox.height)); color: "black" }
             GradientStop { position: 1; color: "transparent" }
         }
     }
@@ -701,6 +755,41 @@ Window {
             GradientStop { position: 1; color: "transparent" }
         }
     }
+
+    // ------------------------------------------------------------------ the text's scrims (see the backdrop)
+    function relLum(c) { const f = v => v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b) }
+    // how strong a scrim of the darkest surface must be over a backdrop of luminance Yb for text of colour
+    // `ink` to reach `ratio` (blending happens on gamma-encoded values: compared there)
+    function scrimFor(Yb, ink, ratio) {
+        const g = v => Math.pow(Math.max(0, v), 1 / 2.2)
+        const Yt = relLum(ink), Ys = relLum(rice.surfaceLowest)
+        if (Yt >= Ys) {             // light text: the backdrop must stay under Ymax
+            const Ymax = (Yt + 0.05) / ratio - 0.05
+            return Yb <= Ymax ? 0 : Math.min(0.94, (g(Yb) - g(Ymax)) / Math.max(1e-4, g(Yb) - g(Ys)))
+        }
+        const Ymin = ratio * (Yt + 0.05) - 0.05     // dark text (a light mood): it must stay over Ymin
+        return Yb >= Ymin ? 0 : Math.min(0.94, (g(Ymin) - g(Yb)) / Math.max(1e-4, g(Ys) - g(Yb)))
+    }
+    // how bright the backdrop gets under the text now: the frosted wallpaper's measure; a game's banner its
+    // own (it's 90% strong and fades out down the rows); a wallpaper previewed on the Theme page isn't
+    // measured: careful
+    readonly property var lightNow: {
+        const w = rice.values._backdrop || ({})
+        const base = { top: w.top ?? 0.35, hero: w.hero ?? 0.35, rows: w.rows ?? 0.35 }
+        const it = bgShown
+        const careful = { top: 0.6, hero: 0.6, rows: 0.6 }
+        if (theming && it && it.kind) return careful
+        const l = it && it.art && it.art.hero ? it.art.light : null
+        if (it && it.art && it.art.hero && !(l && l.top !== undefined)) return careful
+        return l ? { top: Math.max(base.top, l.top * 0.9), hero: Math.max(base.hero, l.hero * 0.9), rows: Math.max(base.rows, l.rows * 0.7) } : base
+    }
+    property real scrimTop: scrimFor(lightNow.top, rice.fgDim, 4.5)
+    property real scrimHero: scrimFor(lightNow.hero, rice.fgDim, 4.5)
+    property real scrimRows: scrimFor(lightNow.rows, rice.fgDim, 4.5)
+    Behavior on scrimTop { NumberAnimation { duration: Tokens.ms(420); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
+    Behavior on scrimHero { NumberAnimation { duration: Tokens.ms(420); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
+    Behavior on scrimRows { NumberAnimation { duration: Tokens.ms(420); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
+    onLightNowChanged: if (Shell.debug) console.warn("ATOM home scrim top", scrimFor(lightNow.top, rice.fgDim, 4.5).toFixed(2), "hero", scrimFor(lightNow.hero, rice.fgDim, 4.5).toFixed(2), "rows", scrimFor(lightNow.rows, rice.fgDim, 4.5).toFixed(2))
 
     // ------------------------------------------------------------------ the backdrop follows the focus
     property var bgItems: [null, null]
@@ -745,7 +834,7 @@ Window {
         onVChanged: {
             const a = stage.bgArt.slice(), g = stage.bgGlow.slice(), w = stage.bgPaper.slice()
             a[slotTo] = art && !paper ? v * 0.9 : 0
-            g[slotTo] = art || paper ? 0 : v * 0.6
+            g[slotTo] = art || paper ? 0 : v
             w[slotTo] = paper ? v : 0
             a[slotFrom] = a[slotFrom] * (1 - v)
             g[slotFrom] = g[slotFrom] * (1 - v)
@@ -762,6 +851,10 @@ Window {
         anchors.fill: parent
         focus: true
         Keys.onPressed: event => stage.onKey(event)
+        // which input is in use: the pointer's real moves anywhere on the page (stage.pointerMoved)
+        HoverHandler { id: pointerWatch }
+        readonly property point pointerPos: pointerWatch.point.position
+        onPointerPosChanged: stage.pointerMoved(pointerPos)
 
         MouseArea {     // bare backdrop: a click closes it
             anchors.fill: parent
@@ -779,21 +872,24 @@ Window {
             scale: stage.planeS
             Behavior on opacity { enabled: stage.phase === "open"; NumberAnimation { duration: Tokens.base } }
 
-            // ---- the top bar: the jewel (Home), the pages, then search, theme, power, the time and you
+            // ---- the top bar: the jewel (the logo: Home), the pages on their track, then search, theme, power,
+            // the time and you. One control height (barH), a third bigger than a window's; the keys reach it
+            // too (up from the first row: the "top" line), so every part has a focus ring as well as a hover
             Item {
-                id: top
+                id: topBar
                 x: stage.side
-                y: stage.u(30)
+                y: stage.u(26)
                 width: stage.width - 2 * stage.side
-                height: stage.u(46)
+                height: stage.barH
                 opacity: stage.topO
                 transform: Translate { y: (1 - stage.topO) * -stage.u(18) }
+                readonly property string keyOn: (stage.focusRev, stage.pageState().line === "top") ? stage.topItems[stage.pageState().top] || "" : ""
                 Row {
-                    spacing: stage.u(18)
+                    spacing: stage.u(26)
                     anchors.verticalCenter: parent.verticalCenter
-                    JewelChip {
+                    JewelChip {         // a round jewel, apart from the tabs: the logo, and the way Home
                         id: homeJewel
-                        width: stage.u(60); height: stage.ctlH
+                        width: stage.barH; height: stage.barH
                         rice: stage.rice
                         onClicked: stage.tab !== 0 ? stage.setTab(0) : stage.launcher.close()
                     }
@@ -804,51 +900,68 @@ Window {
                         Behavior on opacity { NumberAnimation { duration: Tokens.ms(320) } }
                         width: stage.theming ? implicitWidth : 0
                         anchors.verticalCenter: parent.verticalCenter
-                        spacing: stage.u(8)
-                        TopButton { rice: stage.rice; unit: stage.unit; icon: "arrow_back"; tip: "Back (Esc)"; onClicked: stage.setTab(stage.tabBefore) }
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: "Theme"; color: stage.rice.fg; font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: stage.u(21) }
+                        spacing: stage.u(12)
+                        TopButton { rice: stage.rice; unit: stage.unit; icon: "arrow_back"; tip: "Back (Esc)"; focused: topBar.keyOn === "back"; onClicked: stage.setTab(stage.tabBefore) }
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: "Theme"; color: stage.rice.fg; font.family: Tokens.font.ui; font.weight: Font.Bold; font.pixelSize: stage.u(26) }
                     }
-                    Item {
+                    Rectangle {         // the pages' track: the one you're on is a solid pill
                         id: tabs
-                        width: stage.theming ? 0 : tabRow.width
+                        width: stage.theming ? 0 : tabRow.width + 2 * stage.u(5)
                         visible: opacity > 0.01
                         opacity: stage.theming ? 0 : 1
                         Behavior on opacity { NumberAnimation { duration: Tokens.ms(320) } }
-                        height: stage.ctlH
+                        height: stage.barH
+                        radius: height / 2
                         anchors.verticalCenter: parent.verticalCenter
+                        color: C.alpha(stage.rice.surfaceLowest, 0.55)
+                        border.width: 1
+                        border.color: C.alpha(stage.rice.edge, 0.12)
                         Rectangle {
                             id: tabPill
                             readonly property Item at: (tabRep.count, tabRep.itemAt(stage.tab))     // (count: itemAt doesn't notify)
-                            x: at ? at.x : 0
+                            x: (at ? at.x : 0) + stage.u(5)
+                            y: stage.u(5)
                             width: at ? at.width : 0
-                            height: parent.height
+                            height: parent.height - 2 * stage.u(5)
                             radius: height / 2
-                            color: C.alpha(stage.rice.fg, 0.12)
-                            border.width: 1
-                            border.color: C.alpha(stage.rice.edge, 0.14)
-                            Behavior on x { NumberAnimation { duration: Tokens.ms(460); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
-                            Behavior on width { NumberAnimation { duration: Tokens.ms(460); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
+                            color: stage.rice.light ? stage.rice.fg : "#f3f6fb"
+                            Behavior on x { NumberAnimation { duration: Tokens.ms(420); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
+                            Behavior on width { NumberAnimation { duration: Tokens.ms(420); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
                         }
                         Row {
                             id: tabRow
-                            spacing: stage.u(4)
+                            x: stage.u(5)
+                            anchors.verticalCenter: parent.verticalCenter
                             Repeater {
                                 id: tabRep
                                 model: ["Home", "Games", "Apps"]
                                 delegate: Item {
+                                    id: tabItem
                                     required property string modelData
                                     required property int index
-                                    width: tabText.implicitWidth + stage.u(40)
-                                    height: stage.ctlH
+                                    readonly property bool on: stage.tab === index
+                                    width: tabText.implicitWidth + stage.u(48)
+                                    height: stage.barH - 2 * stage.u(5)
                                     Text {
                                         id: tabText
                                         anchors.centerIn: parent
                                         text: modelData
-                                        color: stage.tab === index || tabMouse.containsMouse ? stage.rice.fg : stage.rice.fgDim
+                                        color: tabItem.on ? (stage.rice.light ? stage.rice.surfaceLowest : "#0a0d13")
+                                             : tabMouse.containsMouse ? stage.rice.fg : stage.rice.fgDim
                                         font.family: Tokens.font.ui
-                                        font.weight: Font.DemiBold
-                                        font.pixelSize: stage.u(18)
-                                        Behavior on color { ColorAnimation { duration: Tokens.fast } }
+                                        font.weight: Font.Bold
+                                        font.pixelSize: stage.u(21)
+                                        Behavior on color { ColorAnimation { duration: Tokens.ms(240) } }
+                                    }
+                                    Rectangle {     // the keys' ring
+                                        anchors.fill: parent
+                                        anchors.margins: -stage.u(4)
+                                        radius: height / 2
+                                        color: "transparent"
+                                        border.width: Math.max(2, stage.u(2.5))
+                                        border.color: stage.rice.light ? stage.rice.fg : "#ffffff"
+                                        opacity: topBar.keyOn === "tab" + tabItem.index ? 1 : 0
+                                        Behavior on opacity { NumberAnimation { duration: Tokens.fast } }
                                     }
                                     MouseArea { id: tabMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: stage.setTab(index) }
                                 }
@@ -860,36 +973,33 @@ Window {
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: stage.u(10)
-                    TopButton { id: searchButton; rice: stage.rice; unit: stage.unit; icon: "search"; tip: "Search (just type)"; onClicked: stage.openSearch("") }
-                    TopButton { id: themeButton; rice: stage.rice; unit: stage.unit; icon: "palette"; tip: "Theme"; onClicked: stage.toggleTheme()
-                                color: stage.theming ? C.alpha(stage.rice.fg, 0.16) : C.alpha(stage.rice.fg, hot ? 0.1 : 0) }
+                    TopButton { id: searchButton; rice: stage.rice; unit: stage.unit; icon: "search"; tip: "Search (just type)"; focused: topBar.keyOn === "search"; onClicked: stage.openSearch("") }
+                    TopButton { id: themeButton; rice: stage.rice; unit: stage.unit; icon: "palette"; tip: "Theme"; focused: topBar.keyOn === "theme"; lit: stage.theming; onClicked: stage.toggleTheme() }
                     TopButton {
                         id: powerButton
                         rice: stage.rice; unit: stage.unit
                         icon: "power_settings_new"; tip: "Power"; hotColor: stage.rice.bad
-                        onClicked: {
-                            const p = powerButton.mapToGlobal(0, 0)
-                            stage.launcher.openPower({ x: p.x, y: p.y, width: powerButton.width, height: powerButton.height })
-                        }
+                        focused: topBar.keyOn === "power"
+                        onClicked: stage.openPowerHere()
                     }
-                    Rectangle { width: 1; height: stage.u(22); anchors.verticalCenter: parent.verticalCenter; color: C.alpha(stage.rice.fg, 0.14) }
+                    Rectangle { width: 1; height: stage.u(28); anchors.verticalCenter: parent.verticalCenter; color: C.alpha(stage.rice.fg, 0.16) }
                     // the battery saver, while the laptop runs on battery
                     Rectangle {
                         visible: stage.launcher.unplugged || stage.launcher.saverOn
                         anchors.verticalCenter: parent.verticalCenter
-                        height: stage.u(36)
-                        width: saverRow.implicitWidth + stage.u(26)
+                        height: stage.u(44)
+                        width: saverRow.implicitWidth + stage.u(30)
                         radius: height / 2
                         color: stage.launcher.saverShown ? C.alpha(stage.rice.green, 0.22) : C.alpha(stage.rice.fg, sm.containsMouse ? 0.14 : 0.08)
                         opacity: stage.launcher.saverBusy ? 0.6 : 1
                         Row {
                             id: saverRow
                             anchors.centerIn: parent
-                            spacing: stage.u(6)
+                            spacing: stage.u(7)
                             readonly property real charge: Number(stage.launcher.batt["Percent"]) || 0
                             Text { anchors.verticalCenter: parent.verticalCenter; text: stage.launcher.saverShown ? "eco" : "battery_" + Math.min(6, Math.round(saverRow.charge / 100 * 6)) + "_bar"
-                                   color: stage.launcher.saverShown ? stage.rice.green : stage.rice.fg; font.family: Tokens.font.icons; font.pixelSize: stage.u(18) }
-                            Text { anchors.verticalCenter: parent.verticalCenter; text: Math.round(saverRow.charge) + "%"; color: stage.rice.fg; font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: stage.u(13.5) }
+                                   color: stage.launcher.saverShown ? stage.rice.green : stage.rice.fg; font.family: Tokens.font.icons; font.pixelSize: stage.u(22) }
+                            Text { anchors.verticalCenter: parent.verticalCenter; text: Math.round(saverRow.charge) + "%"; color: stage.rice.fg; font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: stage.u(16) }
                         }
                         MouseArea { id: sm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (!stage.launcher.saverBusy) stage.launcher.setSaver(!stage.launcher.saverShown) }
                     }
@@ -898,14 +1008,14 @@ Window {
                         text: Qt.formatTime(stage.now, "HH:mm")
                         color: stage.rice.fg
                         font.family: Tokens.font.ui
-                        font.weight: Font.DemiBold
-                        font.pixelSize: stage.u(19)
+                        font.weight: Font.Bold
+                        font.pixelSize: stage.u(27)
                         font.features: { "tnum": 1 }
-                        leftPadding: stage.u(4)
-                        rightPadding: stage.u(4)
+                        leftPadding: stage.u(6)
+                        rightPadding: stage.u(6)
                     }
                     Rectangle {     // you
-                        width: stage.u(38); height: width; radius: width / 2
+                        width: stage.u(48); height: width; radius: width / 2
                         anchors.verticalCenter: parent.verticalCenter
                         gradient: Gradient {
                             orientation: Gradient.Horizontal
@@ -915,7 +1025,7 @@ Window {
                         border.width: 2
                         border.color: C.alpha("#ffffff", 0.18)
                         Text { anchors.centerIn: parent; visible: face.status !== Image.Ready; text: stage.account.initial; color: stage.rice.onPrimary
-                               font.family: Tokens.font.ui; font.weight: Font.Bold; font.pixelSize: stage.u(16) }
+                               font.family: Tokens.font.ui; font.weight: Font.Bold; font.pixelSize: stage.u(20) }
                         Kirigami.ShadowedImage { id: face; anchors.fill: parent; radius: width / 2; source: stage.account.face; visible: status === Image.Ready; fillMode: Image.PreserveAspectCrop; color: "transparent" }
                     }
                 }
@@ -925,9 +1035,9 @@ Window {
             Item {
                 id: heroBox
                 x: stage.side
-                y: stage.u(104)
+                y: stage.heroTop
                 width: Math.min(stage.u(760), stage.width * 0.6)
-                height: stage.rowsTop - y - stage.u(30)
+                height: stage.heroH
                 opacity: stage.heroO
                 transform: Translate { y: (1 - stage.heroO) * stage.u(24) }
                 Repeater {
@@ -944,7 +1054,7 @@ Window {
                         eyebrow: th ? th.eyebrow : ""
                         primaryText: th ? th.primary : ""
                         primaryIcon: th ? th.icon : ""
-                        extraActions: th ? th.extra : null
+                        extraActions: th ? th.extra : []       // (pin and "..." are on the tiles themselves)
                         onExtra: (i, from) => stage.themeExtra(th.extra[i].id)
                         opacity: stage.heroO2[index]
                         transform: Translate { x: stage.heroX[index] }
@@ -961,7 +1071,7 @@ Window {
                 id: screensCard
                 anchors.right: parent.right
                 anchors.rightMargin: stage.side
-                y: stage.u(118) + (stage.theming ? 0 : -stage.u(10))
+                y: stage.heroTop + (stage.theming ? 0 : -stage.u(10))
                 width: stage.u(470)
                 height: stage.u(206)
                 radius: stage.u(26)
@@ -1085,6 +1195,9 @@ Window {
                                         tilesFocused: (stage.focusRev, (pg.st.line || "tiles") === "tiles")
                                         toolFocus: (stage.focusRev, index === pg.st.row && pg.st.line === "tools") ? pg.st.tool : -1
                                         onToolActivated: id => stage.toolDo(id)
+                                        pointerMode: stage.pointerMode
+                                        isPinned: it => !!it.favId && stage.launcher.isFavorite(it.favId)
+                                        onPinToggle: i => { const it = entry.items[i]; if (it && it.favId) { if (Shell.debug) console.warn("ATOM home pin", it.favId); stage.launcher.toggleFavorite(it.favId) } }
                                         onPointed: (i, at) => stage.pointed(index, i, at)
                                         onPointerOut: i => stage.unpointed(index, i)
                                         onActivated: (i, tile) => { stage.focusAt(index, i, "mouse"); stage.activateItem(entry.items[i], tile) }
@@ -1118,7 +1231,8 @@ Window {
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: stage.u(26)
                 spacing: stage.u(24)
-                opacity: stage.topO
+                opacity: stage.topO * (stage.pointerMode ? 0 : 1)       // the pointer in use: they'd only be in the way
+                Behavior on opacity { enabled: stage.phase === "open"; NumberAnimation { duration: Tokens.ms(300) } }
                 Repeater {
                     model: Gamepad.inUse ? (stage.theming ? [["✥", "Move"], ["A", "Apply"], ["X", "Options"], ["Y", "Home"], ["B", "Back"]]
                                                           : [["✥", "Move"], ["A", "Open"], ["X", "Options"], ["LB  RB", "Switch"], ["Y", "Theme"], ["B", "Close"]])
@@ -1442,6 +1556,7 @@ Window {
     // the Menu key, a right click, a pad's X: an app's menu (pin, its actions), a theme's (load, update, delete)
     function itemMenu(it, tile) {
         if (!it || !tile) return
+        if (Shell.debug) console.warn("ATOM home menu", it.name || it.key)
         if (it.model) { launcher.menu.openFor(tile, it.model, it.row); return }
         if (it.kind === "look") { lookMenu.it = it; lookMenu.visualParent = tile; lookMenu.open(0, tile.height + u(10)) }     // (under it)
         else if (it.kind === "accent") accentEd.openFor(it, tile)
@@ -1522,6 +1637,7 @@ Window {
 
     // ------------------------------------------------------------------ keys
     function onKey(event) {
+        pointerMode = false                                 // the keys (or a pad) in use: the pointer's hover goes
         if (!Gamepad.sending) Gamepad.inUse = false         // the keyboard again: its keys in the hints
         if (launcher.view === "walls") return
         const k = event.key
@@ -1532,7 +1648,7 @@ Window {
         if (k === Qt.Key_Right) { step(1, 0); event.accepted = true; return }
         if (k === Qt.Key_Up) { step(0, -1); event.accepted = true; return }
         if (k === Qt.Key_Down) { step(0, 1); event.accepted = true; return }
-        if (k === Qt.Key_Return || k === Qt.Key_Enter || k === Qt.Key_Space) { if (theming) themeEnter(); else activateItem(currentItem, currentTile()); event.accepted = true; return }
+        if (k === Qt.Key_Return || k === Qt.Key_Enter || k === Qt.Key_Space) { if (pageState().line === "top") topEnter(); else if (theming) themeEnter(); else activateItem(currentItem, currentTile()); event.accepted = true; return }
         if (k === Qt.Key_Menu) { itemMenu(currentItem, currentTile()); event.accepted = true; return }
         if ((event.modifiers & Qt.ControlModifier) && k === Qt.Key_F) { openSearch(""); event.accepted = true; return }
         if (event.text && event.text.trim() && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) {

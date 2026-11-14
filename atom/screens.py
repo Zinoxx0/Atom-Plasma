@@ -219,7 +219,9 @@ def apply_screens(ss, cfg, fallback):
         p = with_meta(palette_for(img, cfg, ovs.get(s["id"])), img) if img else fallback
         g = glass(img, s)
         top = float((cfg.get("ui") or {}).get("top", TOP_RATIO))
-        p = dict(p, _glass=g, _glassBand=GLASS_BAND, _rim=rim(g, p), _glassFull=glass_full(img, s),
+        gf = glass_full(img, s)
+        p = dict(p, _glass=g, _glassBand=GLASS_BAND, _rim=rim(g, p), _glassFull=gf,
+                 _backdrop=palette.zone_light(gf) if gf else {},            # how bright the launcher's backdrop gets under its text
                  _scale=s["ui"],                                            # size of that bar's widgets
                  _topScale=round(s["ui"] * top, 2),                         # size of the Glimpse band up top
                  _display={k: s["display"][k] for k in ("id", "name", "label", "portrait", "sharedEdges", "scale")},

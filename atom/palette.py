@@ -151,6 +151,30 @@ def analyse(img, k=6):
     return {"L": L, "C": C, "vivid": vivid, "hue": hue, "consistency": consistency, "clusters": clusters}
 
 
+# Where text sits over a picture (the launcher's hero and rows over the frosted wallpaper or a game's banner):
+# how bright the picture gets there, so the text's scrim can be exactly as strong as contrast needs (and
+# no stronger: a blanket shade makes every wallpaper the same dark mud). Zones are fractions of the picture
+# (x0, y0, x1, y1); the answer is relative luminance (0..1, linear light) at the 95th percentile: a bright
+# patch counts, one bright pixel doesn't.
+TEXT_ZONES = {"top": (0.5, 0.0, 1.0, 0.1), "hero": (0.0, 0.08, 0.55, 0.42), "rows": (0.0, 0.36, 1.0, 1.0)}
+
+
+def zone_light(img, zones=None):
+    """{zone: 95th-percentile relative luminance} of an image's text zones (TEXT_ZONES)."""
+    from PIL import Image
+    im = Image.open(img).convert("RGB")
+    im.thumbnail((160, 160))
+    w, h = im.size
+    out = {}
+    for name, (x0, y0, x1, y1) in (zones or TEXT_ZONES).items():
+        crop = im.crop((int(x0 * w), int(y0 * h), max(int(x0 * w) + 1, int(x1 * w)), max(int(y0 * h) + 1, int(y1 * h))))
+        raw = crop.tobytes()
+        ys = sorted(0.2126 * _lin(raw[i] / 255) + 0.7152 * _lin(raw[i + 1] / 255) + 0.0722 * _lin(raw[i + 2] / 255)
+                    for i in range(0, len(raw), 3))
+        out[name] = round(ys[min(len(ys) - 1, int(len(ys) * 0.95))], 4) if ys else 0.0
+    return out
+
+
 MOODS = ("neon", "soft", "light", "void", "graphite")
 
 

@@ -72,6 +72,9 @@ step "fine-tune back";  $F key 1 wait 600 key 1 wait 900      # the search it op
 step "theme back";      $F key 1 wait 1200; shot l-theme-back
 step "wheel down";      $F move 800 620 wait 300 wheel 15 wait 1000; shot l-wheel
 step "wheel up";        $F move 802 620 wait 300 wheel -15 wait 1000
+step "pointer on a tile"; $F key 106 wait 400 move 900 640 wait 100 glide 900 640 640 700 250 wait 700; shot l-hover
+P=$(grep -o 'ATOM home focus at [0-9]* [0-9]*' "$L" | tail -1)
+step "pointer still, keys"; $F key 106 wait 600 key 105 wait 600
 step "pad";             python3 "$REPO/tools/nested/pad.py" down right north; $F wait 1200; shot l-pad
 step "pad back";        python3 "$REPO/tools/nested/pad.py" east; $F wait 900
 step "meta closes";     qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu; $F wait 1200; shot l-meta-closed
@@ -101,6 +104,11 @@ after "Esc left the Theme page"     "theme back" 'ATOM home tab 0 row'
 after "dragging moved the wallpapers" "drag walls" 'ATOM row walls dragged to'
 after "the wheel walked down a row"   "wheel down" 'ATOM home tab 0 row 1'
 after "...and back up"                "wheel up" 'ATOM home tab 0 row 0'
+after "the pointer moving took over"  "pointer on a tile" 'ATOM home input pointer'
+after "...and focused what it rested on" "pointer on a tile" '(mouse,'
+after "a key took it back"            "pointer still, keys" 'ATOM home input keys'
+notbetween() { sed -n "/ATOM ## $2/,/ATOM ## $3/p" "$L" | grep -q -- "$4" && { echo "FAIL $1"; fail=1; } || echo "ok   $1"; }
+notbetween "...and the still pointer didn't grab it back" "pointer still, keys" "pad" '(mouse,'
 after "the pad walked down"           "pad" 'ATOM home tab 0 row 1 .*(key'
 after "...and its Y opened the Theme page" "pad" 'ATOM home tab 3'
 after "...and its B left it"          "pad back" 'ATOM home tab 0 row'

@@ -62,10 +62,10 @@ Item {
         return /on steam/i.test(d) ? "" : d
     }
 
-    Column {
+    Column {        // from the top: the title keeps its place whatever the item has to say
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.bottom: parent.bottom
+        anchors.top: parent.top
         spacing: 0
         Text {
             visible: !!hero.eyebrow
@@ -99,8 +99,8 @@ Item {
             fillMode: Image.PreserveAspectFit
             horizontalAlignment: Image.AlignLeft
             verticalAlignment: Image.AlignBottom
-            width: hero.u(470)
-            height: hero.u(150)
+            width: hero.u(420)
+            height: hero.u(112)
             sourceSize.width: 940
         }
         Item { visible: !!hero.logo; width: 1; height: hero.u(18) }
