@@ -206,6 +206,7 @@ Window {
         opacity: pw.innerV
         scale: M.lerp(0.94, 1, pw.innerV)
         Keys.onPressed: event => {
+            if (!Gamepad.sending) Gamepad.inUse = false     // the keyboard again: its keys in the hints
             const k = event.key
             if (k === Qt.Key_Escape) { if (pw.counting >= 0) pw.cancelCount(); else Shell.close("power") }
             else if (k === Qt.Key_Left || k === Qt.Key_Right) { if (pw.counting < 0) pw.sel = Math.max(0, Math.min(pw.actions.length - 1, pw.sel + (k === Qt.Key_Left ? -1 : 1))) }
@@ -430,7 +431,9 @@ Window {
                     font.pixelSize: pw.u(15)
                 }
                 Repeater {
-                    model: pw.counting >= 0 ? [["Enter", "Now"], ["Esc", "Cancel"]] : [["←→", "Choose"], ["Enter", "Go"], ["Esc", "Back"]]
+                    // (a controller's buttons once it's the one in use: Atom.Native Gamepad)
+                    model: Gamepad.inUse ? (pw.counting >= 0 ? [["A", "Now"], ["B", "Cancel"]] : [["✥", "Choose"], ["A", "Go"], ["B", "Back"]])
+                         : pw.counting >= 0 ? [["Enter", "Now"], ["Esc", "Cancel"]] : [["←→", "Choose"], ["Enter", "Go"], ["Esc", "Back"]]
                     Row {
                         required property var modelData
                         spacing: pw.u(7)
@@ -438,7 +441,7 @@ Window {
                             anchors.verticalCenter: parent.verticalCenter
                             width: Math.max(pw.u(22), kt.implicitWidth + pw.u(12))
                             height: pw.u(22)
-                            radius: pw.u(6)
+                            radius: modelData[0].length === 1 ? height / 2 : pw.u(6)
                             color: "transparent"
                             border.width: 1
                             border.color: C.alpha(pal.fg, 0.2)

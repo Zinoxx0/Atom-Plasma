@@ -54,7 +54,12 @@ QtObject {
         console.warn("ATOM island", parts[1], "at", Math.round(r.x + r.width / 2), Math.round(r.y + r.height / 2), "on", parts[0])
     }
     onDebugChanged: if (debug) for (const key in islands) logIsland(key, islands[key])
-    onKindChanged: if (debug) console.warn("ATOM shell kind", JSON.stringify(kind), "screen", screen, Date.now() % 100000)
+    onKindChanged: {
+        if (debug) console.warn("ATOM shell kind", JSON.stringify(kind), "screen", screen, Date.now() % 100000)
+        // a game controller drives the full-screen ones as the keyboard does (Atom.Native Gamepad: read only
+        // while one of them is open, never while a game is)
+        Gamepad.active = kind === "launcher" || kind === "power"
+    }
 
     // the click that closed a panel (the sheet lost focus to the bar) must not open it again
     property string closedKind: ""

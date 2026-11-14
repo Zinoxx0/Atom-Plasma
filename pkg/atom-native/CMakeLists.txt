@@ -3,6 +3,7 @@
 #   InputMask    the part of a window that takes the pointer (the rest lets clicks through to what's below)
 #   Bus          one message bus for every widget in the process, whatever QML engine loaded it
 #   KRunner      KRunner's place on the bus: its shortcut and the desktop's type-to-search open the launcher's search
+#   Gamepad      a game controller as the arrows, Enter, Escape, Tab: the launcher and the power overlay by pad
 #   Tray         the apps' tray icons (a StatusNotifierHost) and their menus (DBusMenu), for the status island
 # Built and installed per user (no root): ./build.sh puts the module in ~/.local/lib/qt6/qml/Atom/Native,
 # which plasmashell finds through QML_IMPORT_PATH (systemd/plasma-plasmashell.service.d/rice.conf).
@@ -29,6 +30,7 @@ qt_add_qml_module(atomnative
         src/krunner.h src/krunner.cpp
         src/regions.h src/regions.cpp
         src/tray.h src/tray.cpp
+        src/gamepad.h src/gamepad.cpp
 )
 target_include_directories(atomnative PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(atomnative PRIVATE Qt6::Core Qt6::Gui Qt6::Quick Qt6::DBus Qt6::Widgets KF6::WindowSystem dbusmenu-lxqt)
