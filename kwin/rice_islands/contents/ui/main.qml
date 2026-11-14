@@ -1,7 +1,7 @@
 // Rice islands: every screen has a rice bar, but its islands show on ONE screen at a time.
 //
-//   - the pointer's screen, once the pointer has rested there for `settle` ms (crossing a screen on the
-//     way somewhere else moves nothing);
+//   - the pointer's screen, once the pointer has been there for `settle` ms (a short beat: sweeping across
+//     a screen on the way somewhere else moves nothing, and arriving still feels instant);
 //   - unless a fullscreen window covers that screen's bar (a movie, a game: fullscreen AND in front of the
 //     docks, KWin's active layer; a fullscreen window you clicked away from on the same screen drops
 //     behind the bar and no longer counts). Then the islands go to the best free screen: the most
@@ -9,8 +9,8 @@
 //   - every screen covered: no islands anywhere.
 //
 // The bars are faded here, in the compositor, as whole windows: the islands' blur fades with them (a fade
-// inside plasmashell would leave the blurred shapes behind). The leaving bar fades out, the arriving one
-// fades in a beat later with the rice's calm curves. Hidden bars keep their place (their space stays
+// inside plasmashell would leave the blurred shapes behind). The leaving bar fades out while the arriving
+// one fades in, quickly, with the rice's calm curves. Hidden bars keep their place (their space stays
 // reserved, so no window ever resizes when the islands move) and are fully transparent.
 //
 // plasmashell is told over D-Bus (Atom.Native Bus, /Atom Post "bar"): which screen holds the islands, which
@@ -22,10 +22,10 @@ import org.kde.kwin
 Item {
     id: root
 
-    readonly property int settle: KWin.readConfig("settle", 300)
-    readonly property int fadeIn: KWin.readConfig("fadeIn", 400)
-    readonly property int fadeOut: KWin.readConfig("fadeOut", 220)
-    readonly property int gap: KWin.readConfig("gap", 90)
+    readonly property int settle: KWin.readConfig("settle", 70)
+    readonly property int fadeIn: KWin.readConfig("fadeIn", 180)
+    readonly property int fadeOut: KWin.readConfig("fadeOut", 120)
+    readonly property int gap: KWin.readConfig("gap", 0)
     // the rice's calm curves (atom/tokens.py), as Easing.BezierSpline points
     readonly property var calmIn: [0.16, 1, 0.3, 1, 1, 1]
     readonly property var calmOut: [0.55, 0, 0.75, 0.2, 1, 1]
