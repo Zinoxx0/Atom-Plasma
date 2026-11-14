@@ -24,7 +24,7 @@ Window {
     transientParent: null
     color: "transparent"
     flags: Qt.FramelessWindowHint
-    visible: !!screenObj && Windows.fullscreen[screenName] !== true && !handingBack
+    visible: !!screenObj && !Windows.isFullscreen(screenName) && !handingBack
 
     LayerShell.Window.scope: "atom-shell"
     LayerShell.Window.layer: LayerShell.Window.LayerOverlay

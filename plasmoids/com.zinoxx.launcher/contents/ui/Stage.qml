@@ -396,8 +396,10 @@ Window {
         launchFly.opacity = 1
         Qt.callLater(settleAll)
         Qt.callLater(() => keys.forceActiveFocus())
-        sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" launcher-data #data')
-        tm.reload()         // the Theme page's data, ready before it's asked for (rebuilt only if it changed)
+        if (!finder) {      // (the finder shows neither the home's art and usage nor the Theme page)
+            sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" launcher-data #data')
+            tm.reload()     // the Theme page's data, ready before it's asked for (rebuilt only if it changed)
+        }
         if (finder || (Shell.args && Shell.args.query)) Qt.callLater(() => stage.openSearch(Shell.args.query || ""))
     }
     RiceShell { id: sh; onNewData: (source, data) => disconnectSource(source) }

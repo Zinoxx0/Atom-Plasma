@@ -44,6 +44,8 @@ QtObject {
     onBarChanged: if (debug) console.warn("ATOM bar", JSON.stringify(bar))
     // one set of pins on every bar (Glimpse): the last list a bar changed to, the others follow
     property var pins: null
+    // the system stats' last three minutes (sysstats), handed from bar to bar as the islands move
+    property var stats: null
     function logIsland(key, r) {
         const parts = key.split("/")
         console.warn("ATOM island", parts[1], "at", Math.round(r.x + r.width / 2), Math.round(r.y + r.height / 2), "on", parts[0])

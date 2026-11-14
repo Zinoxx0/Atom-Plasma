@@ -16,7 +16,7 @@ DeskWindow {
 
     readonly property bool right: d.lay ? d.lay.align === "right" : true
     readonly property bool dark: d.lay ? d.lay.ink === "dark" : false
-    readonly property color ink: dark ? "#14151b" : "#f7f8fc"
+    readonly property color ink: dark ? Tokens.neutral.dark : Tokens.neutral.light
     readonly property color inkDim: C.alpha(ink, 0.76)
     readonly property color accent: dark ? C.mix(d.pal.primary, "#000000", 0.3) : C.mix(d.pal.primary, "#ffffff", 0.08)
     readonly property real bh: height
@@ -197,7 +197,7 @@ DeskWindow {
         Item {
             id: bubble
             readonly property bool shown: cw.d.updating && clawd.visible
-            readonly property color fill: cw.dark ? "#14151b" : "#f7f8fc"
+            readonly property color fill: cw.dark ? Tokens.neutral.dark : Tokens.neutral.light
             width: Math.round(tag.implicitWidth + icon.implicitWidth + cw.statusSize * 2.1)
             height: Math.round(cw.statusSize * 2.2)
             x: cw.right ? clawd.x - width - cw.statusSize * 0.7 : clawd.x + clawd.width + cw.statusSize * 0.7
@@ -236,7 +236,7 @@ DeskWindow {
                     id: tag
                     anchors.verticalCenter: parent.verticalCenter
                     text: cw.d.updateTitle
-                    color: cw.dark ? "#f7f8fc" : "#14151b"
+                    color: cw.dark ? Tokens.neutral.light : Tokens.neutral.dark
                     font.family: Tokens.font.ui
                     font.weight: Font.Bold
                     font.pixelSize: cw.statusSize

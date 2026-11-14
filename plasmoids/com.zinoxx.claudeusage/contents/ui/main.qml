@@ -16,21 +16,14 @@ PlasmoidItem {
 
     // its panel lives on the shell's sheet (Atom.Shell kind "claude"), grown out of this island
     readonly property string myScreenName: root.Window.window ? Screen.name : ""
-    readonly property bool panelOpen: Shell.kind === "claude" && Shell.screen === myScreenName
-    function islandRect() {
-        const it = root.compactRepresentationItem
-        if (!it) return null
-        const p = it.mapToGlobal(0, 0)
-        return { x: p.x, y: p.y, width: it.width, height: it.height }
-    }
-    function togglePanel() { Shell.toggle("claude", myScreenName, islandRect()) }
-    function openPanel() { Shell.open("claude", myScreenName, islandRect()) }
-    function closePanel() { Shell.close("claude") }
-    function hoverPanel() { Shell.hover("claude", myScreenName, islandRect()) }
-    onMyScreenNameChanged: Shell.portal(myScreenName, "claude", popup)
-    Component.onCompleted: { Shell.portal(myScreenName, "claude", popup); Qt.callLater(moveClawd) }
-    // where its island is (for things that grow out of it unasked); again when the bar's layout settles
-    Timer { interval: 1500; running: root.myScreenName !== ""; onTriggered: { const r = root.islandRect(); if (r) Shell.place("claude", root.myScreenName, r); root.measure() } }
+    PortalHost { id: portal; widget: root; kind: "claude"; screenName: root.myScreenName; popup: root.popup; onPlaced: root.measure() }
+    readonly property bool panelOpen: portal.open
+    function islandRect() { return portal.rect() }
+    function togglePanel() { portal.toggle() }
+    function openPanel() { portal.show() }
+    function closePanel() { portal.close() }
+    function hoverPanel() { portal.hover() }
+    Component.onCompleted: Qt.callLater(moveClawd)
 
     RicePalette { id: pal; output: Screen.name }
     readonly property var palValues: pal.values     // Clawd takes the raw palette (it has its own `pal`)

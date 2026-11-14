@@ -16,21 +16,13 @@ PlasmoidItem {
 
     // its panel lives on the shell's sheet (Atom.Shell kind "stats"), grown out of this island
     readonly property string myScreenName: root.Window.window ? Screen.name : ""
-    readonly property bool panelOpen: Shell.kind === "stats" && Shell.screen === myScreenName
-    function islandRect() {
-        const it = root.compactRepresentationItem
-        if (!it) return null
-        const p = it.mapToGlobal(0, 0)
-        return { x: p.x, y: p.y, width: it.width, height: it.height }
-    }
-    function togglePanel() { Shell.toggle("stats", myScreenName, islandRect()) }
-    function openPanel() { Shell.open("stats", myScreenName, islandRect()) }
-    function closePanel() { Shell.close("stats") }
-    function hoverPanel() { Shell.hover("stats", myScreenName, islandRect()) }
-    onMyScreenNameChanged: Shell.portal(myScreenName, "stats", popup)
-    Component.onCompleted: Shell.portal(myScreenName, "stats", popup)
-    // where its island is (for things that grow out of it unasked); again when the bar's layout settles
-    Timer { interval: 1500; running: root.myScreenName !== ""; onTriggered: { const r = root.islandRect(); if (r) Shell.place("stats", root.myScreenName, r) } }
+    PortalHost { id: portal; widget: root; kind: "stats"; screenName: root.myScreenName; popup: root.popup }
+    readonly property bool panelOpen: portal.open
+    function islandRect() { return portal.rect() }
+    function togglePanel() { portal.toggle() }
+    function openPanel() { portal.show() }
+    function closePanel() { portal.close() }
+    function hoverPanel() { portal.hover() }
 
     RicePalette { id: pal; output: Screen.name }
     Account { id: me }
@@ -115,12 +107,19 @@ PlasmoidItem {
     }
 
     // three minutes of each, sampled every 2 s all the time (data only: nothing is drawn while the
-    // popup is closed), so the graph is full the moment it opens
+    // popup is closed), so the graph is full the moment it opens. Every bar has this widget but the islands
+    // show on one screen (kwin/rice_islands): only that bar samples, and the history goes with the islands
+    // (Shell.stats: the bar arriving picks up where the one leaving stopped)
     readonly property int samples: 90
+    readonly property bool sampling: Shell.barShown(myScreenName)
     property var history: [[], [], []]
+    onSamplingChanged: if (sampling && Shell.stats) history = Shell.stats
     Timer {
-        interval: 2000; running: true; repeat: true; triggeredOnStart: true
-        onTriggered: root.history = root.stats.map((s, i) => root.history[i].concat([s.value]).slice(-root.samples))
+        interval: 2000; running: root.sampling; repeat: true; triggeredOnStart: true
+        onTriggered: {
+            root.history = root.stats.map((s, i) => root.history[i].concat([s.value]).slice(-root.samples))
+            Shell.stats = root.history
+        }
     }
     property int tab: 0                 // which history the popup shows: cpu / mem / gpu
 

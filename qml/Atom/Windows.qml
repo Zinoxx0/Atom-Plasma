@@ -12,8 +12,14 @@ QtObject {
     readonly property var screens: Array.prototype.slice.call(Qt.application.screens)
     property string activeScreen: ""            // screen name of the active window ("" = none)
     property string activeApp: ""               // its app id, lower case
-    property var fullscreen: ({})               // screen name -> true while a fullscreen window covers it
-    function isFullscreen(name) { return fullscreen[name] === true }
+    // the screens a fullscreen window covers: KWin's own answer when its rice_islands script is running (a
+    // fullscreen window IN FRONT of the bar, Shell.bar.covered; the same answer that moves the islands), else
+    // this model's guess (`fullscreen`: the top window there is fullscreen or covers the whole screen)
+    property var fullscreen: ({})               // screen name -> true (the guess)
+    function isFullscreen(name) {
+        const b = Shell.bar
+        return b && b.covered ? b.covered.indexOf(name) >= 0 : fullscreen[name] === true
+    }
     // where the windows are (not minimized), global logical rects: what sits over a spot of the desktop
     property var rects: []
     function occupied(r) {

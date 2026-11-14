@@ -25,3 +25,4 @@ TagField TagField.qml
 AppGlow AppGlow.qml
 SessionActions SessionActions.js
 BarFit BarFit.qml
+PortalHost PortalHost.qml

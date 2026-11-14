@@ -332,7 +332,7 @@ Item {
                                 anchors.centerIn: parent
                                 visible: sw.isAuto
                                 text: "auto_awesome"
-                                color: sw.c.hslLightness > 0.6 ? "#14151b" : "#ffffff"
+                                color: sw.c.hslLightness > 0.6 ? Tokens.neutral.dark : "#ffffff"
                                 font.family: Tokens.font.icons
                                 font.pixelSize: 13
                             }

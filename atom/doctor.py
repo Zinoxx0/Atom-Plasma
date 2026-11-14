@@ -6,12 +6,11 @@ import json
 import os
 import subprocess
 
-from . import caps, displays, migrate, panel, util
+from . import caps, displays, kwin, migrate, panel, util
 from .util import HOME, ROOT
 
 PLASMOIDS = HOME / ".local/share/plasma/plasmoids"
 LNF = HOME / ".local/share/plasma/look-and-feel"
-EFFECTS = HOME / ".local/share/kwin/effects"
 UNITS = HOME / ".config/systemd/user"
 DROPIN = UNITS / "plasma-plasmashell.service.d/rice.conf"
 
@@ -47,8 +46,14 @@ def checks():
         out.append((_linked(PLASMOIDS / d.name, d), f"plasmoid {d.name}", f"ln -sfn {d} {PLASMOIDS / d.name}"))
     for d in sorted(p for p in (ROOT / "lnf").iterdir() if p.is_dir()):
         out.append((_linked(LNF / d.name, d), f"look-and-feel {d.name}", f"ln -sfn {d} {LNF / d.name}"))
-    for d in sorted(p for p in (ROOT / "kwin").iterdir() if p.is_dir()):
-        out.append((_linked(EFFECTS / d.name, d), f"KWin effect {d.name}", "rice.py setup"))
+    for src, link in kwin.packages():
+        kind = "script" if link.parent.name == "scripts" else "effect"
+        out.append((_linked(link, src), f"KWin {kind} {src.name}", "rice.py setup"))
+    for name, on in kwin.KWIN_SCRIPTS.items():
+        r = util.run("qdbus6", "org.kde.KWin", "/Scripting", "org.kde.kwin.Scripting.isScriptLoaded", name, quiet=True)
+        loaded = r is not None and r.stdout.strip() == "true"
+        out.append((loaded == on, f"KWin script {name} " + ("running" if loaded else "not running"),
+                    "rice.py setup (or: qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.start)"))
     for f in sorted((ROOT / "systemd").glob("*")):
         if f.suffix not in (".service", ".timer"):
             continue
@@ -78,6 +83,15 @@ def checks():
                     + (f": not running on {missing}" if missing else ""), "systemctl --user restart plasma-plasmashell"))
     except (subprocess.CalledProcessError, ValueError, AttributeError):
         out.append((False, "plasmashell answers scripting", "is plasmashell running?"))
+    # KRunner is the launcher's finder: plasmashell holds KRunner's bus name, KRunner's own daemon never starts
+    r = util.run("systemctl", "--user", "is-enabled", "plasma-krunner.service", quiet=True)
+    masked = r is not None and r.stdout.strip() == "masked"
+    r = util.run("busctl", "--user", "status", "org.kde.krunner", quiet=True)
+    owner = next((l.split("=", 1)[1] for l in (r.stdout.splitlines() if r else []) if l.startswith("Comm=")), "")
+    out.append((masked and owner == "plasmashell", "KRunner opens the launcher's search"
+                + ("" if masked else " (plasma-krunner.service isn't masked)")
+                + ("" if owner == "plasmashell" else f" (org.kde.krunner is held by {owner or 'nobody'})"),
+                "systemctl --user mask --now plasma-krunner.service && systemctl --user restart plasma-plasmashell"))
     out.append((migrate.version() >= migrate.VERSION, f"saved state version {migrate.version()}", "rice.py screens"))
     return out
 

@@ -28,9 +28,11 @@ PlasmoidItem {
 
     // the agenda: fetched by agenda.py, watched here for the "soon" dot
     RiceShell { id: sh; onNewData: (source, data) => disconnectSource(source) }
+    // every bar has a clock, but the islands show on one screen (kwin/rice_islands): only that bar's clock
+    // fetches (all of them until KWin has said which, as before)
     Timer {
         interval: 15 * 60 * 1000
-        running: true
+        running: Shell.barShown(root.Window.window ? Screen.name : "")
         repeat: true
         triggeredOnStart: true
         onTriggered: sh.connectSource('python3 "$HOME/.config/plasma-rice/agenda.py" >/dev/null #run')
