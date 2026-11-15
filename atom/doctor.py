@@ -6,7 +6,7 @@ import json
 import os
 import subprocess
 
-from . import caps, displays, install, kwin, migrate, panel, util
+from . import caps, claude, displays, install, kwin, migrate, panel, util
 from .util import HOME, ROOT
 
 PLASMOIDS = HOME / ".local/share/plasma/plasmoids"
@@ -94,6 +94,14 @@ def checks():
                 + ("" if masked else " (plasma-krunner.service isn't masked)")
                 + ("" if owner == "plasmashell" else f" (org.kde.krunner is held by {owner or 'nobody'})"),
                 "systemctl --user mask --now plasma-krunner.service && systemctl --user restart plasma-plasmashell"))
+    cfg = util.settings()
+    if caps.feature("claude", cfg):
+        todo = claude.missing(caps.feature("update_check", cfg))
+        out.append((not todo, "Claude Code tells Clawd what it's doing (hooks in ~/.claude/settings.json)"
+                    + (f": {'; '.join(todo)}" if todo else ""), "rice.py install, then restart Claude Code"))
+    old = install.old_paths()
+    out.append((not old, "nothing calls the scripts at their old place (they're in bin/)"
+                + "".join(f"\n       {f}:{n}: {line}" for f, n, line in old), "point those at ~/.config/plasma-rice/bin/..."))
     out.append((migrate.version() >= migrate.VERSION, f"saved state version {migrate.version()}", "rice.py screens"))
     return out
 

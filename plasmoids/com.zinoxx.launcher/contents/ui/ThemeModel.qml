@@ -54,7 +54,7 @@ Item {
     }
     function reload() {
         sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" page #tpage')
-        sh.connectSource('python3 "$HOME/.config/plasma-rice/rgb.py" status #tlights')
+        sh.connectSource('python3 "$HOME/.config/plasma-rice/bin/rgb.py" status #tlights')
     }
     function riceCmd(args) { return ["python3", sh.home + "/.config/plasma-rice/rice.py"].concat(args) }
     function run(key, argv) {
@@ -74,11 +74,11 @@ Item {
         else if (it.kind === "size") run(it.key, riceCmd(["ui", "set"].concat(it.v === "auto" ? ["--auto", "true"] : ["--auto", "false", "--size", String(it.v)])))
         else if (it.kind === "lsize") run(it.key, riceCmd(["launcher", "size", String(it.v)]))
         else if (it.kind === "blur") run(it.key, riceCmd(["blur", it.style]))
-        else if (it.kind === "light") run(it.key, ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", "all"].concat(it.args))
+        else if (it.kind === "light") run(it.key, ["python3", sh.home + "/.config/plasma-rice/bin/rgb.py", "set", "all"].concat(it.args))
         else if (it.kind === "kb") {
             const a = it.args
             for (let i = 0; i + 1 < a.length; i += 2) setDraft("kb:" + it.dev + ":" + a[i].slice(2), a[i + 1] === "true" ? true : a[i + 1] === "false" ? false : a[i + 1])
-            run(it.key, ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", it.dev].concat(a))
+            run(it.key, ["python3", sh.home + "/.config/plasma-rice/bin/rgb.py", "set", it.dev].concat(a))
         }
         else if (it.kind === "barstyle") run(it.key, riceCmd(["bar", "style", it.style]))
     }
@@ -89,7 +89,7 @@ Item {
         if (role.startsWith("kb:")) {       // a keyboard's own colour (the accent editor, reused)
             const id = role.slice(3)
             setDraft("kb:" + id + ":colour", hex); setDraft("kb:" + id + ":mode", "manual"); setDraft("kb:" + id + ":effect", "static"); setDraft("kb:" + id + ":on", true)
-            run("live:kb", ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", id, "--mode", "manual", "--effect", "static", "--colour", hex, "--on", "true"])
+            run("live:kb", ["python3", sh.home + "/.config/plasma-rice/bin/rgb.py", "set", id, "--mode", "manual", "--effect", "static", "--colour", hex, "--on", "true"])
             return
         }
         setDraft("accent:" + role, hex)
@@ -99,7 +99,7 @@ Item {
         if (role.startsWith("kb:")) {       // "Automatic": back to following its screen
             const id = role.slice(3)
             setDraft("kb:" + id + ":mode", "auto")
-            run("live:kb", ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", id, "--mode", "auto", "--on", "true"])
+            run("live:kb", ["python3", sh.home + "/.config/plasma-rice/bin/rgb.py", "set", id, "--mode", "auto", "--on", "true"])
             return
         }
         setDraft("accent:" + role, undefined)
@@ -132,7 +132,7 @@ Item {
         } else if (id === "bright-" || id === "bright+") {
             const v = Math.max(0, Math.min(100, Math.round(brightness / 10) * 10 + (id === "bright+" ? 10 : -10)))
             setDraft("brightness", v)
-            run("live:bright", ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", "all", "--brightness", String(v)])
+            run("live:bright", ["python3", sh.home + "/.config/plasma-rice/bin/rgb.py", "set", "all", "--brightness", String(v)])
         } else if (id.startsWith("follow:")) {      // the next screen it follows: the theme's, then each screen
             const dev = (tm.lights && tm.lights.devices || []).find(d => d.id === id.slice(7))
             if (!dev) return
@@ -140,20 +140,20 @@ Item {
             const order = ["lead"].concat(screens.map(x => x.name))
             const next = order[(Math.max(0, order.indexOf(cur)) + 1) % order.length]
             setDraft("kb:" + dev.id + ":follow", next)
-            run("live:follow", ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", dev.id, "--follow", next])
+            run("live:follow", ["python3", sh.home + "/.config/plasma-rice/bin/rgb.py", "set", dev.id, "--follow", next])
         } else if (id.startsWith("kbright")) {
             const dev = (tm.lights && tm.lights.devices || []).find(d => d.id === id.split(":")[1])
             if (!dev) return
             const cur = (Object.assign({}, dev.settings || {}, kbDraft(dev.id))).brightness ?? 0
             const v = Math.max(0, Math.min(100, Math.round(cur / 10) * 10 + (id.startsWith("kbright+") ? 10 : -10)))
             setDraft("kb:" + dev.id + ":brightness", v)
-            run("live:kbright:" + dev.id, ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", dev.id, "--brightness", String(v)])
+            run("live:kbright:" + dev.id, ["python3", sh.home + "/.config/plasma-rice/bin/rgb.py", "set", dev.id, "--brightness", String(v)])
         } else if (id.startsWith("power:")) {
             const dev = lightDevs.find(d => d.id === id.slice(6))
             if (!dev) return
             const on = !((draft["on:" + dev.id] ?? (dev.settings || {}).on) !== false)
             setDraft("on:" + dev.id, on)
-            run("live:power", ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", dev.id, "--on", String(on)])
+            run("live:power", ["python3", sh.home + "/.config/plasma-rice/bin/rgb.py", "set", dev.id, "--on", String(on)])
         }
     }
     // a fresh answer from rice.py / rgb.py replaces what was shown while on its way

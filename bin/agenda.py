@@ -24,7 +24,8 @@ import time
 import urllib.request
 from pathlib import Path
 
-from atom import util
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # (bin/..: the atom package)
+from atom import util  # noqa: E402
 
 CACHE = util.CACHE
 OUT = CACHE / "calendar.json"

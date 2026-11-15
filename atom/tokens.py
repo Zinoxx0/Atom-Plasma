@@ -3,7 +3,7 @@ fixed (not wallpaper-driven) colours live.
 
 Python generators import TOKENS (Plasma Style, Klassy, ShapeCorners, Konsole, boot), and write() puts
 them in the QML singleton qml/Rice/Tokens.qml for the plasmoids, the splash and the logout screen
-(`tokens.py` at the top, or every rice.py run).
+(`bin/tokens.py`, or every rice.py run).
 """
 import json
 

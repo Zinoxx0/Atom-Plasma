@@ -60,7 +60,7 @@ PlasmoidItem {
     }
     Timer {
         interval: 15 * 60 * 1000; running: true; repeat: true; triggeredOnStart: true
-        onTriggered: sh.connectSource('python3 "$HOME/.config/plasma-rice/weather.py" #weather')
+        onTriggered: sh.connectSource('python3 "$HOME/.config/plasma-rice/bin/weather.py" #weather')
     }
 
     // ---- Clawd's situation: the bar's Claude widget's, watched only where Clawd is shown
@@ -86,7 +86,7 @@ PlasmoidItem {
         id: cachy
         active: root.desk.clawd === true
         file: "update.json"
-        ackCommand: 'python3 "$HOME/.config/plasma-rice/update-check.py" --ack'
+        ackCommand: 'python3 "$HOME/.config/plasma-rice/bin/update-check.py" --ack'
     }
     readonly property bool updating: cachy.asking
     readonly property string updateTitle: updating ? String(cachy.ask.title ?? "Important Cachy update!") : ""

@@ -4,8 +4,10 @@
     boot.py limine [--dry-run] | plymouth [--rebuild] | login | greeter-sync | preview
 """
 import sys
+from pathlib import Path
 
-from atom import boot
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # (bin/..: the atom package)
+from atom import boot  # noqa: E402
 
 if __name__ == "__main__":
     boot.main(sys.argv[1:])

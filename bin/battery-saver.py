@@ -21,12 +21,14 @@ State: ~/.local/state/rice/battery-saver.json, replaced atomically (the launcher
 import json
 import sys
 import time
+from pathlib import Path
 
-from atom import util
-from atom.util import ROOT, STATE
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # (bin/..: the atom package)
+from atom import util  # noqa: E402
+from atom.util import ROOT, STATE  # noqa: E402
 
 FILE = STATE / "battery-saver.json"
-RGB = ROOT / "rgb.py"
+RGB = ROOT / "bin/rgb.py"
 SAVER = "power-saver"
 
 

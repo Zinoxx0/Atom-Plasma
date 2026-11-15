@@ -1,5 +1,5 @@
-"""Atom Plasma's library. The scripts in ~/.config/plasma-rice (rice.py, apps.py, boot.py, rgb.py, ...) are
-the entry points the widgets, units and shortcuts run; the work happens here.
+"""Atom Plasma's library. rice.py (the command line) and the programs in bin/ (apps.py, boot.py, rgb.py, ...)
+are the entry points the widgets, units, shortcuts and hooks run; the work happens here.
 
     util       folders, settings.json, safe writes, running commands, the log, templates, fonts
     palette    wallpaper -> palette (palette v2: moods, accents, surfaces, terminal colours)
@@ -19,3 +19,5 @@ the entry points the widgets, units and shortcuts run; the work happens here.
     style      the Plasma Style "Rice" / "Rice-Light" generator
     boot       Limine, Plymouth and the login screen
 """
+
+__version__ = "1.0.0"

@@ -9,7 +9,7 @@ no answer came within the timeout, 2 s by default). Used by Glimpse's glimpse-kw
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # (bin/..: the atom package)
 from atom import kwinscript  # noqa: E402
 
 

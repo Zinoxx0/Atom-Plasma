@@ -31,6 +31,7 @@
                              units, plasmashell's environment, shortcuts); safe to re-run (atom/install.py)
     rice.py doctor           is the rice whole here? the machine's capabilities and features (settings
                              `features` {name: auto|on|off}), the displays, and every installed piece
+    rice.py version          Atom Plasma's version
     rice.py ui show          JSON: the UI size settings and every screen's size (standard and effective)
     rice.py ui set [--auto true|false] [--size F] [--screen X --own F|--own auto]
                              the UI size: automatic (each screen's standard size x the overall size) or one
@@ -212,6 +213,9 @@ def main(args):
             presets.preset_delete(name)
         else:
             theme.pick("", target, preset=name)
+    elif arg in ("version", "--version"):
+        import atom
+        print(f"Atom Plasma {atom.__version__}")
     elif arg.startswith("-"):
         sys.exit(__doc__)
     else:       # next | prev | random | restore | an image

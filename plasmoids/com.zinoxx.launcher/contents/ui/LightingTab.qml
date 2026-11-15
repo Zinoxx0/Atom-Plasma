@@ -3,7 +3,7 @@ import QtQuick.Layouts
 import org.kde.plasma.core as PlasmaCore
 import Rice
 
-// The Theme page's Lighting tab: the keyboards' RGB, through ~/.config/plasma-rice/rgb.py (asusd for the
+// The Theme page's Lighting tab: the keyboards' RGB, through ~/.config/plasma-rice/bin/rgb.py (asusd for the
 // laptop's, hidraw for the Razer; no vendor apps). Each keyboard is Automatic (a style in a screen's
 // accents, re-applied on every re-theme) or Manual (an effect and its colours). A card per keyboard
 // draws what it shows. Edits are live like the Colours tab: rgb.py set, one run at a time, the latest
@@ -66,7 +66,7 @@ Item {
     }
 
     function load() {
-        sh.connectSource('python3 "$HOME/.config/plasma-rice/rgb.py" status #lstatus')
+        sh.connectSource('python3 "$HOME/.config/plasma-rice/bin/rgb.py" status #lstatus')
     }
     function edit(k, v, d) {
         const id = (d ?? dev).id
@@ -84,7 +84,7 @@ Item {
         const a = []
         for (const k in values) a.push("--" + k, String(values[k]))
         busy = true; error = ""
-        sh.exec("lset", ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", id].concat(a))     // (changing arguments: RiceShell.exec)
+        sh.exec("lset", ["python3", sh.home + "/.config/plasma-rice/bin/rgb.py", "set", id].concat(a))     // (changing arguments: RiceShell.exec)
     }
     function allPower(on) {
         for (const d of devices) if (d.ready) edit("on", on, d)

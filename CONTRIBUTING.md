@@ -77,6 +77,10 @@ Run the tests before every commit.
 
 **Python**
 
+- The work lives in the `atom` package. `rice.py` is the command line; a program that something else runs by
+  path (a unit, a widget, a shortcut, a Claude Code hook) goes in `bin/`, stays small, and finds `atom` one
+  folder up. Widgets call it as `$HOME/.config/plasma-rice/bin/<name>` (the installer links a clone kept
+  elsewhere there).
 - Run commands with `util.run(...)` (an argument list, a timeout, failures logged), never `shell=True`.
 - Write files other parts read with `util.write_if_changed` or `util.save_json`: they write a temporary file
   and rename it, so a reader never sees half a file.

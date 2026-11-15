@@ -5,7 +5,7 @@ PartOf=graphical-session.target
 After=graphical-session.target
 
 [Service]
-ExecStart=/usr/bin/python3 %h/.config/plasma-rice/rgb.py watch
+ExecStart=/usr/bin/python3 %h/.config/plasma-rice/bin/rgb.py watch
 Restart=on-failure
 RestartSec=5
 

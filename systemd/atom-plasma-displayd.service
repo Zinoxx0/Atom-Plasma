@@ -6,7 +6,7 @@ PartOf=graphical-session.target
 After=graphical-session.target plasma-plasmashell.service
 
 [Service]
-ExecStart=/usr/bin/python3 %h/.config/plasma-rice/displayd.py
+ExecStart=/usr/bin/python3 %h/.config/plasma-rice/bin/displayd.py
 Restart=on-failure
 RestartSec=5
 

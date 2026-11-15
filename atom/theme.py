@@ -117,7 +117,7 @@ def apply_rgb():
     from . import caps
     if not caps.feature("keyboard_lights"):
         return
-    subprocess.Popen([sys.executable, str(ROOT / "rgb.py"), "apply"], stdout=subprocess.DEVNULL,
+    subprocess.Popen([sys.executable, str(ROOT / "bin/rgb.py"), "apply"], stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, start_new_session=True)
 
 

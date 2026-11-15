@@ -77,7 +77,7 @@ FocusScope {
     // the sheet calls this as the panel comes in: back to today, fresh data
     function enter() {
         today()
-        sh.connectSource('python3 "$HOME/.config/plasma-rice/agenda.py" >/dev/null #run')
+        sh.connectSource('python3 "$HOME/.config/plasma-rice/bin/agenda.py" >/dev/null #run')
         forceActiveFocus()
     }
     Keys.onLeftPressed: step(-1)
@@ -392,7 +392,7 @@ FocusScope {
                     width: cal.agendaW - cal.u(20)
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.Wrap
-                    text: "Google Calendar: agenda.py set-url <secret iCal address>"
+                    text: "Google Calendar: bin/agenda.py set-url <secret iCal address>"
                     color: C.alpha(cal.pal.muted, 0.7)
                     font.family: Tokens.font.mono
                     font.pixelSize: cal.u(10)

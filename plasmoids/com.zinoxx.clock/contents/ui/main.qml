@@ -34,7 +34,7 @@ PlasmoidItem {
         running: Shell.barShown(root.Window.window ? Screen.name : "")
         repeat: true
         triggeredOnStart: true
-        onTriggered: sh.connectSource('python3 "$HOME/.config/plasma-rice/agenda.py" >/dev/null #run')
+        onTriggered: sh.connectSource('python3 "$HOME/.config/plasma-rice/bin/agenda.py" >/dev/null #run')
     }
     WatchedJson {
         id: agenda

@@ -1,7 +1,7 @@
 import QtQuick
 import QtCore
 
-// A check-in Claude raised with ~/.config/plasma-rice/ask.sh (~/.local/state/rice/ask.json): Clawd's
+// A check-in Claude raised with ~/.config/plasma-rice/bin/ask.sh (~/.local/state/rice/ask.json): Clawd's
 // big "!" on the bars and the desktop. It stays up until the user marks it done (the popup's Done
 // button, or a click on the desktop Clawd) or Claude clears it once the user has answered in chat.
 // Nothing else takes it down: no timeout, and it survives plasmashell restarts and reboots (the file
@@ -18,7 +18,7 @@ Item {
 
     property bool active: true
     property string file: "ask.json"
-    property string ackCommand: 'sh "$HOME/.config/plasma-rice/ask.sh" --ack'
+    property string ackCommand: 'sh "$HOME/.config/plasma-rice/bin/ask.sh" --ack'
     property var ask: null                      // {id, msg, since, ack} (+ the notice's own fields)
     readonly property bool asking: ask !== null && !(Number(ask.ack) > 0)
     readonly property string msg: asking ? String(ask.msg ?? "") : ""

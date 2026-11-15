@@ -269,7 +269,7 @@ PlasmoidItem {
 
     function greeting(h) { return h < 5 ? "Up late," : h < 12 ? "Good morning," : h < 18 ? "Good afternoon," : "Good evening," }
 
-    // battery saver (plasma-rice/battery-saver.py): its switch on the hero card shows only while the
+    // battery saver (plasma-rice/bin/battery-saver.py): its switch on the hero card shows only while the
     // laptop runs on battery. Plasma's power engine follows UPower's signals, so nothing is polled. When
     // the charger comes back the saver ends by itself (the lights; PowerDevil picks the AC profile)
     P5Support.DataSource {
@@ -291,11 +291,11 @@ PlasmoidItem {
     readonly property bool saverShown: saverBusy ? saverWant : saverOn
     function setSaver(on) {
         saverWant = on; saverBusy = true; saverTimeout.restart()
-        run('python3 "$HOME/.config/plasma-rice/battery-saver.py" ' + (on ? "on" : "off"))
+        run('python3 "$HOME/.config/plasma-rice/bin/battery-saver.py" ' + (on ? "on" : "off"))
     }
     Timer { id: saverTimeout; interval: 8000; onTriggered: root.saverBusy = false }    // it was already so
     readonly property bool saverStale: plugged && saverOn
-    onSaverStaleChanged: if (saverStale) run('python3 "$HOME/.config/plasma-rice/battery-saver.py" off --plugged')
+    onSaverStaleChanged: if (saverStale) run('python3 "$HOME/.config/plasma-rice/bin/battery-saver.py" off --plugged')
 
     // ------------------------------------------------------------------ right-click menu
     PlasmaExtras.Menu {

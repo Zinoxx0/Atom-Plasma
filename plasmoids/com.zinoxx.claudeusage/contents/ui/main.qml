@@ -38,7 +38,7 @@ PlasmoidItem {
     readonly property var usage: limits.usage
     readonly property real now: limits.now
     RiceShell { id: sh }
-    // a check-in Claude asked for (~/.config/plasma-rice/ask.sh): a big "!" over Clawd until "Done"
+    // a check-in Claude asked for (~/.config/plasma-rice/bin/ask.sh): a big "!" over Clawd until "Done"
     // (or until Claude clears it); ClaudeAsk watches the file, no polling
     ClaudeAsk { id: checkIn; active: root.live }
     readonly property var ask: checkIn.ask
@@ -46,13 +46,13 @@ PlasmoidItem {
     // the island turns red for a check-in, or while Claude Code waits on a permission / a question form
     Plasmoid.status: asking || activity === "attention" ? PlasmaCore.Types.NeedsAttentionStatus : PlasmaCore.Types.ActiveStatus
     function ackAsk() { checkIn.done() }
-    // an important update the update check found (~/.config/plasma-rice/update-check.py): a green badge on
+    // an important update the update check found (~/.config/plasma-rice/bin/update-check.py): a green badge on
     // Clawd and a card in the popup, until it's marked seen or the update is installed
     ClaudeAsk {
         id: cachy
         active: root.live
         file: "update.json"
-        ackCommand: 'python3 "$HOME/.config/plasma-rice/update-check.py" --ack'
+        ackCommand: 'python3 "$HOME/.config/plasma-rice/bin/update-check.py" --ack'
     }
     readonly property bool updating: cachy.asking
     readonly property var updateInfo: cachy.ask         // (not `update`: that's Item.update())

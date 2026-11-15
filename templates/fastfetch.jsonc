@@ -1,4 +1,4 @@
-// Template: rendered to ~/.config/fastfetch/config.jsonc by ~/.config/plasma-rice/apps.py.
+// Template: rendered to ~/.config/fastfetch/config.jsonc by ~/.config/plasma-rice/bin/apps.py.
 // {{name}} = palette colour as #hex, {{name.rgb}} = r;g;b for fastfetch's {#38;2;...} colour codes,
 // {{logo}} / {{logo_type}} = the logo apps.py picked (a rounded square of the wallpaper over the kitty
 // image protocol, which Konsole speaks; Clawd as text art otherwise), {{accent3}} = the palette colour

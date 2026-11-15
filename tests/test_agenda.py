@@ -8,6 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "bin"))
 import agenda  # noqa: E402
 
 FIX = ROOT / "tests/fixtures/agenda.ics"

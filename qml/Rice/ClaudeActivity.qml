@@ -2,7 +2,7 @@ import QtQuick
 import QtCore
 
 // What Claude Code is doing right now, for Clawd: ~/.cache/clawd/activity.json, written by Claude
-// Code's hooks (~/.config/plasma-rice/clawd-hook.sh), watched and re-read on every write (WatchedJson).
+// Code's hooks (~/.config/plasma-rice/bin/clawd-hook.sh), watched and re-read on every write (WatchedJson).
 //
 //   ClaudeActivity { id: claude }      Clawd { activity: claude.activity }
 //

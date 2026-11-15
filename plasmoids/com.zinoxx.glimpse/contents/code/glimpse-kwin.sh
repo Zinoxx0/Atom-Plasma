@@ -9,7 +9,7 @@ uuid=${2:-}; output=${3:-}
 case "$uuid" in "" | *[!0-9a-fA-F{}-]*) exit 2 ;; esac
 case "$output" in "" | *[!A-Za-z0-9_.-]*) exit 2 ;; esac
 
-python3 "$HOME/.config/plasma-rice/kwin-run.py" <<JS
+python3 "$HOME/.config/plasma-rice/bin/kwin-run.py" <<JS
 (function () {
     const want = "$uuid".replace(/[{}]/g, "").toLowerCase();
     const w = workspace.windowList().find(x => String(x.internalId).replace(/[{}]/g, "").toLowerCase() === want);

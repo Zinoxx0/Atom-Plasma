@@ -296,7 +296,7 @@ FocusScope {
                 label: "Battery saver"
                 sub: cc.saverOn ? "On" : "Off"
                 on: cc.saverOn
-                onToggled: cc.run('python3 "$HOME/.config/plasma-rice/battery-saver.py" ' + (cc.saverOn ? "off" : "on"))
+                onToggled: cc.run('python3 "$HOME/.config/plasma-rice/bin/battery-saver.py" ' + (cc.saverOn ? "off" : "on"))
             }
         }
 

@@ -45,7 +45,8 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from atom import util
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # (bin/..: the atom package)
+from atom import util  # noqa: E402
 
 STATE = util.STATE
 NOTICE = STATE / "update.json"
@@ -579,7 +580,7 @@ def remind():
            f"\"{n.get('msg', '')}\"" + (f" Caveat: {n['caveat']}" if n.get("caveat") else "") +
            f" Packages: {', '.join(n.get('pkgs', {})) or 'see the report'}. Full report with sources: {n.get('report', REPORT)}."
            " Nothing was installed. It clears itself once those packages are installed; if the user dismisses it in chat,"
-           " clear it with ~/.config/plasma-rice/update-check.py --clear.")
+           " clear it with ~/.config/plasma-rice/bin/update-check.py --clear.")
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": ctx}}))
 
 

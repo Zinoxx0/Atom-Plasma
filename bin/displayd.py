@@ -17,7 +17,7 @@ from pathlib import Path
 
 from gi.repository import Gio, GLib
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent      # (bin/..)
 CONFIG = Path.home() / ".config/kwinoutputconfig.json"
 SETTLE = 2.5            # seconds of quiet before reconciling
 START_WAIT = 90         # seconds to wait for plasmashell at the start

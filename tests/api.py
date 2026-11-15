@@ -6,6 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "bin"))      # (rgb.py, the scripts)
 
 import rgb  # noqa: E402
 from atom import (apps, boot, kde, layout, palette, panel, presets, screens, style, terminals,  # noqa: E402
@@ -13,7 +14,7 @@ from atom import (apps, boot, kde, layout, palette, panel, presets, screens, sty
 
 
 def _script(name, file):
-    spec = importlib.util.spec_from_file_location(name, ROOT / file)
+    spec = importlib.util.spec_from_file_location(name, ROOT / "bin" / file)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

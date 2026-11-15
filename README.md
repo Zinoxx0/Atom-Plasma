@@ -23,8 +23,10 @@ look-and-feel and the KWin effects into this repo, so `git pull` is the update. 
 (the login-screen copier, the Razer udev rule, boot theming) is printed for you to run yourself.
 
 **Needs:** Plasma 6.8 on Wayland, Python 3 with Pillow, numpy, dbus-python and PyGObject, plus ImageMagick
-and Panel Colorizer. Optional: Darkly, Klassy, KWin better-blur-dx, Krohnkite (tiling), Claude Code
-(Clawd), Limine and Plymouth (boot theming), Plasma Login Manager (login screen).
+and Panel Colorizer; to build the shell's native module, CMake, Ninja, a C++20 compiler, `qt6-declarative`
+and `libdbusmenu-lxqt`. Optional: Darkly, Klassy, KWin better-blur-dx, Krohnkite (tiling), Claude Code and
+`jq` (Clawd and the usage rings), `python-icalendar` and `python-recurring-ical-events` (Google Calendar),
+Limine and Plymouth (boot theming), Plasma Login Manager (login screen).
 
 ## Screens
 
@@ -119,7 +121,7 @@ island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on ev
   panel: each light's level, white, colour and moods, and Match wallpaper.
 - **Notifications** grow out of the status island on the screen you're working on, one card per chat.
 - **Clock island**: the calendar, with Portuguese holidays and your Google Calendar
-  (`./agenda.py set-url <the calendar's secret iCal address>`; it stays in `~/.config/atom-plasma/secrets.json`).
+  (`bin/agenda.py set-url <the calendar's secret iCal address>`; it stays in `~/.config/atom-plasma/secrets.json`).
 - **Clipboard history** on Meta+V.
 
 The shell needs a small native module (`pkg/atom-native`: blur behind the sheet, input masks, the tray host,
@@ -146,6 +148,12 @@ over the middle of Claude's ring, when nothing covers the space above it (his se
 meanwhile); back inside the island, nearly as big, when a window does; in the popup while it's open.
 Between them it jumps.
 
+Clawd learns what Claude Code is doing from its hooks, and the usage rings from its status line.
+`rice.py install` adds the hooks to `~/.claude/settings.json` and, when you have no status line yet, sets
+`bin/claude-statusline.sh`, which keeps the limits in `~/.cache/claude-usage.json`. If you have your own
+status line, have it write that file as well (the script says how). Restart open Claude Code sessions
+afterwards: they read their hooks when they start.
+
 Each one is a single canvas, repainted only when its picture changes, and it holds still behind a
 fullscreen window (`qml/Rice/Clawd.qml`; the art is in `ClawdArt.js`, the acts and hobbies in
 `ClawdActs.js`). To look at them while changing them, `tools/clawd/sheet.qml` renders contact sheets.
@@ -171,11 +179,11 @@ Theme page; Meta+Alt+T toggles tiling.
 | Path | What |
 | --- | --- |
 | `atom/` | the Python library: displays, reconcile, palettes (OKLab moods), screens, presets, KDE/KWin/apps theming, panels, tiling, caps, install, doctor |
-| `rice.py`, `displayd.py`, ... | entry points |
+| `rice.py` | the command line (below) |
+| `bin/` | the programs units, widgets, shortcuts and Claude Code's hooks run: the display watcher, keyboard lights, weather, the calendar's agenda, the update check, Clawd's hooks and status line, wallpapers from wallhaven |
 | `qml/Rice/` | shared QML: design tokens, the per-screen palette, Clawd (its art and its acts), controls |
 | `qml/Atom/` | the shell: its switchboard, the morphing sheet, panels (calendar, control center, clipboard...), notification cards, the power overlay |
 | `plasmoids/` | the launcher, Glimpse (task strip and top band), desk clock, the clock and status islands, system rings, Claude usage, session, tiling toggle, the shell's host |
-| `agenda.py` | the calendar's data: holidays and your Google Calendar |
 | `lnf/` | look-and-feel: splash and logout screen |
 | `plasma-style/`, `kwin/`, `templates/`, `shell/` | Plasma Style generator, KWin effects and the islands script, config templates, shell rice |
 | `systemd/` | user units: display watcher, keyboard lights, update check |

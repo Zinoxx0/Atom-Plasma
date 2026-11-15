@@ -8,8 +8,10 @@
     apps.py konsole-chrome    Konsole without menu bar or toolbars, tabs as pills (cheap; for login)
 """
 import sys
+from pathlib import Path
 
-from atom import apps
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # (bin/..: the atom package)
+from atom import apps  # noqa: E402
 
 if __name__ == "__main__":
     apps.main(sys.argv[1:])

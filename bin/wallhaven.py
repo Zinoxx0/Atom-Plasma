@@ -31,7 +31,8 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from atom import util
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # (bin/..: the atom package)
+from atom import util  # noqa: E402
 
 SEEN = util.CACHE / "wallhaven-seen.json"
 API = "https://wallhaven.cc/api/v1/search?"
@@ -140,6 +141,8 @@ def target(key):
 
 def main():
     args = sys.argv[1:]
+    if args and args[0] in ("-h", "--help"):
+        sys.exit(__doc__)
     dry = "--dry-run" in args
     args = [a for a in args if a != "--dry-run"]
     screen = "focused"

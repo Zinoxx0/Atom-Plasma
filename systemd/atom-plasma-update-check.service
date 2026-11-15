@@ -8,6 +8,6 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/python3 %h/.config/plasma-rice/update-check.py --scheduled
+ExecStart=/usr/bin/python3 %h/.config/plasma-rice/bin/update-check.py --scheduled
 Nice=10
 TimeoutStartSec=40min

@@ -22,7 +22,7 @@ case "$1" in
         [ -f "$F" ] || exit 0
         jq -c 'select((.ack // 0) == 0) | {hookSpecificOutput: {hookEventName: "UserPromptSubmit", additionalContext:
             ("An Atom Plasma check-in is still open (Clawd shows a \"!\" on the bars and the desktop; raised with ask.sh): \""
-             + .msg + "\". If the user has answered or settled it, in chat or otherwise, clear it with ~/.config/plasma-rice/ask.sh --clear.")}}' \
+             + .msg + "\". If the user has answered or settled it, in chat or otherwise, clear it with ~/.config/plasma-rice/bin/ask.sh --clear.")}}' \
             "$F" 2>/dev/null
         exit 0 ;;
     --status) if [ -f "$F" ]; then cat "$F"; else echo none; fi ;;

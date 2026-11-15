@@ -21,7 +21,7 @@ import org.kde.plasma.plasma5support as P5Support
 // command NAME. So: give repeating commands (polls) a fixed name, and run commands whose arguments
 // change every time (a colour, a wallpaper, a window id) with exec(): it writes the arguments to a file
 // ($XDG_RUNTIME_DIR, a rotation of 8 names per tag; plasmashell runs with QML_XHR_ALLOW_FILE_WRITE=1)
-// and runs ~/.config/plasma-rice/run-argv.py on it, so the names repeat. The answer comes as for
+// and runs ~/.config/plasma-rice/bin/run-argv.py on it, so the names repeat. The answer comes as for
 // connectSource, with the source ending in "#<tag> <n>".
 QtObject {
     id: shell
@@ -43,7 +43,7 @@ QtObject {
     function exec(tag, argv) {
         const n = slot = (slot + 1) % 8
         const file = runtime + "/atom-cmd-" + tag + "-" + n + ".json"
-        const named = 'python3 "$HOME/.config/plasma-rice/run-argv.py" ' + q(file) + " #" + tag + " " + n
+        const named = 'python3 "$HOME/.config/plasma-rice/bin/run-argv.py" ' + q(file) + " #" + tag + " " + n
         const x = new XMLHttpRequest()
         x.onreadystatechange = () => { if (x.readyState === XMLHttpRequest.DONE) shell.connectSource(named) }
         try {

@@ -5,4 +5,4 @@ Description=Atom Plasma keyboard lighting
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/python3 %h/.config/plasma-rice/rgb.py apply --device razer --force
+ExecStart=/usr/bin/python3 %h/.config/plasma-rice/bin/rgb.py apply --device razer --force

@@ -173,7 +173,7 @@ Item {
             cfg.tagHistory = [t].concat(cfg.tagHistory.filter(h => h.toLowerCase() !== t.toLowerCase())).slice(0, 6)
         }
         // shaped for the screen being edited (a portrait screen gets portrait pictures)
-        sh.exec("fetch", ["python3", sh.home + "/.config/plasma-rice/wallhaven.py", "--screen", focusName || "focused", "6", t])
+        sh.exec("fetch", ["python3", sh.home + "/.config/plasma-rice/bin/wallhaven.py", "--screen", focusName || "focused", "6", t])
     }
     function forgetTags(t) { cfg.tagHistory = cfg.tagHistory.filter(h => h !== t) }
     function openFolder() { Qt.openUrlExternally("file://" + dir) }

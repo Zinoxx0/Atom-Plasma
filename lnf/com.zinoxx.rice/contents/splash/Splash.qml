@@ -6,7 +6,7 @@ import "Rice"
 import "palette.js" as P
 
 // Atom Plasma splash, one per screen. It starts as the boot screen ended (Plymouth "rice", built by
-// ~/.config/plasma-rice/boot.py): the same neutral surface, the white Orbit mark, the comet ring and a
+// ~/.config/plasma-rice/bin/boot.py): the same neutral surface, the white Orbit mark, the comet ring and a
 // label, at the same offsets (the design tokens' bootLayout, which boot.py reads too). Then this screen's own wallpaper fades in under it as the
 // session loads, and the ring's track fills with progress, so the desktop arrives instead of popping in;
 // as it does, the mark opens into its halo, as the launcher does.

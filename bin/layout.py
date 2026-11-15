@@ -4,8 +4,10 @@
     layout.py preview OUT.png IMG:WxH [IMG:WxH ...]     overlay sheet (cost heat + boxes)
 """
 import sys
+from pathlib import Path
 
-from atom import layout
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # (bin/..: the atom package)
+from atom import layout  # noqa: E402
 
 if __name__ == "__main__":
     if len(sys.argv) > 2 and sys.argv[1] == "preview":

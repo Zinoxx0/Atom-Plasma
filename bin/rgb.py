@@ -42,8 +42,9 @@ import sys
 import time
 from pathlib import Path
 
-from atom import displays, palette, util
-from atom.util import CACHE, STATE
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # (bin/..: the atom package)
+from atom import displays, palette, util  # noqa: E402
+from atom.util import CACHE, STATE  # noqa: E402
 
 SETTINGS = STATE / "rgb.json"
 SEEN = CACHE / "rgb"                    # <id>.json: what each keyboard was last sent
