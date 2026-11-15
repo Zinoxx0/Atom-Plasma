@@ -7,7 +7,7 @@ import Atom.Native
 // with it). It tells the daemon what the shell has open (the launcher and the power page read the
 // controller themselves: Shell(kind)) and holds the on-screen keyboard's state, which Keyboard (on each
 // screen's sheet window) draws. The daemon talks back on the Bus, topic "pad":
-//   { osk: "show" | "hide" | "toggle" | "move" (dx, dy) | "press" | "shift" | "layer" }   { action: "power" }
+//   { osk: "show" | "hide" | "toggle" | "move" (dx, dy) | "press" | "shift" | "layer" | "flip" }   { action: "power" }
 // and types what the keyboard's keys say: Key({code, mods}) a key of the active layout, Text(s) anything.
 QtObject {
     id: pad
@@ -19,6 +19,7 @@ QtObject {
     property bool altgr: false              // the next key at its AltGr level
     signal move(int dx, int dy)             // the D-pad, while the keyboard shows (its focus moves)
     signal press()                          // A on the focused key
+    signal flip()                           // View: the keyboard to the top of the screen, or back down
 
     function call(member, args) {
         const r = DBus.SessionBus.asyncCall({ service: "org.zinoxx.AtomPad", path: "/Pad", iface: "org.zinoxx.AtomPad",
@@ -66,6 +67,7 @@ QtObject {
         case "press": press(); break
         case "shift": shift = (shift + 1) % 3; break
         case "layer": layer = layer === "letters" ? "accents" : "letters"; break
+        case "flip": flip(); break
         }
     }
     property Connections busWatch: Connections {

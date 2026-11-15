@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import QtCore
+import Atom.Native
 import Rice
 
 // The on-screen keyboard, for a game controller (bin/pad.py; Atom Pad holds its state): the active layout's
@@ -10,7 +11,9 @@ import Rice
 // open, so the text field being typed into keeps the focus): Glass in the screen's palette, KWin's blur
 // behind it, sized by the screen's UI size (a TV across the room gets big keys). The D-pad moves the focus
 // (a ring that glides from key to key), A types the focused one, the pointer clicks any; typing goes through
-// the daemon as key presses. The window puts `shapes` in its input mask and blur.
+// the daemon as key presses. It moves out of the way: dragged by any bare part of it (its edge and grip, the
+// gaps, the hints; never from a key), or flipped between the bottom and the top of the screen (the
+// controller's View). The window puts `shapes` in its input mask and blur.
 Item {
     id: kb
     required property RicePalette pal
@@ -106,10 +109,44 @@ Item {
             kb.act(key)
         }
     }
+    Connections {
+        target: Pad
+        enabled: kb.wanted
+        function onFlip() { kb.flip() }
+    }
     onRowsChanged: { fr = Math.min(fr, rows.length - 1); fc = Math.min(fc, (rows[fr] || [1]).length - 1) }
-    onWantedChanged: if (wanted) { fr = 2; fc = Math.floor(((rows[2] || []).length) / 2) }
+    onWantedChanged: if (wanted) { fr = 2; fc = Math.floor(((rows[2] || []).length) / 2); report.restart() }
     function keyAt(ri, ci) { const r = rowRep.itemAt(ri); return r ? r.keyAt(ci) : null }
     property int built: 0                   // (keys made: itemAt() doesn't notify, the ring reads this)
+
+    // ---- where it sits: its own place, as an offset from the default one (low over the bar, centred), kept
+    // whole on the screen; it stays where it was put while plasmashell runs
+    property real offX: 0
+    property real offY: 0
+    readonly property real baseX: (width - plate.width) / 2
+    readonly property real baseY: height - plate.height - u(78)       // (above the bar's islands)
+    readonly property real edge: u(12)
+    function clampX(o) { return Math.max(edge - baseX, Math.min(width - plate.width - edge - baseX, o)) }
+    function clampY(o) { return Math.max(edge - baseY, Math.min(height - plate.height - edge - baseY, o)) }
+    readonly property bool high: baseY + offY < (height - plate.height) / 2
+    // the controller's View: to the top of the screen, or back down to its default place
+    function flip() {
+        offX = 0
+        offY = high ? 0 : clampY(u(48) - baseY)
+        if (Shell.debug) console.warn("ATOM pad keyboard", high ? "up" : "down")
+    }
+    onWidthChanged: offX = clampX(offX)
+    onHeightChanged: offY = clampY(offY)
+    // where it is once it has settled, for whoever asks (Bus Peek "padKeyboard": the tests), in its screen's
+    // logical coordinates
+    Timer {
+        id: report
+        interval: 150
+        onTriggered: if (kb.wanted) Bus.set("padKeyboard", { screen: kb.screenName, x: Math.round(plate.x), y: Math.round(plate.y),
+                                                             width: Math.round(plate.width), height: Math.round(plate.height) })
+    }
+    Behavior on offX { enabled: !drag.active; NumberAnimation { duration: Tokens.ms(360); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
+    Behavior on offY { enabled: !drag.active; NumberAnimation { duration: Tokens.ms(360); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
 
     // ---- the plate: the sheet's glass, low over the bar, as wide as the screen allows
     readonly property real gap: u(7)
@@ -118,11 +155,14 @@ Item {
     Item {
         id: plate
         readonly property real pad: kb.u(16)
+        readonly property real head: kb.u(26)              // (room for the grip; not "top": FINAL on Item)
         readonly property real radius: Math.round(Tokens.radius.xl * kb.ui)
         width: Math.min(kb.width - 2 * kb.u(24), kb.u(1020))
-        height: pad + 5 * (kb.keyH + kb.gap) - kb.gap + kb.u(14) + hints.height + pad
-        x: Math.round((kb.width - width) / 2)
-        y: kb.height - height - kb.u(78)          // (above the bar's islands)
+        height: head + 5 * (kb.keyH + kb.gap) - kb.gap + kb.u(14) + hints.height + pad
+        x: Math.round(kb.baseX + kb.offX)
+        y: Math.round(kb.baseY + kb.offY)
+        onXChanged: report.restart()
+        onYChanged: report.restart()
         visible: kb.shown
         opacity: kb.p
         transform: Translate { y: kb.rise }
@@ -135,12 +175,42 @@ Item {
             rimA: kb.pal.primary
             rimB: kb.pal.tertiary
         }
-        MouseArea { anchors.fill: parent }        // (between the keys: nothing gets through to the window below)
+        // its bare parts move it (declared under the keys: a press on a key always types). Measured in the
+        // window's coordinates, which don't move with it (in its own, the moving plate fed back into the drag)
+        Item {
+            anchors.fill: parent
+            HoverHandler { id: bare; cursorShape: drag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor }
+            DragHandler {
+                id: drag
+                target: null
+                // never takes a drag over from a key (by default a DragHandler may steal it from the MouseArea
+                // under the pointer: pressing a key and moving a little moved the whole keyboard)
+                grabPermissions: PointerHandler.TakeOverForbidden
+                property point from
+                onActiveChanged: {
+                    if (active) from = Qt.point(kb.offX, kb.offY)
+                    if (Shell.debug && !active) console.warn("ATOM pad keyboard dragged to", Math.round(plate.x), Math.round(plate.y))
+                }
+                onCentroidChanged: if (active) {
+                    kb.offX = kb.clampX(from.x + centroid.scenePosition.x - centroid.scenePressPosition.x)
+                    kb.offY = kb.clampY(from.y + centroid.scenePosition.y - centroid.scenePressPosition.y)
+                }
+            }
+        }
+        Rectangle {     // the grip
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: kb.u(10)
+            width: kb.u(46)
+            height: kb.u(5)
+            radius: height / 2
+            color: C.alpha(kb.pal.fg, drag.active ? 0.55 : bare.hovered ? 0.4 : 0.22)
+            Behavior on color { ColorAnimation { duration: Tokens.fast } }
+        }
 
         Column {
             id: grid
             x: plate.pad
-            y: plate.pad
+            y: plate.head
             spacing: kb.gap
             Repeater {
                 id: rowRep
@@ -203,7 +273,8 @@ Item {
             y: grid.y + grid.height + kb.u(14)
             spacing: kb.u(18)
             Repeater {
-                model: [["A", "Type"], ["X", "Delete"], ["Y", "Space"], ["LT", "Shift"], ["RT", "áé"], ["LB  RB", "Move"], ["☰", "Enter"], ["B", "Close"]]
+                model: [["A", "Type"], ["X", "Delete"], ["Y", "Space"], ["LT", "Shift"], ["RT", "áé"], ["LB  RB", "Cursor"], ["☰", "Enter"],
+                        ["View", "Move"], ["B", "Close"]]
                 Row {
                     required property var modelData
                     spacing: kb.u(6)
@@ -299,6 +370,7 @@ Item {
             id: ma
             anchors.fill: parent
             hoverEnabled: true
+            preventStealing: true           // (a press that starts on a key types: it never moves the keyboard)
             cursorShape: Qt.PointingHandCursor
             onClicked: { k.board.fr = k.ri; k.board.fc = k.ci; k.board.act(k.key) }
         }
