@@ -45,3 +45,11 @@ void Bus::Post(const QString &topic, const QString &json)
     set(topic, data);
     send(topic, data);
 }
+
+QString Bus::Peek(const QString &topic) const
+{
+    if (!m_state.contains(topic)) {
+        return QStringLiteral("null");
+    }
+    return QString::fromUtf8(QJsonDocument::fromVariant(m_state.value(topic)).toJson(QJsonDocument::Compact));
+}

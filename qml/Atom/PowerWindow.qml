@@ -101,6 +101,9 @@ Window {
         sel = 0
         greet = greeting(new Date().getHours())
         if (here) sh.connectSource('cut -d" " -f1 /proc/uptime #up')
+        // the windows go, on every screen (as under the launcher): held at once (the launcher handing over keeps
+        // them gone), minimized once this one holds the keyboard (its first frame), back when it closes
+        if (here) for (const s of Qt.application.screens) Windows.hold(s.name, "power")
         if (phase === "closed") { p = 0; innerV = 0; actV = [0, 0, 0, 0, 0]; openFrom = 0; phase = "opening"; waitFrame = true }
         else {      // it was folding away: carry on from where the ripple is
             let lo = 0, hi = rippleMs
@@ -108,10 +111,12 @@ Window {
             openFrom = lo
             phase = "opening"
             openClock.restart()
+            if (here) for (const s of Qt.application.screens) Windows.clear(s.name, "power")     // (they may be back already)
         }
         if (here) Qt.callLater(() => content.forceActiveFocus())
     }
     function end() {
+        if (wasLead) for (const s of Qt.application.screens) Windows.restore(s.name, "power")
         if (phase === "closed" || phase === "closing") return
         cancelCount()
         openClock.stop()
@@ -122,7 +127,11 @@ Window {
     }
     property bool waitFrame: false
     onFrameSwapped: {
-        if (waitFrame) { waitFrame = false; openClock.restart() }
+        if (waitFrame) {
+            waitFrame = false
+            openClock.restart()
+            if (wasLead) for (const s of Qt.application.screens) Windows.clear(s.name, "power")
+        }
         if (Shell.debug && (phase === "opening" || phase === "closing")) {     // frame pacing, for the tests
             const now = Date.now()
             if (lastFrame) { frames++; worstGap = Math.max(worstGap, now - lastFrame) }

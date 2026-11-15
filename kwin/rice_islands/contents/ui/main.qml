@@ -7,6 +7,9 @@
 //     behind the bar and no longer counts). Then the islands go to the best free screen: the most
 //     pixels, the nearest to the pointer's screen on a tie;
 //   - every screen covered: no islands anywhere.
+//   - the shell's own full-screen surfaces move them the same way (the launcher: its screens are the shell's
+//     Bus state "cover", read back over D-Bus whenever one of its windows comes or goes), but they aren't
+//     fullscreen windows to the rest of the shell: they're posted apart ("cover", not "covered").
 //
 // The bars are faded here, in the compositor, as whole windows: the islands' blur fades with them (a fade
 // inside plasmashell would leave the blurred shapes behind). The leaving bar fades out while the arriving
@@ -46,6 +49,8 @@ Item {
     }
     function bars() { return Workspace.stackingOrder.filter(isBar) }
 
+    property var shellCover: []                 // the screens the shell's launcher covers (Bus "cover")
+    function taken(name) { return covered[name] || shellCover.indexOf(name) >= 0 }
     function coveredNow() {
         const c = {}
         for (const w of Workspace.stackingOrder)
@@ -56,9 +61,9 @@ Item {
         return Math.round(o.geometry.width * o.devicePixelRatio) * Math.round(o.geometry.height * o.devicePixelRatio)
     }
     function choose() {
-        if (pointer && !covered[pointer]) return pointer
+        if (pointer && !taken(pointer)) return pointer
         const outs = Array.from(Workspace.screens)
-        const free = outs.filter(o => !covered[o.name])
+        const free = outs.filter(o => !taken(o.name))
         if (!free.length) return ""
         const from = outs.find(o => o.name === pointer)
         const dist = o => {
@@ -121,9 +126,23 @@ Item {
         id: shellCall
         service: "org.kde.plasmashell"; path: "/Atom"; dbusInterface: "org.zinoxx.Atom"; method: "Post"
     }
+    DBusCall {
+        id: peekCall
+        service: "org.kde.plasmashell"; path: "/Atom"; dbusInterface: "org.zinoxx.Atom"; method: "Peek"
+        arguments: ["cover"]
+        onFinished: returnValue => {
+            let screens = []
+            try { const v = JSON.parse(String(returnValue[0])); screens = v && v.screens ? v.screens : [] } catch (e) {}
+            if (JSON.stringify(screens) === JSON.stringify(root.shellCover)) return
+            root.shellCover = screens
+            recheck.restart()
+        }
+    }
+    // a window of the shell came or went (the launcher maps only while it's open): ask what it covers now
+    function shellWindow(w) { return w && w.resourceClass === "plasmashell" && !root.isBar(w) }
     property string sent: ""
     function post(force) {
-        const msg = JSON.stringify({ screen: target === "?" ? "" : target, covered: Object.keys(covered).sort(), pointer: pointer })
+        const msg = JSON.stringify({ screen: target === "?" ? "" : target, covered: Object.keys(covered).sort(), cover: shellCover.slice().sort(), pointer: pointer })
         if (msg === sent && !force) return
         sent = msg
         shellCall.arguments = ["bar", msg]
@@ -151,13 +170,14 @@ Item {
         }
         function onWindowAdded(w) {
             root.watch(w)
+            if (root.shellWindow(w)) peekCall.call()
             if (root.isBar(w)) {
                 w.opacity = root.shown(w) ? 1 : 0           // a new bar never flashes up
                 resend.restart()                            // plasmashell (re)started: tell it again
             }
             recheck.restart()
         }
-        function onWindowRemoved(w) { recheck.restart() }
+        function onWindowRemoved(w) { if (root.shellWindow(w)) peekCall.call(); recheck.restart() }
         function onWindowActivated(w) { recheck.restart() }
         function onScreensChanged() { root.pointerRect = null; root.pointer = ""; root.locate(); recheck.restart() }
     }
@@ -174,7 +194,7 @@ Item {
         onTriggered: {
             root.covered = root.coveredNow()
             // the pointer on its way to another screen: only a newly covered bar can't wait for it
-            if (settleTimer.running && root.target !== "?" && !root.covered[root.target]) { root.post(); return }
+            if (settleTimer.running && root.target !== "?" && !root.taken(root.target)) { root.post(); return }
             root.apply(root.choose(), true)
         }
     }

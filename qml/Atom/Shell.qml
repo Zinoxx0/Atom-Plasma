@@ -54,7 +54,19 @@ QtObject {
         console.warn("ATOM island", parts[1], "at", Math.round(r.x + r.width / 2), Math.round(r.y + r.height / 2), "on", parts[0])
     }
     onDebugChanged: if (debug) for (const key in islands) logIsland(key, islands[key])
+    // The screens the shell's own full-screen surfaces cover: the launcher's (not its search-only finder, which
+    // leaves the screen be). KWin's rice_islands script reads it (Bus Peek "cover") as it does a fullscreen
+    // window: the bar's islands get out of the way, to another screen, as they do for a game.
+    function updateCover() {
+        const on = kind === "launcher" && screen && !(args && args.searchOnly)
+        const next = on ? [screen] : []
+        const now = Bus.get("cover")
+        if (JSON.stringify(now ? now.screens : []) !== JSON.stringify(next)) Bus.set("cover", { screens: next })
+    }
+    onScreenChanged: updateCover()
+    onArgsChanged: updateCover()
     onKindChanged: {
+        updateCover()
         if (debug) console.warn("ATOM shell kind", JSON.stringify(kind), "screen", screen, Date.now() % 100000)
         // a game controller drives the full-screen ones as the keyboard does (Atom.Native Gamepad: read only
         // while one of them is open, never while a game is)

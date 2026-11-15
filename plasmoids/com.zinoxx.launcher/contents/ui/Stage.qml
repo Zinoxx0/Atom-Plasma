@@ -499,7 +499,7 @@ Window {
         if (t) { const p = t.mapToItem(null, t.width / 2, t.height / 2); console.warn("ATOM home focus at", Math.round(screenObj.virtualX + p.x), Math.round(screenObj.virtualY + topGap + p.y)) }
         const tabsP = tabs.mapToItem(null, 0, 0)
         const at = b => { const q = b.mapToItem(null, b.width / 2, b.height / 2); return Math.round(screenObj.virtualX + q.x) + " " + Math.round(screenObj.virtualY + topGap + q.y) }
-        console.warn("ATOM home tabs at", Math.round(screenObj.virtualX + tabsP.x), Math.round(screenObj.virtualY + topGap + tabsP.y), "search at", at(searchButton), "theme at", at(themeButton))
+        console.warn("ATOM home tabs at", Math.round(screenObj.virtualX + tabsP.x), Math.round(screenObj.virtualY + topGap + tabsP.y), "search at", at(searchButton), "theme at", at(themeButton), "power at", at(powerButton))
     }
     function setTab(i) {
         if (i !== themeTab) i = (i + 3) % 3

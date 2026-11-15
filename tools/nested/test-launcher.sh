@@ -91,12 +91,7 @@ check() { if grep -q -- "$2" "$3"; then echo "ok   $1"; else echo "FAIL $1"; fai
 check "the jewel opened the launcher"   'shell kind "launcher"' "$L"
 check "keyboard back to the app after Esc"  'app typed "ax"' "$N/out/app.log"
 check "Meta closed it and the keyboard came back" 'app typed "axy"' "$N/out/app.log"
-# (noisy matte clears the desk; clear blur is glass: the windows stay, as under the power page)
-if grep -q '"style": "clear"' "$HOME/.config/atom-plasma/settings.json" 2>/dev/null; then
-    grep -q 'ATOM windows cleared Virtual-0 [1-9]' "$L" && { echo "FAIL clear blur left the windows (some were minimized)"; fail=1; } || echo "ok   clear blur left the windows"
-else
-    check "opening cleared the desk (the app was minimized)" 'ATOM windows cleared Virtual-0 [1-9]' "$L"
-fi
+check "opening cleared the desk (the app was minimized)" 'ATOM windows cleared Virtual-0 [1-9]' "$L"
 check "down moved the focus a row"  'ATOM home tab 0 row 1' "$L"
 check "tab switched to Games"       'ATOM home tab 1' "$L"
 check "typing opened the search"    'ATOM home search "f"' "$L"

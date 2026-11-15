@@ -101,6 +101,9 @@ island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on ev
   holds KRunner's place on the bus and KRunner's own daemon is masked (`rice.py install`).
 - **Power** (the power island, or the launcher's power button): a ripple of blur spreads over every screen
   and the session's actions come up big on yours.
+- **Out of the way**: while the launcher or the power page is open the windows are minimized (the launcher's
+  screen; every screen for the power page) and come back when it closes, and the bar's islands leave the
+  launcher's screen for another one, as they do for a fullscreen game.
 - **Blur style** (Theme page): the launcher and the power page always wear the same backdrop: *Noisy matte*
   (your wallpaper frosted under a fine grain, a still matte finish that hides the windows) or *Clear blur* (a
   live blur of whatever is behind, like glass) or *No blur* (your wallpaper as it is, sharp, with only the dark

@@ -90,10 +90,20 @@ QtObject {
     // screen, exactly those come back. The other screens keep their windows. KWin's own show-desktop
     // can't do this: it's for every screen, and it ends the moment the launcher takes the keyboard.
     property var cleared: ({})                  // screen name -> window ids minimized there, most recently used first
+    // Who holds a screen cleared (the launcher, the power page: "owner"): its windows come back only when the
+    // last one lets go, and a moment later, so one handing the screen to another (the launcher's power button
+    // opens the power page) doesn't bring them back in between.
+    property var holders: ({})                  // screen name -> { owner: true }
+    property var pending: ({})                  // screen name -> true: coming back once the grace is over
+    function hold(scr, owner) {
+        const h = Object.assign({}, holders); h[scr] = Object.assign({}, h[scr] || {}); h[scr][owner || "launcher"] = true; holders = h
+        if (pending[scr]) { const p = Object.assign({}, pending); delete p[scr]; pending = p }
+    }
     function idsAt(idx) {
         return Array.prototype.slice.call(tasks.data(idx, TaskManager.AbstractTasksModel.WinIdList) || []).map(String)
     }
-    function clear(scr) {
+    function clear(scr, owner) {
+        hold(scr, owner)
         const R = TaskManager.AbstractTasksModel
         const out = []
         for (let i = 0; i < tasks.count; i++) {
@@ -110,9 +120,18 @@ QtObject {
         const next = Object.assign({}, cleared)
         next[scr] = (next[scr] || []).concat(out)
         cleared = next
-        if (Shell.debug) console.warn("ATOM windows cleared", scr, out.length)
+        if (Shell.debug) console.warn("ATOM windows cleared", scr, out.length, "for", owner || "launcher")
     }
-    function restore(scr) {
+    function restore(scr, owner) {
+        const h = Object.assign({}, holders)
+        if (h[scr]) { h[scr] = Object.assign({}, h[scr]); delete h[scr][owner || "launcher"]; if (!Object.keys(h[scr]).length) delete h[scr] }
+        holders = h
+        if (h[scr]) return                      // another still holds it
+        const p = Object.assign({}, pending); p[scr] = true; pending = p
+        graceTimer.restart()
+    }
+    property Timer graceTimer: Timer { interval: 140; onTriggered: { for (const scr in w.pending) w.bringBack(scr); w.pending = ({}) } }
+    function bringBack(scr) {
         const R = TaskManager.AbstractTasksModel
         const ids = (cleared[scr] || []).slice().reverse()   // least recently used first: the most recent ends on top
         const next = Object.assign({}, cleared)
