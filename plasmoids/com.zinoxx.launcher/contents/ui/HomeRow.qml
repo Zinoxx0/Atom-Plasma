@@ -4,15 +4,15 @@ import Atom
 import "Rice"
 import "Rice/Color.js" as C
 
-// A row of Atom Home: its title, then its tiles in a strip. The strip is a horizontal ListView, so only
-// the tiles in sight (and half a screen either side) exist: a row of 159 wallpapers costs what a row of ten
-// does. The focused tile sits at the anchor (the `anchor`-th slot) and the strip glides under it, within the
-// row's ends (the last tile stops at the right margin). The keyboard moves the strip (settle(true)); the
-// pointer focuses where it is, so nothing slides out from under it; dragging, or a sideways wheel / touchpad
-// (the stage hands it over: slide(ev)), moves the strip by hand. A divider can part the row (pins | recents).
-// Every row is drawn the same, at full strength (the focus outline alone says where you are; rows behind,
-// dimmed, read as disabled), and every row of apps has one tile size.
-// Tiles that slide past the left margin fade out there: nothing runs off the left edge of the screen.
+// A row of Atom Home: its title, then its tiles in a grid that takes at most 65% of the screen's width (the
+// user, 2026-11-15: no endless strips). A row with more than one line of tiles shows its first line with a
+// "Show more" tile in the last place; each "Show more" adds two lines under it, the last line keeping one
+// more place for "Show less" while there's still more to show; "Show less" takes two lines away again
+// (5 -> 3 -> 1). How many lines show is the stage's (`lines`, per page and row); the controls are slots like
+// the tiles (entryAt), so the keys, the pad and the pointer reach them the same way. The row doesn't move
+// sideways: dragging moves the page (the stage's Flickable). A divider can part the row (pins | recents).
+// Every row is drawn the same, at full strength (the focus outline alone says where you are), and every
+// row of apps has one tile size.
 // A row can carry its own settings (the Theme page's: Shuffle, Intensity, Brightness...): they sit in its
 // header, after the title, always in sight; `toolFocus` rings the one the keys are on.
 Item {
@@ -24,7 +24,7 @@ Item {
     property bool tilesFocused: true        // the keys are on its tiles (not on its header's tools)
     property real unit: 1
     property real side: 76
-    property int anchor: 1
+    property int lines: 1                   // how many lines show (1, 3, 5...: the stage's, per row)
     property int focusMs: Tokens.ms(380)
     property real titleO: 1                 // the stage's entrance
     readonly property var tools: row.tools || []
@@ -52,14 +52,41 @@ Item {
     readonly property real titleH: row.title ? u(34) : 0
     readonly property real labelH: row.labeled ? u(42) : 0
     readonly property int count: row.items ? row.items.length : 0
-    readonly property bool moving: strip.moving || glide.running   // dragged, flicked or gliding
-    implicitHeight: titleH + pad + tileSize.height + pad + labelH + u(16)
+    readonly property bool moving: false    // (rows don't move sideways any more: the page does)
 
-    // where tile i starts on the strip (no tile has to exist for this: they all have the row's size)
-    function slotX(i) { return i * (tileSize.width + gap) + (row.divider >= 0 && i >= row.divider ? gapDivider : 0) }
-    readonly property real stripW: count ? slotX(count - 1) + tileSize.width : 0
-    // the strip's travel: 0 = the first tile at the left margin, maxOffset = the last at the right one
-    readonly property real maxOffset: Math.max(0, stripW - (width - 2 * side))
+    // ---- the grid: columns in 65% of the width, the lines shown, and the controls in the last places
+    readonly property real lineGap: u(18)
+    readonly property real cellW: tileSize.width + gap
+    readonly property real lineH: tileSize.height + labelH
+    readonly property int columns: Math.max(1, Math.floor((width * 0.65 + gap) / cellW))
+    readonly property var layout: {
+        const c = columns, L = Math.max(1, lines)
+        if (count <= c) return { n: count, more: false, less: false }
+        if (L <= 1) return { n: c - 1, more: true, less: false }
+        if (count + 1 <= L * c) return { n: count, more: false, less: true }
+        return { n: L * c - 2, more: true, less: true }
+    }
+    readonly property int shownItems: layout.n
+    readonly property int slotCount: layout.n + (layout.more ? 1 : 0) + (layout.less ? 1 : 0)
+    readonly property int linesShown: Math.max(1, Math.ceil(slotCount / columns))
+    // what slot i holds: an item, or a control ({ ctl: "more" | "less", name, icon, meta, desc })
+    function entryAt(i) {
+        if (i < layout.n) return row.items[i] || null
+        const k = i - layout.n, rest = count - layout.n
+        const kinds = (layout.more ? ["more"] : []).concat(layout.less ? ["less"] : [])
+        const ctl = kinds[k]
+        if (!ctl) return null
+        return ctl === "more" ? moreEntry : lessEntry
+    }
+    readonly property var moreEntry: ({ ctl: "more", key: "ctl:more:" + row.id, name: "Show more", icon: "expand_more",
+        meta: [(count - layout.n) + " more"], desc: "Two more lines of " + String(row.title || "it").toLowerCase() + ", under this one." })
+    readonly property var lessEntry: ({ ctl: "less", key: "ctl:less:" + row.id, name: "Show less", icon: "expand_less",
+        meta: ["Two lines fewer"], desc: "Back to fewer lines of " + String(row.title || "it").toLowerCase() + "." })
+    function lineOf(i) { return Math.floor(i / columns) }
+    function lineY(l) { return titleH + pad + l * (lineH + lineGap) }       // a line's top, in the row
+    readonly property real fullHeight: titleH + pad + linesShown * lineH + (linesShown - 1) * lineGap + pad + u(16)
+    implicitHeight: fullHeight
+    Behavior on implicitHeight { NumberAnimation { id: grow; duration: Math.round(hr.focusMs * 0.95); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
 
     Item {
         id: body
@@ -118,79 +145,61 @@ Item {
             }
         }
 
-        ListView {
-            id: strip
+        Item {
+            id: grid
             y: hr.titleH + hr.pad
             width: hr.width
-            height: hr.tileSize.height + hr.labelH
-            orientation: ListView.Horizontal
-            spacing: hr.gap
-            leftMargin: hr.side
-            rightMargin: hr.side
-            model: hr.count                     // by count: a rebuilt row with as many items keeps its tiles
-            reuseItems: true
-            cacheBuffer: Math.round(hr.width / 2)
-            boundsBehavior: Flickable.StopAtBounds
-            flickDeceleration: 2600
-            maximumFlickVelocity: 5000
-            interactive: hr.maxOffset > 0
-            highlightFollowsCurrentItem: false
-            currentIndex: -1
-            onMovementStarted: glide.stop()
-            onMovementEnded: if (Shell.debug) console.warn("ATOM row", hr.row.id, "dragged to", Math.round(contentX))
-            NumberAnimation {
-                id: glide
-                target: strip; property: "contentX"
-                duration: Math.round(hr.focusMs * 1.4)
-                easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove
-            }
-            delegate: Item {
-                id: slot
-                required property int index
-                readonly property var entry: hr.row.items[index] || null
-                readonly property real lead: index === hr.row.divider ? hr.gapDivider : 0
-                readonly property Item tile: t
-                width: hr.tileSize.width + lead
-                height: hr.tileSize.height + hr.labelH
-                z: t.focused ? 2 : 0
-                // past the left margin it fades out (gone when half of it is past)
-                opacity: Math.max(0, Math.min(1, 1 + (slot.x + slot.lead - strip.contentX - hr.side) / (hr.tileSize.width * 0.5)))
-                ListView.onReused: { t.opacity = 1; t.enter = 0 }
-                Rectangle {     // the divider (pins | recents)
-                    visible: slot.lead > 0
-                    x: Math.round(slot.lead / 2 - hr.gap / 2)
-                    y: hr.tileSize.height * 0.22
-                    width: 1
-                    height: hr.tileSize.height * 0.56
-                    color: C.alpha(hr.rice.fg, 0.16)
-                }
-                HomeTile {
-                    id: t
-                    x: slot.lead
+            height: hr.height - y
+            clip: grow.running          // (growing or shrinking: what's past its edge waits)
+            Repeater {
+                id: slots
+                model: hr.slotCount     // by count: a rebuilt row with as many slots keeps its tiles
+                delegate: Item {
+                    id: slot
+                    required property int index
+                    readonly property var entry: (hr.layout, hr.entryAt(index))
+                    readonly property Item tile: t
+                    readonly property bool parted: index > 0 && index === hr.row.divider && index % hr.columns !== 0
+                    x: hr.side + (index % hr.columns) * hr.cellW
+                    y: Math.floor(index / hr.columns) * (hr.lineH + hr.lineGap)
                     width: hr.tileSize.width
-                    height: hr.tileSize.height
-                    item: slot.entry
-                    shape: hr.row.shape
-                    rice: hr.rice
-                    unit: hr.unit
-                    labeled: hr.row.labeled
-                    current: slot.index === hr.current
-                    rowActive: hr.active && hr.tilesFocused
-                    focusMs: hr.focusMs
-                    pointerMode: hr.pointerMode
-                    pinned: !!(hr.isPinned && slot.entry && hr.isPinned(slot.entry))
-                    onPinToggle: hr.pinToggle(slot.index)
-                    onPointed: at => hr.pointed(slot.index, at)
-                    onPointerOut: hr.pointerOut(slot.index)
-                    onActivated: hr.activated(slot.index, t)
-                    onMenu: hr.menu(slot.index, t)
+                    height: hr.lineH
+                    z: t.focused ? 2 : 0
+                    Rectangle {     // the divider (pins | recents), in the gap before it
+                        visible: slot.parted
+                        x: -Math.round(hr.gap / 2)
+                        y: hr.tileSize.height * 0.22
+                        width: 1
+                        height: hr.tileSize.height * 0.56
+                        color: C.alpha(hr.rice.fg, 0.16)
+                    }
+                    HomeTile {
+                        id: t
+                        width: hr.tileSize.width
+                        height: hr.tileSize.height
+                        item: slot.entry
+                        shape: hr.row.shape
+                        rice: hr.rice
+                        unit: hr.unit
+                        labeled: hr.row.labeled
+                        current: slot.index === hr.current
+                        rowActive: hr.active && hr.tilesFocused
+                        focusMs: hr.focusMs
+                        pointerMode: hr.pointerMode
+                        pinned: !!(hr.isPinned && slot.entry && !slot.entry.ctl && hr.isPinned(slot.entry))
+                        onPinToggle: hr.pinToggle(slot.index)
+                        onPointed: at => hr.pointed(slot.index, at)
+                        onPointerOut: hr.pointerOut(slot.index)
+                        onActivated: hr.activated(slot.index, t)
+                        onMenu: hr.menu(slot.index, t)
+                    }
                 }
             }
         }
 
     }
 
-    function tileAt(i) { const s = strip.itemAtIndex(i); return s ? s.tile : null }
+    function tileAt(i) { const s = slots.itemAt(i); return s ? s.tile : null }
     function toolAt(i) { return toolRep.itemAt(i) }
 
     // a header tool: a glass pill (icon and label), a round − / +, a toggle with its state, or a value
@@ -271,34 +280,13 @@ Item {
             }
         }
     }
-    // the strip's place for the focus: the focused tile at the anchor, the row's ends kept
-    function settle(animate) {
-        if (count === 0) return
-        const a = slotX(Math.min(anchor, count - 1))
-        const target = Math.max(0, Math.min(maxOffset, slotX(current) - a)) - side
-        glide.stop()
-        if (animate && Math.abs(strip.contentX - target) > 0.5) { glide.from = strip.contentX; glide.to = target; glide.start() }
-        else strip.contentX = target
-    }
-    // a sideways wheel or touchpad moves the strip by hand
-    function slide(ev) {
-        if (!strip.interactive) return
-        const px = ev.pixelDelta.x || ev.pixelDelta.y
-        const d = px ? -px : -(ev.angleDelta.x || ev.angleDelta.y) / 120 * (tileSize.width + gap)
-        glide.stop()
-        strip.contentX = Math.max(-side, Math.min(maxOffset - side, strip.contentX + d))
-    }
-    // the tiles that show (their entrance staggers left to right)
+    // (no strip to settle or slide any more: kept so the stage's calls stay simple)
+    function settle(animate) {}
+    function slide(ev) {}
+    // the tiles that show (their entrance staggers left to right, line by line)
     function shown() {
         const out = []
-        const off = strip.contentX + side           // how far the strip has travelled
-        for (let i = 0; i < count; i++) {
-            const x = side + slotX(i) - off         // the tile's place in the row
-            if (x >= width) break
-            if (x + tileSize.width <= 0) continue
-            const t = tileAt(i)
-            if (t) out.push(t)
-        }
+        for (let i = 0; i < slotCount; i++) { const t = tileAt(i); if (t) out.push(t) }
         return out
     }
 }

@@ -28,8 +28,8 @@ Item {
     property bool rowActive: false          // the row has the keyboard's focus
     property bool pointerMode: false        // the pointer is the input in use (keys or a pad hide its hover)
     property bool pinned: false
-    readonly property bool canPin: !!(item && !item.kind && item.favId)
-    readonly property bool hasMenu: !!(item && (item.model || item.kind === "look"))
+    readonly property bool canPin: !!(item && !item.kind && !item.ctl && item.favId)
+    readonly property bool hasMenu: !!(item && !item.ctl && (item.model || item.kind === "look"))
     property real unit: 1
     property int focusMs: Tokens.ms(380)
     signal activated()
@@ -44,7 +44,8 @@ Item {
     readonly property var roles: item ? item.roles : null      // the launcher's menu reads favoriteId and actionList
     readonly property bool hasArt: !!(item && item.art && item.art.portrait)
     readonly property bool themed: !!(item && item.kind)
-    readonly property string look: themed ? "theme" : shape === "square" ? "float" : hasArt ? "cover" : "poster"
+    readonly property bool control: !!(item && item.ctl)      // "Show more" / "Show less" (HomeRow's)
+    readonly property string look: control ? "ctl" : themed ? "theme" : shape === "square" ? "float" : hasArt ? "cover" : "poster"
     readonly property real radius: Math.round(20 * unit)
     readonly property color ring: rice.light ? rice.fg : "#ffffff"
     readonly property real ringGap: Math.max(3, u(4))          // between the tile and its ring
@@ -56,7 +57,7 @@ Item {
     property bool sampled: false
     onFocusedChanged: if (focused) { sampled = true; glint.restart() }
     onItemChanged: sampled = focused
-    readonly property string colorSource: !item ? ""
+    readonly property string colorSource: !item || item.ctl ? ""
                                         : themed ? (item.thumb ? "file://" + item.thumb : "")
                                         : hasArt ? item.art.portrait : item.icon
     Kirigami.ImageColors {
@@ -89,7 +90,7 @@ Item {
 
     Loader {
         anchors.fill: parent
-        sourceComponent: tile.look === "cover" ? coverLook : tile.look === "poster" ? posterLook
+        sourceComponent: tile.look === "ctl" ? ctlLook : tile.look === "cover" ? coverLook : tile.look === "poster" ? posterLook
                        : tile.look === "float" ? floatLook : tile.look === "theme" ? themeLook : null
     }
 
@@ -184,6 +185,49 @@ Item {
                 anchors.centerIn: parent
                 width: Math.round(parent.width * 0.62); height: width
                 source: tile.item ? tile.item.icon : ""
+            }
+        }
+    }
+
+    // ---- "Show more" / "Show less": a glass plate with its chevron (and, unlabeled rows, its words on it)
+    Component {
+        id: ctlLook
+        Item {
+            Rectangle {
+                anchors.fill: parent
+                radius: tile.radius
+                color: C.alpha(tile.rice.fg, 0.06 + 0.07 * tile.glowV + (tile.hovered ? 0.04 : 0))
+                border.width: 1
+                border.color: C.alpha(tile.rice.edge, 0.12 + 0.08 * tile.glowV)
+                Behavior on color { ColorAnimation { duration: Tokens.fast } }
+            }
+            Column {
+                anchors.centerIn: parent
+                spacing: tile.u(2)
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: tile.item ? tile.item.icon : ""
+                    color: tile.rice.fg
+                    font.family: Tokens.font.icons
+                    font.pixelSize: tile.u(tile.labeled ? 34 : 30)
+                }
+                Text {
+                    visible: !tile.labeled
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: tile.item ? tile.item.name : ""
+                    color: tile.rice.fg
+                    font.family: Tokens.font.ui
+                    font.weight: Font.DemiBold
+                    font.pixelSize: tile.u(15)
+                }
+                Text {
+                    visible: !tile.labeled && !!tile.item && tile.item.ctl === "more"
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: tile.item && tile.item.meta ? tile.item.meta[0] : ""
+                    color: tile.rice.fgDim
+                    font.family: Tokens.font.ui
+                    font.pixelSize: tile.u(13)
+                }
             }
         }
     }

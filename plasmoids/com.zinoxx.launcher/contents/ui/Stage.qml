@@ -195,7 +195,7 @@ Window {
         for (let k = 0; k < page.rows.length; k++) {
             const row = rowItem(k)
             if (!row) continue
-            const n = k - st.scroll
+            const n = k
             row.titleO = n < 0 ? 0 : M.track(t, d * 0.22 + n * 3 * staggerMs, d * 0.6, M.enter)
             const tiles = row.shown()
             for (let i = 0; i < tiles.length; i++) {
@@ -288,7 +288,7 @@ Window {
     readonly property bool theming: tab === themeTab
     // per page: the active row, the row at the top, each row's focus (by row id)
     // (the Theme page also has lines: "tiles", a row's header "tools" (tool: which), or the "desk" map (desk: which))
-    function freshStates() { return [0, 1, 2, 3].map(() => ({ row: 0, scroll: 0, idx: {}, line: "tiles", tool: 0, desk: 0 })) }
+    function freshStates() { return [0, 1, 2, 3].map(() => ({ row: 0, idx: {}, lines: {}, line: "tiles", tool: 0, desk: 0, top: 0 })) }
     property var states: freshStates()
     property int focusRev: 0
     function pageState() { return states[tab] }
@@ -297,7 +297,7 @@ Window {
     readonly property var currentItem: {
         focusRev; hm.rev; tm.rev
         const r = rowObj(pageState().row)
-        return r ? r.items[Math.min(idxOf(r.id), r.items.length - 1)] || null : null
+        return r ? entryOf(pageState().row, Math.min(idxOf(r.id), slotsOf(pageState().row) - 1)) : null
     }
     // the shown page's row ri (each page is a column of rows, made the first time it shows)
     function rowItem(ri, p) { const pg = pagesRep.itemAt(p === undefined ? tab : p); return pg ? pg.rowAt(ri) : null }
@@ -359,27 +359,23 @@ Window {
         if (v < aimSpeed) focusAt(aim.ri, aim.i, "mouse")
         else aimTimer.restart()                 // still on its way: look again (a pointer that stops sends nothing)
     }
-    function rowsMoving() { for (let k = 0; k < page.rows.length; k++) { const r = rowItem(k); if (r && r.moving) return true } return false }
+    // a row's slots: its tiles as shown, and its controls (HomeRow: "Show more" / "Show less"); a row not made yet: its items
+    function slotsOf(ri) { const row = rowItem(ri), r = rowObj(ri); return row ? row.slotCount : r ? r.items.length : 0 }
+    function entryOf(ri, i) { const row = rowItem(ri), r = rowObj(ri); return row ? row.entryAt(i) : r ? r.items[i] || null : null }
+    function rowsMoving() { const pg = pagesRep.itemAt(tab); return !!(pg && pg.moving) }
     function focusAt(ri, i, from) {
         if (from === "mouse" && (Date.now() < quietUntil || rowsMoving())) return
         const st = pageState()
         const r = rowObj(ri)
         if (!r) return
-        i = Math.max(0, Math.min(r.items.length - 1, i))
+        i = Math.max(0, Math.min(slotsOf(ri) - 1, i))
         if (from === "mouse" && st.line !== "tiles") { st.line = "tiles"; focusRev++ }     // the pointer is on a tile
         if (st.row === ri && idxOf(r.id) === i) return
         st.row = ri
         st.idx[r.id] = i
         if (from === "key") quietUntil = Date.now() + focusMs * 1.5 + 80
-        const scroll = from === "key" ? scrollFor(ri) : st.scroll
-        const scrolled = scroll !== st.scroll
-        st.scroll = scroll
         focusRev++
-        if (from === "key") {
-            const row = rowItem(ri)
-            if (row) row.settle(true)
-            if (scrolled) scrollPage(true)
-        }
+        if (from === "key") ensureVisible(true)
         if (Shell.debug) logFocus(from)
     }
     function step(dx, dy) {
@@ -391,8 +387,35 @@ Window {
         }
         if (theming) { themeStep(dx, dy); return }
         if (dy < 0 && st.row === 0) { setLine("top", undefined, Math.max(0, topItems.indexOf("tab" + tab))); return }
-        if (dy) { const ri = st.row + dy; const r = rowObj(ri); if (r) focusAt(ri, idxOf(r.id), "key") }
+        if (dy) { if (!lineStep(dy)) { const ri = st.row + dy; const r = rowObj(ri); if (r) focusAt(ri, idxOf(r.id), "key") } }
         else { const r = rowObj(st.row); if (r) focusAt(st.row, idxOf(r.id) + dx, "key") }
+    }
+    // up and down within a row of several lines first (the same column, or the line's last slot), then on
+    function lineStep(dy) {
+        const st = pageState(), row = rowItem(st.row), r = rowObj(st.row)
+        if (!row || !r) return false
+        const i = idxOf(r.id), c = row.columns, line = row.lineOf(i) + dy
+        if (line < 0 || line >= row.linesShown) return false
+        focusAt(st.row, Math.min(row.slotCount - 1, line * c + i % c), "key")
+        return true
+    }
+    // "Show more" / "Show less": two lines more or fewer of that row (the keys stay on the same kind of control,
+    // so pressing on keeps going; the pointer's focus stays where it is)
+    function rowControl(ri, ctl, from) {
+        const st = pageState(), r = rowObj(ri), row = rowItem(ri)
+        if (!r || !row) return
+        const L = Math.max(1, st.lines[r.id] ?? 1), shownBefore = row.shownItems
+        st.lines[r.id] = ctl === "more" ? L + 2 : Math.max(1, L - 2)
+        focusRev++
+        if (Shell.debug) console.warn("ATOM row", r.id, ctl, "lines", st.lines[r.id])
+        if (from === "mouse") return
+        Qt.callLater(() => {
+            const n = row.shownItems, lay = row.layout
+            // more: the first tile it brought; less: its own control again if it's still there, else "Show more"
+            const at = ctl === "more" ? shownBefore : lay.less ? n + (lay.more ? 1 : 0) : n
+            st.idx[r.id] = -1
+            focusAt(ri, Math.min(at, row.slotCount - 1), "key")
+        })
     }
     // the top bar's parts the keys walk (Up from the first row; the desk map's line on the Theme page)
     readonly property var topItems: theming ? ["back", "search", "theme", "power"] : ["tab0", "tab1", "tab2", "search", "theme", "power"]
@@ -425,7 +448,7 @@ Window {
         st.line = line
         if (extra !== undefined) { if (line === "tools") st.tool = extra; else if (line === "desk") st.desk = extra; else if (line === "top") st.top = extra }
         if (ri !== undefined && ri !== st.row) { const r = rowObj(ri); focusAt(ri, idxOf(r.id), "key") }
-        else { quietUntil = Date.now() + focusMs * 1.5 + 80; focusRev++; if (line === "desk" && st.scroll !== 0) { st.scroll = 0; scrollPage(true) } }
+        else { quietUntil = Date.now() + focusMs * 1.5 + 80; focusRev++; if (line === "desk") { const pg = pagesRep.itemAt(tab); if (pg) pg.scrollToY(0, true) } else ensureVisible(true) }
         if (Shell.debug) {
             console.warn("ATOM theme line", line, "row", st.row, line === "tools" ? "tool " + toolsOf(rowObj(st.row))[st.tool].id : line === "desk" ? "desk " + deskTargets[st.desk]
                          : line === "top" ? "top " + topItems[st.top] : "")
@@ -480,11 +503,11 @@ Window {
         tm.rows.forEach((r, k) => {
             if (st.idx[r.id] !== undefined) return
             const i = r.items.findIndex(it => it.current)
-            if (i < 0) return
+            const row = rowItem(k, themeTab)
+            // (only where it shows: one past "Show more" stays folded, the focus at the row's start)
+            if (i < 0 || !row || i >= row.shownItems) return
             st.idx[r.id] = i
             moved = true
-            const row = rowItem(k, themeTab)
-            if (row) row.settle(false)
         })
         if (moved) focusRev++
     }
@@ -501,7 +524,7 @@ Window {
     Connections { target: stage.launcher; function onThemeAskChanged() { stage.openTheme(stage.launcher.themeRow) } }
     function logFocus(from) {
         const it = currentItem
-        console.warn("ATOM home tab", tab, "row", pageState().row, "item", it ? (it.name || it.key || "") : "-", from ? "(" + from + ", top row " + pageState().scroll + ")" : "")
+        console.warn("ATOM home tab", tab, "row", pageState().row, "item", it ? (it.name || it.key || "") : "-", from ? "(" + from + ")" : "")
         Qt.callLater(() => {        // where the focused tile is now (the tests drag its row)
             const t = currentTile()
             if (t) { const p = t.mapToItem(null, t.width / 2, t.height / 2); console.warn("ATOM home focus at", Math.round(screenObj.virtualX + p.x), Math.round(screenObj.virtualY + topGap + p.y)) }
@@ -557,47 +580,33 @@ Window {
             NumberAnimation { target: rowsSlide; property: "x"; to: 0; duration: Tokens.ms(520); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn }
         }
     }
-    function settleAll() {
-        for (let k = 0; k < page.rows.length; k++) { const r = rowItem(k); if (r) r.settle(false) }
-        scrollPage(false)
+    function settleAll() { scrollPage(false) }
+    // the page keeps the focused line in sight, moving as little as it can: up to the row's title on its first
+    // line (or its tools), down to the line's labels (and the next row's title peeking in, when there's room)
+    function ensureVisible(animate) {
+        const pg = pagesRep.itemAt(tab), st = pageState(), row = rowItem(st.row), r = rowObj(st.row)
+        if (!pg || !row || !r) return
+        const top = pg.rowTop(st.row), line = row.lineOf(Math.max(0, idxOf(r.id)))
+        const view = rowsBox.height, cy = pg.contentY
+        const y0 = line === 0 || st.line === "tools" ? top : top + row.lineY(line) - u(16)
+        let y1 = top + row.lineY(line) + row.lineH + row.pad
+        if (line === row.linesShown - 1) y1 = Math.min(top + row.fullHeight + u(40), Math.max(y1, top + row.fullHeight))
+        let t = cy
+        if (y0 < cy) t = y0
+        else if (y1 > cy + view) t = Math.max(y0 - u(0), y1 - view)
+        if (st.row === 0 && line === 0) t = 0
+        pg.scrollToY(t, animate)
     }
-    // the page scrolls only as far as it must to show the active row whole (and the one after it, when there
-    // is room): rows that fit stay where they are, so a short page keeps every row in sight. The row at the
-    // top (its scroll) sits under the hero; the ones above it have gone.
-    function scrollFor(ri) {
-        const pg = pagesRep.itemAt(tab), st = pageState()
-        if (!pg) return ri
-        const view = rowsBox.height, rowH = k => { const r = rowItem(k); return r ? r.height : 0 }
-        const top = k => pg.rowTop(k)
-        if (ri <= st.scroll) return Math.max(0, ri)
-        const want = Math.min(page.rows.length - 1, ri + 1)         // the next row peeking in, if it fits
-        for (let sc = st.scroll; sc <= ri; sc++) {
-            if (top(want) + rowH(want) - top(sc) <= view) return sc
-            if (top(ri) + rowH(ri) - top(sc) <= view && want === ri) return sc
-        }
-        for (let sc = st.scroll; sc <= ri; sc++) if (top(ri) + rowH(ri) - top(sc) <= view) return sc
-        return ri
-    }
-    function scrollPage(animate) { const pg = pagesRep.itemAt(tab); if (pg) pg.scrollTo(animate) }
-    // the wheel walks the rows (a notch, or a touchpad's worth, a row); sideways it moves the row under it
-    property real wheelAcc: 0
+    function scrollPage(animate) { ensureVisible(animate) }
+    // the wheel (and a touchpad) scrolls the page, as a page; the keys and the pad walk the focus
     function onWheel(ev, pos) {
-        const sideways = (ev.modifiers & Qt.ShiftModifier) || Math.abs(ev.angleDelta.x) > Math.abs(ev.angleDelta.y)
-        if (sideways) {
-            for (let k = 0; k < page.rows.length; k++) {
-                const r = rowItem(k)
-                if (!r || r.opacity < 0.5) continue
-                const q = r.mapFromItem(wheelLayer, pos.x, pos.y)
-                if (q.y >= 0 && q.y < r.height) { r.slide(ev); return }
-            }
-            return
-        }
-        wheelAcc += ev.angleDelta.y
-        if (Math.abs(wheelAcc) < 120) return
-        const d = wheelAcc < 0 ? 1 : -1
-        wheelAcc = 0
-        step(0, d)
+        const pg = pagesRep.itemAt(tab)
+        if (!pg) return
+        const px = ev.pixelDelta.y
+        pg.scrollBy(px ? -px : -ev.angleDelta.y / 120 * u(110))
+        quietUntil = Date.now() + 160         // (content sliding under a still pointer isn't the pointer moving)
     }
+
 
     // fresh every time it opens: Home, the first pin, no query
     onOpened: {
@@ -803,9 +812,10 @@ Window {
         visible: false
         layer.enabled: true
         gradient: Gradient {
-            GradientStop { position: 0; color: "black" }
-            GradientStop { position: Math.max(0, 1 - stage.u(40) / Math.max(1, rowsBox.height)); color: "black" }
-            GradientStop { position: 1; color: "transparent" }
+            GradientStop { position: 0; color: rowsBox.scrolled ? "transparent" : "black" }
+            GradientStop { position: Math.min(0.4, stage.u(46) / Math.max(1, rowsBox.height)); color: "black" }
+            GradientStop { position: Math.max(0.6, 1 - stage.u(40) / Math.max(1, rowsBox.height)); color: "black" }
+            GradientStop { position: 1; color: rowsBox.overflow ? "transparent" : "black" }
         }
     }
     Rectangle {     // the game art's fade into the room
@@ -885,7 +895,7 @@ Window {
         return here ? { thumb: here.thumb, image: here.image } : { thumb: "", image: rice.wallpaper }
     }
     function setBackdrop(it) {
-        if (!it || it === bgShown) return
+        if (!it || it === bgShown || it.ctl) return          // (a row's "Show more" keeps the room as it is)
         bgShown = it
         const next = bgSlot ^ 1
         const items = bgItems.slice(); items[next] = it.kind ? null : it; bgItems = items
@@ -1132,10 +1142,10 @@ Window {
                         unit: stage.unit
                         item: stage.heroItems[index]
                         readonly property var th: stage.themeHero(item)
-                        pinned: !th && !!(item && stage.launcher.isFavorite(item.favId))
+                        pinned: !th && !!(item && !item.ctl && stage.launcher.isFavorite(item.favId))
                         eyebrow: th ? th.eyebrow : ""
-                        primaryText: th ? th.primary : ""
-                        primaryIcon: th ? th.icon : ""
+                        primaryText: th ? th.primary : item && item.ctl ? item.name : ""
+                        primaryIcon: th ? th.icon : item && item.ctl ? item.icon : ""
                         extraActions: th ? th.extra : []       // (pin and "..." are on the tiles themselves)
                         onExtra: (i, from) => stage.themeExtra(th.extra[i].id)
                         opacity: stage.heroO2[index]
@@ -1221,8 +1231,10 @@ Window {
                 height: stage.height - stage.rowsTop - stage.u(76)
                 clip: true
                 // a page taller than the room fades out at the bottom (more below) instead of being cut
-                readonly property bool overflow: (stage.focusRev, pagesRep.count, pagesRep.itemAt(stage.tab) ? pagesRep.itemAt(stage.tab).overflow : false)
-                layer.enabled: overflow
+                readonly property Item pageNow: (stage.focusRev, pagesRep.count, pagesRep.itemAt(stage.tab))
+                readonly property bool overflow: !!pageNow && pageNow.overflow
+                readonly property bool scrolled: !!pageNow && pageNow.scrolled      // (rows gone up fade out under the hero)
+                layer.enabled: overflow || scrolled
                 layer.effect: MultiEffect { maskEnabled: true; maskSource: rowsMask; maskThresholdMin: 0.5; maskSpreadAtMin: 1.0 }
                 Item {
                     id: rowsSlide
@@ -1243,15 +1255,38 @@ Window {
                             width: rowsSlide.width
                             height: rowsSlide.height
                             function rowAt(ri) { return made ? rowsRep.itemAt(ri) : null }
-                            readonly property bool overflow: col.y + col.height > height + 1
-                            function rowTop(ri) { let y = 0; for (let k = 0; k < ri; k++) { const r = rowsRep.itemAt(k); if (r) y += r.height } return y }
-                            function scrollTo(animate) {
-                                const t = -rowTop(stage.states[index].scroll)
+                            // the page scrolls up and down (dragged, by touch or the wheel: the rows no longer move
+                            // sideways); the keys keep the focused line in sight (stage.ensureVisible)
+                            readonly property bool overflow: flick.contentY + flick.height < flick.contentHeight - 1
+                            readonly property bool scrolled: flick.contentY > 1
+                            readonly property bool moving: flick.moving || scrollAnim.running
+                            function rowTop(ri) { let y = 0; for (let k = 0; k < ri; k++) { const r = rowsRep.itemAt(k); if (r) y += r.implicitHeight } return y }
+                            function scrollToY(y, animate) {
+                                const t = Math.max(0, Math.min(Math.max(0, flick.contentHeight - flick.height), y))
                                 scrollAnim.stop()
-                                if (animate) { scrollAnim.from = col.y; scrollAnim.to = t; scrollAnim.start() }
-                                else col.y = t
+                                if (animate && Math.abs(t - flick.contentY) > 0.5) { scrollAnim.from = flick.contentY; scrollAnim.to = t; scrollAnim.start() }
+                                else flick.contentY = t
                             }
-                            NumberAnimation { id: scrollAnim; target: col; property: "y"; duration: Math.round(stage.focusMs * 1.45); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove }
+                            function scrollTo(animate) { stage.ensureVisible(animate) }
+                            function scrollBy(dy) { scrollAnim.stop(); scrollToY(flick.contentY + dy, false) }
+                            readonly property real contentY: flick.contentY
+                            NumberAnimation { id: scrollAnim; target: flick; property: "contentY"; duration: Math.round(stage.focusMs * 1.45); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove }
+                            Flickable {
+                                id: flick
+                                anchors.fill: parent
+                                contentWidth: width
+                                contentHeight: col.height + stage.u(24)
+                                flickableDirection: Flickable.VerticalFlick
+                                boundsBehavior: Flickable.StopAtBounds
+                                pressDelay: 0
+                                onMovementStarted: { scrollAnim.stop(); stage.quietUntil = Date.now() + 200 }
+                                onMovementEnded: if (Shell.debug) console.warn("ATOM page dragged to", Math.round(contentY))
+                                MouseArea {     // the bare page between the rows: a click there closes it (as the backdrop's)
+                                    width: flick.width
+                                    height: Math.max(flick.height, flick.contentHeight)
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                    onClicked: { if (stage.launcher.view === "walls") stage.launcher.view = "apps"; else stage.launcher.close() }
+                                }
                             Column {
                                 id: col
                                 width: parent.width
@@ -1272,21 +1307,21 @@ Window {
                                         current: (stage.focusRev, pg.st.idx[entry.id] ?? 0)
                                         active: (stage.focusRev, index === pg.st.row)
                                         z: active ? 1 : 0
-                                        opacity: (stage.focusRev, index < pg.st.scroll) ? 0 : 1
-                                        Behavior on opacity { NumberAnimation { duration: Tokens.ms(320) } }
+                                        lines: (stage.focusRev, pg.st.lines[entry.id] ?? 1)
                                         tilesFocused: (stage.focusRev, (pg.st.line || "tiles") === "tiles")
                                         toolFocus: (stage.focusRev, index === pg.st.row && pg.st.line === "tools") ? pg.st.tool : -1
                                         onToolActivated: id => stage.toolDo(id)
                                         pointerMode: stage.pointerMode
                                         isPinned: it => !!it.favId && stage.launcher.isFavorite(it.favId)
-                                        onPinToggle: i => { const it = entry.items[i]; if (it && it.favId) { if (Shell.debug) console.warn("ATOM home pin", it.favId); stage.launcher.toggleFavorite(it.favId) } }
+                                        onPinToggle: i => { const it = entryAt(i); if (it && it.favId) { if (Shell.debug) console.warn("ATOM home pin", it.favId); stage.launcher.toggleFavorite(it.favId) } }
                                         onPointed: (i, at) => stage.pointed(index, i, at)
                                         onPointerOut: i => stage.unpointed(index, i)
-                                        onActivated: (i, tile) => { stage.focusAt(index, i, "mouse"); stage.activateItem(entry.items[i], tile) }
-                                        onMenu: (i, tile) => stage.itemMenu(entry.items[i], tile)
-                                        Component.onCompleted: Qt.callLater(() => { settle(false); pg.scrollTo(false) })
+                                        onActivated: (i, tile) => { stage.focusAt(index, i, "mouse"); stage.activateItem(entryAt(i), tile, index) }
+                                        onMenu: (i, tile) => stage.itemMenu(entryAt(i), tile)
+                                        Component.onCompleted: Qt.callLater(() => { if (index === pg.st.row) pg.scrollTo(false) })
                                     }
                                 }
+                            }
                             }
                         }
                     }
@@ -1646,8 +1681,9 @@ Window {
         PlasmaExtras.MenuItem { text: "Delete"; icon: "edit-delete"; onClicked: if (lookMenu.it) tm.deletePreset(lookMenu.it.name) }
     }
     // Enter, a click or the bright pill: a Theme item applies (or opens the panel it needs), anything else launches
-    function activateItem(it, tile) {
+    function activateItem(it, tile, ri) {
         if (!it) return
+        if (it.ctl) { rowControl(ri === undefined ? pageState().row : ri, it.ctl, ri === undefined ? "key" : "mouse"); return }
         if (!it.kind) { launchItem(it, tile); return }
         if (it.kind === "save") naming.openAt(tile, tm.suggestName())
         else if (it.kind === "accent") accentEd.openFor(it, tile)
