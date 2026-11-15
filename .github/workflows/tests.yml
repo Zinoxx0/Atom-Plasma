@@ -1,5 +1,6 @@
 # The test suite on every push and pull request, in Arch Linux (the distribution the rice targets).
-# The QML tests render offscreen through Mesa on a virtual X display (xvfb-run).
+# The QML tests render offscreen through Mesa on a virtual X display (xvfb-run); Rice needs Kirigami and
+# Plasma5Support (Tokens, RiceShell) to load.
 name: tests
 
 on:
@@ -14,7 +15,7 @@ jobs:
       - name: Install dependencies
         run: |
           pacman -Syu --noconfirm --needed git python python-pillow python-numpy python-dbus python-gobject \
-            qt6-declarative xorg-server-xvfb mesa fontconfig inter-font ttf-jetbrains-mono-nerd
+            qt6-declarative kirigami plasma5support xorg-server-xvfb mesa fontconfig inter-font ttf-jetbrains-mono-nerd
       - uses: actions/checkout@v4
       - name: Trust the checkout
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
