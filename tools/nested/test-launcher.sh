@@ -61,9 +61,9 @@ step "type x (app?)";   $F type "x" wait 300
 step "meta";            qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu; $F wait 2200; shot l-meta
 T=$(grep -o 'ATOM home tabs at .* theme at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $(NF-1), $NF}')
 step "theme [$T]";      $F move ${T:-1470 50} click wait 1400; shot l-theme
-step "theme down";      $F move 800 20 key 108 wait 900; shot l-tools          # down: the wallpapers' header tools first
-step "tools right";     $F key 106 wait 500
-step "down to the walls"; $F key 108 wait 1200; shot l-theme-walls
+step "theme down";      $F move 800 20 key 108 wait 900                        # down: the themes (row 1, under the Look group's header)
+step "down to the walls"; $F key 108 wait 1200; shot l-tools                    # down: the wallpapers' header tools first
+step "tools right";     $F key 106 wait 900; shot l-theme-walls
 W=$(grep -o 'ATOM home focus at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $NF}')      # the walls row (it has the focus)
 step "drag the page [$W]"; $F drag 800 ${W:-550} 800 $(( ${W:-550} - 200 )) wait 1200; shot l-drag      # (dragging moves the page up)
 step "back up";         $F move 800 300 wait 200 drag 800 300 800 700 wait 900 key 103 wait 300 key 103 wait 1200    # (a swipe on the hero: never a click; then to the tools)
@@ -98,8 +98,8 @@ check "tab switched to Games"       'ATOM home tab 1' "$L"
 check "typing opened the search"    'ATOM home search "f"' "$L"
 check "the palette opened the Theme page" 'ATOM home tab 3 row 0' "$L"
 check "down walked the Theme page"  'ATOM theme line tiles row 1' "$L"
-check "down reached the row's tools" 'ATOM theme line tools row 1 tool walls:random' "$L"
-check "right walked the tools"      'ATOM theme line tools row 1 tool walls:folder' "$L"
+check "down reached the row's tools" 'ATOM theme line tools row 2 tool walls:random' "$L"
+check "right walked the tools"      'ATOM theme line tools row 2 tool walls:folder' "$L"
 check "Find more opened the panels" 'ATOM stage view walls' "$L"
 after() { sed -n "/ATOM ## $2/,\$p" "$L" | grep -q -- "$3" && echo "ok   $1" || { echo "FAIL $1"; fail=1; }; }
 after "Esc left the Theme page"     "theme back" 'ATOM home tab 0 row'
