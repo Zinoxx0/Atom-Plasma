@@ -845,67 +845,10 @@ Window {
 
             // ---- the Theme page: the screens as they sit on the desk (the rice's DeskMap): the one being edited
             // ringed, the one that themes the system starred; what the focused item would put on each
-            Rectangle {
+            ScreensCard {
                 id: screensCard
-                anchors.right: parent.right
-                anchors.rightMargin: stage.side
-                y: stage.heroTop + (stage.theming ? 0 : -stage.u(10))
-                width: stage.u(470)
-                height: stage.u(206)
-                radius: stage.u(26)
-                visible: opacity > 0.01
-                opacity: stage.theming ? stage.heroO : 0
-                Behavior on opacity { NumberAnimation { duration: Tokens.ms(380) } }
-                Behavior on y { NumberAnimation { duration: Tokens.ms(480); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
-                color: C.alpha(stage.rice.surfaceLowest, 0.5)
-                border.width: 1
-                border.color: C.alpha(stage.rice.edge, 0.1)
-                DeskMap {
-                    anchors { left: parent.left; right: parent.right; top: parent.top; bottom: capRow.top; margins: stage.u(18) }
-                    pal: stage.rice
-                    screens: tm.screens
-                    focusName: tm.target === "all" ? stage.screenName : tm.target
-                    linked: tm.target === "all"
-                    preview: stage.previewMap
-                    keyName: (stage.focusRev, stage.theming && stage.pageState().line === "desk") ? stage.deskTargets[stage.pageState().desk] || "" : ""
-                    onPicked: name => { tm.target = name }
-                }
-                Row {
-                    id: capRow
-                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: stage.u(16) }
-                    height: stage.u(32)
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: parent.width - allChip.width
-                        text: tm.status || ("Editing " + tm.targetLabel)
-                        elide: Text.ElideRight
-                        color: tm.status ? stage.rice.bad : stage.rice.fgDim
-                        font.family: Tokens.font.ui
-                        font.weight: Font.DemiBold
-                        font.pixelSize: stage.u(14.5)
-                    }
-                    Rectangle {
-                        id: allChip
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: allText.implicitWidth + stage.u(28)
-                        height: stage.u(32)
-                        radius: height / 2
-                        color: tm.target === "all" ? stage.rice.primary : C.alpha(stage.rice.fg, 0.08)
-                        Text { id: allText; anchors.centerIn: parent; text: "All screens"; color: tm.target === "all" ? stage.rice.onPrimary : stage.rice.fg
-                               font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: stage.u(14.5) }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: tm.target = tm.target === "all" ? stage.screenName : "all" }
-                        Rectangle {     // the keys' ring
-                            anchors.fill: parent
-                            anchors.margins: -Math.max(4, stage.u(4))
-                            radius: height / 2
-                            color: "transparent"
-                            border.width: Math.max(2, stage.u(2))
-                            border.color: stage.rice.light ? stage.rice.fg : "#ffffff"
-                            opacity: (stage.focusRev, stage.theming && stage.pageState().line === "desk" && stage.deskTargets[stage.pageState().desk] === "all") ? 1 : 0
-                            Behavior on opacity { NumberAnimation { duration: Tokens.fast } }
-                        }
-                    }
-                }
+                stage: stage
+                themeModel: tm
             }
 
             // ---- the rows: a row at a time scrolls to the top; the ones above it have gone
@@ -1181,48 +1124,10 @@ Window {
 
 
     // ------------------------------------------------------------------ launching: the tile grows into the screen
-    Item {
+    LaunchFlight {
         id: launchFly
-        visible: false
-        property rect from: Qt.rect(0, 0, 0, 0)
-        property var item: null
-        property real p: 0
-        readonly property bool art: !!(item && item.art && item.art.hero)
-        x: M.lerp(from.x, 0, p)
-        y: M.lerp(from.y, 0, p)
-        width: M.lerp(from.width, stage.width, p)
-        height: M.lerp(from.height, stage.height, p)
-        layer.enabled: visible
-        layer.effect: MultiEffect { maskEnabled: true; maskSource: flyMask }
-        Rectangle {
-            anchors.fill: parent
-            color: launchFly.art ? "#000000" : C.mix(flyColors.c, "#0b0f16", 0.5)
-            QtObject { id: flyColors; readonly property color c: C.appTint(flyIc, stage.rice.primary) }
-            Kirigami.ImageColors { id: flyIc; source: launchFly.item ? launchFly.item.icon : "" }
-        }
-        Image {
-            anchors.fill: parent
-            visible: launchFly.art
-            source: launchFly.art ? launchFly.item.art.hero : ""
-            fillMode: Image.PreserveAspectCrop
-        }
-        Image {
-            anchors.fill: parent
-            visible: !!(launchFly.item && launchFly.item.art && launchFly.item.art.portrait)
-            source: visible ? launchFly.item.art.portrait : ""
-            fillMode: Image.PreserveAspectCrop
-            opacity: 1 - Math.min(1, launchFly.p * 1.8)
-        }
-        Kirigami.Icon {
-            visible: !launchFly.art
-            anchors.centerIn: parent
-            width: M.lerp(Math.min(launchFly.from.width, launchFly.from.height) * 0.56, Math.min(stage.width, stage.height) * 0.22, launchFly.p)
-            height: width
-            source: launchFly.item ? launchFly.item.icon : ""
-        }
-        NumberAnimation on p { id: launchGrow; running: false; from: 0; to: 1; duration: Tokens.ms(620); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove; onFinished: stage.launcher.close() }
+        stage: stage
     }
-    Rectangle { id: flyMask; width: launchFly.width; height: launchFly.height; radius: M.lerp(stage.u(22), 0, launchFly.p); visible: false; layer.enabled: true }
     // the Theme page's items: what the hero says and offers for each
     function themeHero(it) {
         if (!it || !it.kind) return null
@@ -1300,13 +1205,8 @@ Window {
     function launchItem(it, tile) {
         if (!it || (phase !== "open" && phase !== "opening")) return
         const r = tile ? tile.mapToItem(null, 0, 0, tile.width, tile.height) : Qt.rect(width / 2 - u(60), height / 2 - u(60), u(120), u(120))
-        launchFly.item = it
-        launchFly.from = r
-        launchFly.p = 0
-        launchFly.opacity = 1
-        launchFly.visible = true
+        launchFly.fly(it, r)
         it.model.trigger(it.row, "", null)
-        launchGrow.restart()
         if (Shell.debug) console.warn("ATOM home launch", it.name)
     }
 
