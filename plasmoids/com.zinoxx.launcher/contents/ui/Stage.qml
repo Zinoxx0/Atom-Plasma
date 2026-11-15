@@ -289,6 +289,7 @@ Window {
     // The upper bar (Glimpse's strip, the top band) is never covered, moved or resized: the stage starts
     // right under it (a top margin as tall as the band) and lays itself out in the space below
     readonly property var strip: Shell.island("strip", screenName)
+    readonly property Item searchButton: topBar.searchButton     // (where the search field grows from: StageSearch)
     readonly property real topGap: strip && screenObj ? Math.max(0, Math.round(strip.y + strip.height - screenObj.virtualY)) : 0
 
 
@@ -455,8 +456,8 @@ Window {
         else if (id === "power") openPowerHere()
     }
     function openPowerHere() {
-        const p = powerButton.mapToGlobal(0, 0)
-        launcher.openPower({ x: p.x, y: p.y, width: powerButton.width, height: powerButton.height })
+        const p = topBar.powerButton.mapToGlobal(0, 0)
+        launcher.openPower({ x: p.x, y: p.y, width: topBar.powerButton.width, height: topBar.powerButton.height })
     }
     function toggleTheme() { setTab(theming ? tabBefore : themeTab) }
     // ---- the Theme page's lines, walked spatially: the desk map at the top; per row its header's tools,
@@ -583,9 +584,9 @@ Window {
     function logLayout() {
         const t = currentTile()
         if (t) { const p = t.mapToItem(null, t.width / 2, t.height / 2); console.warn("ATOM home focus at", Math.round(screenObj.virtualX + p.x), Math.round(screenObj.virtualY + topGap + p.y)) }
-        const tabsP = tabs.mapToItem(null, 0, 0)
+        const tabsP = topBar.tabStrip.mapToItem(null, 0, 0)
         const at = b => { const q = b.mapToItem(null, b.width / 2, b.height / 2); return Math.round(screenObj.virtualX + q.x) + " " + Math.round(screenObj.virtualY + topGap + q.y) }
-        console.warn("ATOM home tabs at", Math.round(screenObj.virtualX + tabsP.x), Math.round(screenObj.virtualY + topGap + tabsP.y), "search at", at(searchButton), "theme at", at(themeButton), "power at", at(powerButton))
+        console.warn("ATOM home tabs at", Math.round(screenObj.virtualX + tabsP.x), Math.round(screenObj.virtualY + topGap + tabsP.y), "search at", at(topBar.searchButton), "theme at", at(topBar.themeButton), "power at", at(topBar.powerButton))
     }
     function setTab(i) {
         if (i !== themeTab) i = (i + 3) % 3
@@ -713,10 +714,10 @@ Window {
 
     // the finder's plate is blurred behind (KWin), through the backdrop's blur (one region per window)
     readonly property var finderShapes: {
-        if (!finderCard.visible || finderCard.opacity < 0.5) return []
-        finderCard.x; finderCard.y; finderCard.width; finderCard.height          // (mapToItem alone doesn't follow them)
-        const p = finderCard.mapToItem(null, 0, 0)
-        return [{ x: p.x, y: p.y, width: finderCard.width, height: finderCard.height, radius: finderCard.radius }]
+        if (!searchLayer.finderCard.visible || searchLayer.finderCard.opacity < 0.5) return []
+        searchLayer.finderCard.x; searchLayer.finderCard.y; searchLayer.finderCard.width; searchLayer.finderCard.height          // (mapToItem alone doesn't follow them)
+        const p = searchLayer.finderCard.mapToItem(null, 0, 0)
+        return [{ x: p.x, y: p.y, width: searchLayer.finderCard.width, height: searchLayer.finderCard.height, radius: searchLayer.finderCard.radius }]
     }
 
     // ------------------------------------------------------------------ the text's scrims (see the backdrop)
@@ -803,165 +804,9 @@ Window {
             // ---- the top bar: the jewel (the logo: Home), the pages on their track, then search, theme, power,
             // the time and you. One control height (barH), a third bigger than a window's; the keys reach it
             // too (up from the first row: the "top" line), so every part has a focus ring as well as a hover
-            Item {
+            StageTopBar {
                 id: topBar
-                x: stage.side
-                y: stage.u(26)
-                width: stage.width - 2 * stage.side
-                height: stage.barH
-                opacity: stage.topO
-                transform: Translate { y: (1 - stage.topO) * -stage.u(18) }
-                readonly property string keyOn: (stage.focusRev, stage.pageState().line === "top") ? stage.topItems[stage.pageState().top] || "" : ""
-                Row {
-                    spacing: stage.u(26)
-                    anchors.verticalCenter: parent.verticalCenter
-                    JewelChip {         // a round jewel, apart from the tabs: the logo, and the way Home
-                        id: homeJewel
-                        width: stage.barH; height: stage.barH
-                        rice: stage.rice
-                        onClicked: stage.tab !== 0 ? stage.setTab(0) : stage.launcher.close()
-                    }
-                    Row {
-                        id: crumb
-                        visible: opacity > 0.01
-                        opacity: stage.theming ? 1 : 0
-                        Behavior on opacity { NumberAnimation { duration: Tokens.ms(320) } }
-                        width: stage.theming ? implicitWidth : 0
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: stage.u(12)
-                        TopButton { height: stage.barH; rice: stage.rice; unit: stage.unit; icon: "arrow_back"; tip: "Back (Esc)"; focused: topBar.keyOn === "back"; onClicked: stage.setTab(stage.tabBefore) }
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: "Theme"; color: stage.rice.fg; font.family: Tokens.font.ui; font.weight: Font.Bold; font.pixelSize: stage.u(30)
-                               layer.enabled: true
-                               layer.effect: MultiEffect { shadowEnabled: true; shadowColor: Qt.rgba(0, 0, 0, 0.55); shadowBlur: 0.7; shadowVerticalOffset: 2; shadowHorizontalOffset: 0 } }
-                    }
-                    Rectangle {         // the pages' track: the one you're on is a solid pill
-                        id: tabs
-                        width: stage.theming ? 0 : tabRow.width + 2 * stage.u(5)
-                        visible: opacity > 0.01
-                        opacity: stage.theming ? 0 : 1
-                        Behavior on opacity { NumberAnimation { duration: Tokens.ms(320) } }
-                        height: stage.barH
-                        radius: height / 2
-                        anchors.verticalCenter: parent.verticalCenter
-                        color: C.alpha(stage.rice.surfaceLowest, 0.55)
-                        border.width: 1
-                        border.color: C.alpha(stage.rice.edge, 0.12)
-                        Rectangle {
-                            id: tabPill
-                            readonly property Item at: (tabRep.count, tabRep.itemAt(stage.tab))     // (count: itemAt doesn't notify)
-                            x: (at ? at.x : 0) + stage.u(5)
-                            y: stage.u(5)
-                            width: at ? at.width : 0
-                            height: parent.height - 2 * stage.u(5)
-                            radius: height / 2
-                            color: stage.rice.light ? stage.rice.fg : "#f3f6fb"
-                            Behavior on x { NumberAnimation { duration: Tokens.ms(420); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
-                            Behavior on width { NumberAnimation { duration: Tokens.ms(420); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
-                        }
-                        Row {
-                            id: tabRow
-                            x: stage.u(5)
-                            anchors.verticalCenter: parent.verticalCenter
-                            Repeater {
-                                id: tabRep
-                                model: ["Home", "Games", "Apps"]
-                                delegate: Item {
-                                    id: tabItem
-                                    required property string modelData
-                                    required property int index
-                                    readonly property bool on: stage.tab === index
-                                    width: tabText.implicitWidth + stage.u(48)
-                                    height: stage.barH - 2 * stage.u(5)
-                                    Text {
-                                        id: tabText
-                                        anchors.centerIn: parent
-                                        text: modelData
-                                        color: tabItem.on ? (stage.rice.light ? stage.rice.surfaceLowest : "#0a0d13")
-                                             : tabMouse.containsMouse ? stage.rice.fg : stage.rice.fgDim
-                                        font.family: Tokens.font.ui
-                                        font.weight: Font.Bold
-                                        font.pixelSize: stage.u(23)
-                                        Behavior on color { ColorAnimation { duration: Tokens.ms(240) } }
-                                    }
-                                    Rectangle {     // the keys' ring
-                                        anchors.fill: parent
-                                        anchors.margins: -stage.u(4)
-                                        radius: height / 2
-                                        color: "transparent"
-                                        border.width: Math.max(2, stage.u(2.5))
-                                        border.color: stage.rice.light ? stage.rice.fg : "#ffffff"
-                                        opacity: topBar.keyOn === "tab" + tabItem.index ? 1 : 0
-                                        Behavior on opacity { NumberAnimation { duration: Tokens.fast } }
-                                    }
-                                    MouseArea { id: tabMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: stage.setTab(index) }
-                                }
-                            }
-                        }
-                    }
-                }
-                Row {
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: stage.u(14)
-                    TopButton { id: searchButton; height: stage.barH; rice: stage.rice; unit: stage.unit; icon: "search"; tip: "Search (just type)"; focused: topBar.keyOn === "search"; onClicked: stage.openSearch("") }
-                    TopButton { id: themeButton; height: stage.barH; rice: stage.rice; unit: stage.unit; icon: "palette"; tip: "Theme"; focused: topBar.keyOn === "theme"; lit: stage.theming; onClicked: stage.toggleTheme() }
-                    TopButton {
-                        id: powerButton
-                        height: stage.barH
-                        rice: stage.rice; unit: stage.unit
-                        icon: "power_settings_new"; tip: "Power"; hotColor: stage.rice.bad
-                        focused: topBar.keyOn === "power"
-                        onClicked: stage.openPowerHere()
-                    }
-                    Rectangle { width: 1; height: stage.u(38); anchors.verticalCenter: parent.verticalCenter; color: C.alpha(stage.rice.fg, 0.16) }
-                    // the battery saver, while the laptop runs on battery
-                    Rectangle {
-                        visible: stage.launcher.unplugged || stage.launcher.saverOn
-                        anchors.verticalCenter: parent.verticalCenter
-                        height: stage.u(56)
-                        width: saverRow.implicitWidth + stage.u(36)
-                        radius: height / 2
-                        color: stage.launcher.saverShown ? C.alpha(stage.rice.green, 0.22) : C.alpha(stage.rice.fg, sm.containsMouse ? 0.14 : 0.08)
-                        opacity: stage.launcher.saverBusy ? 0.6 : 1
-                        Row {
-                            id: saverRow
-                            anchors.centerIn: parent
-                            spacing: stage.u(7)
-                            readonly property real charge: Number(stage.launcher.batt["Percent"]) || 0
-                            Text { anchors.verticalCenter: parent.verticalCenter; text: stage.launcher.saverShown ? "eco" : "battery_" + Math.min(6, Math.round(saverRow.charge / 100 * 6)) + "_bar"
-                                   color: stage.launcher.saverShown ? stage.rice.green : stage.rice.fg; font.family: Tokens.font.icons; font.pixelSize: stage.u(28) }
-                            Text { anchors.verticalCenter: parent.verticalCenter; text: Math.round(saverRow.charge) + "%"; color: stage.rice.fg; font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: stage.u(20) }
-                        }
-                        MouseArea { id: sm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (!stage.launcher.saverBusy) stage.launcher.setSaver(!stage.launcher.saverShown) }
-                    }
-                    Text {      // (a soft shadow of its own: nothing darkens the top of the page)
-                        anchors.verticalCenter: parent.verticalCenter
-                        layer.enabled: true
-                        layer.effect: MultiEffect { shadowEnabled: true; shadowColor: Qt.rgba(0, 0, 0, 0.55); shadowBlur: 0.7; shadowVerticalOffset: 2; shadowHorizontalOffset: 0 }
-                        text: Qt.formatTime(stage.now, "HH:mm")
-                        color: stage.rice.fg
-                        font.family: Tokens.font.ui
-                        font.weight: Font.Bold
-                        font.pixelSize: stage.u(38)
-                        font.features: { "tnum": 1 }
-                        leftPadding: stage.u(8)
-                        rightPadding: stage.u(8)
-                    }
-                    Rectangle {     // you
-                        width: stage.u(60); height: width; radius: width / 2
-                        anchors.verticalCenter: parent.verticalCenter
-                        gradient: Gradient {
-                            orientation: Gradient.Horizontal
-                            GradientStop { position: 0; color: stage.rice.primary }
-                            GradientStop { position: 1; color: stage.rice.tertiary }
-                        }
-                        border.width: 2
-                        border.color: C.alpha("#ffffff", 0.18)
-                        Text { anchors.centerIn: parent; visible: face.status !== Image.Ready; text: stage.account.initial; color: stage.rice.onPrimary
-                               font.family: Tokens.font.ui; font.weight: Font.Bold; font.pixelSize: stage.u(26) }
-                        Kirigami.ShadowedImage { id: face; anchors.fill: parent; radius: width / 2; source: stage.account.face; visible: status === Image.Ready; fillMode: Image.PreserveAspectCrop; color: "transparent" }
-                    }
-                }
+                stage: stage
             }
 
             // ---- the hero: the focused item, large (two, cross-faded)
@@ -1223,118 +1068,9 @@ Window {
         }
 
         // ---- search: the magnifier opens into a field, the results come down under it
-        Item {
+        StageSearch {
             id: searchLayer
-            anchors.fill: parent
-            visible: stage.searchP > 0.001
-            readonly property rect from: {
-                stage.planeO
-                if (stage.finder) { const t = to; return Qt.rect(t.x + t.width * 0.08, t.y - stage.u(10), t.width * 0.84, t.height) }
-                const p = searchButton.mapToItem(searchLayer, 0, 0)
-                return Qt.rect(p.x, p.y, searchButton.width, searchButton.height)
-            }
-            readonly property rect to: {
-                const w = Math.min(stage.u(760), stage.width * 0.62), h = stage.u(60)
-                return Qt.rect((stage.width - w) / 2, stage.u(30) + stage.u(23) - h / 2, w, h)
-            }
-            MouseArea { anchors.fill: parent; enabled: stage.searchOpen; onClicked: stage.closeSearch() }
-            // the finder's card: the field and the results on one glass plate, blurred behind (only the
-            // plate: the screen around it stays as it is). It's the field's size until results come, then
-            // grows with them.
-            RectangularShadow {
-                anchors.fill: finderCard
-                visible: finderCard.visible
-                opacity: finderCard.opacity
-                radius: finderCard.radius; blur: stage.u(44); offset.y: stage.u(16); spread: -stage.u(10)
-                color: Qt.rgba(0, 0, 0, 0.5)
-            }
-            Rectangle {
-                id: finderCard
-                visible: stage.finder && stage.searchP > 0.001
-                opacity: Math.min(1, stage.searchP * 1.6)
-                readonly property real pad: stage.u(18)
-                readonly property real k: results.contentH > 0 ? results.opacity : 0      // the results' share
-                property real resB: results.y + results.height      // (results coming in stretch it smoothly)
-                Behavior on resB { NumberAnimation { duration: Tokens.ms(260); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
-                x: Math.min(field.x, M.lerp(field.x, results.x, k)) - pad
-                y: field.y - pad
-                width: Math.max(field.x + field.width, M.lerp(field.x + field.width, results.x + results.width, k)) + pad - x
-                height: Math.max(field.y + field.height, M.lerp(field.y + field.height, resB, k)) + pad - y
-                radius: Math.min(stage.u(34), height / 2)
-                color: C.alpha(stage.rice.surfaceLowest, 0.82)
-                border.width: 1
-                border.color: C.alpha(stage.rice.edge, 0.14)
-                MouseArea { anchors.fill: parent }     // a click on the plate isn't a click outside
-            }
-
-            Rectangle {
-                id: field
-                x: M.lerp(searchLayer.from.x, searchLayer.to.x, stage.searchP)
-                y: M.lerp(searchLayer.from.y, searchLayer.to.y, stage.searchP)
-                width: M.lerp(searchLayer.from.width, searchLayer.to.width, stage.searchP)
-                height: M.lerp(searchLayer.from.height, searchLayer.to.height, stage.searchP)
-                radius: height / 2
-                opacity: Math.min(1, stage.searchP * 3)
-                color: C.alpha(stage.rice.surfaceLowest, 0.74)
-                border.width: 1
-                border.color: C.alpha(stage.rice.edge, 0.14)
-                MouseArea { anchors.fill: parent; onClicked: query.forceActiveFocus() }
-                Text {
-                    id: lens
-                    x: stage.u(22)
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "search"
-                    color: stage.rice.primary
-                    font.family: Tokens.font.icons
-                    font.pixelSize: stage.u(26)
-                }
-                TextInput {
-                    id: query
-                    anchors { left: lens.right; leftMargin: stage.u(14); right: busy.left; rightMargin: stage.u(12); top: parent.top; bottom: parent.bottom }
-                    verticalAlignment: TextInput.AlignVCenter
-                    opacity: M.clamp((stage.searchP - 0.45) / 0.55)
-                    color: stage.rice.fg
-                    selectionColor: stage.rice.primary
-                    selectedTextColor: stage.rice.onPrimary
-                    font.family: Tokens.font.ui
-                    font.pixelSize: stage.u(21)
-                    clip: true
-                    onTextChanged: stage.launcher.query = text
-                    Keys.onPressed: event => stage.onSearchKey(event)
-                    Text {
-                        anchors.fill: parent
-                        verticalAlignment: Text.AlignVCenter
-                        visible: !query.text && !query.preeditText
-                        text: "Search apps, games, settings, files… or do maths"
-                        color: stage.rice.muted
-                        font: query.font
-                        elide: Text.ElideRight
-                    }
-                }
-                Busy {
-                    id: busy
-                    anchors { right: parent.right; rightMargin: stage.u(20); verticalCenter: parent.verticalCenter }
-                    visible: stage.launcher.searching
-                    running: visible
-                    implicitWidth: stage.u(18); implicitHeight: implicitWidth
-                    color: stage.rice.primary
-                }
-            }
-            HomeSearch {
-                id: results
-                x: (stage.width - width) / 2
-                y: stage.u(132) + (1 - opacity) * -stage.u(14)
-                width: Math.min(stage.u(1120), stage.width * 0.9)
-                // the finder's results take what they need (at most the rest of the screen)
-                height: stage.finder ? Math.min(stage.height - y - stage.u(50), Math.max(stage.u(120), contentH))
-                                     : stage.height - y - stage.u(50)
-                launcher: stage.launcher
-                rice: stage.rice
-                unit: stage.unit
-                opacity: stage.launcher.query !== "" ? M.clamp((stage.searchP - 0.3) / 0.7) : 0
-                visible: opacity > 0.01
-                Behavior on opacity { NumberAnimation { duration: Tokens.ms(320); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
-            }
+            stage: stage
         }
 
         // ---- the Theme page's editors, at their tiles (an accent's colour; naming a look)
@@ -1581,22 +1317,22 @@ Window {
     function openSearch(text) {
         if (Shell.debug) console.warn("ATOM home search", JSON.stringify(text))
         if (!searchOpen) { searchOpen = true; searchP = 1 }
-        query.text = text || ""
-        query.cursorPosition = query.text.length
-        query.forceActiveFocus()
+        searchLayer.query.text = text || ""
+        searchLayer.query.cursorPosition = searchLayer.query.text.length
+        searchLayer.query.forceActiveFocus()
     }
     function closeSearch() {
         if (finder) { launcher.close(); return }    // the finder is only the search
         if (!searchOpen) return
         searchOpen = false
         searchP = 0
-        query.text = ""
-        query.focus = false
+        searchLayer.query.text = ""
+        searchLayer.query.focus = false
         keys.forceActiveFocus()
     }
     function onSearchKey(event) {
         const L = launcher
-        if (event.key === Qt.Key_Escape) { if (query.text) query.text = ""; else closeSearch(); event.accepted = true }
+        if (event.key === Qt.Key_Escape) { if (searchLayer.query.text) searchLayer.query.text = ""; else closeSearch(); event.accepted = true }
         else if (event.key === Qt.Key_Down || (event.key === Qt.Key_Tab && !(event.modifiers & Qt.ShiftModifier))) { L.moveSelection(1); event.accepted = true }
         else if (event.key === Qt.Key_Up || event.key === Qt.Key_Backtab) { L.moveSelection(-1); event.accepted = true }
         else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { if (L.query) L.activateSelection(); event.accepted = true }
