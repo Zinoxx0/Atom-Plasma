@@ -125,8 +125,9 @@ island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on ev
 The shell needs a small native module (`pkg/atom-native`: blur behind the sheet, input masks, the tray host,
 the bus the KWin script talks to, KRunner's place;
 `rice.py install` builds it into `~/.local/lib/qt6/qml`; needs `libdbusmenu-lxqt`) and, for the calendar,
-`python-icalendar` and `python-recurring-ical-events`. After a Qt or Frameworks upgrade, rebuild it with
-`pkg/atom-native/build.sh`.
+`python-icalendar` and `python-recurring-ical-events`. After a Qt or Frameworks upgrade, or a `git pull` that
+changed `pkg/atom-native`, rebuild it with `pkg/atom-native/build.sh` (or re-run `rice.py install`, which
+rebuilds it when its sources are newer; `rice.py doctor` says so) and restart plasmashell.
 
 ## Clawd
 

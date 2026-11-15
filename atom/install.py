@@ -56,6 +56,17 @@ Environment=QML_IMPORT_PATH=%h/.config/plasma-rice/qml:%h/.local/lib/qt6/qml
 NATIVE = HOME / ".local/lib/qt6/qml/Atom/Native"     # pkg/atom-native/build.sh puts it there
 
 
+def native_stale():
+    """Atom.Native is missing, or older than its sources (a pull brought new C++: the QML that uses it won't
+    load until it's rebuilt)."""
+    lib = NATIVE / "libatomnative.so"
+    if not (NATIVE / "qmldir").exists() or not lib.exists():
+        return True
+    src = ROOT / "pkg/atom-native"
+    newest = max(f.stat().st_mtime for f in [src / "CMakeLists.txt", *(src / "src").iterdir()] if f.is_file())
+    return newest > lib.stat().st_mtime
+
+
 class Plan:
     def __init__(self, dry):
         self.dry, self.done, self.blocked = dry, [], []
@@ -134,7 +145,7 @@ def install(dry=False):
     for f in sorted((ROOT / "systemd").glob("*.service")) + sorted((ROOT / "systemd").glob("*.timer")):
         p.link(UNITS / f.name, f)
     p.write(DROPIN, DROPIN_TEXT, ours_marker="Atom Plasma")
-    if not (NATIVE / "qmldir").exists():
+    if native_stale():                  # (missing, or a pull brought new sources)
         p.run(str(ROOT / "pkg/atom-native/build.sh"))
     for i, (name, icon, cmd, _) in LAUNCHERS.items():
         p.write(APPS / f"{i}.desktop", launcher(name, icon, cmd), ours_marker="X-AtomPlasma")

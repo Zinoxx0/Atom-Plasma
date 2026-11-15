@@ -6,7 +6,7 @@ import json
 import os
 import subprocess
 
-from . import caps, displays, kwin, migrate, panel, util
+from . import caps, displays, install, kwin, migrate, panel, util
 from .util import HOME, ROOT
 
 PLASMOIDS = HOME / ".local/share/plasma/plasmoids"
@@ -75,6 +75,8 @@ def checks():
                 "rice.py install && systemctl --user daemon-reload && systemctl --user restart plasma-plasmashell"))
     out.append((shell_loads(), "the shell loads (Atom and Atom.Native import offscreen)",
                 f"{ROOT / 'pkg/atom-native/build.sh'} (after a Qt or Frameworks upgrade: rebuild it)"))
+    out.append((not install.native_stale(), "Atom.Native is built from the current sources",
+                f"{ROOT / 'pkg/atom-native/build.sh'} && systemctl --user restart plasma-plasmashell"))
     try:
         bars = panel.panels()
         services = util.run("qdbus6", quiet=True).stdout
