@@ -100,7 +100,11 @@ Item {
     }
     function fade(w, to, animate) {
         const key = String(w.internalId)
-        if (fades[key]) fades[key].stop()          // its onStopped forgets it
+        // forget it first, then stop it; an entry can outlive its animation (the launcher's windows coming
+        // and going on two screens re-ran this mid-fade) and a destroyed one has no stop() any more
+        const old = fades[key]
+        delete fades[key]
+        if (old && typeof old.stop === "function") old.stop()
         if (!animate || Math.abs(w.opacity - to) < 0.01) { w.opacity = to; return }
         const arriving = to > w.opacity
         const a = fader.createObject(root, { win: w, key: key, to: to, wait: arriving ? gap : 0,

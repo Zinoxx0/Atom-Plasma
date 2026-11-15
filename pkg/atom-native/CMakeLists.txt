@@ -31,6 +31,7 @@ qt_add_qml_module(atomnative
         src/regions.h src/regions.cpp
         src/tray.h src/tray.cpp
         src/gamepad.h src/gamepad.cpp
+        src/windowrest.h
 )
 target_include_directories(atomnative PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(atomnative PRIVATE Qt6::Core Qt6::Gui Qt6::Quick Qt6::DBus Qt6::Widgets KF6::WindowSystem dbusmenu-lxqt)

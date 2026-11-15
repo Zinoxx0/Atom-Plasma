@@ -39,7 +39,21 @@ QtObject {
     // (kwin/rice_islands), and says so over D-Bus (Atom.Native Bus, topic "bar"): `screen` holds the islands
     // ("" = none, every screen fullscreen), `covered` lists the screens a fullscreen window covers, `pointer`
     // is the pointer's screen. null until KWin has spoken (a bar then counts as shown, as before).
-    readonly property var bar: Bus.state.bar ?? null
+    // Kept apart from Bus.state and changed only when KWin says something new: bound to Bus.state, it was
+    // remade on ANY key's change ("cover" too), waking every barShown() on every bar, and the launcher
+    // following the pointer (onBarChanged -> Shell.open -> updateCover -> Bus.set) wrote to the state from
+    // inside bar's own update: a binding loop.
+    readonly property var bar: barState
+    property var barState: null
+    property Connections barWatch: Connections {
+        target: Bus
+        function onMessage(topic, data) { if (topic === "bar") shell.takeBar(data) }
+    }
+    function takeBar(v) {
+        const next = v ?? null
+        if (JSON.stringify(next) !== JSON.stringify(barState)) barState = next
+    }
+    Component.onCompleted: takeBar(Bus.get("bar"))
     function barShown(screenName) { return !bar || bar.screen === screenName }
     // the screen the shell's things open on (the launcher, the clipboard, notification cards): where the
     // islands are, else the active window's screen, else `fallback`

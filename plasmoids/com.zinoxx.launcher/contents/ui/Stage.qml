@@ -149,12 +149,31 @@ Window {
     onPhaseChanged: {
         if (Shell.debug) console.warn("ATOM stage", screenName, "phase", phase, Date.now() % 100000)
         if (Shell.debug && phase === "open") { logFocus(); logLayout() }
+        if (phase === "opening") { shownAt = Date.now(); coldOpen = idle || gameUp }
+        if (phase === "closed") restTimer.restart()
+        else { restTimer.stop(); idle = false }
     }
+    // Video memory: an open launcher builds a lot of it (its full-screen scene, the pages' effect layers:
+    // ~160 MiB on the 1440p screen, ~330 MiB on the 4K one, measured 2026-11-15), and a closed one kept all of
+    // it for good, on every screen it had opened on. It now gives it back while a fullscreen window is up (a
+    // game wants it) or after 10 minutes closed. The cost: that next open's first frame uploads it all again
+    // (~70 ms, as the first open after login always took) instead of ~7 ms.
+    property bool idle: false
+    Timer { id: restTimer; interval: 10 * 60 * 1000; onTriggered: stage.idle = true }
+    WindowRest {
+        window: stage
+        resting: stage.phase === "closed" && (stage.idle || stage.gameUp)
+    }
+    readonly property bool gameUp: !!(Shell.bar && Shell.bar.covered && Shell.bar.covered.length)
+    property bool coldOpen: false
+    property double shownAt: 0
     // the windows go once the stage is up: mapped, it holds the keyboard, so minimizing the focused window
     // doesn't make KWin focus one on another screen, and closing hands the keyboard back to it
     property bool waitFrame: false
     onFrameSwapped: if (waitFrame) {
         waitFrame = false
+        const took = Date.now() - shownAt          // (a slow first frame is worth knowing about)
+        if (Shell.debug || took >= 50) console.warn("ATOM stage first frame", screenName, took, "ms", coldOpen ? "(rested)" : "")
         if (launcher.clearDesk && !finder) Windows.clear(screenName)
         startOpen()
     }

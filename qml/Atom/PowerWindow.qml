@@ -490,7 +490,17 @@ Window {
             }
         }
     }
+    // its video memory goes back as the launcher's does (Stage.qml): while a fullscreen window is up, or
+    // after 10 minutes closed
+    property bool idle: false
+    Timer { id: restTimer; interval: 10 * 60 * 1000; onTriggered: pw.idle = true }
+    WindowRest {
+        window: pw
+        resting: pw.phase === "closed" && (pw.idle || !!(Shell.bar && Shell.bar.covered && Shell.bar.covered.length))
+    }
     onPhaseChanged: {
+        if (phase === "closed") restTimer.restart()
+        else { restTimer.stop(); idle = false }
         if (!Shell.debug) return
         if (phase === "open" || phase === "closed") {
             console.warn("ATOM power", screenName, "frames", frames, "worst gap", worstGap, "ms while", phase === "open" ? "opening" : "closing")

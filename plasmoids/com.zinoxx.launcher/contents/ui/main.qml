@@ -64,8 +64,8 @@ PlasmoidItem {
     // "always expand"): its popup is never wanted, so it folds straight back, before it can map (a
     // change made inside this handler is ignored: the next turn of the event loop)
     onExpandedChanged: {
-        if (Shell.debug) console.warn("ATOM launcher expanded", expanded, Date.now() % 100000)
-        if (expanded) Qt.callLater(() => { root.expanded = false })
+        if (Shell.debug) console.warn("ATOM launcher expanded", root.expanded, Date.now() % 100000)
+        if (root.expanded) Qt.callLater(() => { root.expanded = false })
     }
     Connections {
         target: Plasmoid
