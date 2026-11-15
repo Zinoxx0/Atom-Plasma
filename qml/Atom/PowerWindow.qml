@@ -146,7 +146,11 @@ Window {
         origin: pw.origin
         radius: pw.p >= 1 ? -1 : pw.r
         visible: pw.phase !== "closed" && pw.r > 0.5
-        veil: pw.wasLead ? Prefs.glassVeil : Prefs.glassVeil * 0.7
+        // (no blur: the sharp wallpaper's detail is right behind the text, so the veil is at least what the
+        // theme engine's measure of it needs for the dim text to read, 4.5:1; the other styles soften it)
+        readonly property var sharpLight: pal.values._backdropSharp || ({})
+        veil: Math.max(pw.wasLead ? Prefs.glassVeil : Prefs.glassVeil * 0.7,
+                       style === "none" && pw.wasLead ? C.scrim(Math.max(sharpLight.hero ?? 0.6, sharpLight.rows ?? 0.6), pal.fgDim, pal.surfaceLowest, 4.5) : 0)
     }
     // a click anywhere on the blur folds it away
     MouseArea {

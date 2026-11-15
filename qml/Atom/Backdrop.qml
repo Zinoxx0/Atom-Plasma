@@ -11,7 +11,9 @@ import "../Rice/Color.js" as C
 //            fine grain (it dithers the bands a blurred picture makes in 8 bits): a still, opaque, matte
 //            finish; the windows behind it are hidden
 //   "clear"  clear blur: KWin's live blur of whatever is behind, windows included, like glass
-// Both under a veil of the palette's darkest surface (`veil`, 0: none), and matte's grain over it all. It fills a circle (a ripple: `origin`,
+//   "none"   no blur: the screen's wallpaper itself, sharp and unfiltered, laid exactly where the desktop shows
+//            it (`offsetY`: how far below the screen's top this window starts); the windows behind are hidden
+// All under a veil of the palette's darkest surface (`veil`, 0: none), and matte's grain over it all. It fills a circle (a ripple: `origin`,
 // `radius`) or, with radius < 0 (or a circle past every corner), the whole window. Fill the window with it
 // (its blur region and its picture are in window coordinates).
 Item {
@@ -23,7 +25,11 @@ Item {
     property real radius: -1
     property real veil: 0.5
     property var also: []                   // more blur for the same window (its own glass): one blur region per window
-    readonly property bool matte: style !== "clear"
+    property real offsetY: 0                // the window starts this far below its screen's top (the wallpaper lines up)
+    readonly property bool matte: style === "matte"
+    readonly property bool glass: style === "clear"
+    readonly property bool sharp: style === "none"
+    readonly property bool pictured: !glass         // a picture of the wallpaper (frosted or sharp) hides what's behind
     readonly property url grain: Prefs.grain
     readonly property real grainAlpha: Prefs.grainAlpha
     // its own grain on top (false: the surface draws it itself, over what it lays on the backdrop: the
@@ -41,20 +47,36 @@ Item {
 
     BlurBehind {
         window: bd.window
-        shapes: (bd.matte || !bd.shows ? []
+        shapes: (!bd.glass || !bd.shows ? []
               : bd.whole ? [{ x: 0, y: 0, width: bd.width, height: bd.height, radius: 0 }]
               : [{ x: bd.origin.x - bd.r, y: bd.origin.y - bd.r, width: 2 * bd.r, height: 2 * bd.r, radius: bd.r }]).concat(bd.also || [])
     }
 
-    // the matte picture: the frost, as one full-window texture (so it lines up with the screen)
+    // the picture: the frost (matte) or the wallpaper itself (no blur), as one full-window texture, laid on
+    // the screen's own frame (so it lines up with the desktop)
+    readonly property string wallSource: pal && pal.wallpaper ? "file://" + pal.wallpaper : ""
     Item {
         id: frost
         width: bd.width
         height: bd.height
         visible: false
+        Image {         // no blur: the wallpaper as the desktop shows it (scaled and cropped to the screen)
+            readonly property real dpr: bd.window && bd.window.devicePixelRatio ? bd.window.devicePixelRatio : 1
+            y: -bd.offsetY
+            width: parent.width
+            height: parent.height + bd.offsetY
+            visible: bd.sharp
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            source: bd.sharp ? bd.wallSource : ""
+            sourceSize: Qt.size(Math.ceil(width * dpr), Math.ceil(height * dpr))
+        }
         Image {
             readonly property bool frosted: !!(bd.pal && bd.pal.values && bd.pal.values._glassFull)
-            anchors.fill: parent
+            y: -bd.offsetY
+            width: parent.width
+            height: parent.height + bd.offsetY
+            visible: bd.matte
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
             source: bd.matte ? bd.frostSource : ""
@@ -75,17 +97,17 @@ Item {
     // (live: it redraws only when the grain changes, i.e. once)
     ShaderEffectSource { id: grainTex; width: bd.width; height: bd.height; visible: false; sourceItem: grainArt; hideSource: true; live: bd.matte && bd.grained
                          smooth: false }     // (sampled sharp: filtered, the grain softened and read weaker)
-    ShaderEffectSource { id: frostTex; width: bd.width; height: bd.height; visible: false; sourceItem: frost; hideSource: true; live: bd.matte && bd.shows }
+    ShaderEffectSource { id: frostTex; width: bd.width; height: bd.height; visible: false; sourceItem: frost; hideSource: true; live: bd.pictured && bd.shows }
 
     Shape {
         anchors.fill: parent
         visible: bd.shows
         preferredRendererType: Shape.CurveRenderer
-        ShapePath {         // matte: the picture, cut to the ripple
+        ShapePath {         // the picture (matte, no blur), cut to the ripple
             strokeWidth: -1
             strokeColor: "transparent"
             fillColor: "transparent"
-            fillItem: bd.matte ? frostTex : null
+            fillItem: bd.pictured ? frostTex : null
             PathRectangle { x: bd.whole ? 0 : bd.origin.x - bd.r; y: bd.whole ? 0 : bd.origin.y - bd.r
                             width: bd.whole ? bd.width : 2 * bd.r; height: bd.whole ? bd.height : 2 * bd.r; radius: bd.whole ? 0 : bd.r }
         }

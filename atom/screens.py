@@ -223,6 +223,7 @@ def apply_screens(ss, cfg, fallback):
         gf = glass_full(img, s)
         p = dict(p, _glass=g, _glassBand=GLASS_BAND, _rim=rim(g, p), _glassFull=gf,
                  _backdrop=palette.zone_light(gf) if gf else {},            # how bright the launcher's backdrop gets under its text
+                 _backdropSharp=palette.zone_light(img, aspect=s["w"] / s["h"]) if s.get("w") and s.get("h") else {},  # (no blur: the wallpaper itself)
                  _scale=s["ui"],                                            # size of that bar's widgets
                  _standard=s.get("comfort", 1.0),                           # the screen's standard size (the launcher's base)
                  _topScale=round(s["ui"] * top, 2),                         # size of the Glimpse band up top

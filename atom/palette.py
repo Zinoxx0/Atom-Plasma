@@ -159,10 +159,17 @@ def analyse(img, k=6):
 TEXT_ZONES = {"top": (0.5, 0.0, 1.0, 0.1), "hero": (0.0, 0.08, 0.55, 0.42), "rows": (0.0, 0.36, 1.0, 1.0)}
 
 
-def zone_light(img, zones=None):
-    """{zone: 95th-percentile relative luminance} of an image's text zones (TEXT_ZONES)."""
+def zone_light(img, zones=None, aspect=None):
+    """{zone: 95th-percentile relative luminance} of an image's text zones (TEXT_ZONES). aspect (w/h): the
+    picture as a screen of that shape shows it first (scaled and cropped, centred)."""
     from PIL import Image
     im = Image.open(img).convert("RGB")
+    if aspect:
+        w, h = im.size
+        if w / h > aspect:
+            cw = round(h * aspect); im = im.crop(((w - cw) // 2, 0, (w - cw) // 2 + cw, h))
+        else:
+            ch = round(w / aspect); im = im.crop((0, (h - ch) // 2, w, (h - ch) // 2 + ch))
     im.thumbnail((160, 160))
     w, h = im.size
     out = {}

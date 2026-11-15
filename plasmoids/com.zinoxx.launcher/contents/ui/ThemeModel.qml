@@ -198,6 +198,9 @@ Item {
             { kind: "blur", key: "blur:clear", style: "clear", name: "Clear blur", current: blur === "clear",
               meta: [blur === "clear" ? "Now" : "The launcher and the power page"],
               desc: "A live blur of whatever is behind, windows too, like glass." },
+            { kind: "blur", key: "blur:none", style: "none", name: "No blur", current: blur === "none",
+              meta: [blur === "none" ? "Now" : "The launcher and the power page"],
+              desc: "Your wallpaper as it is, sharp, with no blur or filter: only the dark shade that keeps the text readable." },
         ] })
         // lighting: both keyboards at once (each one's own settings: Fine-tune)
         const dev = tm.lights && tm.lights.devices ? tm.lights.devices.find(d => d.ready) || tm.lights.devices[0] : null

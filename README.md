@@ -103,7 +103,8 @@ island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on ev
   and the session's actions come up big on yours.
 - **Blur style** (Theme page): the launcher and the power page always wear the same backdrop: *Noisy matte*
   (your wallpaper frosted under a fine grain, a still matte finish that hides the windows) or *Clear blur* (a
-  live blur of whatever is behind, like glass). `rice.py blur matte|clear`.
+  live blur of whatever is behind, like glass) or *No blur* (your wallpaper as it is, sharp, with only the dark
+  shade that keeps text readable). `rice.py blur matte|clear|none`.
 - **Status island** (replaces Plasma's system tray): your apps' tray icons with menus in the rice's look
   (a click brings the app's window back; the quiet ones rest on each other in a stack, and an app with news
   steps out of it), the system's state, and beads for apps with notifications you haven't seen. The stack

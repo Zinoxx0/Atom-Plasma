@@ -612,9 +612,10 @@ Window {
         window: stage
         pal: stage.rice
         origin: stage.rippleOrigin
-        radius: matte || stage.bgO >= 0.999 ? -1 : reach * stage.bgO
-        opacity: matte ? stage.bgO : 1
-        veil: matte ? 0 : Prefs.glassVeil       // (clear: the power page's glass, exactly)
+        radius: !glass || stage.bgO >= 0.999 ? -1 : reach * stage.bgO
+        opacity: !glass ? stage.bgO : 1
+        veil: glass ? Prefs.glassVeil : 0       // (clear: the power page's glass, exactly)
+        offsetY: stage.topGap                   // (the window starts under the top band: the wallpaper lines up)
         grained: false                  // (the grain goes over the scrims: the launcher draws it, last)
         also: stage.finderShapes        // (the finder's plate: one blur region per window)
     }
@@ -650,15 +651,16 @@ Window {
                     }
                     Rectangle {     // clear blur: a breath of its colour on the glass
                         anchors.fill: parent
-                        visible: !backdropStyle.matte
+                        visible: backdropStyle.glass
                         color: C.alpha(glow.c, 0.08)
                     }
-                    Kirigami.Icon {
+                    Kirigami.Icon {     // (a blurred filter: not in no blur)
                         x: parent.width * 0.94 - width; y: parent.height * 0.04
                         width: parent.height * 0.46; height: width
-                        source: glow.item ? glow.item.icon : ""
+                        visible: !backdropStyle.sharp
+                        source: glow.item && visible ? glow.item.icon : ""
                         opacity: 0.5
-                        layer.enabled: glow.visible
+                        layer.enabled: glow.visible && visible
                         layer.effect: MultiEffect { blurEnabled: true; blur: 1; blurMax: 64; saturation: 0.4 }
                     }
                 }
@@ -801,27 +803,17 @@ Window {
     }
 
     // ------------------------------------------------------------------ the text's scrims (see the backdrop)
-    function relLum(c) { const f = v => v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b) }
     // how strong a scrim of the darkest surface must be over a backdrop of luminance Yb for text of colour
     // `ink` to reach `ratio` (blending happens on gamma-encoded values: compared there)
-    function scrimFor(Yb, ink, ratio) {
-        const g = v => Math.pow(Math.max(0, v), 1 / 2.2)
-        const Yt = relLum(ink), Ys = relLum(rice.surfaceLowest)
-        if (Yt >= Ys) {             // light text: the backdrop must stay under Ymax
-            const Ymax = (Yt + 0.05) / ratio - 0.05
-            return Yb <= Ymax ? 0 : Math.min(0.94, (g(Yb) - g(Ymax)) / Math.max(1e-4, g(Yb) - g(Ys)))
-        }
-        const Ymin = ratio * (Yt + 0.05) - 0.05     // dark text (a light mood): it must stay over Ymin
-        return Yb >= Ymin ? 0 : Math.min(0.94, (g(Ymin) - g(Yb)) / Math.max(1e-4, g(Ys) - g(Yb)))
-    }
+    function scrimFor(Yb, ink, ratio) { return C.scrim(Yb, ink, rice.surfaceLowest, ratio) }     // (Rice Color.js)
     // how bright the backdrop gets under the text now: the frosted wallpaper's measure; a game's banner its
     // own (it's 90% strong and fades out down the rows); a wallpaper previewed on the Theme page isn't
     // measured: careful
     readonly property var lightNow: {
-        const w = rice.values._backdrop || ({})
+        const w = (backdropStyle.sharp ? rice.values._backdropSharp : rice.values._backdrop) || ({})
         // (clear blur: the windows under the glass, unmeasured: as bright as a careful guess, or the
         // wallpaper's measure if it's brighter, under the backdrop's veil)
-        const v = backdropStyle.veil, g = y => Math.pow(Math.max(0, y), 1 / 2.2), Ys = relLum(rice.surfaceLowest)
+        const v = backdropStyle.veil, g = y => Math.pow(Math.max(0, y), 1 / 2.2), Ys = C.luminance(rice.surfaceLowest)
         const veiled = y => v > 0 ? Math.pow(v * g(Ys) + (1 - v) * g(Math.max(y, 0.35)), 2.2) : y
         const base = { top: veiled(w.top ?? 0.35), hero: veiled(w.hero ?? 0.35), rows: veiled(w.rows ?? 0.35) }
         const it = bgShown

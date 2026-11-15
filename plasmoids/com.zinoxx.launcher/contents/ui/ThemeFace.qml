@@ -62,6 +62,7 @@ Item {
         id: blurFace
         Item {
             readonly property bool matte: face.item && face.item.style === "matte"
+            readonly property bool sharp: face.item && face.item.style === "none"
             readonly property var v: face.rice.values || ({})
             Kirigami.ShadowedRectangle {
                 anchors.fill: parent
@@ -83,11 +84,11 @@ Item {
                     source: parent.parent.matte ? (parent.parent.v._glassFull ? "file://" + parent.parent.v._glassFull : "")
                                                 : (face.rice.wallpaper ? "file://" + face.rice.wallpaper : "")
                     sourceSize.width: 480
-                    layer.enabled: !parent.parent.matte
+                    layer.enabled: !parent.parent.matte && !parent.parent.sharp
                     layer.effect: MultiEffect { blurEnabled: true; blur: 0.55; blurMax: 32; saturation: 0.15 }
                 }
                 Rectangle {     // a window's edge under the clear blur: it shows things through
-                    visible: !parent.parent.matte
+                    visible: !parent.parent.matte && !parent.parent.sharp
                     x: parent.width * 0.52; y: parent.height * 0.16
                     width: parent.width * 0.4; height: parent.height * 0.5
                     radius: face.u(8)
@@ -105,7 +106,17 @@ Item {
                     smooth: false
                     opacity: 0.09
                 }
-                Rectangle { anchors.fill: parent; color: C.alpha(face.rice.surfaceLowest, parent.parent.matte ? 0.18 : 0.34) }
+                Rectangle {     // the veil (no blur: only the dark shade, from the bottom)
+                    anchors.fill: parent
+                    color: parent.parent.sharp ? "transparent" : C.alpha(face.rice.surfaceLowest, parent.parent.matte ? 0.18 : 0.34)
+                    gradient: parent.parent.sharp ? shade : null
+                    Gradient {
+                        id: shade
+                        GradientStop { position: 0; color: C.alpha(face.rice.surfaceLowest, 0) }
+                        GradientStop { position: 0.45; color: C.alpha(face.rice.surfaceLowest, 0.18) }
+                        GradientStop { position: 1; color: C.alpha(face.rice.surfaceLowest, 0.6) }
+                    }
+                }
             }
             Rectangle { id: blurMask; anchors.fill: parent; radius: face.radius; visible: false; layer.enabled: true }
             Text {
