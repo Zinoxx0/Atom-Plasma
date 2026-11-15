@@ -1,11 +1,15 @@
 import QtQuick
 import Qt.labs.folderlistmodel
+import "WatchSupport.js" as WatchSupport
 
-// A JSON file, read again whenever it changes: a watch on its folder (inotify, no polling) and
-// XMLHttpRequest (no process: plasmashell runs with QML_XHR_ALLOW_FILE_READ=1). The writers replace the
-// file (a temp file, then a rename), so one write is one change; bursts are read once (`debounce`).
-// An unchanged file leaves `value` alone (a new object would re-run every binding on it), and a file
-// read half-written keeps the last good value until the next change.
+// A JSON file, read again whenever it changes (inotify, no polling) with XMLHttpRequest (no process:
+// plasmashell runs with QML_XHR_ALLOW_FILE_READ=1). Bursts of changes are read once (`debounce`). An
+// unchanged file leaves `value` alone (a new object would re-run every binding on it), and a file read
+// half-written keeps the last good value until the next change.
+// The watch is Atom.Native's FileWatch where it exists (plasmashell): one inotify instance for the whole
+// process, no thread, a stat per change. Elsewhere (the splash, the logout screen, qml6 tests) a
+// FolderListModel on the folder: a thread and an inotify instance each, and the folder listed again on every
+// change in it (with 90 of them, plasmashell had 91 threads and 94 inotify instances; 2026-11-15).
 //
 //   WatchedJson { id: f; path: "/home/me/.cache/claude-usage.json"; onChanged: ... }    f.value, f.raw
 Item {
@@ -46,18 +50,32 @@ Item {
             changed()
         } catch (e) {}
     }
+    function poke() { if (active) reread.restart() }
 
-    FolderListModel {
-        // (never an empty folder: that means the current directory, here the whole home folder)
-        folder: wj.folder ? "file://" + wj.folder : "file:///nonexistent"
-        nameFilters: wj.file ? [wj.file] : ["-"]
-        showDirs: false
-        onDataChanged: if (wj.active) reread.restart()
-        onRowsInserted: if (wj.active) reread.restart()
-        onRowsRemoved: if (wj.active) reread.restart()
+    property QtObject watch: null
+    Component {
+        id: folderWatch
+        FolderListModel {
+            // (never an empty folder: that means the current directory, here the whole home folder)
+            folder: wj.folder ? "file://" + wj.folder : "file:///nonexistent"
+            nameFilters: wj.file ? [wj.file] : ["-"]
+            showDirs: false
+            onDataChanged: wj.poke()
+            onRowsInserted: wj.poke()
+            onRowsRemoved: wj.poke()
+        }
     }
     Timer { id: reread; interval: wj.debounce; onTriggered: wj.read() }
-    Component.onCompleted: if (active) read()
+    Component.onCompleted: {
+        watch = WatchSupport.make(wj)
+        if (watch) {
+            watch.path = Qt.binding(() => wj.path)
+            watch.changed.connect(wj.poke)
+        } else {
+            watch = folderWatch.createObject(wj)
+        }
+        if (active) read()
+    }
     onActiveChanged: if (active) read()
     onPathChanged: { raw = ""; if (active) read() }
 }
