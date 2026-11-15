@@ -31,7 +31,7 @@ Item {
     // LED-friendly picks for Manual, after the screen's own accents
     readonly property var picks: ["#ff3355", "#ff8a1f", "#ffd21f", "#3dff6e", "#1fffd2", "#2e8bff", "#8a3dff", "#ff3dc8", "#ffffff"]
 
-    function hex(c) { return String(Qt.lighter(c, 1)).slice(0, 7) }
+    function hex(c) { return C.hex(c) }
     // a setting as shown: the draft first, then what rgb.py has
     function sv(d, k) {
         const dr = d ? draft[d.id] : null

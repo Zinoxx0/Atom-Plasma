@@ -27,7 +27,7 @@ FocusScope {
     property bool origCustom: false
     property bool touched: false
     readonly property color colour: Qt.hsla(h, s, l, 1)
-    function hex(c) { return String(Qt.lighter(c, 1)).slice(0, 7) }
+    function hex(c) { return C.hex(c) }
 
     function openFor(it, tile) {
         const c = Qt.color(it.hex)

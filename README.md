@@ -185,6 +185,12 @@ Theme page; Meta+Alt+T toggles tiling.
 Your settings live in `~/.config/atom-plasma/settings.json`, which overrides the repo's
 `settings.default.json`. State lives in `~/.local/state/rice/` and caches in `~/.cache/rice/`.
 
+## Contributing
+
+How the parts fit together is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); setting up, trying a change
+safely and the conventions are in [CONTRIBUTING.md](CONTRIBUTING.md). The tests run on every push
+(`.github/workflows/tests.yml`).
+
 ## License
 
 GPL-3.0-or-later (see `LICENSE`). The KWin effects in `kwin/` are adapted from KWin's own Scale and Fading

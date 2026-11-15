@@ -44,7 +44,7 @@ Item {
     readonly property bool canUndo: history.length > 0 && !busy
 
     function rice(args) { return ["python3", sh.home + "/.config/plasma-rice/rice.py"].concat(args) }
-    function hex(c) { return String(Qt.lighter(c, 1)).slice(0, 7) }
+    function hex(c) { return C.hex(c) }
     function load() {
         if (!busy) error = ""
         sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" theme show --screen ' + sh.q(screen || "focused") + ' #tshow')

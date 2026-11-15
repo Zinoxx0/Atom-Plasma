@@ -374,14 +374,25 @@ Item {
         play(name, name === "dizzy" ? 3 : 2, seed)
         share(name, seed)
     }
-    // ---- clicks reach every view: ~/.cache/clawd/poke.json, replaced atomically (WatchedJson only sees
-    // a file being replaced), one tiny process per click
+    // ---- clicks reach every view: ~/.cache/clawd/poke.json, replaced atomically, by one tiny process per
+    // burst of clicks: a process per click raced the others (four quick clicks, and the last to finish, not
+    // the last click, was what the other views read: they missed "dizzy")
     readonly property string uid: Math.random().toString(36).slice(2, 10)
     readonly property string pokeFile: String(StandardPaths.writableLocation(StandardPaths.GenericCacheLocation)).replace(/^file:\/\//, "") + "/clawd/poke.json"
     RiceShell { id: sh }
+    property string sharing: ""
     function share(name, seed) {
-        const event = JSON.stringify({ act: name, seed: seed, from: uid, ts: Date.now() / 1000 })
-        sh.exec("clawd-poke", ["sh", "-c", 'mkdir -p "${2%/*}" && printf "%s\\n" "$1" > "$2.$$" && mv -f "$2.$$" "$2"', "sh", event, pokeFile])
+        sharing = JSON.stringify({ act: name, seed: seed, from: uid, ts: Date.now() / 1000 })
+        shareLater.restart()
+    }
+    Timer {
+        id: shareLater
+        interval: 40
+        onTriggered: {
+            const event = root.sharing
+            root.sharing = ""
+            if (event) sh.exec("clawd-poke", ["sh", "-c", 'mkdir -p "${2%/*}" && printf "%s\\n" "$1" > "$2.$$" && mv -f "$2.$$" "$2"', "sh", event, root.pokeFile])
+        }
     }
     WatchedJson {
         path: root.pokeFile

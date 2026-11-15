@@ -1,0 +1,22 @@
+# The test suite on every push and pull request, in Arch Linux (the distribution the rice targets).
+# The QML tests render offscreen through Mesa on a virtual X display (xvfb-run).
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed git python python-pillow python-numpy python-dbus python-gobject \
+            qt6-declarative xorg-server-xvfb mesa fontconfig inter-font ttf-jetbrains-mono-nerd
+      - uses: actions/checkout@v4
+      - name: Trust the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Tests
+        run: xvfb-run -a python -m unittest discover -s tests -v

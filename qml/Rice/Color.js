@@ -2,6 +2,8 @@
 // Colour helpers shared by the rice widgets. They accept colours or "#rrggbb" strings.
 
 function rgb(c) { return Qt.lighter(c, 1) }
+// "#rrggbb" (no alpha), what the theme engine and the settings store
+function hex(c) { return String(Qt.lighter(c, 1)).slice(0, 7) }
 
 function alpha(c, a) {
     c = rgb(c);
