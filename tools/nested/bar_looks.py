@@ -1,6 +1,7 @@
 """The bar tests' driver (run inside the nested session): every nested bar gets the rice's settings and both of
 its looks (atom/panel.py bar_looks, dock_presets) in the main screen's palette, as rice.py gives them, with the
-morph lasting argv[2] ms. Prints the islands and whether each bar took them."""
+morph lasting argv[2] ms (argv[3]: another palette file, e.g. the showcase's). Prints the islands and whether each
+bar took them."""
 import hashlib
 import json
 import sys
@@ -8,7 +9,7 @@ import sys
 sys.path.insert(0, sys.argv[1])
 from atom import panel, util  # noqa: E402
 
-p = json.load(open(util.STATE / "palette-HDMI-A-1.json"))
+p = json.load(open(sys.argv[3] if len(sys.argv) > 3 else util.STATE / "palette-HDMI-A-1.json"))
 print("configured", json.dumps(panel.configure()))
 for bar in panel.panels():
     looks = panel.bar_looks(p, bar)

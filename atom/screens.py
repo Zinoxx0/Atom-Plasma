@@ -243,6 +243,25 @@ def size_clocks(bars, by_screen, cfg):
             pass
 
 
+def screen_palette(s, img, cfg, overrides=None, fallback=None, desk=None):
+    """Screen s's palette with its wallpaper `img` (a Path, or None: `fallback`): the theme engine's colours
+    plus what its widgets read (the glass and frost, the text zones' measures, its sizes, the desk's layout,
+    the docked bar's floor). `desk`: {media, clawd, theme} for the desk widgets."""
+    p = with_meta(palette_for(img, cfg, overrides), img) if img else fallback
+    g = glass(img, s)
+    gf = glass_full(img, s)
+    return dict(p, _glass=g, _glassBand=GLASS_BAND, _rim=rim(g, p), _glassFull=gf,
+                _backdrop=palette.zone_light(gf) if gf else {},             # how bright the launcher's backdrop gets under its text
+                _backdropSharp=palette.zone_light(img, aspect=s["w"] / s["h"]) if s.get("w") and s.get("h") else {},  # (no blur: the wallpaper itself)
+                _scale=s["ui"],                                             # size of that bar's widgets
+                _standard=s.get("comfort", 1.0),                            # the screen's standard size (the launcher's base)
+                _topScale=top_scale(s, cfg),                                # size of the top bar (Glimpse's band)
+                _display={k: s["display"][k] for k in ("id", "name", "label", "portrait", "sharedEdges", "scale")},
+                _layout=desk_layout(img, s),                                # the desktop widgets' places (com.zinoxx.desk)
+                _desk=desk or {"media": False, "clawd": False, "theme": ""},
+                _floor=panel.floor(p))                                      # the docked bar's floor (Atom FloorWindow)
+
+
 def apply_screens(ss, cfg, fallback):
     """Each screen's palette (with its overrides), for the widgets on its bar, and its bar's island colours."""
     pals = {}
@@ -251,19 +270,8 @@ def apply_screens(ss, cfg, fallback):
     theme_name = presets.current_theme(ss, ovs)
     for s in ss:
         img = Path(s["image"]) if s["image"] else None
-        p = with_meta(palette_for(img, cfg, ovs.get(s["id"])), img) if img else fallback
-        g = glass(img, s)
-        gf = glass_full(img, s)
-        p = dict(p, _glass=g, _glassBand=GLASS_BAND, _rim=rim(g, p), _glassFull=gf,
-                 _backdrop=palette.zone_light(gf) if gf else {},            # how bright the launcher's backdrop gets under its text
-                 _backdropSharp=palette.zone_light(img, aspect=s["w"] / s["h"]) if s.get("w") and s.get("h") else {},  # (no blur: the wallpaper itself)
-                 _scale=s["ui"],                                            # size of that bar's widgets
-                 _standard=s.get("comfort", 1.0),                           # the screen's standard size (the launcher's base)
-                 _topScale=top_scale(s, cfg),                               # size of the top bar (Glimpse's band)
-                 _display={k: s["display"][k] for k in ("id", "name", "label", "portrait", "sharedEdges", "scale")},
-                 _layout=desk_layout(img, s),                               # the desktop widgets' places (com.zinoxx.desk)
-                 _desk={"media": s["name"] == music, "clawd": s["name"] == music, "theme": theme_name},
-                 _floor=panel.floor(p))                                     # the docked bar's floor (Atom FloorWindow)
+        p = screen_palette(s, img, cfg, ovs.get(s["id"]), fallback,
+                           {"media": s["name"] == music, "clawd": s["name"] == music, "theme": theme_name})
         util.write_if_changed(STATE / f"palette-{s['name']}.json", json.dumps(p, indent=2) + "\n")
         pals[s["screen"]] = p
     try:
