@@ -23,6 +23,9 @@ Item {
         onChanged: cu.now = Date.now() / 1000
     }
     Timer { interval: cu.fast ? 1000 : 30000; running: cu.active; repeat: true; onTriggered: cu.now = Date.now() / 1000 }
+    // waking (the islands came to this bar): the clock stopped when it went to rest, maybe hours ago; an
+    // unchanged file says nothing, so without this the countdown showed the old time for up to 30 s
+    onActiveChanged: if (active) now = Date.now() / 1000
 
     // one limit window: % used (0 once it has reset), when it resets, and the even pace (% of the window gone)
     function windowInfo(key, length) {

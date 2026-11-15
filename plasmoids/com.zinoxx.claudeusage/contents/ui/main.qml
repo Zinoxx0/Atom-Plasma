@@ -175,7 +175,9 @@ PlasmoidItem {
     // beside the rings: how long until the session window resets (or, out of energy, the limit's window)
     readonly property real resetAt: mood === "limited" && limitWin.reset ? limitWin.reset
                                   : hasData && !session.expired && session.reset ? session.reset : 0
-    readonly property string resetText: resetAt > 0 ? until(resetAt) : "–"
+    // no session window running (the last one reset and Claude Code hasn't been used since): a whole one is
+    // ready, and the next message starts it ("–" read as numbers gone missing; the user, 2026-11-15)
+    readonly property string resetText: resetAt > 0 ? until(resetAt) : hasData ? "5h 00m" : "–"
 
     // ---------- panel ----------
     compactRepresentation: MouseArea {

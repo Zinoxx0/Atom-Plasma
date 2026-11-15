@@ -175,14 +175,15 @@ class Chrome(Golden):
         self.golden("tokens-qml", api.tokens_qml())
 
     def test_bar_islands(self):
+        # (the solid style, whatever the user picked: the goldens are the default islands)
         out = {}
         for fix in FIXTURES:
             p = palettes(fix)["auto"]
-            out[fix.stem] = {"island": sha(json.dumps(api.island_style(p, p["primary"], states=True, fg=True), sort_keys=True)),
-                             "quiet": sha(json.dumps(api.island_style(p, p["tertiary"], states=False), sort_keys=True)),
+            out[fix.stem] = {"island": sha(json.dumps(api.island_style(p, p["primary"], states=True, fg=True, style="solid"), sort_keys=True)),
+                             "quiet": sha(json.dumps(api.island_style(p, p["tertiary"], states=False, style="solid"), sort_keys=True)),
                              "launcher": sha(json.dumps(api.launcher_style(p), sort_keys=True)),
                              # the docked look (a window touches the bar): the same islands flattened, the floor
-                             "docked": sha(json.dumps(api.island_style(p, p["primary"], states=True, docked=True), sort_keys=True)),
+                             "docked": sha(json.dumps(api.island_style(p, p["primary"], states=True, docked=True, style="solid"), sort_keys=True)),
                              "launcher-docked": sha(json.dumps(api.launcher_style(p, docked=True), sort_keys=True)),
                              "floor": sha(json.dumps([api.panel_settings(p), api.panel_settings(p, docked=True)], sort_keys=True))}
         self.golden("islands", out)
