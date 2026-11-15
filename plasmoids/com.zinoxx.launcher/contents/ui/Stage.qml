@@ -281,7 +281,17 @@ Window {
     readonly property int themeTab: 3
     property int tab: 0                         // 0 Home, 1 Games, 2 Apps, 3 the Theme page (no tab: the palette)
     property int tabBefore: 0                   // where the Theme page goes back to
-    readonly property var themePage: ({ id: "theme", rows: tm.rows })
+    // the Theme page in groups (ThemeModel's headers): the rows of the open ones (Look open to start)
+    property var groupsOpen: ({ look: true })
+    readonly property var themePage: ({ id: "theme", rows: tm.rows.filter(r => r.header || groupsOpen[r.group]) })
+    function toggleGroup(g) {
+        const o = Object.assign({}, groupsOpen); o[g] = !o[g]; groupsOpen = o
+        if (Shell.debug) console.warn("ATOM theme group", g, o[g] ? "open" : "closed")
+        Qt.callLater(() => {        // the header keeps the focus (rows above it may have gone)
+            const ri = page.rows.findIndex(r => r.id === "group:" + g)
+            if (ri >= 0) { const st = pageState(); st.row = -1; focusAt(ri, 0, "key") }
+        })
+    }
     readonly property var emptyPage: ({ id: "", rows: [] })
     function pageAt(p) { return p === themeTab ? themePage : hm.pages[p] || emptyPage }
     readonly property var page: pageAt(tab)
@@ -517,8 +527,12 @@ Window {
     function openTheme(rowId) {
         if (!theming) setTab(themeTab)
         if (!rowId) return
-        const id = rowId === "lights" ? "lighting" : rowId
-        const go = () => { const r = tm.rows.findIndex(x => x.id === id); if (r >= 0) focusAt(r, idxOf(id), "key") }
+        const id = rowId === "lights" ? "kb-laptop" : rowId
+        const go = () => {
+            const row = tm.rows.find(x => x.id === id)
+            if (row && !groupsOpen[row.group]) { const o = Object.assign({}, groupsOpen); o[row.group] = true; groupsOpen = o }
+            Qt.callLater(() => { const r = page.rows.findIndex(x => x.id === id); if (r >= 0) focusAt(r, idxOf(id), "key") })
+        }
         if (tm.rows.length) Qt.callLater(go)
         else { const once = () => { tm.revChanged.disconnect(once); Qt.callLater(go) }; tm.revChanged.connect(once) }
     }
@@ -1323,6 +1337,7 @@ Window {
                                         active: (stage.focusRev, index === pg.st.row)
                                         z: active ? 1 : 0
                                         lines: (stage.focusRev, pg.st.lines[entry.id] ?? 1)
+                                        groupOpen: !!stage.groupsOpen[entry.group]
                                         tilesFocused: (stage.focusRev, (pg.st.line || "tiles") === "tiles")
                                         toolFocus: (stage.focusRev, index === pg.st.row && pg.st.line === "tools") ? pg.st.tool : -1
                                         onToolActivated: id => stage.toolDo(id)
@@ -1665,10 +1680,14 @@ Window {
             save: { eyebrow: "Theme", primary: "Save as…", icon: "bookmark_add" },
             "colours-auto": { eyebrow: "Colours", primary: "Use automatic", icon: "auto_awesome" },
             mood: { eyebrow: "Mood", primary: "Use " + String(it.name).toLowerCase(), icon: "palette" },
-            accent: { eyebrow: "Accent · " + it.role, primary: "Edit colour", icon: "colorize" },
+            accent: String(it.role).startsWith("kb:") ? { eyebrow: "Keyboard lighting", primary: "Pick its colour", icon: "colorize" }
+                    : { eyebrow: "Accent · " + it.role, primary: "Edit colour", icon: "colorize" },
             size: { eyebrow: "Desktop size", primary: "Use this size", icon: "format_size" },
             lsize: { eyebrow: "Launcher size", primary: "Use this size", icon: "fit_screen" },
             blur: { eyebrow: "Blur style", primary: "Use this style", icon: "blur_on" },
+            barstyle: { eyebrow: "Taskbar islands", primary: "Use this style", icon: "dock_to_bottom" },
+            kb: { eyebrow: "Keyboard lighting", primary: it.dev === "laptop" ? "Use on the laptop" : "Use on this keyboard", icon: "keyboard" },
+            group: { eyebrow: "Settings", primary: groupsOpen[it.group] ? "Collapse" : "Expand", icon: groupsOpen[it.group] ? "expand_less" : "expand_more" },
             light: { eyebrow: "Lighting", primary: "Use on both keyboards", icon: "keyboard" },
         }[it.kind]
         t.extra = []
@@ -1698,6 +1717,7 @@ Window {
     // Enter, a click or the bright pill: a Theme item applies (or opens the panel it needs), anything else launches
     function activateItem(it, tile, ri) {
         if (!it) return
+        if (it.ctl === "group") { toggleGroup(it.group); return }
         if (it.ctl) { rowControl(ri === undefined ? pageState().row : ri, it.ctl, ri === undefined ? "key" : "mouse"); return }
         if (!it.kind) { launchItem(it, tile); return }
         if (it.kind === "save") naming.openAt(tile, tm.suggestName())

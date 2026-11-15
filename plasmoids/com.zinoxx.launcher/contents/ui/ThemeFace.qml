@@ -203,7 +203,7 @@ Item {
                 font.pixelSize: face.u(26 * (0.62 + (((face.kind === "size" || face.kind === "lsize") && typeof face.item.v === "number" ? face.item.v : 1) - 1) * 1.1))
             }
             Loader {        // a keyboard, lit the way it would be
-                active: face.kind === "light"
+                active: face.kind === "light" || face.kind === "kb"
                 x: parent.width * 0.12
                 y: parent.height * 0.3
                 width: parent.width * 0.76

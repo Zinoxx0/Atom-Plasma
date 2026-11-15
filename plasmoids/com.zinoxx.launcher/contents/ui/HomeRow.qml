@@ -25,6 +25,7 @@ Item {
     property real unit: 1
     property real side: 76
     property int lines: 1                   // how many lines show (1, 3, 5...: the stage's, per row)
+    property bool groupOpen: true           // a group's header: is its group open (its chevron)
     property int focusMs: Tokens.ms(380)
     property real titleO: 1                 // the stage's entrance
     readonly property var tools: row.tools || []
@@ -44,12 +45,13 @@ Item {
                                    : row.shape === "poster" ? Qt.size(Math.round(base * 1.34), Math.round(base * 2.0))
                                    : row.shape === "wall" ? Qt.size(Math.round(base * 1.72), Math.round(base * 0.97))
                                    : row.shape === "look" ? Qt.size(Math.round(base * 2.05), Math.round(base * 1.2))
+                                   : row.shape === "header" ? Qt.size(Math.round(Math.min(width * 0.65, u(980))), u(64))
                                    : row.labeled ? Qt.size(Math.round(base * 0.9), Math.round(base * 0.9))
                                    : Qt.size(base, base)
     readonly property real pad: u(22)       // clear of the focused tile's lift and ring
     readonly property real gap: u(24)
     readonly property real gapDivider: u(40)
-    readonly property real titleH: row.title ? u(34) : 0
+    readonly property real titleH: row.title && !row.header ? u(34) : 0     // (a group's header says it on its bar)
     readonly property real labelH: row.labeled ? u(42) : 0
     readonly property int count: row.items ? row.items.length : 0
     readonly property bool moving: false    // (rows don't move sideways any more: the page does)
@@ -84,7 +86,8 @@ Item {
         meta: ["Two lines fewer"], desc: "Back to fewer lines of " + String(row.title || "it").toLowerCase() + "." })
     function lineOf(i) { return Math.floor(i / columns) }
     function lineY(l) { return titleH + pad + l * (lineH + lineGap) }       // a line's top, in the row
-    readonly property real fullHeight: titleH + pad + linesShown * lineH + (linesShown - 1) * lineGap + pad + u(16)
+    readonly property real fullHeight: row.header ? u(20) + lineH + u(12)
+                                     : titleH + pad + linesShown * lineH + (linesShown - 1) * lineGap + pad + u(16)
     implicitHeight: fullHeight
     Behavior on implicitHeight { NumberAnimation { id: grow; duration: Math.round(hr.focusMs * 0.95); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
 
@@ -147,7 +150,7 @@ Item {
 
         Item {
             id: grid
-            y: hr.titleH + hr.pad
+            y: hr.row.header ? hr.u(20) : hr.titleH + hr.pad
             width: hr.width
             height: hr.height - y
             clip: grow.running          // (growing or shrinking: what's past its edge waits)
@@ -182,6 +185,7 @@ Item {
                         rice: hr.rice
                         unit: hr.unit
                         labeled: hr.row.labeled
+                        expanded: hr.groupOpen
                         current: slot.index === hr.current
                         rowActive: hr.active && hr.tilesFocused
                         focusMs: hr.focusMs

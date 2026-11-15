@@ -23,6 +23,8 @@ Item {
     readonly property real grainAlpha: 0.05
     readonly property real glassVeil: 0.52
     readonly property string blurStyle: value.blur && ["clear", "none"].indexOf(value.blur.style) >= 0 ? value.blur.style : "matte"
+    // the bar's islands (rice.py bar style ...: Panel Colorizer looks): solid | matte | clear | none
+    readonly property string barStyle: value.bar && ["matte", "clear", "none"].indexOf(value.bar.style) >= 0 ? value.bar.style : "solid"
     readonly property real launcherSize: {
         const v = value.launcher ? Number(value.launcher.size) : 1
         return v > 0 ? Math.max(0.6, Math.min(2, v)) : 1

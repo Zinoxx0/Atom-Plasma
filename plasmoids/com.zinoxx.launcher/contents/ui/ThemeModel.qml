@@ -75,15 +75,33 @@ Item {
         else if (it.kind === "lsize") run(it.key, riceCmd(["launcher", "size", String(it.v)]))
         else if (it.kind === "blur") run(it.key, riceCmd(["blur", it.style]))
         else if (it.kind === "light") run(it.key, ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", "all"].concat(it.args))
+        else if (it.kind === "kb") {
+            const a = it.args
+            for (let i = 0; i + 1 < a.length; i += 2) setDraft("kb:" + it.dev + ":" + a[i].slice(2), a[i + 1] === "true" ? true : a[i + 1] === "false" ? false : a[i + 1])
+            run(it.key, ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", it.dev].concat(a))
+        }
+        else if (it.kind === "barstyle") run(it.key, riceCmd(["bar", "style", it.style]))
     }
 
     // ------------------------------------------------------------------ live edits and the rows' tools
     function setDraft(k, v) { const d = Object.assign({}, draft); d[k] = v; draft = d; build() }
     function setAccent(role, hex) {
+        if (role.startsWith("kb:")) {       // a keyboard's own colour (the accent editor, reused)
+            const id = role.slice(3)
+            setDraft("kb:" + id + ":colour", hex); setDraft("kb:" + id + ":mode", "manual"); setDraft("kb:" + id + ":effect", "static"); setDraft("kb:" + id + ":on", true)
+            run("live:kb", ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", id, "--mode", "manual", "--effect", "static", "--colour", hex, "--on", "true"])
+            return
+        }
         setDraft("accent:" + role, hex)
         run("live:accent", riceCmd(["theme", "set", "--screen", target, "--" + role, hex]))
     }
     function resetAccent(role) {
+        if (role.startsWith("kb:")) {       // "Automatic": back to following its screen
+            const id = role.slice(3)
+            setDraft("kb:" + id + ":mode", "auto")
+            run("live:kb", ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", id, "--mode", "auto", "--on", "true"])
+            return
+        }
         setDraft("accent:" + role, undefined)
         run("live:accent", riceCmd(["theme", "set", "--screen", target, "--" + role, "auto"]))
     }
@@ -115,6 +133,21 @@ Item {
             const v = Math.max(0, Math.min(100, Math.round(brightness / 10) * 10 + (id === "bright+" ? 10 : -10)))
             setDraft("brightness", v)
             run("live:bright", ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", "all", "--brightness", String(v)])
+        } else if (id.startsWith("follow:")) {      // the next screen it follows: the theme's, then each screen
+            const dev = (tm.lights && tm.lights.devices || []).find(d => d.id === id.slice(7))
+            if (!dev) return
+            const cur = (Object.assign({}, dev.settings || {}, kbDraft(dev.id))).follow || "lead"
+            const order = ["lead"].concat(screens.map(x => x.name))
+            const next = order[(Math.max(0, order.indexOf(cur)) + 1) % order.length]
+            setDraft("kb:" + dev.id + ":follow", next)
+            run("live:follow", ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", dev.id, "--follow", next])
+        } else if (id.startsWith("kbright")) {
+            const dev = (tm.lights && tm.lights.devices || []).find(d => d.id === id.split(":")[1])
+            if (!dev) return
+            const cur = (Object.assign({}, dev.settings || {}, kbDraft(dev.id))).brightness ?? 0
+            const v = Math.max(0, Math.min(100, Math.round(cur / 10) * 10 + (id.startsWith("kbright+") ? 10 : -10)))
+            setDraft("kb:" + dev.id + ":brightness", v)
+            run("live:kbright:" + dev.id, ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", dev.id, "--brightness", String(v)])
         } else if (id.startsWith("power:")) {
             const dev = lightDevs.find(d => d.id === id.slice(6))
             if (!dev) return
@@ -125,7 +158,18 @@ Item {
     }
     // a fresh answer from rice.py / rgb.py replaces what was shown while on its way
     onPageRawChanged: if (!busy && !live) draft = ({})
+    onLightsRawChanged: if (!busy && !live) {       // the keyboards' answer replaces what was shown on its way
+        const d = {}; for (const k in draft) if (!k.startsWith("kb:")) d[k] = draft[k]; draft = d
+    }
 
+    function screenLabel(name) { const sc = screens.find(x => x.name === name || x.id === name); return sc ? sc.label : name }
+    function moodLabel() { const ov = here().overrides || {}; return ov.mood ? ov.mood[0].toUpperCase() + ov.mood.slice(1) : "Automatic colours" }
+    function kbDraft(id) {
+        const o = {}
+        for (const k of ["on", "mode", "style", "effect", "follow", "brightness", "colour"]) if (draft["kb:" + id + ":" + k] !== undefined) o[k] = draft["kb:" + id + ":" + k]
+        return o
+    }
+    function barStyleName() { return ({ solid: "Solid", matte: "Noisy matte", clear: "Clear blur", none: "No blur" })[Prefs.barStyle] || "Solid" }
     // ------------------------------------------------------------------ the rows
     function fileName(p) { return p ? String(p).split("/").pop() : "" }
     function build() {
@@ -202,30 +246,90 @@ Item {
               meta: [blur === "none" ? "Now" : "The launcher and the power page"],
               desc: "Your wallpaper as it is, sharp, with no blur or filter: only the dark shade that keeps the text readable." },
         ] })
-        // lighting: both keyboards at once (each one's own settings: Fine-tune)
-        const dev = tm.lights && tm.lights.devices ? tm.lights.devices.find(d => d.ready) || tm.lights.devices[0] : null
-        const st = dev ? dev.settings || {} : {}
-        const L = (key, name, args, desc, cur) => ({ kind: "light", key: "light:" + key, name: name, args: args, desc: desc, current: !!cur,
-                                                    effect: key, meta: [cur ? "Now" : "Laptop and Razer"] })
-        const lighting = [
-            L("auto", "Match wallpaper", ["--mode", "auto", "--style", "solid", "--on", "true"], "The keyboards wear the screen's accent and follow every re-theme.", st.on !== false && st.mode === "auto" && st.style === "solid"),
-            L("gradient", "Gradient", ["--mode", "auto", "--style", "gradient", "--on", "true"], "The screen's two accents across the keys.", st.on !== false && st.mode === "auto" && st.style === "gradient"),
-            L("breathe", "Breathing", ["--mode", "auto", "--style", "breathe", "--on", "true"], "The accents slowly brighter, then dimmer.", st.on !== false && st.mode === "auto" && st.style === "breathe"),
-            L("spectrum", "Spectrum", ["--mode", "manual", "--effect", "spectrum", "--on", "true"], "Every colour in turn.", st.on !== false && st.mode === "manual" && st.effect === "spectrum"),
-            L("off", "Off", ["--on", "false"], "Dark keyboards.", st.on === false),
-        ]
-        const ltools = lightDevs.length ? [
-            { id: "bright-", kind: "minus", icon: "remove", tip: "Dimmer" },
-            { id: "bright", kind: "value", icon: "light_mode", label: "Brightness " + brightness + "%" },
-            { id: "bright+", kind: "plus", icon: "add", tip: "Brighter" },
-        ].concat(lightDevs.map(d => ({ id: "power:" + d.id, kind: "toggle", icon: d.id === "laptop" ? "laptop" : "keyboard",
-                                       label: d.id === "laptop" ? "Laptop" : (String(d.name || d.id).split(" ")[0]),
-                                       on: (draft["on:" + d.id] ?? (d.settings || {}).on) !== false }))) : []
-        out.push({ id: "lighting", title: "Lighting", shape: "chip", items: lighting, divider: -1, labeled: true, count: false, tools: ltools })
-        rows = out
+        // the taskbar's islands: their glass (rice.py bar style: Panel Colorizer looks, on every bar)
+        const bs = Prefs.barStyle
+        const B = (style, name, desc) => ({ kind: "barstyle", key: "bar:" + style, style: style, name: name, current: bs === style,
+                                            meta: [bs === style ? "Now" : "Every bar"], desc: desc })
+        out.push({ id: "bar", group: "bar", title: "Island style", shape: "look", divider: -1, labeled: false, count: false, tools: [], items: [
+            B("solid", "Solid", "Dark glass you can't see through: the islands as they've always been."),
+            B("matte", "Noisy matte", "Frosted, with the launcher's fine grain: the wallpaper softly through it."),
+            B("clear", "Clear blur", "Glass: a clear blur of what's behind, lightly tinted."),
+            B("none", "No blur", "A tint over the wallpaper as it is, sharp, with no blur."),
+        ] })
+        // keyboard lighting: one row per keyboard, each its own: which screen it follows (its colours come from that
+        // screen's palette), how it shows them (styles), or its own effect and colour (manual), its brightness, on/off
+        const kbs = tm.lights && tm.lights.devices ? tm.lights.devices : []
+        for (const d of kbs) {
+            const ds = Object.assign({}, d.settings || {}, kbDraft(d.id))
+            const on = ds.on !== false, auto = ds.mode === "auto"
+            const short = d.id === "laptop" ? "Laptop" : String(d.name || d.id).split(" ")[0]
+            const follow = ds.follow || "lead"
+            const fname = follow === "lead" ? "the theme's screen" : "the " + screenLabel(follow)
+            const items = []
+            const styleWords = { solid: ["Match screen", "The screen's accent, solid."], gradient: ["Gradient", "The screen's two accents across the keys."],
+                                 breathe: ["Breathing", "The screen's accents, slowly brighter, then dimmer."], starlight: ["Starlight", "The accents twinkling, key by key."] }
+            for (const st of d.styles || []) {
+                const w = styleWords[st.id] || [st.name, ""]
+                items.push({ kind: "kb", key: "kb:" + d.id + ":style:" + st.id, dev: d.id, name: w[0], effect: st.id === "solid" ? "auto" : st.id,
+                             args: ["--mode", "auto", "--style", st.id, "--on", "true"], current: on && auto && ds.style === st.id,
+                             meta: [on && auto && ds.style === st.id ? "Now" : "From " + fname], desc: w[1] + " It follows " + fname + "." })
+            }
+            const effWords = { static: null, spectrum: ["Spectrum", "Every colour in turn."], wave: ["Rainbow wave", "A rainbow rolling across the keys."],
+                               reactive: ["Reactive", "Keys light up as you type."], pulse: ["Pulse", "Your colour, pulsing."] }
+            for (const ef of d.effects || []) {
+                const w = effWords[ef.id]
+                if (!w || ef.colours > 1) continue      // (colour effects come through "Your colour"; two-colour ones are the styles')
+                items.push({ kind: "kb", key: "kb:" + d.id + ":fx:" + ef.id, dev: d.id, name: w[0], effect: ef.id === "wave" ? "spectrum" : ef.id,
+                             args: ["--mode", "manual", "--effect", ef.id, "--on", "true"], current: on && !auto && ds.effect === ef.id,
+                             meta: [on && !auto && ds.effect === ef.id ? "Now" : "Its own"], desc: w[1] })
+            }
+            const mine = on && !auto && ds.effect === "static"
+            items.push({ kind: "accent", key: "kb:" + d.id + ":colour", role: "kb:" + d.id, dev: d.id, name: "Your colour", editTitle: short + " keyboard colour",
+                         hex: ds.colour || "#ff3355", current: mine, meta: [mine ? "Now" : "Its own"],
+                         desc: "One colour of your own on the " + short.toLowerCase() + " keyboard, whatever the screens wear." })
+            items.push({ kind: "kb", key: "kb:" + d.id + ":off", dev: d.id, name: "Off", effect: "off", args: ["--on", "false"], current: !on,
+                         meta: [!on ? "Now" : ""].filter(Boolean), desc: "Dark." })
+            const b = ds.brightness ?? 0
+            const tools = d.ready ? [
+                { id: "follow:" + d.id, kind: "button", icon: "monitor", label: "Follows " + (follow === "lead" ? "theme screen" : screenLabel(follow)),
+                  tip: "Which screen's colours it wears: click for the next" },
+                { id: "kbright-:" + d.id, kind: "minus", icon: "remove", tip: "Dimmer" },
+                { id: "kbright:" + d.id, kind: "value", icon: "light_mode", label: b + "%" },
+                { id: "kbright+:" + d.id, kind: "plus", icon: "add", tip: "Brighter" },
+            ] : []
+            out.push({ id: "kb-" + d.id, group: "keys", title: short + " keyboard", shape: "chip", items: d.ready ? items : [],
+                       divider: -1, labeled: true, count: false, tools: tools,
+                       note: d.ready ? "" : (d.connected ? "Needs a one-time setup (Fine-tune shows it)" : "Not connected") })
+        }
+        // the groups: a header before each (it collapses the group; Stage keeps which are open)
+        const groupOf = { looks: "look", walls: "look", colours: "look", lsize: "launcher", blur: "launcher", bar: "bar", size: "desk" }
+        for (const r of out) if (!r.group) r.group = groupOf[r.id] || "look"
+        const kbOn = kbs.filter(d => d.ready && (Object.assign({}, d.settings || {}, kbDraft(d.id)).on !== false)).length
+        const heads = {
+            look: { title: "Look", icon: "palette", summary: (page.presets || []).length + " themes · " + (page.walls || []).length + " wallpapers · " + moodLabel(),
+                    desc: "Themes, wallpapers and colours: what every screen wears." },
+            launcher: { title: "Launcher", icon: "apps", summary: lnow + "× · " + ({ matte: "Noisy matte", clear: "Clear blur", none: "No blur" })[blur],
+                        desc: "This launcher's size and the blur it and the power page wear." },
+            bar: { title: "Taskbar", icon: "dock_to_bottom", summary: barStyleName(),
+                   desc: "How the bar's islands look." },
+            desk: { title: "Desktop", icon: "desktop_windows", summary: (ui.auto ? "Automatic size" : (ui.size || 1).toFixed(1) + "× size"),
+                    desc: "The size of the bars, popups and the desk's clocks on every screen." },
+            keys: { title: "Keyboard lighting", icon: "keyboard", summary: kbs.length ? kbOn + " of " + kbs.length + " on" : "No keyboards",
+                    desc: "Each keyboard on its own: the screen it follows, its style or its own colour and effect, its brightness." },
+        }
+        const grouped = []
+        for (const g of ["look", "launcher", "bar", "desk", "keys"]) {
+            const rs = out.filter(r => r.group === g)
+            if (!rs.length) continue
+            const h = heads[g]
+            grouped.push({ id: "group:" + g, group: g, header: true, title: h.title, shape: "header", divider: -1, labeled: false, count: false, tools: [],
+                           items: [{ kind: "group", ctl: "group", group: g, key: "group:" + g, name: h.title, icon: h.icon, meta: [h.summary], desc: h.desc }] })
+            for (const r of rs) grouped.push(r)
+        }
+        rows = grouped
         rev++
     }
     onTargetChanged: build()
     Connections { target: tm.launcher; function onHomeSizeChanged() { tm.build() } }
-    Connections { target: Prefs; function onBlurStyleChanged() { tm.build() } }
+    Connections { target: Prefs; function onBlurStyleChanged() { tm.build() } function onBarStyleChanged() { tm.build() } }
 }

@@ -28,6 +28,8 @@ Item {
     property bool rowActive: false          // the row has the keyboard's focus
     property bool pointerMode: false        // the pointer is the input in use (keys or a pad hide its hover)
     property bool pinned: false
+    property bool expanded: true            // a group's header: its group is open
+    readonly property bool wide: !!(item && item.ctl === "group")
     readonly property bool canPin: !!(item && !item.kind && !item.ctl && item.favId)
     readonly property bool hasMenu: !!(item && !item.ctl && (item.model || item.kind === "look"))
     property real unit: 1
@@ -70,11 +72,11 @@ Item {
     property real enter: 0                  // the stage's entrance: how far right it still is
     transform: Translate { x: tile.enter }
     z: focused ? 2 : 0
-    scale: focused ? 1.07 : hovered ? 1.025 : 1
+    scale: wide ? 1 : focused ? 1.07 : hovered ? 1.025 : 1
     Behavior on scale { NumberAnimation { duration: tile.focusMs; easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
 
     // the light it gives off when focused, in its own colour (made while it shows)
-    property real glowV: focused ? 1 : 0
+    property real glowV: focused && !wide ? 1 : 0
     Behavior on glowV { NumberAnimation { duration: tile.focusMs } }
     Loader {
         anchors.fill: parent
@@ -193,15 +195,38 @@ Item {
     Component {
         id: ctlLook
         Item {
+            // a group's header: the whole bar (icon, title, what's in it, the chevron)
+            Row {
+                visible: tile.wide
+                anchors { left: parent.left; leftMargin: tile.u(22); verticalCenter: parent.verticalCenter }
+                spacing: tile.u(16)
+                Text { anchors.verticalCenter: parent.verticalCenter; text: tile.item ? tile.item.icon : ""; color: tile.rice.primary
+                       font.family: Tokens.font.icons; font.pixelSize: tile.u(28) }
+                Text { anchors.verticalCenter: parent.verticalCenter; text: tile.item ? tile.item.name : ""; color: tile.rice.fg
+                       font.family: Tokens.font.ui; font.weight: Font.Bold; font.pixelSize: tile.u(23) }
+                Text { anchors.verticalCenter: parent.verticalCenter; text: tile.item && tile.item.meta ? tile.item.meta[0] : ""; color: tile.rice.fgDim
+                       font.family: Tokens.font.ui; font.weight: Font.Medium; font.pixelSize: tile.u(16) }
+            }
+            Text {
+                visible: tile.wide
+                anchors { right: parent.right; rightMargin: tile.u(22); verticalCenter: parent.verticalCenter }
+                text: "expand_more"
+                rotation: tile.expanded ? 180 : 0
+                Behavior on rotation { NumberAnimation { duration: Tokens.ms(300); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
+                color: tile.rice.fg
+                font.family: Tokens.font.icons
+                font.pixelSize: tile.u(30)
+            }
             Rectangle {
                 anchors.fill: parent
                 radius: tile.radius
-                color: C.alpha(tile.rice.fg, 0.06 + 0.07 * tile.glowV + (tile.hovered ? 0.04 : 0))
+                color: C.alpha(tile.rice.fg, (tile.wide ? 0.05 : 0.06) + 0.07 * (tile.focused ? 1 : 0) + (tile.hovered ? 0.04 : 0))
                 border.width: 1
                 border.color: C.alpha(tile.rice.edge, 0.12 + 0.08 * tile.glowV)
                 Behavior on color { ColorAnimation { duration: Tokens.fast } }
             }
             Column {
+                visible: !tile.wide
                 anchors.centerIn: parent
                 spacing: tile.u(2)
                 Text {

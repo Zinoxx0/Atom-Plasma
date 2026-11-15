@@ -135,7 +135,7 @@ FocusScope {
                 }
                 Column {
                     anchors.verticalCenter: parent.verticalCenter
-                    Text { text: ed.item ? ed.item.name + " accent" : ""; color: ed.rice.fg; font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: ed.u(18) }
+                    Text { text: ed.item ? ed.item.editTitle || ed.item.name + " accent" : ""; color: ed.rice.fg; font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: ed.u(18) }
                     Text { text: ed.hex(ed.colour).toUpperCase(); color: ed.rice.muted; font.family: Tokens.font.ui; font.weight: Font.Medium; font.pixelSize: ed.u(14); font.features: { "tnum": 1 } }
                 }
             }
