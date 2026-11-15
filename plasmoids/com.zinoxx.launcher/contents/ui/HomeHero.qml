@@ -175,14 +175,14 @@ Item {
         Item { width: 1; height: hero.u(24) }
         Row {
             spacing: hero.u(12)
-            Pill {      // the one bright pill
+            HeroPill {      // the one bright pill
                 rice: hero.rice; unit: hero.unit
                 icon: hero.primaryIcon || (hero.game ? "play_arrow" : "open_in_new")
                 text: hero.primaryText || (hero.game ? "Play" : "Open")
                 bright: true
                 onClicked: hero.primary()
             }
-            Pill {
+            HeroPill {
                 rice: hero.rice; unit: hero.unit
                 visible: !hero.extraActions
                 icon: "push_pin"
@@ -190,7 +190,7 @@ Item {
                 tip: hero.pinned ? "Unpin" : "Pin"
                 onClicked: hero.pin()
             }
-            Pill {
+            HeroPill {
                 id: moreButton
                 rice: hero.rice; unit: hero.unit
                 visible: !hero.extraActions
@@ -201,7 +201,7 @@ Item {
             Repeater {
                 id: extraRep
                 model: hero.extraActions || []
-                Pill {
+                HeroPill {
                     id: ex
                     rice: hero.rice; unit: hero.unit
                     required property var modelData
@@ -216,7 +216,7 @@ Item {
     }
 
     // a hero button: the bright pill (white in the dark, ink in the light) or a round glass one
-    component Pill: Rectangle {
+    component HeroPill: Rectangle {   // (not Rice's Pill: the same name read as either)
         id: pill
         property string icon: ""
         property string text: ""

@@ -12,6 +12,7 @@ import json
 import os
 import re
 import sqlite3
+from contextlib import closing
 import time
 from pathlib import Path
 
@@ -75,9 +76,9 @@ def usage(db=ACTIVITY_DB):
     """desktop id -> {"last": unix time, "score": KActivities' score}, every activity together."""
     out = {}
     try:
-        c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-        rows = c.execute("select targettedResource, cachedScore, lastUpdate from ResourceScoreCache "
-                         "where targettedResource like 'applications:%'").fetchall()
+        with closing(sqlite3.connect(f"file:{db}?mode=ro", uri=True)) as c:     # (a with on the connection alone commits, never closes)
+            rows = c.execute("select targettedResource, cachedScore, lastUpdate from ResourceScoreCache "
+                             "where targettedResource like 'applications:%'").fetchall()
     except sqlite3.Error:
         return out
     for res, score, last in rows:

@@ -34,7 +34,7 @@ QtObject {
         filterByVirtualDesktop: false
         filterByActivity: false
         filterHidden: false
-        onDataChanged: (topLeft, bottomRight, roles) => { if (w.relevant(roles)) w.schedule() }
+        onDataChanged: (topLeft, bottomRight, roles) => { if (w.relevant(roles)) w.schedule() }     // qmllint disable signal-handler-parameters
         onRowsInserted: w.schedule()
         onRowsRemoved: w.schedule()
         onModelReset: w.schedule()

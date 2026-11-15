@@ -192,7 +192,7 @@ PlasmoidItem {
         filterByVirtualDesktop: false
         filterByActivity: false
         filterHidden: false
-        onDataChanged: (topLeft, bottomRight, roles) => { if (root.relevant(roles)) root.scheduleScan() }
+        onDataChanged: (topLeft, bottomRight, roles) => { if (root.relevant(roles)) root.scheduleScan() }     // qmllint disable signal-handler-parameters
         onRowsInserted: { root.scheduleScan(); root.scheduleRepublish() }
         onRowsRemoved: { root.scheduleScan(); root.scheduleRepublish() }
         onModelReset: { root.scheduleScan(); root.scheduleRepublish() }

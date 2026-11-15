@@ -33,7 +33,7 @@ QtObject {
         filterByActivity: false
         filterHidden: false
         // a window joining or leaving a group changes no row of the proxy: the icons re-read their state
-        onDataChanged: (topLeft, bottomRight, roles) => ot.appsMoved(roles)
+        onDataChanged: (topLeft, bottomRight, roles) => ot.appsMoved(roles)     // qmllint disable signal-handler-parameters
         onRowsInserted: ot.appsMoved([])
         onRowsRemoved: ot.appsMoved([])
     }
