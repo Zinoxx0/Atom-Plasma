@@ -177,7 +177,43 @@ def argb(c, alpha):
     return "#%02x%s" % (round(alpha * 255), c.lstrip("#"))
 
 
-def island_style(p, acc, states=True, fg=False, docked=False):
+# The islands' glass (settings bar.style, the Theme page's Taskbar group): how much of its fill they keep and
+# whether KWin blurs behind them. matte = the launcher's noisy matte: a tile of the island's colour with the
+# launcher's grain in it (Colorizer image source, tiled), over the blur.
+BAR_STYLES = {"solid": (1.0, True), "matte": (0.8, True), "clear": (0.42, True), "none": (0.6, False)}
+GRAIN = util.STATE / "bar-grain"
+
+
+def bar_style(cfg=None):
+    s = ((cfg if cfg is not None else util.settings()).get("bar") or {}).get("style", "solid")
+    return s if s in BAR_STYLES else "solid"
+
+
+def grain_tile(hex_colour, alpha):
+    """A 128 px tile of `hex_colour` at `alpha` with the launcher's grain in it (about 3.7 levels of noise,
+    as its matte measures): a matte island's background (Colorizer tiles it). Made once per colour."""
+    for old in GRAIN.glob("*.png") if GRAIN.exists() else []:
+        if not old.stem.endswith("-v4"):
+            old.unlink(missing_ok=True)
+    from PIL import Image
+    import random
+    GRAIN.mkdir(parents=True, exist_ok=True)
+    out = GRAIN / f"{hex_colour.lstrip('#')}-{round(alpha * 100)}-v4.png"
+    if not out.exists():
+        r, g, b = (c * 255 for c in palette.hex_rgb(hex_colour))
+        rnd = random.Random(7)
+        a = round(alpha * 255)
+        px = []
+        for _ in range(128 * 128):
+            n = rnd.uniform(-6.4, 6.4) / max(alpha, 0.3)     # (the tile's own alpha scales it back to the launcher's)
+            px.append((max(0, min(255, round(r + n))), max(0, min(255, round(g + n))), max(0, min(255, round(b + n))), a))
+        im = Image.new("RGBA", (128, 128))
+        im.putdata(px)
+        im.save(out)
+    return str(out)
+
+
+def island_style(p, acc, states=True, fg=False, docked=False, style=None):
     """Obsidian glass: a dark body, a white sheen along the top edge, a hairline outline in the island's
     accent and a soft neutral shadow. Text and icons keep their own colours. Hovering brightens the
     outline; an open popup lights it fully and adds a faint accent glow; attention turns it red.
@@ -195,6 +231,8 @@ def island_style(p, acc, states=True, fg=False, docked=False):
     bg = p["background"]
     light = p.get("_scheme") == "light"
     red = p.get("red", "#f38ba8")
+    style = style or bar_style()
+    keep, blur = BAR_STYLES[style]
 
     def color(c, alpha):
         return {"enabled": True, "sourceType": 0, "custom": c, "alpha": alpha}
@@ -202,8 +240,17 @@ def island_style(p, acc, states=True, fg=False, docked=False):
     def look(lift, fill, edge, sheen, glow=None, shade=None):
         o = copy.deepcopy(w)
         o["enabled"] = True
-        o["blurBehind"] = True
-        o["backgroundColor"].update(color(mix(mix(bg, "#ffffff", 0.02 + lift), acc, 0.03), fill))
+        body = mix(mix(bg, "#ffffff", 0.02 + lift), acc, 0.03)
+        if docked or style == "solid":
+            o["blurBehind"] = True
+            o["backgroundColor"].update(color(body, fill))
+        elif style == "matte":
+            o["blurBehind"] = True
+            o["backgroundColor"].update(enabled=True, sourceType=6, custom=body, alpha=1,
+                                        image={"source": "file://" + grain_tile(body, fill * keep), "fillMode": 3})
+        else:
+            o["blurBehind"] = blur
+            o["backgroundColor"].update(color(body, fill * keep))
         if fg:
             o["foregroundColor"].update(enabled=True, sourceType=0, custom=p["on_surface"], alpha=1,
                                         saturationEnabled=False, lightnessEnabled=False)
@@ -318,7 +365,7 @@ def island_overrides(p, panel, docked=False):
 
 
 def bar_looks(p, panel):
-    """A bar's two looks as Colorizer globalSettings patches: (free, docked)."""
+    """A bar's two looks as Colorizer globalSettings patches: (free, docked). (The islands' glass: bar_style.)"""
     return tuple({"widgets": widget_settings(p, d), "panel": panel_settings(p, d),
                   "configurationOverrides": island_overrides(p, panel, d)} for d in (False, True))
 

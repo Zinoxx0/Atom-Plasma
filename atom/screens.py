@@ -238,6 +238,23 @@ def apply_screens(ss, cfg, fallback):
     except (subprocess.CalledProcessError, ValueError):
         return
     size_clocks(bars, {s["screen"]: s for s in ss}, cfg)
+    restyle_bars(bars, pals)
+
+
+def restyle_bars(bars=None, pals=None):
+    """Every bar's islands in their screen's palette (pals: Plasma screen index -> palette; default: the
+    palettes already written), applied where they changed. `rice.py bar style` runs only this."""
+    if bars is None:
+        try:
+            bars = panel.panels()
+        except (subprocess.CalledProcessError, ValueError):
+            return
+    if pals is None:
+        pals = {}
+        for s in screens():
+            p = util.load_json(STATE / f"palette-{s['name']}.json")
+            if p:
+                pals[s["screen"]] = p
     for bar in bars:
         if bar["screen"] not in pals:
             continue

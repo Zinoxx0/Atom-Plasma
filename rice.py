@@ -11,6 +11,9 @@
                              Darkly): run once, and again only to put them back
     rice.py thumbs           (re)build picker thumbnails
     rice.py walls            the picker's list: wallpaper file names, one per line (thumbnails built)
+    rice.py bar style solid|matte|clear|none
+                             the bar's islands: solid dark glass, noisy matte (the launcher's grain), clear
+                             blur or no blur (a tint over the sharp wallpaper); settings bar.style
     rice.py blur matte|clear|none
                              the blur style of the launcher and the power page: noisy matte (the frosted
                              wallpaper under a fine grain), clear blur (KWin's live blur) or none (the wallpaper
@@ -129,6 +132,16 @@ def main(args):
         cfg.setdefault("blur", {})["style"] = args[1]
         util.save_settings(cfg)
         print(args[1])
+    elif arg == "bar":              # the bar's islands: their glass (Panel Colorizer looks, every bar)
+        from atom import panel
+        if len(args) < 3 or args[1] != "style" or args[2] not in panel.BAR_STYLES:
+            sys.exit("rice.py bar style " + "|".join(panel.BAR_STYLES))
+        util.hold_lock()
+        cfg = util.user_settings()
+        cfg.setdefault("bar", {})["style"] = args[2]
+        util.save_settings(cfg)
+        screens.restyle_bars()
+        print(args[2])
     elif arg == "launcher":         # the launcher's own size (Atom Home reads settings.json live)
         if len(args) < 3 or args[1] != "size":
             sys.exit("rice.py launcher size F   (1 = the standard size on every screen)")

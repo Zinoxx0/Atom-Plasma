@@ -22,7 +22,8 @@ Item {
 
     Loader {
         anchors.fill: parent
-        sourceComponent: face.kind === "wall" ? wallFace : face.kind === "blur" ? blurFace : face.kind ? cardFace : null
+        sourceComponent: face.kind === "wall" ? wallFace : face.kind === "blur" ? blurFace : face.kind === "barstyle" ? barFace
+                       : face.kind ? cardFace : null
     }
 
     // ---- a wallpaper: its thumbnail, decoded at the tile's size
@@ -126,6 +127,84 @@ Item {
                 color: "#ffffff"
                 style: Text.Raised
                 styleColor: Qt.rgba(0, 0, 0, 0.4)
+                font.family: Tokens.font.display
+                font.weight: Font.DemiBold
+                font.pixelSize: face.u(17)
+            }
+        }
+    }
+
+    // ---- a taskbar island style: the screen's wallpaper, sharp, and an island on it in that style
+    Component {
+        id: barFace
+        Item {
+            readonly property string st: face.item ? face.item.style : "solid"
+            Kirigami.ShadowedRectangle {
+                anchors.fill: parent
+                radius: face.radius
+                color: "#0b0f16"
+                shadow.size: face.u(18)
+                shadow.yOffset: face.u(6)
+                shadow.color: Qt.rgba(0, 0, 0, 0.45)
+            }
+            Item {
+                anchors.fill: parent
+                layer.enabled: true
+                layer.effect: MultiEffect { maskEnabled: true; maskSource: barMask; maskThresholdMin: 0.5; maskSpreadAtMin: 1.0 }
+                Image {
+                    id: barWall
+                    anchors.fill: parent
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    source: face.rice.wallpaper ? "file://" + face.rice.wallpaper : ""
+                    sourceSize.width: 480
+                }
+                Item {          // the island, a notch at the bottom
+                    id: isl
+                    x: parent.width * 0.16; width: parent.width * 0.68
+                    height: parent.height * 0.34
+                    y: parent.height - height
+                    clip: true
+                    Image {     // what's behind it, blurred (not with no blur)
+                        x: -isl.x; y: -isl.y
+                        width: barWall.width; height: barWall.height
+                        visible: parent.parent.parent.st !== "none"
+                        fillMode: Image.PreserveAspectCrop
+                        source: barWall.source
+                        sourceSize.width: 240
+                        layer.enabled: visible
+                        layer.effect: MultiEffect { blurEnabled: true; blur: 0.8; blurMax: 32 }
+                    }
+                    Rectangle {
+                        anchors.fill: parent
+                        readonly property string st: parent.parent.parent.st
+                        color: C.alpha(face.rice.surface, st === "solid" ? 0.9 : st === "matte" ? 0.62 : st === "clear" ? 0.32 : 0.46)
+                        border.width: 1
+                        border.color: C.alpha(face.rice.primary, 0.4)
+                    }
+                    Image {     // matte's grain
+                        anchors.fill: parent
+                        visible: parent.parent.parent.st === "matte"
+                        source: visible ? Prefs.grain : ""
+                        fillMode: Image.Tile
+                        smooth: false
+                        opacity: 0.12
+                    }
+                    Row {       // a few icons, to read it as a bar
+                        anchors.centerIn: parent
+                        spacing: face.u(9)
+                        Repeater { model: 4; Rectangle { width: face.u(10); height: width; radius: width / 2; color: C.alpha("#ffffff", 0.75) } }
+                    }
+                }
+            }
+            Rectangle { id: barMask; anchors.fill: parent; radius: face.radius; visible: false; layer.enabled: true }
+            Text {
+                anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: face.u(12) }
+                horizontalAlignment: Text.AlignHCenter
+                text: face.item ? face.item.name : ""
+                color: "#ffffff"
+                style: Text.Raised
+                styleColor: Qt.rgba(0, 0, 0, 0.5)
                 font.family: Tokens.font.display
                 font.weight: Font.DemiBold
                 font.pixelSize: face.u(17)
