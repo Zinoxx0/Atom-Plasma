@@ -107,9 +107,19 @@ Window {
     }
     readonly property int unread: Notify.unreadTotal      // (starts the notifications' memory with the shell)
 
+    // the on-screen keyboard for a game controller (Atom Pad, bin/pad.py): on this surface, which never takes
+    // the keyboard while no panel is open, so the text field being typed into keeps the focus
+    Keyboard {
+        id: osk
+        anchors.fill: parent
+        pal: pal
+        screenName: win.screenName
+        ui: win.ui
+    }
+
     InputMask {
         window: win
-        shapes: (sheet.shown ? [sheet.shape] : []).concat(toasts.shapes)
+        shapes: (sheet.shown ? [sheet.shape] : []).concat(toasts.shapes).concat(osk.shapes)
         onShapesChanged: if (Shell.debug && shapes.length === 0) console.warn("ATOM mask empty", Date.now() % 100000)
     }
     Item {      // tests: where a click on the surface itself lands (under the panels: on top it took their presses)
@@ -118,7 +128,7 @@ Window {
         visible: Shell.debug
         TapHandler { onTapped: (pt) => console.warn("ATOM surface tapped at", Math.round(pt.position.x), Math.round(pt.position.y), "shown", sheet.shown) }
     }
-    BlurBehind { window: win; shapes: sheet.shown && sheet.sw > 2 ? [sheet.shape] : [] }
+    BlurBehind { window: win; shapes: (sheet.shown && sheet.sw > 2 ? [sheet.shape] : []).concat(osk.shapes) }
 
     // a click anywhere else (another window, the bar) takes the keyboard away: the panel closes
     onActiveChanged: {

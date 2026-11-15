@@ -19,7 +19,7 @@ commands the shell runs (`rice.py ...`).
 | `rice.py` | The command line: wallpapers, the bar's and the launcher's styles, install, doctor, displays, presets. Run `./rice.py` for the list. |
 | `atom/` | The engine as a Python package: palettes (`palette.py`, `theme.py`), screens and sizes (`displays.py`, `screens.py`, `reconcile.py`), the bar's islands (`panel.py`), install and doctor, KWin and plasmashell scripting (`kwin.py`, `kwinscript.py`, `js/`). |
 | `qml/Rice/` | The design system, a QML module (`import Rice`): `Tokens` (sizes, motion, radii), `RicePalette` (a screen's palette), shared controls, `WatchedJson`, Clawd, and the JavaScript helpers `C` (colour), `M` (motion) and `Session`. |
-| `qml/Atom/` | The shell, a QML module (`import Atom`): `Shell` (the switchboard: which panel is open where), `Windows` (the task model), `Notify`, `Prefs` (settings), the sheet that panels grow on, the power page, backdrops, toasts. Panels live in `qml/Atom/panels/`. |
+| `qml/Atom/` | The shell, a QML module (`import Atom`): `Shell` (the switchboard: which panel is open where), `Windows` (the task model), `Notify`, `Prefs` (settings), the sheet that panels grow on, the power page, backdrops, toasts, `Pad` + `Keyboard` (the game controller's on-screen keyboard, on the sheet). Panels live in `qml/Atom/panels/`. |
 | `pkg/atom-native/` | `Atom.Native`, the C++ part of the shell: KWin blur regions, input masks, the in-process message bus (`Bus`, also on D-Bus), the tray host, the game controller, the shared file watcher (`FileWatch`), `WindowRest`. Built per user with `build.sh`. |
 | `plasmoids/` | The Plasma widgets. They're thin: each draws its island and asks `Atom.Shell` for its panel. The launcher (`com.zinoxx.launcher`) is the biggest; its full-screen surface is `Stage.qml` and the components next to it. |
 | `kwin/` | `rice_islands`, a KWin script (which screen shows the bar's islands), and `rice_window` and `rice_popups`, KWin effects in JavaScript (window and popup motion). |
@@ -29,7 +29,7 @@ commands the shell runs (`rice.py ...`).
 | `pkg/` | Packages built from source: `atom-native`, a fork of the rounded-corners effect, a BlueZ fix. |
 | `tests/` | `python3 -m unittest discover -s tests`: the engine (golden outputs), QML run offscreen, and a qmllint pass. |
 | `tools/` | Development tools: nested KWin sessions for testing the shell (`tools/nested/`), a uinput pointer (`pointer.py`), screenshot sheets. |
-| `bin/` | Programs that units, hooks, widgets and shortcuts run by path: `displayd.py` (display watcher), `rgb.py` (keyboard lighting), `weather.py`, `agenda.py`, `update-check.py`, `wallhaven.py`, `battery-saver.py`, Claude Code's side (`clawd-hook.sh`, `clawd-intent.py`, `ask.sh`, `claude-statusline.sh`; `rice.py install` sets them in `~/.claude/settings.json`), and small wrappers. They find the `atom` package one folder up. |
+| `bin/` | Programs that units, hooks, widgets and shortcuts run by path: `displayd.py` (display watcher), `rgb.py` (keyboard lighting), `pad.py` (a game controller drives the desktop: evdev in, uinput out), `weather.py`, `agenda.py`, `update-check.py`, `wallhaven.py`, `battery-saver.py`, Claude Code's side (`clawd-hook.sh`, `clawd-intent.py`, `ask.sh`, `claude-statusline.sh`; `rice.py install` sets them in `~/.claude/settings.json`), and small wrappers. They find the `atom` package one folder up. |
 
 ## How a change of wallpaper reaches the screen
 

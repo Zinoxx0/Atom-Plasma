@@ -13,3 +13,5 @@ FloorWindow 1.0 FloorWindow.qml
 singleton RoomLight 1.0 RoomLight.qml
 singleton Notify 1.0 Notify.qml
 Toasts 1.0 Toasts.qml
+singleton Pad 1.0 Pad.qml
+Keyboard 1.0 Keyboard.qml

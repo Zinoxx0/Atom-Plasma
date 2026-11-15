@@ -32,7 +32,7 @@ CANONICAL = HOME / ".config/plasma-rice"            # where units, shortcuts and
 
 NEEDS_CMDS = ["python3", "qdbus6", "kscreen-doctor", "kwriteconfig6", "kreadconfig6", "magick", "notify-send",
               "udevadm", "plasmashell"]
-NEEDS_PY = ["PIL", "numpy", "dbus", "gi"]
+NEEDS_PY = ["PIL", "numpy", "dbus", "gi", "evdev"]
 
 # command launchers: id -> (name, icon, command after the repo path, default keys)
 LAUNCHERS = {
@@ -207,6 +207,8 @@ def install(dry=False):
     want = ["atom-plasma-displayd.service"]
     if caps.feature("keyboard_lights", cfg):
         want.append("atom-plasma-rgb-watch.service")
+    if caps.feature("gamepad", cfg):
+        want.append("atom-plasma-pad.service")
     if caps.feature("update_check", cfg):
         want += ["atom-plasma-update-check.timer", "atom-plasma-update-tidy.timer"]
     # KRunner is replaced by the launcher's search (Atom.Native's KRunner holds its place on the bus, so its

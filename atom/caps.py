@@ -9,6 +9,8 @@ a machine without Claude Code no Clawd, a non-Arch system no update check.
 """
 import functools
 import glob
+import os
+import importlib.util
 import shutil
 from pathlib import Path
 
@@ -42,6 +44,7 @@ def found():
         "plasma_login": Path("/etc/plasmalogin.conf").exists() or Path("/usr/lib/systemd/system/plasmalogin.service").exists(),
         "vscode": bool(shutil.which("code")),
         "zen": (HOME / ".local/share/zen").is_dir() or bool(shutil.which("zen-browser")),
+        "uinput": os.access("/dev/uinput", os.W_OK) and importlib.util.find_spec("evdev") is not None,
     }
 
 
@@ -55,6 +58,7 @@ FEATURES = {
     "update_check": (["arch", "claude"], "the daily check for important updates (Arch/CachyOS + Claude Code)"),
     "boot_theme": (["limine", "plymouth"], "boot menu and splash theming (Limine + Plymouth)"),
     "login_theme": (["plasma_login"], "the login screen follows the theme (Plasma Login Manager)"),
+    "gamepad": (["uinput"], "a game controller drives the desktop: pointer, scrolling, keys, the launcher, an on-screen keyboard"),
 }
 
 

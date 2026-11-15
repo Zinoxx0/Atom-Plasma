@@ -114,6 +114,17 @@ island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on ev
   *Clear blur* (a live blur of whatever is behind, like glass), *Noisy only* (your wallpaper as it is, sharp,
   under the same grain) or *No blur* (your wallpaper as it is, with only the dark shade that keeps text
   readable). `rice.py backdrop matte|clear|noise|none`.
+- **Game controller** (`bin/pad.py`, the `atom-plasma-pad` service; for a TV across the room): a controller
+  drives the whole desktop. The left stick is the pointer (click it for slow and precise), the right stick
+  scrolls, the D-pad is the arrow keys; A clicks, or presses Enter when you last used the D-pad (the input
+  used last wins), X right-clicks (or the Menu key), B is Esc, LB/RB switch tabs, LT/RT go back and forward,
+  View shows every window, Menu switches to the window before, Guide opens the launcher (held: the power
+  page), Share takes a screenshot. Y brings up an **on-screen keyboard** in the theme's colours (your layout's
+  keys and accented letters: the D-pad walks it, A types, X deletes, Y is space, LT shift); it also comes up
+  on its own when the controller puts you in a text field. While a game has the focus (Steam, Wine/Proton,
+  Lutris, Heroic, gamescope, Big Picture) the controller is left alone for it; View + Menu held for a second
+  switches that by hand. Idle it costs nothing (it waits on the device); a stick held costs ~1.5% of a core.
+  If Steam is running, turn off its own desktop controller layout so the two don't both move the pointer.
 - **Status island** (replaces Plasma's system tray): your apps' tray icons with menus in the rice's look
   (a click brings the app's window back; the quiet ones rest on each other in a stack, and an app with news
   steps out of it), the system's state, and beads for apps with notifications you haven't seen. The stack
@@ -171,6 +182,7 @@ rice.py theme show|set|reset ...                                   hand-picked c
 rice.py ui show|set ...                                            UI size (the taskbar's)
 rice.py launcher size F | top size F                               the launcher's and the top bar's own size
 rice.py backdrop matte|clear|noise|none                            the launcher's and the power page's backdrop
+bin/pad.py status | mode auto|desktop|game                         the game controller (atom-plasma-pad.service)
 rice.py tiling toggle|tile|float [--screen ...]                    auto-tiling per screen
 rice.py displays [--fix]                                           monitors, arrangement, sizes
 rice.py install | doctor | setup                                   install, check, one-time settings

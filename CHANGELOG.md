@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+**Game controller** (new: `bin/pad.py`, `atom-plasma-pad.service`, feature `gamepad`)
+- A controller drives the desktop: the left stick is the pointer, the right one scrolls, the D-pad and the
+  buttons are the keys apps understand, Guide opens the launcher, View every window. Games get the
+  controller to themselves.
+- An on-screen keyboard (Atom Keyboard, on each screen's sheet) in the screen's palette: the active layout's
+  keys from XKB, accented letters, typed as real key presses (characters the layout lacks go through the
+  clipboard, which gets its own back). It comes up on its own for a text field the controller clicked.
+- The launcher reads an Xbox controller's X and Y by their place (X opened the Theme page, Y the menu).
+
 **Launcher**
 - A left click on empty space no longer closes it (a missed tile did); a right click still does.
 
