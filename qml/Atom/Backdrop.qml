@@ -1,0 +1,93 @@
+import QtQuick
+import QtQuick.Effects
+import QtQuick.Shapes
+import Atom.Native
+import "../Rice"
+import "../Rice/Color.js" as C
+
+// A full-screen surface's backdrop in the blur style chosen on the Theme page (Atom Prefs.blurStyle), so the
+// launcher and the power page always wear the same one:
+//   "matte"  noisy matte: the screen's wallpaper pre-blurred by the theme engine (palette _glassFull) under a
+//            fine grain (it dithers the bands a blurred picture makes in 8 bits): a still, opaque, matte
+//            finish; the windows behind it are hidden
+//   "clear"  clear blur: KWin's live blur of whatever is behind, windows included, like glass
+// Both under a veil of the palette's darkest surface (`veil`, 0: none). It fills a circle (a ripple: `origin`,
+// `radius`) or, with radius < 0 (or a circle past every corner), the whole window. Fill the window with it
+// (its blur region and its picture are in window coordinates).
+Item {
+    id: bd
+    required property var window            // the Window, for KWin's blur
+    required property var pal               // RicePalette: the frost (_glassFull), the wallpaper, surfaceLowest
+    property string style: Prefs.blurStyle
+    property point origin: Qt.point(width / 2, height / 2)
+    property real radius: -1
+    property real veil: 0.5
+    property var also: []                   // more blur for the same window (its own glass): one blur region per window
+    readonly property bool matte: style !== "clear"
+    readonly property url grain: Prefs.grain        // (the launcher grains its own layers too)
+    readonly property real grainAlpha: pal && pal.light ? 0.035 : 0.05
+    readonly property string frostSource: {
+        const v = pal ? pal.values || ({}) : ({})
+        return v._glassFull ? "file://" + v._glassFull : pal && pal.wallpaper ? "file://" + pal.wallpaper : ""
+    }
+    readonly property real reach: Math.max(Math.hypot(origin.x, origin.y), Math.hypot(width - origin.x, origin.y),
+                                           Math.hypot(origin.x, height - origin.y), Math.hypot(width - origin.x, height - origin.y))
+    readonly property bool whole: radius < 0 || radius >= reach
+    readonly property real r: whole ? reach : Math.max(0, radius)
+    readonly property bool shows: visible && opacity > 0.001 && (whole || r >= 1)
+
+    BlurBehind {
+        window: bd.window
+        shapes: (bd.matte || !bd.shows ? []
+              : bd.whole ? [{ x: 0, y: 0, width: bd.width, height: bd.height, radius: 0 }]
+              : [{ x: bd.origin.x - bd.r, y: bd.origin.y - bd.r, width: 2 * bd.r, height: 2 * bd.r, radius: bd.r }]).concat(bd.also || [])
+    }
+
+    // the matte picture: the frost and its grain, as one full-window texture (so it lines up with the screen)
+    Item {
+        id: frost
+        width: bd.width
+        height: bd.height
+        visible: false
+        Image {
+            readonly property bool frosted: !!(bd.pal && bd.pal.values && bd.pal.values._glassFull)
+            anchors.fill: parent
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            source: bd.matte ? bd.frostSource : ""
+            // no frost made yet (a fresh palette): the wallpaper itself, small and blurred here
+            sourceSize.width: frosted ? 0 : 480
+            layer.enabled: !frosted && bd.matte
+            layer.effect: MultiEffect { blurEnabled: true; blur: 1; blurMax: 64; saturation: 0.3 }
+        }
+        Image {
+            anchors.fill: parent
+            source: bd.matte ? bd.grain : ""
+            fillMode: Image.Tile
+            smooth: false
+            opacity: bd.grainAlpha
+        }
+    }
+    ShaderEffectSource { id: frostTex; width: bd.width; height: bd.height; visible: false; sourceItem: frost; hideSource: true; live: bd.matte && bd.shows }
+
+    Shape {
+        anchors.fill: parent
+        visible: bd.shows
+        preferredRendererType: Shape.CurveRenderer
+        ShapePath {         // matte: the picture, cut to the ripple
+            strokeWidth: -1
+            strokeColor: "transparent"
+            fillColor: "transparent"
+            fillItem: bd.matte ? frostTex : null
+            PathRectangle { x: bd.whole ? 0 : bd.origin.x - bd.r; y: bd.whole ? 0 : bd.origin.y - bd.r
+                            width: bd.whole ? bd.width : 2 * bd.r; height: bd.whole ? bd.height : 2 * bd.r; radius: bd.whole ? 0 : bd.r }
+        }
+        ShapePath {         // the veil, on the same ripple
+            strokeWidth: -1
+            strokeColor: "transparent"
+            fillColor: C.alpha(bd.pal ? bd.pal.surfaceLowest : "#000000", bd.veil)
+            PathRectangle { x: bd.whole ? 0 : bd.origin.x - bd.r; y: bd.whole ? 0 : bd.origin.y - bd.r
+                            width: bd.whole ? bd.width : 2 * bd.r; height: bd.whole ? bd.height : 2 * bd.r; radius: bd.whole ? 0 : bd.r }
+        }
+    }
+}

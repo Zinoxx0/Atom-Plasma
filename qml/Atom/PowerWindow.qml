@@ -10,8 +10,9 @@ import "../Rice/Color.js" as C
 import "../Rice/Motion.js" as M
 import "../Rice/SessionActions.js" as Session
 
-// The power overlay on one screen (Shell kind "power"), in Atom Home's language: a ripple of KWin's blur and
-// a veil of the palette's darkest surface spreads from the power button that was pressed (or the screen's
+// The power overlay on one screen (Shell kind "power"), in Atom Home's language: a ripple of backdrop (the blur
+// style chosen on the Theme page: Atom Backdrop) and a veil of the palette's darkest surface spreads from the
+// power button that was pressed (or the screen's
 // centre) until it covers the screen, on every screen. On the screen it was opened from you come up big
 // (your face, a greeting, how long the machine has been up) over the session's actions as five tiles in
 // their tones: lock, sleep, log out, restart, shut down. The focused tile grows, wears the white ring and
@@ -136,20 +137,16 @@ Window {
     readonly property real reach: Math.max(Math.hypot(origin.x, origin.y), Math.hypot(width - origin.x, origin.y),
                                            Math.hypot(origin.x, height - origin.y), Math.hypot(width - origin.x, height - origin.y))
     readonly property real r: reach * p
-    BlurBehind {
+    // the ripple of backdrop: the blur style chosen on the Theme page (Backdrop: noisy matte, the frosted
+    // wallpaper under a grain; clear blur, KWin's live blur), under a veil of the palette's darkest surface
+    Backdrop {
+        anchors.fill: parent
         window: pw
-        shapes: pw.phase === "closed" || pw.r < 1 ? []
-              : pw.p >= 1 ? [{ x: 0, y: 0, width: pw.width, height: pw.height, radius: 0 }]
-              : [{ x: pw.origin.x - pw.r, y: pw.origin.y - pw.r, width: 2 * pw.r, height: 2 * pw.r, radius: pw.r }]
-    }
-    Rectangle {     // the veil, riding the same ripple: the palette's darkest surface (light moods: a light one)
-        x: pw.origin.x - pw.r
-        y: pw.origin.y - pw.r
-        width: 2 * pw.r
-        height: 2 * pw.r
-        radius: pw.r
-        visible: pw.r > 0.5
-        color: C.alpha(pal.surfaceLowest, pw.wasLead ? 0.52 : 0.36)
+        pal: pal
+        origin: pw.origin
+        radius: pw.p >= 1 ? -1 : pw.r
+        visible: pw.phase !== "closed" && pw.r > 0.5
+        veil: pw.wasLead ? 0.52 : 0.36
     }
     // a click anywhere on the blur folds it away
     MouseArea {

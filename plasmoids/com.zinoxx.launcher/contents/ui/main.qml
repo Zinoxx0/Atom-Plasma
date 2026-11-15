@@ -142,14 +142,7 @@ PlasmoidItem {
     function stepWallpaper(d) { run('python3 "$HOME/.config/plasma-rice/rice.py" ' + (d > 0 ? "next" : "prev") + " --screen '" + Screen.name + "'") }
 
     // the launcher's own size (settings launcher.size, the Theme page's "Launcher size"), read live
-    WatchedJson {
-        id: riceSettings
-        path: String(StandardPaths.writableLocation(StandardPaths.HomeLocation)).replace(/^file:\/\//, "") + "/.config/atom-plasma/settings.json"
-    }
-    readonly property real homeSize: {
-        const v = riceSettings.value && riceSettings.value.launcher ? Number(riceSettings.value.launcher.size) : 1
-        return v > 0 ? Math.max(0.6, Math.min(2, v)) : 1
-    }
+    readonly property real homeSize: Prefs.launcherSize
 
     // the hero image: chosen here, or this screen's wallpaper
     readonly property var cfg: Plasmoid.configuration

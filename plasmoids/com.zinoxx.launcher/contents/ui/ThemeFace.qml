@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import org.kde.kirigami as Kirigami
+import Atom
 import "Rice"
 import "Rice/Color.js" as C
 
@@ -21,7 +22,7 @@ Item {
 
     Loader {
         anchors.fill: parent
-        sourceComponent: face.kind === "wall" ? wallFace : face.kind ? cardFace : null
+        sourceComponent: face.kind === "wall" ? wallFace : face.kind === "blur" ? blurFace : face.kind ? cardFace : null
     }
 
     // ---- a wallpaper: its thumbnail, decoded at the tile's size
@@ -51,6 +52,72 @@ Item {
                         Text { id: bt; anchors.centerIn: parent; text: modelData; color: "#ffffff"; font.family: Tokens.font.ui; font.weight: Font.Bold; font.pixelSize: face.u(11) }
                     }
                 }
+            }
+        }
+    }
+
+    // ---- a blur style: what it looks like over this screen's wallpaper (matte: the frost and its grain; clear:
+    // the wallpaper blurred live, a window's edge showing through), its name on it
+    Component {
+        id: blurFace
+        Item {
+            readonly property bool matte: face.item && face.item.style === "matte"
+            readonly property var v: face.rice.values || ({})
+            Kirigami.ShadowedRectangle {
+                anchors.fill: parent
+                radius: face.radius
+                color: "#0b0f16"
+                shadow.size: face.u(18)
+                shadow.yOffset: face.u(6)
+                shadow.color: Qt.rgba(0, 0, 0, 0.45)
+            }
+            Item {
+                id: pic
+                anchors.fill: parent
+                layer.enabled: true
+                layer.effect: MultiEffect { maskEnabled: true; maskSource: blurMask; maskThresholdMin: 0.5; maskSpreadAtMin: 1.0 }
+                Image {         // what's behind: the frost (matte), or the wallpaper, softly blurred (clear)
+                    anchors.fill: parent
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    source: parent.parent.matte ? (parent.parent.v._glassFull ? "file://" + parent.parent.v._glassFull : "")
+                                                : (face.rice.wallpaper ? "file://" + face.rice.wallpaper : "")
+                    sourceSize.width: 480
+                    layer.enabled: !parent.parent.matte
+                    layer.effect: MultiEffect { blurEnabled: true; blur: 0.55; blurMax: 32; saturation: 0.15 }
+                }
+                Rectangle {     // a window's edge under the clear blur: it shows things through
+                    visible: !parent.parent.matte
+                    x: parent.width * 0.52; y: parent.height * 0.16
+                    width: parent.width * 0.4; height: parent.height * 0.5
+                    radius: face.u(8)
+                    color: C.alpha("#ffffff", 0.16)
+                    border.width: 1
+                    border.color: C.alpha("#ffffff", 0.22)
+                    layer.enabled: true
+                    layer.effect: MultiEffect { blurEnabled: true; blur: 0.5; blurMax: 16 }
+                }
+                Image {         // the grain (matte)
+                    anchors.fill: parent
+                    visible: parent.parent.matte
+                    source: visible ? Prefs.grain : ""
+                    fillMode: Image.Tile
+                    smooth: false
+                    opacity: 0.09
+                }
+                Rectangle { anchors.fill: parent; color: C.alpha(face.rice.surfaceLowest, parent.parent.matte ? 0.18 : 0.34) }
+            }
+            Rectangle { id: blurMask; anchors.fill: parent; radius: face.radius; visible: false; layer.enabled: true }
+            Text {
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom; bottomMargin: face.u(14) }
+                horizontalAlignment: Text.AlignHCenter
+                text: face.item ? face.item.name : ""
+                color: "#ffffff"
+                style: Text.Raised
+                styleColor: Qt.rgba(0, 0, 0, 0.4)
+                font.family: Tokens.font.display
+                font.weight: Font.DemiBold
+                font.pixelSize: face.u(17)
             }
         }
     }

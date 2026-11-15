@@ -1,5 +1,6 @@
 module Atom
 singleton Shell 1.0 Shell.qml
+singleton Prefs 1.0 Prefs.qml
 singleton Windows 1.0 Windows.qml
 Glass 1.0 Glass.qml
 Sheet 1.0 Sheet.qml
@@ -7,6 +8,7 @@ SheetWindow 1.0 SheetWindow.qml
 Island 1.0 Island.qml
 Frost 1.0 Frost.qml
 PowerWindow 1.0 PowerWindow.qml
+Backdrop 1.0 Backdrop.qml
 FloorWindow 1.0 FloorWindow.qml
 singleton RoomLight 1.0 RoomLight.qml
 singleton Notify 1.0 Notify.qml

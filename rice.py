@@ -11,6 +11,8 @@
                              Darkly): run once, and again only to put them back
     rice.py thumbs           (re)build picker thumbnails
     rice.py walls            the picker's list: wallpaper file names, one per line (thumbnails built)
+    rice.py blur matte|clear the blur style of the launcher and the power page: noisy matte (the frosted
+                             wallpaper under a fine grain) or clear blur (KWin's live blur); settings blur.style
     rice.py launcher size F  the launcher's own size, apart from the desktop's (ui): 1 = each screen's standard
                              size (how big a pixel looks from where you sit); settings launcher.size
     rice.py launcher-data    the launcher's own data (~/.cache/rice/launcher.json): Steam's art for the
@@ -118,6 +120,13 @@ def main(args):
     elif arg == "launcher-data":     # the launcher's own data: Steam's art for the games, when apps were used
         from atom import home
         print(home.write())
+    elif arg == "blur":             # the blur style of the launcher and the power page (Atom Prefs reads it live)
+        if len(args) < 2 or args[1] not in ("matte", "clear"):
+            sys.exit("rice.py blur matte|clear")
+        cfg = util.user_settings()
+        cfg.setdefault("blur", {})["style"] = args[1]
+        util.save_settings(cfg)
+        print(args[1])
     elif arg == "launcher":         # the launcher's own size (Atom Home reads settings.json live)
         if len(args) < 3 or args[1] != "size":
             sys.exit("rice.py launcher size F   (1 = the standard size on every screen)")

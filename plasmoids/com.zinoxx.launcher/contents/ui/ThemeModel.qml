@@ -73,6 +73,7 @@ Item {
         else if (it.kind === "mood") run(it.key, riceCmd(["theme", "set", "--screen", target, "--mood", it.mood]))
         else if (it.kind === "size") run(it.key, riceCmd(["ui", "set"].concat(it.v === "auto" ? ["--auto", "true"] : ["--auto", "false", "--size", String(it.v)])))
         else if (it.kind === "lsize") run(it.key, riceCmd(["launcher", "size", String(it.v)]))
+        else if (it.kind === "blur") run(it.key, riceCmd(["blur", it.style]))
         else if (it.kind === "light") run(it.key, ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", "all"].concat(it.args))
     }
 
@@ -188,6 +189,16 @@ Item {
             meta: [Math.abs(lnow - v) < 0.001 ? "Now" : "This launcher"],
             desc: "This page and the launcher's home, " + v.toFixed(2).replace(/0$/, "") + "× their standard size on every screen. The desktop keeps its own size." }))
         out.push({ id: "lsize", title: "Launcher size", shape: "chip", items: lsizes, divider: -1, labeled: true, count: false, tools: [] })
+        // the blur style of the launcher and the power page (Atom Backdrop): they always wear the same one
+        const blur = Prefs.blurStyle
+        out.push({ id: "blur", title: "Blur style", shape: "look", divider: -1, labeled: false, count: false, tools: [], items: [
+            { kind: "blur", key: "blur:matte", style: "matte", name: "Noisy matte", current: blur === "matte",
+              meta: [blur === "matte" ? "Now" : "The launcher and the power page"],
+              desc: "Your wallpaper, frosted, under a fine grain: a still, matte finish. The windows behind it are hidden." },
+            { kind: "blur", key: "blur:clear", style: "clear", name: "Clear blur", current: blur === "clear",
+              meta: [blur === "clear" ? "Now" : "The launcher and the power page"],
+              desc: "A live blur of whatever is behind, windows too, like glass." },
+        ] })
         // lighting: both keyboards at once (each one's own settings: Fine-tune)
         const dev = tm.lights && tm.lights.devices ? tm.lights.devices.find(d => d.ready) || tm.lights.devices[0] : null
         const st = dev ? dev.settings || {} : {}
@@ -213,4 +224,5 @@ Item {
     }
     onTargetChanged: build()
     Connections { target: tm.launcher; function onHomeSizeChanged() { tm.build() } }
+    Connections { target: Prefs; function onBlurStyleChanged() { tm.build() } }
 }

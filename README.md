@@ -101,6 +101,9 @@ island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on ev
   holds KRunner's place on the bus and KRunner's own daemon is masked (`rice.py install`).
 - **Power** (the power island, or the launcher's power button): a ripple of blur spreads over every screen
   and the session's actions come up big on yours.
+- **Blur style** (Theme page): the launcher and the power page always wear the same backdrop: *Noisy matte*
+  (your wallpaper frosted under a fine grain, a still matte finish that hides the windows) or *Clear blur* (a
+  live blur of whatever is behind, like glass). `rice.py blur matte|clear`.
 - **Status island** (replaces Plasma's system tray): your apps' tray icons with menus in the rice's look
   (a click brings the app's window back; the quiet ones rest on each other in a stack, and an app with news
   steps out of it), the system's state, and beads for apps with notifications you haven't seen. The stack

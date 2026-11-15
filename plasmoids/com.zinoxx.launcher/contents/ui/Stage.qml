@@ -88,7 +88,13 @@ Window {
     // home, the windows stay): what KRunner's shortcut and typing on the desktop open (Atom.Native's krunner
     // bridge: Shell.open("launcher", screen, null, { searchOnly: true, query }))
     property bool finder: false
+    // where clear blur ripples out from: the jewel it was opened from (Shell.anchor), else the middle
+    property point rippleOrigin: Qt.point(width / 2, height / 2)
     function begin() {
+        const a = Shell.anchor
+        rippleOrigin = a && screenObj && Shell.screen === screenName
+            ? Qt.point(a.x - screenObj.virtualX + a.width / 2, a.y - screenObj.virtualY - topGap + a.height / 2)
+            : Qt.point(width / 2, height / 2)
         pointerAt = ""
         pointerMode = false
         pointerSeenAt = Qt.point(-1, -1)
@@ -579,6 +585,16 @@ Window {
         launchFly.opacity = 1
         Qt.callLater(settleAll)
         Qt.callLater(() => keys.forceActiveFocus())
+        // the focus may be the same item as last time (or have arrived while it was closed): no change to
+        // follow, so the hero and the backdrop are given it now
+        Qt.callLater(() => {
+            const it = currentItem
+            if (!it) return
+            if (heroItems[heroSlot] !== it) heroShow(it)
+            else { const o = heroO2.slice(); o[heroSlot] = 1; heroO2 = o; const x = heroX.slice(); x[heroSlot] = 0; heroX = x }
+            bgShown = null
+            setBackdrop(it)
+        })
         if (!finder) {      // (the finder shows neither the home's art and usage nor the Theme page)
             sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" launcher-data #data')
             tm.reload()     // the Theme page's data, ready before it's asked for (rebuilt only if it changed)
@@ -588,6 +604,19 @@ Window {
     RiceShell { id: sh; onNewData: (source, data) => disconnectSource(source) }
 
     // ------------------------------------------------------------------ the backdrop
+    // the backdrop in the blur style chosen on the Theme page, as the power page wears it (Atom Backdrop):
+    // noisy matte fades in with the room; clear blur (KWin's live blur can't fade) ripples out from the jewel
+    Backdrop {
+        id: backdropStyle
+        anchors.fill: parent
+        window: stage
+        pal: stage.rice
+        origin: stage.rippleOrigin
+        radius: matte || stage.bgO >= 0.999 ? -1 : reach * stage.bgO
+        opacity: matte ? stage.bgO : 1
+        veil: matte ? 0 : 0.34
+        also: stage.finderShapes        // (the finder's plate: one blur region per window)
+    }
     Item {
         id: win
         anchors.fill: parent
@@ -597,16 +626,6 @@ Window {
             id: backdrop
             anchors.fill: parent
 
-            Image {     // the screen's wallpaper, frosted (the theme engine's glass)
-                id: wallFrost
-                anchors.fill: parent
-                anchors.margins: -stage.u(20)
-                fillMode: Image.PreserveAspectCrop
-                asynchronous: true
-                readonly property string pre: stage.rice.values._glassFull || ""
-                source: pre ? "file://" + pre : stage.rice.wallpaper ? "file://" + stage.rice.wallpaper : ""
-                sourceSize.width: pre ? 0 : 96
-            }
             // an app with no art of its own: the wallpaper, coloured with the app's own colour (its icon's
             // dominant one), and the icon large on the right (two slots, cross-faded)
             Repeater {
@@ -620,13 +639,18 @@ Window {
                     property var item: stage.bgItems[index]
                     Kirigami.ImageColors { id: glowColors; source: glow.item ? glow.item.icon : "" }
                     readonly property color c: C.appTint(glowColors, stage.rice.primary)
-                    Image {
+                    Image {     // noisy matte: the frosted wallpaper itself, coloured
                         anchors.fill: parent
-                        anchors.margins: -stage.u(20)
                         fillMode: Image.PreserveAspectCrop
-                        source: wallFrost.source
-                        layer.enabled: glow.visible
+                        visible: backdropStyle.matte
+                        source: visible ? backdropStyle.frostSource : ""
+                        layer.enabled: glow.visible && visible
                         layer.effect: MultiEffect { colorization: 0.55; colorizationColor: glow.c; brightness: 0.04 }
+                    }
+                    Rectangle {     // clear blur: a wash of its colour over the live blur
+                        anchors.fill: parent
+                        visible: !backdropStyle.matte
+                        color: C.alpha(glow.c, 0.2)
                     }
                     Kirigami.Icon {
                         x: parent.width * 0.94 - width; y: parent.height * 0.04
@@ -728,10 +752,11 @@ Window {
             // breaks the bands up (dithering)
             Image {
                 anchors.fill: parent
-                source: Qt.resolvedUrl("../images/grain.png")
+                visible: backdropStyle.matte        // (clear blur is clear: no grain)
+                source: visible ? backdropStyle.grain : ""
                 fillMode: Image.Tile
                 smooth: false
-                opacity: stage.rice.light ? 0.035 : 0.05
+                opacity: backdropStyle.grainAlpha
             }
         }
     }
@@ -760,6 +785,14 @@ Window {
         }
     }
 
+    // the finder's plate is blurred behind (KWin), through the backdrop's blur (one region per window)
+    readonly property var finderShapes: {
+        if (!finderCard.visible || finderCard.opacity < 0.5) return []
+        finderCard.x; finderCard.y; finderCard.width; finderCard.height          // (mapToItem alone doesn't follow them)
+        const p = finderCard.mapToItem(null, 0, 0)
+        return [{ x: p.x, y: p.y, width: finderCard.width, height: finderCard.height, radius: finderCard.radius }]
+    }
+
     // ------------------------------------------------------------------ the text's scrims (see the backdrop)
     function relLum(c) { const f = v => v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b) }
     // how strong a scrim of the darkest surface must be over a backdrop of luminance Yb for text of colour
@@ -779,7 +812,10 @@ Window {
     // measured: careful
     readonly property var lightNow: {
         const w = rice.values._backdrop || ({})
-        const base = { top: w.top ?? 0.35, hero: w.hero ?? 0.35, rows: w.rows ?? 0.35 }
+        // (clear blur: the live blur of the cleared desktop, near the frost's measure, under the backdrop's veil)
+        const v = backdropStyle.veil, g = y => Math.pow(Math.max(0, y), 1 / 2.2), Ys = relLum(rice.surfaceLowest)
+        const veiled = y => v > 0 ? Math.pow(v * g(Ys) + (1 - v) * g(y), 2.2) : y
+        const base = { top: veiled(w.top ?? 0.35), hero: veiled(w.hero ?? 0.35), rows: veiled(w.rows ?? 0.35) }
         const it = bgShown
         const careful = { top: 0.6, hero: 0.6, rows: 0.6 }
         if (theming && it && it.kind) return careful
@@ -1307,15 +1343,7 @@ Window {
                 border.color: C.alpha(stage.rice.edge, 0.14)
                 MouseArea { anchors.fill: parent }     // a click on the plate isn't a click outside
             }
-            BlurBehind {
-                window: stage
-                shapes: {
-                    if (!finderCard.visible || finderCard.opacity < 0.5) return []
-                    finderCard.x; finderCard.y          // (mapToItem alone doesn't follow them)
-                    const p = finderCard.mapToItem(null, 0, 0)
-                    return [{ x: p.x, y: p.y, width: finderCard.width, height: finderCard.height, radius: finderCard.radius }]
-                }
-            }
+
             Rectangle {
                 id: field
                 x: M.lerp(searchLayer.from.x, searchLayer.to.x, stage.searchP)
@@ -1549,6 +1577,7 @@ Window {
             accent: { eyebrow: "Accent · " + it.role, primary: "Edit colour", icon: "colorize" },
             size: { eyebrow: "Desktop size", primary: "Use this size", icon: "format_size" },
             lsize: { eyebrow: "Launcher size", primary: "Use this size", icon: "fit_screen" },
+            blur: { eyebrow: "Blur style", primary: "Use this style", icon: "blur_on" },
             light: { eyebrow: "Lighting", primary: "Use on both keyboards", icon: "keyboard" },
         }[it.kind]
         t.extra = []
