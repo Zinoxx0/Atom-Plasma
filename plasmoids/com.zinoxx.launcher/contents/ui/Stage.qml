@@ -664,8 +664,8 @@ Window {
             if (!it) return
             if (heroItems[heroSlot] !== it) heroShow(it)
             else { const o = heroO2.slice(); o[heroSlot] = 1; heroO2 = o; const x = heroX.slice(); x[heroSlot] = 0; heroX = x }
-            bgShown = null
-            setBackdrop(it)
+            room.shown = null
+            room.show(it)
         })
         if (!finder) {      // (the finder shows neither the home's art and usage nor the Theme page)
             sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" launcher-data #data')
@@ -691,155 +691,11 @@ Window {
         grained: false                  // (the grain goes over the scrims: the launcher draws it, last)
         also: stage.finderShapes        // (the finder's plate: one blur region per window)
     }
-    Item {
-        id: win
+    StageRoom {
+        id: room
         anchors.fill: parent
-        opacity: stage.bgO
-        visible: stage.phase !== "closed" && opacity > 0.001
-        Item {
-            id: backdrop
-            anchors.fill: parent
-
-            // an app with no art of its own: the wallpaper, coloured with the app's own colour (its icon's
-            // dominant one), and the icon large on the right (two slots, cross-faded)
-            Repeater {
-                model: 2
-                Item {
-                    id: glow
-                    required property int index
-                    anchors.fill: parent
-                    opacity: stage.bgSlot === index ? stage.bgGlow[index] : 0
-                    visible: opacity > 0.001
-                    property var item: stage.bgItems[index]
-                    Kirigami.ImageColors { id: glowColors; source: glow.item ? glow.item.icon : "" }
-                    readonly property color c: C.appTint(glowColors, stage.rice.primary)
-                    Image {     // noisy matte: the frosted wallpaper itself, coloured
-                        anchors.fill: parent
-                        fillMode: Image.PreserveAspectCrop
-                        visible: backdropStyle.matte
-                        source: visible ? backdropStyle.frostSource : ""
-                        layer.enabled: glow.visible && visible
-                        layer.effect: MultiEffect { colorization: 0.55; colorizationColor: glow.c; brightness: 0.04 }
-                    }
-                    Rectangle {     // clear blur: a breath of its colour on the glass
-                        anchors.fill: parent
-                        visible: backdropStyle.glass
-                        color: C.alpha(glow.c, 0.08)
-                    }
-                    Kirigami.Icon {     // (a blurred filter: not in no blur)
-                        x: parent.width * 0.94 - width; y: parent.height * 0.04
-                        width: parent.height * 0.46; height: width
-                        visible: !backdropStyle.sharp
-                        source: glow.item && visible ? glow.item.icon : ""
-                        opacity: 0.5
-                        layer.enabled: glow.visible && visible
-                        layer.effect: MultiEffect { blurEnabled: true; blur: 1; blurMax: 64; saturation: 0.4 }
-                    }
-                }
-            }
-            // a game fills it with its own art, drifting a little as it arrives
-            Repeater {
-                model: 2
-                Image {
-                    id: art
-                    required property int index
-                    x: 0; y: 0
-                    width: parent.width
-                    height: parent.height * 0.78
-                    fillMode: Image.PreserveAspectCrop
-                    verticalAlignment: Image.AlignTop
-                    asynchronous: true
-                    source: stage.bgItems[index] && stage.bgItems[index].art ? stage.bgItems[index].art.hero : ""
-                    opacity: stage.bgSlot === index ? stage.bgArt[index] : 0
-                    visible: opacity > 0.001
-                    transformOrigin: Item.Top
-                    layer.enabled: visible
-                    layer.effect: MultiEffect {     // fades into the room at the bottom
-                        maskEnabled: true
-                        maskSource: artMask
-                        maskThresholdMin: 0.5       // with the spread: smoothstep over the mask's whole 0..1 alpha
-                        maskSpreadAtMin: 1.0        // (the defaults let every pixel through: a hard cut where the art ends)
-                    }
-                    NumberAnimation on scale { id: drift; running: false; from: 1.07; to: 1; duration: Tokens.ms(9000); easing.type: Easing.BezierSpline; easing.bezierCurve: [0.22, 0.6, 0.3, 1, 1, 1] }
-                    onSourceChanged: if (source != "" && !stage.launcher.unplugged && !stage.launcher.saverOn) drift.restart(); else { drift.stop(); scale = 1 }
-                }
-            }
-            Repeater {
-                model: 2
-                Item {
-                    id: paper
-                    required property int index
-                    anchors.fill: parent
-                    readonly property var it: stage.paperItems[index]
-                    opacity: stage.bgSlot === index ? stage.bgPaper[index] : 0
-                    visible: opacity > 0.001
-                    Image {
-                        anchors.fill: parent
-                        fillMode: Image.PreserveAspectCrop
-                        source: paper.it && paper.it.thumb ? "file://" + paper.it.thumb : ""
-                        smooth: true
-                    }
-                    Image {
-                        anchors.fill: parent
-                        fillMode: Image.PreserveAspectCrop
-                        asynchronous: true
-                        sourceSize: Qt.size(stage.width, stage.height)
-                        source: paper.it && paper.it.image ? "file://" + paper.it.image : ""
-                        opacity: status === Image.Ready ? 1 : 0
-                        Behavior on opacity { NumberAnimation { duration: Tokens.ms(300) } }
-                    }
-                }
-            }
-            // Text over a picture reads by measure, not by luck: the theme engine says how bright the backdrop
-            // gets under the hero and under the rows (the palette's _backdrop for this screen's frosted
-            // wallpaper; a game's banner its own, launcher-data's light), and a scrim of the palette's darkest
-            // surface comes in exactly as strong as the dimmest text there needs for 4.5:1, and no stronger
-            // (a blanket shade turned every wallpaper into the same dark mud)
-            Rectangle {     // under the hero: from the left
-                anchors.fill: parent
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { position: 0; color: C.alpha(stage.rice.surfaceLowest, stage.scrimHero) }
-                    GradientStop { position: 0.4; color: C.alpha(stage.rice.surfaceLowest, stage.scrimHero) }
-                    GradientStop { position: 0.62; color: C.alpha(stage.rice.surfaceLowest, stage.scrimHero * 0.45) }
-                    GradientStop { position: 0.85; color: C.alpha(stage.rice.surfaceLowest, 0) }
-                }
-            }
-            Rectangle {     // under the rows: one smooth curve from 0% at the top to the bottom of the screen (rowsCurve)
-                anchors.fill: parent
-                gradient: Gradient {
-                    GradientStop { position: stage.rowsCurve[0].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[0].a) }
-                    GradientStop { position: stage.rowsCurve[1].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[1].a) }
-                    GradientStop { position: stage.rowsCurve[2].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[2].a) }
-                    GradientStop { position: stage.rowsCurve[3].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[3].a) }
-                    GradientStop { position: stage.rowsCurve[4].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[4].a) }
-                    GradientStop { position: stage.rowsCurve[5].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[5].a) }
-                    GradientStop { position: stage.rowsCurve[6].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[6].a) }
-                    GradientStop { position: stage.rowsCurve[7].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[7].a) }
-                    GradientStop { position: stage.rowsCurve[8].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[8].a) }
-                    GradientStop { position: stage.rowsCurve[9].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[9].a) }
-                    GradientStop { position: stage.rowsCurve[10].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[10].a) }
-                    GradientStop { position: stage.rowsCurve[11].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[11].a) }
-                    GradientStop { position: stage.rowsCurve[12].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[12].a) }
-                    GradientStop { position: stage.rowsCurve[13].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[13].a) }
-                    GradientStop { position: stage.rowsCurve[14].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[14].a) }
-                    GradientStop { position: stage.rowsCurve[15].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[15].a) }
-                    GradientStop { position: stage.rowsCurve[16].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[16].a) }
-                    GradientStop { position: stage.rowsCurve[17].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[17].a) }
-                    GradientStop { position: stage.rowsCurve[18].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[18].a) }
-                }
-            }
-            // a fine grain over it all: the dark, smooth gradients of a blurred picture band in 8 bits; noise
-            // breaks the bands up (dithering)
-            Image {
-                anchors.fill: parent
-                visible: backdropStyle.matte        // (clear blur is clear: no grain)
-                source: visible ? backdropStyle.grain : ""
-                fillMode: Image.Tile
-                smooth: false
-                opacity: backdropStyle.grainAlpha
-            }
-        }
+        stage: stage
+        style: backdropStyle
     }
     Rectangle {     // the rows' fade at the bottom (when there are more below)
         id: rowsMask
@@ -852,18 +708,6 @@ Window {
             GradientStop { position: Math.min(0.4, stage.u(46) / Math.max(1, rowsBox.height)); color: "black" }
             GradientStop { position: Math.max(0.6, 1 - stage.u(40) / Math.max(1, rowsBox.height)); color: "black" }
             GradientStop { position: 1; color: rowsBox.overflow ? "transparent" : "black" }
-        }
-    }
-    Rectangle {     // the game art's fade into the room
-        id: artMask
-        width: stage.width
-        height: stage.height * 0.78
-        visible: false
-        layer.enabled: true
-        gradient: Gradient {
-            GradientStop { position: 0; color: "black" }
-            GradientStop { position: 0.45; color: "black" }
-            GradientStop { position: 1; color: "transparent" }
         }
     }
 
@@ -889,7 +733,7 @@ Window {
         const v = backdropStyle.veil, g = y => Math.pow(Math.max(0, y), 1 / 2.2), Ys = C.luminance(rice.surfaceLowest)
         const veiled = y => v > 0 ? Math.pow(v * g(Ys) + (1 - v) * g(Math.max(y, 0.35)), 2.2) : y
         const base = { top: veiled(w.top ?? 0.35), hero: veiled(w.hero ?? 0.35), rows: veiled(w.rows ?? 0.35) }
-        const it = bgShown
+        const it = room.shown
         const careful = { top: 0.6, hero: 0.6, rows: 0.6 }
         if (theming && it && it.kind) return careful
         const l = it && it.art && it.art.hero ? it.art.light : null
@@ -915,57 +759,13 @@ Window {
     onLightNowChanged: if (Shell.debug) console.warn("ATOM home scrim hero", scrimFor(lightNow.hero, rice.fgDim, 4.5).toFixed(2), "rows", scrimFor(lightNow.rows, rice.fgDim, 4.5).toFixed(2))
 
     // ------------------------------------------------------------------ the backdrop follows the focus
-    property var bgItems: [null, null]
-    property var paperItems: [null, null]       // the Theme page: { thumb, image } of the wallpaper shown
-    property var bgPaper: [0, 0]
-    property var bgArt: [0, 0]
-    property var bgGlow: [0, 0]
-    property int bgSlot: 0
-    property var bgShown: null
-    Timer { id: bgDelay; interval: 110; onTriggered: stage.setBackdrop(stage.currentItem) }
+    Timer { id: bgDelay; interval: 110; onTriggered: room.show(stage.currentItem) }
     onCurrentItemChanged: { if (phase === "closed") return; heroShow(currentItem); bgDelay.restart() }
     function paperOf(it) {
         if (it.kind === "wall") return { thumb: it.thumb, image: it.path }
         if (it.kind === "look") return { thumb: it.thumb, image: it.image }
         const here = tm.screens.find(s => s.name === screenName)
         return here ? { thumb: here.thumb, image: here.image } : { thumb: "", image: rice.wallpaper }
-    }
-    function setBackdrop(it) {
-        if (!it || it === bgShown || it.ctl) return          // (a row's "Show more" keeps the room as it is)
-        bgShown = it
-        const next = bgSlot ^ 1
-        const items = bgItems.slice(); items[next] = it.kind ? null : it; bgItems = items
-        const papers = paperItems.slice(); papers[next] = it.kind ? paperOf(it) : null; paperItems = papers
-        bgFade.paper = !!it.kind
-        const hasArt = !!(it.art && it.art.hero)
-        bgFade.slotFrom = bgSlot
-        bgFade.slotTo = next
-        bgFade.art = hasArt
-        bgSlot = next
-        bgFade.restart()
-    }
-    NumberAnimation {
-        id: bgFade
-        property int slotFrom: 0
-        property int slotTo: 1
-        property bool art: false
-        property bool paper: false
-        target: bgFade; property: "v"; from: 0; to: 1
-        duration: Math.max(Tokens.ms(420), Math.round(stage.focusMs * 1.8))
-        easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove
-        property real v: 0
-        onVChanged: {
-            const a = stage.bgArt.slice(), g = stage.bgGlow.slice(), w = stage.bgPaper.slice()
-            a[slotTo] = art && !paper ? v * 0.9 : 0
-            g[slotTo] = art || paper ? 0 : v
-            w[slotTo] = paper ? v : 0
-            a[slotFrom] = a[slotFrom] * (1 - v)
-            g[slotFrom] = g[slotFrom] * (1 - v)
-            w[slotFrom] = w[slotFrom] * (1 - v)
-            stage.bgArt = a
-            stage.bgGlow = g
-            stage.bgPaper = w
-        }
     }
 
     // ------------------------------------------------------------------ the content: comes forward as one
@@ -1591,7 +1391,8 @@ Window {
             }
         }
     }
-    // the frosted card's texture (the screen's glass, as the old stage had it)
+    // the frosted card's texture (the screen's glass, as the old stage had it): loaded only while the card
+    // shows (a screen-sized picture: it was decoded for every launcher, used or not)
     Item {
         id: frostArt
         width: stage.width
@@ -1599,8 +1400,10 @@ Window {
         Image {
             anchors.fill: parent
             fillMode: Image.PreserveAspectCrop
+            asynchronous: true
             readonly property string pre: stage.rice.values._glassFull || ""
-            source: pre ? "file://" + pre : stage.rice.wallpaper ? "file://" + stage.rice.wallpaper : ""
+            readonly property bool needed: stage.launcher.view === "walls"
+            source: !needed ? "" : pre ? "file://" + pre : stage.rice.wallpaper ? "file://" + stage.rice.wallpaper : ""
             sourceSize.width: pre ? 0 : 96
         }
     }
