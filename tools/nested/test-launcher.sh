@@ -5,7 +5,8 @@
 # active window's screen; the palette opens the Theme page (the themes, then its groups, all closed whenever it
 # opens: Enter on a header opens it; the arrows walk it, up reaches a row's own tools in its header, "Find more
 # online" opens the detailed panels, Esc leaves them, then the page; a size slider takes left and right and
-# applies once the keys pause); a pretend game controller (pad.py) walks and opens it too. Nothing on the Theme page is APPLIED here: rice.py
+# applies once the keys pause); a left click on bare space keeps it open, a right click closes it; a pretend
+# game controller (pad.py) walks and opens it too. Nothing on the Theme page is APPLIED here: rice.py
 # and rgb.py would change the user's real theme and keyboards. Screenshots in the logs folder. Exit 0 = all good.
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
@@ -85,6 +86,9 @@ step "pointer on a tile [$P]"; $F move 900 300 wait 100 glide 900 300 ${P:-640 7
 step "pointer still, keys"; $F key 106 wait 600 key 105 wait 600
 step "pad";             python3 "$REPO/tools/nested/pad.py" down right north; $F wait 1200; shot l-pad
 step "pad back";        python3 "$REPO/tools/nested/pad.py" east; $F wait 900
+step "left click, bare"; $F move 1450 760 click wait 900; shot l-left-click     # (bare space: a left click keeps it open)
+step "right click, bare"; $F move 1452 760 click right wait 1300                # (a right click closes it)
+step "meta reopens";    qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu; $F wait 2200
 step "meta closes";     qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu; $F wait 1200; shot l-meta-closed
 step "type y (app?)";   $F type "y" wait 300
 step "meta again";      qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu; $F wait 2200
@@ -128,6 +132,10 @@ notbetween "...and the still pointer didn't grab it back" "pointer still, keys" 
 after "the pad walked down"           "pad" 'ATOM home tab 0 row 1 .*(key)'
 after "...and its Y opened the Theme page" "pad" 'ATOM home tab 3'
 after "...and its B left it"          "pad back" 'ATOM home tab 0 row'
+between() { sed -n "/ATOM ## $2/,/ATOM ## $3/p" "$L" | grep -q -- "$4" && echo "ok   $1" || { echo "FAIL $1"; fail=1; }; }
+between "a left click on bare space was seen" "left click, bare" "right click, bare" 'ATOM stage bare click left'
+notbetween "...and didn't close the launcher" "left click, bare" "right click, bare" 'shell kind ""'
+between "a right click there closed it"  "right click, bare" "meta reopens" 'shell kind ""'
 after "the pad's B closed the launcher"  "pad closes" 'shell kind ""'
 check "...and the keyboard came back"     'app typed "axyz"' "$N/out/app.log"
 after "...and plasmashell lived on (it crashed here once)" "meta after the pad" 'shell kind "launcher"'

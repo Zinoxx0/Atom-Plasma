@@ -658,6 +658,14 @@ Window {
         pg.scrollToY(t, animate)
     }
     function scrollPage(animate) { ensureVisible(animate) }
+    // a click on bare space (the backdrop, the page between the rows): the right button closes the launcher; the
+    // left one never does (the user, 2026-11-15: a missed tile closing it was annoying). Out of the detailed
+    // panels (the frosted card), either one comes back to the launcher.
+    function bareClick(button) {
+        if (Shell.debug) console.warn("ATOM stage bare click", button === Qt.RightButton ? "right" : "left")
+        if (launcher.view === "walls") launcher.view = "apps"
+        else if (button === Qt.RightButton) launcher.close()
+    }
     // the wheel (and a touchpad) scrolls the page, as a page; the keys and the pad walk the focus
     function onWheel(ev, pos) {
         const pg = pagesRep.itemAt(tab)
@@ -803,16 +811,13 @@ Window {
         readonly property point pointerPos: pointerWatch.point.position
         onPointerPosChanged: stage.pointerMoved(pointerPos)
 
-        MouseArea {     // bare backdrop: a click closes it (a click: not a drag or a swipe that ended here)
+        MouseArea {     // bare backdrop: a right click closes it (a click: not a drag or a swipe that ended here)
             anchors.fill: parent
             enabled: stage.phase === "open" && !stage.searchOpen
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             property point at
             onPressed: mouse => at = Qt.point(mouse.x, mouse.y)
-            onClicked: mouse => {
-                if (Math.hypot(mouse.x - at.x, mouse.y - at.y) > 12) return
-                if (stage.launcher.view === "walls") stage.launcher.view = "apps"; else stage.launcher.close()
-            }
+            onClicked: mouse => { if (Math.hypot(mouse.x - at.x, mouse.y - at.y) <= 12) stage.bareClick(mouse.button) }
         }
 
         Item {
@@ -933,16 +938,13 @@ Window {
                                 pressDelay: 0
                                 onMovementStarted: { scrollAnim.stop(); stage.quietUntil = Date.now() + 200 }
                                 onMovementEnded: if (Shell.debug) console.warn("ATOM page dragged to", Math.round(contentY))
-                                MouseArea {     // the bare page between the rows: a click there closes it (as the backdrop's)
+                                MouseArea {     // the bare page between the rows: as the backdrop (stage.bareClick)
                                     width: flick.width
                                     height: Math.max(flick.height, flick.contentHeight)
                                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                                     property point at
                                     onPressed: mouse => at = Qt.point(mouse.x, mouse.y)
-                                    onClicked: mouse => {
-                                        if (flick.moving || Math.hypot(mouse.x - at.x, mouse.y - at.y) > 12) return
-                                        if (stage.launcher.view === "walls") stage.launcher.view = "apps"; else stage.launcher.close()
-                                    }
+                                    onClicked: mouse => { if (!flick.moving && Math.hypot(mouse.x - at.x, mouse.y - at.y) <= 12) stage.bareClick(mouse.button) }
                                 }
                             Column {
                                 id: col

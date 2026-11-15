@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Launcher**
+- A left click on empty space no longer closes it (a missed tile did); a right click still does.
+
 **Theme page**
 - Hovering from one wallpaper to the next fades straight between them (it cut back to the wallpaper in use
   first), each one once its picture has loaded; items that show the same picture (colours, sizes) leave it
