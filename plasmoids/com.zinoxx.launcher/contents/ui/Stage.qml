@@ -457,6 +457,7 @@ Window {
     }
     function themeStep(dx, dy) {
         const st = pageState(), line = st.line || "tiles", r = rowObj(st.row)
+        if (dy && line === "tiles" && lineStep(dy)) return     // a row of several lines: its lines first
         if (dy < 0) {
             if (line === "desk") { setLine("top", undefined, topItems.indexOf("theme")); return }
             if (line === "tiles" && firstTool(r, 0, 1) >= 0) { setLine("tools", st.row, firstTool(r, 0, 1)); return }
@@ -525,10 +526,14 @@ Window {
     function logFocus(from) {
         const it = currentItem
         console.warn("ATOM home tab", tab, "row", pageState().row, "item", it ? (it.name || it.key || "") : "-", from ? "(" + from + ")" : "")
-        Qt.callLater(() => {        // where the focused tile is now (the tests drag its row)
-            const t = currentTile()
-            if (t) { const p = t.mapToItem(null, t.width / 2, t.height / 2); console.warn("ATOM home focus at", Math.round(screenObj.virtualX + p.x), Math.round(screenObj.virtualY + topGap + p.y)) }
-        })
+        focusLog.restart()          // where the focused tile is, once the page has stopped scrolling (the tests use it)
+        if (theming) logLater.restart()
+    }
+    // where the Theme page's actions and tools sit, once the page has stopped scrolling (the tests click them)
+    Timer { id: focusLog; interval: Math.round(stage.focusMs * 1.6) + 120
+            onTriggered: { const t = stage.currentTile(); if (t) { const p = t.mapToItem(null, t.width / 2, t.height / 2); console.warn("ATOM home focus at", Math.round(stage.screenObj.virtualX + p.x), Math.round(stage.screenObj.virtualY + stage.topGap + p.y)) } } }
+    Timer { id: logLater; interval: Math.round(stage.focusMs * 1.6) + 120; onTriggered: stage.logThemeParts() }
+    function logThemeParts() {
         if (theming) Qt.callLater(() => {      // the hero's own actions, where they sit (once it has laid out)
             const h = heroRep.itemAt(heroSlot)
             const th = h ? h.th : null
@@ -943,11 +948,16 @@ Window {
         readonly property point pointerPos: pointerWatch.point.position
         onPointerPosChanged: stage.pointerMoved(pointerPos)
 
-        MouseArea {     // bare backdrop: a click closes it
+        MouseArea {     // bare backdrop: a click closes it (a click: not a drag or a swipe that ended here)
             anchors.fill: parent
             enabled: stage.phase === "open" && !stage.searchOpen
             acceptedButtons: Qt.LeftButton | Qt.RightButton
-            onClicked: { if (stage.launcher.view === "walls") stage.launcher.view = "apps"; else stage.launcher.close() }
+            property point at
+            onPressed: mouse => at = Qt.point(mouse.x, mouse.y)
+            onClicked: mouse => {
+                if (Math.hypot(mouse.x - at.x, mouse.y - at.y) > 12) return
+                if (stage.launcher.view === "walls") stage.launcher.view = "apps"; else stage.launcher.close()
+            }
         }
 
         Item {
@@ -1285,7 +1295,12 @@ Window {
                                     width: flick.width
                                     height: Math.max(flick.height, flick.contentHeight)
                                     acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                    onClicked: { if (stage.launcher.view === "walls") stage.launcher.view = "apps"; else stage.launcher.close() }
+                                    property point at
+                                    onPressed: mouse => at = Qt.point(mouse.x, mouse.y)
+                                    onClicked: mouse => {
+                                        if (flick.moving || Math.hypot(mouse.x - at.x, mouse.y - at.y) > 12) return
+                                        if (stage.launcher.view === "walls") stage.launcher.view = "apps"; else stage.launcher.close()
+                                    }
                                 }
                             Column {
                                 id: col

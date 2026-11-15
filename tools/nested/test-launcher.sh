@@ -65,14 +65,15 @@ step "theme down";      $F move 800 20 key 108 wait 900; shot l-tools          #
 step "tools right";     $F key 106 wait 500
 step "down to the walls"; $F key 108 wait 1200; shot l-theme-walls
 W=$(grep -o 'ATOM home focus at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $NF}')      # the walls row (it has the focus)
-step "drag walls [$W]";  $F drag 1300 ${W:-550} 500 ${W:-550} wait 1200; shot l-drag
+step "drag the page [$W]"; $F drag 800 ${W:-550} 800 $(( ${W:-550} - 200 )) wait 1200; shot l-drag      # (dragging moves the page up)
+step "back up";         $F move 800 300 wait 200 drag 800 300 800 700 wait 900 key 103 wait 300 key 103 wait 1200    # (a swipe on the hero: never a click; then to the tools)
 X=$(grep -o 'ATOM theme tool walls:discover at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $(NF-1), $NF}')
 step "find more [$X]";  $F move ${X:-400 390} click wait 1400; shot l-fine
 step "fine-tune back";  $F key 1 wait 600 key 1 wait 900      # the search it opened on, then the panel
 step "theme back";      $F key 1 wait 1200; shot l-theme-back
-step "wheel down";      $F move 800 620 wait 300 wheel 15 wait 1000; shot l-wheel
+step "wheel down";      $F move 800 620 wait 300 wheel 15 wait 1000; shot l-wheel     # (the wheel scrolls the page)
 step "wheel up";        $F move 802 620 wait 300 wheel -15 wait 1000
-step "keys first";      $F key 106 wait 600
+step "keys first";      $F key 106 wait 1300
 P=$(grep -o 'ATOM home focus at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $(NF-1) + 110, $NF}')    # the next tile along
 step "pointer on a tile [$P]"; $F move 900 300 wait 100 glide 900 300 ${P:-640 700} 250 wait 700; shot l-hover
 step "pointer still, keys"; $F key 106 wait 600 key 105 wait 600
@@ -102,15 +103,14 @@ check "right walked the tools"      'ATOM theme line tools row 1 tool walls:fold
 check "Find more opened the panels" 'ATOM stage view walls' "$L"
 after() { sed -n "/ATOM ## $2/,\$p" "$L" | grep -q -- "$3" && echo "ok   $1" || { echo "FAIL $1"; fail=1; }; }
 after "Esc left the Theme page"     "theme back" 'ATOM home tab 0 row'
-after "dragging moved the wallpapers" "drag walls" 'ATOM row walls dragged to'
-after "the wheel walked down a row"   "wheel down" 'ATOM home tab 0 row 1'
-after "...and back up"                "wheel up" 'ATOM home tab 0 row 0'
-after "the pointer moving took over"  "pointer on a tile" 'ATOM home input pointer'
-after "...and focused what it rested on" "pointer on a tile" '(mouse,'
-after "a key took it back"            "pointer still, keys" 'ATOM home input keys'
+after "dragging moved the page"       "drag the page" 'ATOM page dragged to [1-9]'
 notbetween() { sed -n "/ATOM ## $2/,/ATOM ## $3/p" "$L" | grep -q -- "$4" && { echo "FAIL $1"; fail=1; } || echo "ok   $1"; }
-notbetween "...and the still pointer didn't grab it back" "pointer still, keys" "pad" '(mouse,'
-after "the pad walked down"           "pad" 'ATOM home tab 0 row 1 .*(key'
+notbetween "the wheel scrolled, it didn't walk the focus" "wheel down" "keys first" 'ATOM home tab 0 row 1'
+after "the pointer moving took over"  "pointer on a tile" 'ATOM home input pointer'
+after "...and focused what it rested on" "pointer on a tile" '(mouse)'
+after "a key took it back"            "pointer still, keys" 'ATOM home input keys'
+notbetween "...and the still pointer didn't grab it back" "pointer still, keys" "pad" '(mouse)'
+after "the pad walked down"           "pad" 'ATOM home tab 0 row 1 .*(key)'
 after "...and its Y opened the Theme page" "pad" 'ATOM home tab 3'
 after "...and its B left it"          "pad back" 'ATOM home tab 0 row'
 swap=$(grep -o 'ATOM home tab swap [0-9]*' "$L" | awk '{print $NF}' | sort -n | tail -1)

@@ -138,13 +138,17 @@ QtObject {
         delete next[scr]
         cleared = next
         if (Shell.debug) console.warn("ATOM windows restored", scr, ids.length)
+        let last = null
         for (const id of ids) {
             for (let i = 0; i < tasks.count; i++) {
                 const idx = tasks.index(i, 0)
                 if (tasks.data(idx, R.IsMinimized) !== true) continue
-                if (idsAt(idx).indexOf(id) >= 0) { tasks.requestToggleMinimized(idx); break }
+                if (idsAt(idx).indexOf(id) >= 0) { tasks.requestToggleMinimized(idx); last = idx; break }
             }
         }
+        // the one used most recently gets the keyboard back (it had it before): a window brought back after
+        // the shell's surface is gone isn't activated by KWin on its own
+        if (last) tasks.requestActivate(last)
     }
     // ------------------------------------------------------------------ an app's window, from its tray icon
     // A tray icon knows its app's process; the app's window has the same one (else it goes by app id).
