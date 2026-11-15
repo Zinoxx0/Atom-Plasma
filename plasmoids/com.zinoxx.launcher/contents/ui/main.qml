@@ -42,7 +42,8 @@ PlasmoidItem {
     // until the item sits in its panel window, Screen.name reports the primary screen
     readonly property var myScreen: root.Window.window ? (screens.find(sc => sc.name === Screen.name) ?? null) : null
     readonly property string myScreenName: myScreen ? myScreen.name : ""
-    readonly property bool shown: Shell.kind === "launcher" && Shell.screen === myScreenName
+    // (also under the power page opened from it: still open, beneath)
+    readonly property bool shown: Shell.screen === myScreenName && (Shell.kind === "launcher" || (!!Shell.under && Shell.under.kind === "launcher"))
     // the bar is docked (a window touches it or is maximized on its screen: its islands flatten, square):
     // Plasma's own panel item says so (Panel.qml touchingWindow, what the bar's looks switch on)
     readonly property var panelElement: { let c = root.parent; while (c) { if (c.hasOwnProperty("touchingWindow")) return c; c = c.parent } return null }

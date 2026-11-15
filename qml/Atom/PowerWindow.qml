@@ -57,6 +57,9 @@ Window {
     readonly property bool wanted: Shell.kind === "power"
     readonly property bool lead: wanted && Shell.screen === screenName
     property bool wasLead: false                // keeps the actions while it folds away
+    // opened from the launcher, over it (Shell.under): one room, the launcher's backdrop; the power page
+    // brings only its veil and its actions, rippling out of the launcher's power button, and folds back into it
+    property bool overHome: false
     property string phase: "closed"
     property real p: 0                          // the ripple: 0 = a point, 1 = the whole screen
     property real innerV: 0                     // you and the actions: 0 = gone, 1 = here
@@ -79,14 +82,14 @@ Window {
     onOpenTChanged: if (phase === "opening") applyOpen(openT)
     onCloseTChanged: if (phase === "closing") applyClose(closeT)
     function applyOpen(t) {
-        const d = rippleMs
+        const d = rippleMs, late = overHome ? d * 0.06 : 0      // (over the launcher: once its content has stepped back)
         p = M.track(t, 0, d, M.move)
-        innerV = M.track(t, d * 0.3, d * 0.9, M.enter)
-        actV = actV.map((_, i) => M.track(t, d * 0.4 + i * staggerMs, d * 0.8, M.enter))
+        innerV = M.track(t, d * 0.3 + late, d * 0.9, M.enter)
+        actV = actV.map((_, i) => M.track(t, d * 0.4 + late + i * staggerMs, d * 0.8, M.enter))
     }
     function applyClose(t) {
         const d = closeTotal
-        innerV = i0 * (1 - M.track(t, 0, d * 0.45, M.exit))
+        innerV = i0 * (1 - M.track(t, 0, d * (overHome ? 0.36 : 0.45), M.exit))     // (over the launcher: gone before it comes back)
         p = p0 * (1 - M.track(t, d * 0.1, d * 0.9, M.move))
     }
     onWantedChanged: wanted ? begin() : end()
@@ -96,6 +99,7 @@ Window {
         origin = here && a && screenObj ? Qt.point(a.x - screenObj.virtualX + a.width / 2, a.y - screenObj.virtualY + a.height / 2)
                                         : Qt.point(width / 2, height / 2)
         wasLead = here
+        overHome = here && !!Shell.under && Shell.under.kind === "launcher" && Shell.under.screen === screenName
         closeClock.stop()
         cancelCount()
         sel = 0
@@ -148,10 +152,16 @@ Window {
     readonly property real r: reach * p
     // the ripple of backdrop: the blur style chosen on the Theme page (Backdrop: noisy matte, the frosted
     // wallpaper under a grain; clear blur, KWin's live blur), under a veil of the palette's darkest surface
+    // (over the launcher it was opened from: only the veil, the launcher's room under it; see `overHome`)
     Backdrop {
         anchors.fill: parent
         window: pw
         pal: pal
+        style: pw.overHome ? "veil" : Prefs.blurStyle
+        grainy: Prefs.blurStyle === "matte"
+        // (over the launcher its own grain still shows through the veil, faded: together they come to the one
+        // grain, as noise adds: measured, 4.0 against 3.7 at the full strength)
+        grainAlpha: pw.overHome ? Prefs.grainAlpha * Math.sqrt(1 - Math.pow(1 - veil, 2)) : Prefs.grainAlpha
         origin: pw.origin
         radius: pw.p >= 1 ? -1 : pw.r
         visible: pw.phase !== "closed" && pw.r > 0.5
@@ -159,7 +169,7 @@ Window {
         // theme engine's measure of it needs for the dim text to read, 4.5:1; the other styles soften it)
         readonly property var sharpLight: pal.values._backdropSharp || ({})
         veil: Math.max(pw.wasLead ? Prefs.glassVeil : Prefs.glassVeil * 0.7,
-                       style === "none" && pw.wasLead ? C.scrim(Math.max(sharpLight.hero ?? 0.6, sharpLight.rows ?? 0.6), pal.fgDim, pal.surfaceLowest, 4.5) : 0)
+                       Prefs.blurStyle === "none" && pw.wasLead ? C.scrim(Math.max(sharpLight.hero ?? 0.6, sharpLight.rows ?? 0.6), pal.fgDim, pal.surfaceLowest, 4.5) : 0)
     }
     // a click anywhere on the blur folds it away
     MouseArea {
@@ -213,7 +223,7 @@ Window {
     function run(a) {
         const cmd = a.confirms ? a.now : a.cmd
         cancelCount()
-        Shell.close("power")
+        Shell.close("power", true)              // (all: the launcher under it goes too)
         if (Shell.debug) { console.warn("ATOM power run", a.id); return }      // the nested tests: never for real
         sh.connectSource(cmd + " #run")         // a fixed set of commands: fixed names (RiceShell)
     }

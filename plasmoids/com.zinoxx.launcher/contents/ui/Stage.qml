@@ -52,7 +52,9 @@ Window {
                              | LayerShell.Window.AnchorLeft | LayerShell.Window.AnchorRight
     LayerShell.Window.margins: ({ left: 0, top: topGap, right: 0, bottom: 0 })
     LayerShell.Window.exclusionZone: -1
-    LayerShell.Window.keyboardInteractivity: LayerShell.Window.KeyboardInteractivityExclusive
+    // (not while the power page opened from it is over it: claimed again as it folds away, KWin hands the
+    // keyboard back; held all along, the power page's ending left the keys with nobody)
+    LayerShell.Window.keyboardInteractivity: powerOver ? LayerShell.Window.KeyboardInteractivityNone : LayerShell.Window.KeyboardInteractivityExclusive
     LayerShell.Window.activateOnShow: true
     LayerShell.Window.wantsToBeOnActiveScreen: false
 
@@ -80,7 +82,30 @@ Window {
     readonly property int staggerMs: Tokens.ms(26)
 
     // ------------------------------------------------------------------ open / close
-    readonly property bool wanted: Shell.kind === "launcher" && Shell.screen === screenName
+    // (and beneath the power page opened from it: it stays, its content steps back: powerOver)
+    readonly property bool wanted: Shell.screen === screenName
+                                   && (Shell.kind === "launcher" || (!!Shell.under && Shell.under.kind === "launcher" && Shell.under.screen === screenName))
+    readonly property bool powerOver: wanted && Shell.kind === "power"
+    // the content steps back while the power page is over it, and comes forward as it folds away (a beat
+    // after: the power page's actions leave first), on the calm curves: one room, the content changing
+    property real coverP: 0
+    onPowerOverChanged: {
+        coverAnim.stop()
+        // (one thing at a time: out quickly before the power page's content arrives; back only once its
+        // content has gone. Measured on a recording: overlapping, the two read as two apps cross-fading)
+        coverWait.duration = powerOver ? 0 : Tokens.ms(230)
+        coverMove.duration = powerOver ? Tokens.ms(220) : Tokens.ms(460)
+        coverMove.easing.bezierCurve = powerOver ? Tokens.calmOut : Tokens.calmIn
+        coverMove.to = powerOver ? 1 : 0
+        coverAnim.start()
+        if (!powerOver) Qt.callLater(() => keys.forceActiveFocus())
+        if (Shell.debug) console.warn("ATOM stage", screenName, powerOver ? "under the power page" : "back from the power page")
+    }
+    SequentialAnimation {
+        id: coverAnim
+        PauseAnimation { id: coverWait; duration: 0 }
+        NumberAnimation { id: coverMove; target: stage; property: "coverP"; easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmOut }
+    }
     property string phase: "closed"             // closed, opening, open, closing
     signal opened()
     onWantedChanged: wanted ? begin() : end()
@@ -195,6 +220,8 @@ Window {
     }
     function closed() {
         phase = "closed"
+        coverAnim.stop()
+        coverP = 0
         contentIn = false
         launchFly.visible = false
         searchOpen = false
@@ -208,7 +235,7 @@ Window {
     // it rested at first). KWin's rice_islands script says which screen the pointer is on the moment it
     // crosses over (Shell.bar.pointer); without it, KWin is asked every 150 ms.
     property string pointerAt: ""
-    readonly property bool following: stage.wanted && (stage.phase === "opening" || stage.phase === "open") && stage.launcher.view !== "walls"
+    readonly property bool following: stage.wanted && !stage.powerOver && (stage.phase === "opening" || stage.phase === "open") && stage.launcher.view !== "walls"
     onFollowingChanged: if (following && Shell.bar) pointerSeen(Shell.bar.pointer || "")
     Connections {
         target: Shell
@@ -917,10 +944,10 @@ Window {
             id: plane
             anchors.fill: parent
             // the search takes the whole room: the page under it goes (only the frosted backdrop stays)
-            opacity: stage.planeO * (stage.searchOpen ? 1 - stage.searchP : 1) * (stage.launcher.view === "walls" ? 0 : 1)
+            opacity: stage.planeO * (stage.searchOpen ? 1 - stage.searchP : 1) * (stage.launcher.view === "walls" ? 0 : 1) * (1 - stage.coverP)
             visible: opacity > 0.01
-            scale: stage.planeS
-            Behavior on opacity { enabled: stage.phase === "open"; NumberAnimation { duration: Tokens.base } }
+            scale: stage.planeS * M.lerp(1, 0.965, stage.coverP)
+            Behavior on opacity { enabled: stage.phase === "open" && !coverAnim.running; NumberAnimation { duration: Tokens.base } }
 
             // ---- the top bar: the jewel (the logo: Home), the pages on their track, then search, theme, power,
             // the time and you. One control height (barH), a third bigger than a window's; the keys reach it
@@ -1686,6 +1713,7 @@ Window {
 
     // ------------------------------------------------------------------ keys
     function onKey(event) {
+        if (powerOver) { event.accepted = true; return }       // (the power page has the keys)
         pointerMode = false                                 // the keys (or a pad) in use: the pointer's hover goes
         if (!Gamepad.sending) Gamepad.inUse = false         // the keyboard again: its keys in the hints
         if (launcher.view === "walls") return

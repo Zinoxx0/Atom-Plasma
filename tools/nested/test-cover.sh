@@ -2,8 +2,9 @@
 # The shell's full-screen surfaces and what's around them (nested Plasma, two screens, the real bars and the
 # real rice_islands KWin script): the launcher clears its screen's windows and the bar's islands get out of its
 # way to the other screen, as for a fullscreen game, and come back when it closes; its search-only finder
-# moves nothing; the power page clears the windows on every screen and brings them back; opening the power
-# page from the launcher's power button keeps them gone in between. Exit 0 = all good.
+# moves nothing; the power page clears the windows on every screen and brings them back; opened from the
+# launcher's power button it opens OVER the launcher (the launcher stays, its windows stay gone) and dismissing
+# it goes back to the launcher, which brings them back when it closes. Exit 0 = all good.
 #   tools/nested/test-cover.sh [OUT_DIR]
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
@@ -48,7 +49,8 @@ step "power closes";         $F key 1 wait 1500
 step "launcher again";       $F move 900 500 wait 200; toggle; $F wait 2200
 P=$(grep -o 'power at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $3, $4}')
 step "its power button [$P]"; $F move 900 500 wait 100 move ${P:-1400 60} click wait 1800; shot s-handover
-step "power closes again";   $F key 1 wait 1500
+step "power closes again";   $F key 1 wait 1500; shot s-back
+step "launcher closes again"; toggle; $F wait 1500
 step end
 kill $app; stop_plasma
 I
@@ -72,7 +74,10 @@ cl() { sed -n "/ATOM ## $1/,/ATOM ## $2/p" "$L" | grep -c "ATOM windows cleared 
 [ "$(sed -n '/ATOM ## power [0-9]/,/ATOM ## power closes [0-9]/p' "$L" | grep -c 'ATOM windows cleared Virtual-[01] .* for power')" -ge 2 ] && echo "ok   the power page cleared every screen" || { echo "FAIL the power page didn't clear every screen"; fail=1; }
 sed -n '/ATOM ## power closes [0-9]/,/ATOM ## launcher again/p' "$L" | grep -q 'ATOM windows restored Virtual-0 [1-9]' && echo "ok   ...and brought the windows back" || { echo "FAIL the windows didn't come back after the power page"; fail=1; }
 sed -n '/ATOM ## its power button/,/ATOM ## power closes again/p' "$L" | grep -q 'ATOM windows restored' && { echo "FAIL the windows came back between the launcher and the power page"; fail=1; } || echo "ok   launcher -> power page: the windows stay gone in between"
-sed -n '/ATOM ## power closes again/,$p' "$L" | grep -q 'ATOM windows restored Virtual-0 [1-9]' && echo "ok   ...and come back after" || { echo "FAIL the windows didn't come back after the handover"; fail=1; }
+sed -n '/ATOM ## its power button/,/ATOM ## power closes again/p' "$L" | grep -q 'ATOM stage Virtual-0 phase closing' && { echo "FAIL the launcher closed under the power page"; fail=1; } || echo "ok   the launcher stays under the power page"
+sed -n '/ATOM ## power closes again/,/ATOM ## launcher closes again/p' "$L" | grep -q 'ATOM shell kind "launcher"' && echo "ok   dismissing the power page goes back to the launcher" || { echo "FAIL dismissing the power page didn't go back to the launcher"; fail=1; }
+sed -n '/ATOM ## power closes again/,/ATOM ## launcher closes again/p' "$L" | grep -q 'ATOM windows restored Virtual-0 [1-9]' && { echo "FAIL the windows came back under the launcher"; fail=1; } || echo "ok   ...its windows still gone"
+sed -n '/ATOM ## launcher closes again/,$p' "$L" | grep -q 'ATOM windows restored Virtual-0 [1-9]' && echo "ok   ...and back once it closes" || { echo "FAIL the windows didn't come back after the launcher"; fail=1; }
 errs=$(grep -E "Shell|Windows|PowerWindow|Stage|islands" "$L" | grep -E "TypeError|ReferenceError|Cannot|Unable|is not defined" | sort -u | head)
 [ -n "$errs" ] && { echo "$errs"; fail=1; }
 [ -n "$copy_to" ] && mkdir -p "$copy_to" && cp "$N"/out/*.png "$L" "$copy_to"/ 2>/dev/null

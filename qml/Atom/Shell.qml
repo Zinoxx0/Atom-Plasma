@@ -58,8 +58,9 @@ QtObject {
     // leaves the screen be). KWin's rice_islands script reads it (Bus Peek "cover") as it does a fullscreen
     // window: the bar's islands get out of the way, to another screen, as they do for a game.
     function updateCover() {
-        const on = kind === "launcher" && screen && !(args && args.searchOnly)
-        const next = on ? [screen] : []
+        const home = kind === "launcher" ? { screen: screen, args: args } : under && under.kind === "launcher" ? under : null
+        const on = home && home.screen && !(home.args && home.args.searchOnly)
+        const next = on ? [home.screen] : []
         const now = Bus.get("cover")
         if (JSON.stringify(now ? now.screens : []) !== JSON.stringify(next)) Bus.set("cover", { screens: next })
     }
@@ -78,22 +79,38 @@ QtObject {
     property string closedScreen: ""
     property double closedAt: 0
 
+    // A surface kept open beneath the current one: the launcher under the power page opened from it (its power
+    // button). Dismissing the power page returns to it, as it was; an action run (close(k, true)) closes both.
+    property var under: null                // { kind, screen, args } or null
     function open(k, scr, anchorRect, a) {
         // kind last: it's the one hosts react to, the rest is read then. The screen just before it: a
         // panel moving to another screen (the launcher follows the pointer) keeps its kind, so the new
         // screen's host reacts to the screen and must find the anchor and args already there
+        if (k === "power" && kind === "launcher" && (scr || "") === screen && !(args && args.searchOnly))
+            under = { kind: kind, screen: screen, args: args }      // (first: the launcher never sees itself go)
+        else if (k !== kind) under = null
         anchor = anchorRect || null
         args = a || ({})
         screen = scr || ""
         kind = k
     }
-    function close(k) {
+    function close(k, all) {
         if (k && k !== kind) return
         if (kind) {
             closedKind = kind
             closedScreen = screen
             closedAt = Date.now()
         }
+        const u = under
+        if (u && !all) {        // back to what was beneath (kind before `under` goes: it never looks closed)
+            anchor = null
+            args = u.args
+            screen = u.screen
+            kind = u.kind
+            under = null
+            return
+        }
+        under = null
         kind = ""
     }
     function toggle(k, scr, anchorRect, a) {

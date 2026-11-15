@@ -29,9 +29,12 @@ Item {
     readonly property bool matte: style === "matte"
     readonly property bool glass: style === "clear"
     readonly property bool sharp: style === "none"
-    readonly property bool pictured: !glass         // a picture of the wallpaper (frosted or sharp) hides what's behind
+    readonly property bool pictured: matte || sharp     // a picture of the wallpaper (frosted or sharp) hides what's behind
+    // style "veil": only the veil (over another surface that already wears the style: the power page over the
+    // launcher); grainy: the matte grain on top all the same (under a veil it would fade)
+    property bool grainy: matte
     readonly property url grain: Prefs.grain
-    readonly property real grainAlpha: Prefs.grainAlpha
+    property real grainAlpha: Prefs.grainAlpha
     // its own grain on top (false: the surface draws it itself, over what it lays on the backdrop: the
     // launcher's scrims; it must stay the top layer, or the veil and the scrims fade it)
     property bool grained: true
@@ -92,10 +95,10 @@ Item {
         width: bd.width
         height: bd.height
         visible: false
-        Image { anchors.fill: parent; source: bd.matte && bd.grained ? bd.grain : ""; fillMode: Image.Tile; smooth: false }
+        Image { anchors.fill: parent; source: bd.grainy && bd.grained ? bd.grain : ""; fillMode: Image.Tile; smooth: false }
     }
     // (live: it redraws only when the grain changes, i.e. once)
-    ShaderEffectSource { id: grainTex; width: bd.width; height: bd.height; visible: false; sourceItem: grainArt; hideSource: true; live: bd.matte && bd.grained
+    ShaderEffectSource { id: grainTex; width: bd.width; height: bd.height; visible: false; sourceItem: grainArt; hideSource: true; live: bd.grainy && bd.grained
                          smooth: false }     // (sampled sharp: filtered, the grain softened and read weaker)
     ShaderEffectSource { id: frostTex; width: bd.width; height: bd.height; visible: false; sourceItem: frost; hideSource: true; live: bd.pictured && bd.shows }
 
@@ -121,14 +124,14 @@ Item {
     }
     Shape {             // the grain, on top of everything (its strength: a layer's opacity)
         anchors.fill: parent
-        visible: bd.shows && bd.matte && bd.grained
+        visible: bd.shows && bd.grainy && bd.grained
         opacity: bd.grainAlpha
         preferredRendererType: Shape.CurveRenderer
         ShapePath {
             strokeWidth: -1
             strokeColor: "transparent"
             fillColor: "transparent"
-            fillItem: bd.matte && bd.grained ? grainTex : null
+            fillItem: bd.grainy && bd.grained ? grainTex : null
             PathRectangle { x: bd.whole ? 0 : bd.origin.x - bd.r; y: bd.whole ? 0 : bd.origin.y - bd.r
                             width: bd.whole ? bd.width : 2 * bd.r; height: bd.whole ? bd.height : 2 * bd.r; radius: bd.whole ? 0 : bd.r }
         }
