@@ -1,7 +1,6 @@
 import QtQuick
 import org.kde.plasma.core as PlasmaCore
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // A button of Atom Home's top bar: a round glyph with a big enough target, lit under the pointer (in
 // `hotColor` when it has one), ringed while the keys are on it, filled while what it opens is open (`lit`).

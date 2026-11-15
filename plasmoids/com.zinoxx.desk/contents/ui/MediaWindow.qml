@@ -2,8 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Effects
 import org.kde.kirigami as Kirigami
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // Now playing, under the clock on one screen, only while something plays: the album art blurred
 // into the glass, the art itself, title and artist, a thin progress line, and previous / play /

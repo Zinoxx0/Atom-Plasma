@@ -2,8 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtCore
 import Atom
-import "../../Rice"
-import "../../Rice/Color.js" as C
+import Rice
 
 // The calendar panel (the clock island): the month on the left (today a filled circle, holidays in the
 // tertiary colour, events as dots under their day; months slide when you change them) and the chosen

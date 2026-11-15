@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Effects
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // An accent of the Theme page, edited where it sits: a card at its tile with the colour's hue, saturation and
 // lightness (the Colours panel's sliders) and its hex. The card shows the change at once; it's applied when

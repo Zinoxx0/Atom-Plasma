@@ -6,8 +6,7 @@ import org.kde.plasma.core as PlasmaCore
 import org.kde.ksysguard.sensors as Sensors
 import org.kde.plasma.plasma5support as P5Support
 import Atom
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // CPU / RAM / GPU as gradient rings, in the same style as the Claude widget, plus the battery while
 // unplugged. The popup adds a three-minute history of each (tabs) and what uses the most of it right now.

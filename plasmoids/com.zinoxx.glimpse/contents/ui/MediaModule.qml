@@ -1,7 +1,6 @@
 import QtQuick
 import org.kde.kirigami as Kirigami
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // Now playing, floating on the right of the opened band: art, title and artist, previous /
 // play-pause / next and a thin progress line. Not there while nothing plays (no player, or stopped).

@@ -3,8 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Window
 import org.kde.plasma.plasmoid
 import Atom
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // The session island: the power glyph on the bar. A click opens the power overlay (Atom PowerWindow): a
 // ripple of blur spreads from this island over every screen and the session's actions come up big here.

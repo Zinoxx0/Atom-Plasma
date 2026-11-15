@@ -1,6 +1,6 @@
 import QtQuick
 import QtCore
-import "Rice"
+import Rice
 
 // Atom Home's data: every app and game as one kind of item, gathered from the launcher's Kicker models
 // (favourites, recents, the menu's categories) and its own file (rice.py launcher-data: Steam's art for

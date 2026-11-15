@@ -1,8 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Atom
-import "../../Rice"
-import "../../Rice/Color.js" as C
+import Rice
 
 // The clipboard's history (Meta+V; Klipper, kept alive by Atom Notify): a search field and what you
 // copied lately. A click (or Enter on the first match) makes an entry the clipboard again; the cross

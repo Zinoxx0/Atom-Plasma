@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
-import "Rice"
+import Rice
 
 // Rice Desk: the desktop's information layer, one per screen. A clock with the date and a status
 // line (weather · theme · music) on every screen, the music card under it and Clawd on top of it on

@@ -1,8 +1,7 @@
 import QtQuick
 import org.kde.plasma.core as PlasmaCore
 import org.kde.kirigami as Kirigami
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // The screens as they sit on the desk: each monitor drawn small, at its real position and shape,
 // showing its wallpaper and a dot of its accent (ringed when its colours are hand-picked). The one

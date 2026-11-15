@@ -3,8 +3,7 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import Atom
 import Atom.Native
-import "../../Rice"
-import "../../Rice/Color.js" as C
+import Rice
 
 // An app's tray menu (right click on its icon in the status island), drawn on the shell's sheet in the
 // rice's own look instead of a stock menu: the app's name, then its entries (checks, separators,

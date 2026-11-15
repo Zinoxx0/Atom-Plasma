@@ -1,3 +1,4 @@
+module Rice
 singleton Tokens Tokens.qml
 RicePalette RicePalette.qml
 Ring Ring.qml
@@ -6,7 +7,6 @@ GlassCard GlassCard.qml
 IconButton IconButton.qml
 SectionHeader SectionHeader.qml
 PopupIn PopupIn.qml
-Color Color.js
 Account Account.qml
 Busy Busy.qml
 Chip Chip.qml
@@ -23,6 +23,9 @@ ClaudeUsage ClaudeUsage.qml
 NowPlaying NowPlaying.qml
 TagField TagField.qml
 AppGlow AppGlow.qml
-SessionActions SessionActions.js
 BarFit BarFit.qml
 PortalHost PortalHost.qml
+# the JavaScript helpers, as the importers name them: C.alpha(...), M.lerp(...), Session.pick(...)
+C 1.0 Color.js
+M 1.0 Motion.js
+Session 1.0 SessionActions.js

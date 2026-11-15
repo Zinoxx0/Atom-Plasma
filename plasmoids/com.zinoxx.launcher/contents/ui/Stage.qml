@@ -8,9 +8,7 @@ import org.kde.plasma.workspace.dbus as DBus
 import org.kde.plasma.extras as PlasmaExtras
 import Atom
 import Atom.Native
-import "Rice"
-import "Rice/Color.js" as C
-import "Rice/Motion.js" as M
+import Rice
 
 // The launcher as a home screen for the computer ("Atom Home"), on the bare desktop of its screen. One
 // focus at a time drives everything: the hero (the focused item large, with its actions) and the backdrop

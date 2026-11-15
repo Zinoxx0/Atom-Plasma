@@ -4,8 +4,7 @@ import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasmoid
 import org.kde.kirigami as Kirigami
 import org.kde.taskmanager as TaskManager
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // The bar part of Glimpse: pinned launchers (PinTile), lit when their app runs anywhere.
 // On a bar too wide for its screen (Rice/BarFit.qml, step 3) the pins give way: as many as fit stay,

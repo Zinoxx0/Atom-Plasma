@@ -7,8 +7,7 @@ import org.kde.taskmanager as TaskManager
 import org.kde.kitemmodels as KItemModels
 import org.kde.layershell as LayerShell
 import Atom
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // Glimpse: the bar keeps only launchers (lit when the app runs anywhere); every open window,
 // from every screen, lives in a slim band along the top edge of each screen, corner to corner,

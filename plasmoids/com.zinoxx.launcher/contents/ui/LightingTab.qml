@@ -1,8 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import org.kde.plasma.core as PlasmaCore
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // The Theme page's Lighting tab: the keyboards' RGB, through ~/.config/plasma-rice/rgb.py (asusd for the
 // laptop's, hidraw for the Razer; no vendor apps). Each keyboard is Automatic (a style in a screen's

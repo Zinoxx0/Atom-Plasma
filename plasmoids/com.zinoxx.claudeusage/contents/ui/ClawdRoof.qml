@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Window
 import org.kde.layershell as LayerShell
 import Atom.Native
-import "Rice"
+import Rice
 
 // Clawd's roof (main.qml, "one Clawd, three places"): a small transparent layer surface over the Claude
 // island and the space above it. When nothing covers that space Clawd stands there, on the island's roof,

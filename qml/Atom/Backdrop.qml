@@ -2,8 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
 import Atom.Native
-import "../Rice"
-import "../Rice/Color.js" as C
+import Rice
 
 // A full-screen surface's backdrop in the blur style chosen on the Theme page (Atom Prefs.blurStyle), so the
 // launcher and the power page always wear the same one:

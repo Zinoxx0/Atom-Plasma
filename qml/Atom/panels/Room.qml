@@ -2,8 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Window
 import Atom
-import "../../Rice"
-import "../../Rice/Color.js" as C
+import Rice
 import "parts"
 
 // The room's lights (Atom RoomLight): the bedside lamp and the LED strip side by side, each with its

@@ -1,8 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import org.kde.plasma.core as PlasmaCore
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // The Theme page's Size tab: how big the rice's UI is on each screen (bars, the top band, popups, clocks).
 // Automatic gives every screen its standard size: the same apparent size whatever its resolution, physical

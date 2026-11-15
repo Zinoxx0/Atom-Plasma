@@ -1,6 +1,5 @@
 import QtQuick
-import "../../../Rice"
-import "../../../Rice/Color.js" as C
+import Rice
 
 // A colour picker for a light: hue across, saturation down (pale at the bottom); brightness stays on its
 // own slider. The knob is solid while the light shows a colour (`engaged`). Reports `picked(hue, sat)`

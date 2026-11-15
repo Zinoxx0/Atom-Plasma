@@ -1,6 +1,5 @@
 import QtQuick
-import "../../../Rice"
-import "../../../Rice/Color.js" as C
+import Rice
 
 // A quick toggle of the control center: an icon in a disc, a name and a word about its state; lit in the
 // accent while on. With `more`, a chevron on its right opens its page (networks, devices...).

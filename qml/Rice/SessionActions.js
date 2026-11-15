@@ -6,7 +6,7 @@
 // apps are asked to close as usual). `doing` is what the countdown says. tone: the colour a control lights
 // up in (the calm ones the screen's accents, the ones that end the session warm).
 //
-//   import "Rice/SessionActions.js" as Session      Session.pick(["lock", "sleep"]), a.tip, a.cmd
+//   import Rice   (the module names it Session)          Session.pick(["lock", "sleep"]), a.tip, a.cmd
 
 var PROMPT = "qdbus6 org.kde.LogoutPrompt /LogoutPrompt org.kde.LogoutPrompt.";
 var NOW = "qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.";

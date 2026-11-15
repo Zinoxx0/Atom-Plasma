@@ -11,8 +11,7 @@ import org.kde.plasma.private.batterymonitor as Batt
 import org.kde.notificationmanager as NM
 import org.kde.plasma.workspace.dbus as DBus
 import Atom
-import "../../Rice"
-import "../../Rice/Color.js" as C
+import Rice
 import "parts"
 
 // The control center (the status island's panel): quick toggles (Wi-Fi, Bluetooth, Do Not Disturb, night

@@ -1,6 +1,5 @@
 import QtQuick
-import "../../../Rice"
-import "../../../Rice/Color.js" as C
+import Rice
 
 // A slider over a spectrum (a light's white, warm to cool): the track is the spectrum itself, the knob
 // solid while it's what the light shows (`engaged`), faint otherwise. Dragging reports `moved(v)` in

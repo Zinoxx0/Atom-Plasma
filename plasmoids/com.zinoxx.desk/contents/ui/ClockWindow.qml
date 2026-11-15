@@ -2,8 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Effects
 import Atom
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 import "Weather.js" as W
 
 // The clock block, in the wallpaper's quiet zone: (Clawd standing on the digits, on one screen,) the

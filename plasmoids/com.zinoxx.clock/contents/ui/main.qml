@@ -4,8 +4,7 @@ import QtQuick.Window
 import QtCore
 import org.kde.plasma.plasmoid
 import Atom
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // The clock island: "Sun 8  04:10" in the bar's type (Inter Display, ui.clock_pt x the screen's UI size,
 // like the stock clock it replaces): the time bright and bold, the date dimmer and lighter. A click opens the calendar on the shell's sheet (Atom

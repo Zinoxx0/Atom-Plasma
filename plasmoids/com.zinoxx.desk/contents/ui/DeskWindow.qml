@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Window
 import org.kde.layershell as LayerShell
 import Atom
-import "Rice"
+import Rice
 
 // One piece of the desk: a layer-shell window on the bottom layer of the host's screen (over the
 // wallpaper, under every window, never focused), at `box` in that screen's logical px. A new box

@@ -1,8 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import org.kde.kirigami as Kirigami
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // Atom Home's search results (KRunner, through the launcher's RunnerModel): the selected match large on the
 // left (a card in its icon's colour: its name, what it is, and Enter), every match grouped by kind on the

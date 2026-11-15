@@ -1,5 +1,5 @@
 import QtQuick
-import "../Rice"
+import Rice
 
 // One panel surface that changes shape (the heart of the shell's "morphing" feel): it grows out of the
 // island it was opened from, glides and reshapes to another island's panel while open, and shrinks back

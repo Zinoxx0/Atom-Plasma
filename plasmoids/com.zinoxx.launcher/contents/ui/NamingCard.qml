@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Effects
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // "Save this look", named where it sits: a card at the tile with a short name already in the field (the
 // day's date: a controller can save it as it is), selected so typing replaces it. Enter saves, Esc doesn't.

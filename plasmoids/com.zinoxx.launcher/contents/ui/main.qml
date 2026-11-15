@@ -15,8 +15,7 @@ import org.kde.plasma.plasma5support as P5Support
 import org.kde.plasma.workspace.dbus as DBus
 import Atom
 import Atom.Native
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // The launcher: the bar's jewel (the accent pill) and, when it's clicked or Meta is pressed, a fullscreen
 // home screen that opens out of it (Stage.qml, "Atom Home"): pages of rows (your pins and recents, games

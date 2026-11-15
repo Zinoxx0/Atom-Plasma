@@ -4,8 +4,7 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.kquickcontrolsaddons as KQCA
 import org.kde.notificationmanager as NM
-import "../Rice"
-import "../Rice/Color.js" as C
+import Rice
 
 // A screen's notification cards (in its SheetWindow): they show on the screen you're working on (the
 // active window's; the main bar's when none), grow out of the status island (or the bar's corner),

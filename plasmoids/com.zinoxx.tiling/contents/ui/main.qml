@@ -4,8 +4,7 @@ import QtQuick.Window
 import QtCore
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // Auto-tiling for the screen this bar is on, like "Peek at Desktop": one glyph, click to flip it.
 // The state is rice.py's (~/.local/state/rice/tiling.json, written by atom/tiling.py): screens float

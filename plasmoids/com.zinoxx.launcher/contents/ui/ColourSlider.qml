@@ -1,6 +1,5 @@
 import QtQuick
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // One channel of a colour (hue, saturation or lightness, HSL) as a painted track with a round knob
 // in the colour it would make. Drag, click or scroll; `moved` reports the new value (0..1).

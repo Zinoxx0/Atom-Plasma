@@ -1,7 +1,7 @@
 pragma Singleton
 import QtQuick
 import QtCore
-import "../Rice"
+import Rice
 
 // The shell's own settings, read live from the rice's settings.json (~/.config/atom-plasma, written by rice.py:
 // a replaced file is one change): one object for every widget in plasmashell (Atom is one module, one engine).

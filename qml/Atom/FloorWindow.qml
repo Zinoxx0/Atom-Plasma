@@ -2,8 +2,7 @@ import QtQuick
 import QtQuick.Window
 import org.kde.layershell as LayerShell
 import Atom.Native
-import "../Rice"
-import "../Rice/Color.js" as C
+import Rice
 
 // A docked bar's floor, kept on its screen while the islands are on another one. A window maximized on a
 // screen (or touching its bar) sits on the docked bar's glass floor; when the pointer takes the islands to

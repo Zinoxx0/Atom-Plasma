@@ -1,8 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import org.kde.plasma.core as PlasmaCore
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // The Theme page's Colours tab: what rice.py made of a screen's wallpaper (its mood and three
 // accents) and hand-picked replacements, to mismatch on purpose. Edits are live, like picking a

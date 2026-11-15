@@ -1,7 +1,6 @@
 import QtQuick
 import org.kde.kirigami as Kirigami
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // The focused item, large (Atom Home's hero): a game's own logo or the app's name, what it is and when it
 // was last used, its description, and its actions: Play or Open (the one bright pill), Pin, More.

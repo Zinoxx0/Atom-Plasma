@@ -2,8 +2,7 @@ import QtQuick
 import QtQuick.Window
 import org.kde.layershell as LayerShell
 import Atom
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // The opened band of one screen: the resting band grows down into it (its lower lip turning to
 // glass), the apps fade and rise into place, media floats on the right. Hovering an icon slides a

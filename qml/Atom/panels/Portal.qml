@@ -1,6 +1,6 @@
 import QtQuick
 import Atom
-import "../../Rice"
+import Rice
 
 // A bar widget's own popup on the shell's sheet: the widget registered its content (Shell.portal) and it
 // is made here, in the widget's context, so it keeps reading the widget's data (system stats, Claude's

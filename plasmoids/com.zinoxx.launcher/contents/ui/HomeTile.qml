@@ -1,8 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import org.kde.kirigami as Kirigami
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // One tile of Atom Home. A row of covers is all covers, a row of icons is all icons:
 //   cover   a game with Steam's art: its cover

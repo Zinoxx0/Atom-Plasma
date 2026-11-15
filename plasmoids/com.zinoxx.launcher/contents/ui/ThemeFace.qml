@@ -2,8 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import org.kde.kirigami as Kirigami
 import Atom
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // The face of a Theme page tile (HomeTile keeps the focus, the ring, the glow and the clicks):
 //   wall    the wallpaper, badged with the screens it's on

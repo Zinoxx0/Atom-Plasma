@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Window
 import org.kde.layershell as LayerShell
 import Atom.Native
-import "../Rice"
+import Rice
 
 // One screen's shell surface: a transparent layer-shell window over the whole screen that stays mapped
 // (mapping one takes ~50 ms, switching its input mask ~1 ms), drawing the morphing sheet. Only the sheet

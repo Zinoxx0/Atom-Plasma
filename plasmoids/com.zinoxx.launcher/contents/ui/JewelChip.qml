@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Effects
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // The jewel as a chip: the launcher's own accent object (accent fill, no sheen: the rice's rule) carrying
 // Atom Plasma's mark (Emblem: its satellites swing once under the pointer). It leads the launcher's top bar

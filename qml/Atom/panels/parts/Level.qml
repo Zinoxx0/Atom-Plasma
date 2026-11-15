@@ -1,6 +1,5 @@
 import QtQuick
-import "../../../Rice"
-import "../../../Rice/Color.js" as C
+import Rice
 
 // A level of the control center (volume, a screen's brightness, the lamp): an icon that can be a button
 // (mute), a name, and a smooth slider; with `more`, a chevron to its page (outputs). `value` is 0..1;

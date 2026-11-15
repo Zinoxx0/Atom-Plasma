@@ -5,8 +5,7 @@ import QtQuick.Controls as QQC2
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.components as PlasmaComponents
 import org.kde.kirigami as Kirigami
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // The Theme page, inside the launcher, laid out from the widest scope down: Themes (whole looks:
 // every screen's wallpaper and hand-picked colours under a short name), Screens (the desk map: which

@@ -1,7 +1,6 @@
 import QtQuick
 import org.kde.kirigami as Kirigami
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // A theme's screens as it was saved: each monitor at its real place and shape (a portrait one stays tall),
 // filled with its wallpaper, fitted into a fixed box so every theme chip has the same footprint whatever

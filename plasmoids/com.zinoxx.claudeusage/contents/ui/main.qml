@@ -4,8 +4,7 @@ import QtQuick.Window
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import Atom
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // Claude usage limits with Clawd in the panel.
 // Data:    ~/.cache/claude-usage.json  (written by ~/.claude/statusline.sh, when the numbers change and

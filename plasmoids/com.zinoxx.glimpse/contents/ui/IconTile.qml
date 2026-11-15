@@ -2,8 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import org.kde.plasma.extras as PlasmaExtras
 import org.kde.kirigami as Kirigami
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // One app in the opened band. Several windows of it stack up behind the icon (fainter copies,
 // fanned to the right) with a count. Where its windows are shows in the icon itself: out on this

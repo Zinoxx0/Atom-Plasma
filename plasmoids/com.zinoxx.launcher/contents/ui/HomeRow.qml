@@ -1,8 +1,7 @@
 import QtQuick
 import org.kde.plasma.core as PlasmaCore
 import Atom
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // A row of Atom Home: its title, then its tiles in a grid that takes at most 65% of the screen's width (the
 // user, 2026-11-15: no endless strips). A row with more than one line of tiles shows its first line with a

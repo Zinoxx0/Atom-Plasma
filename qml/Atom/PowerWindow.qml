@@ -5,10 +5,7 @@ import QtQuick.Window
 import org.kde.layershell as LayerShell
 import org.kde.kirigami as Kirigami
 import Atom.Native
-import "../Rice"
-import "../Rice/Color.js" as C
-import "../Rice/Motion.js" as M
-import "../Rice/SessionActions.js" as Session
+import Rice
 
 // The power overlay on one screen (Shell kind "power"), in Atom Home's language: a ripple of backdrop (the blur
 // style chosen on the Theme page: Atom Backdrop) and a veil of the palette's darkest surface spreads from the

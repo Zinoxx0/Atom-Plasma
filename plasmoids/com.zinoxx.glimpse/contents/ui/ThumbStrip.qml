@@ -1,8 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import org.kde.kirigami as Kirigami
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // Live thumbnails of one app's windows, hanging under its icon below the label tab: one card per
 // window, with its title and whether it is minimized; a window on another screen sits a little smaller

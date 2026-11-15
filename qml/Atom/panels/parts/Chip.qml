@@ -1,6 +1,5 @@
 import QtQuick
-import "../../../Rice"
-import "../../../Rice/Color.js" as C
+import Rice
 
 // A choice in a row of them (a preset, a screen, a speed): a pill with an optional glyph, lit in the accent
 // while selected.

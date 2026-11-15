@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import "../../Rice"
+import Rice
 
 // A stand-in panel for testing the sheet (two sizes: "demo" and "demo2"). Not shown to the user.
 FocusScope {

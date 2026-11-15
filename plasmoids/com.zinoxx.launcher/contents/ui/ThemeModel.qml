@@ -1,6 +1,6 @@
 import QtQuick
 import Atom
-import "Rice"
+import Rice
 
 // Atom Home's Theme page: what `rice.py page` says (the collection, the screens, the saved themes, the moods,
 // the size settings) and `rgb.py status` (the keyboards), as rows of items, and the actions that change them

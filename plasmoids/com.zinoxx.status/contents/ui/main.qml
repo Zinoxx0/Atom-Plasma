@@ -12,8 +12,7 @@ import org.kde.bluezqt as BluezQt
 import org.kde.notificationmanager as NM
 import Atom
 import Atom.Native
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // The status island (it replaces Plasma's system tray): your apps' tray icons (Atom.Native Tray: a click
 // brings the app's window back, or opens the app when it has none; a right click its menu on the shell's

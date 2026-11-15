@@ -3,8 +3,7 @@ import QtQuick.Shapes
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.extras as PlasmaExtras
 import org.kde.kirigami as Kirigami
-import "Rice"
-import "Rice/Color.js" as C
+import Rice
 
 // One pinned launcher (a row of g.launchers), lit when its app runs anywhere (dots, a glow or an
 // underline, in the app's own colour). Used on the bar and in the folder of pins that don't fit
