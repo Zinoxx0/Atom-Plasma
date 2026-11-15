@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Effects
 import org.kde.kirigami as Kirigami
-import Atom
 import Rice
 
 // The launcher's top bar (Stage): the jewel (home), the page tabs (or the Theme page's crumb), then

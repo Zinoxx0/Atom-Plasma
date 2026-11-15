@@ -1,7 +1,4 @@
 import QtQuick
-import QtQuick.Effects
-import org.kde.kirigami as Kirigami
-import Atom
 import Rice
 
 // The Theme page's desk map (Stage): the screens as they sit on the desk (the rice's DeskMap), the one

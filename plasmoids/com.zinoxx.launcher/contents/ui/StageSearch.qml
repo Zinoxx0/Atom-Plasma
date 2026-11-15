@@ -1,7 +1,5 @@
 import QtQuick
 import QtQuick.Effects
-import org.kde.kirigami as Kirigami
-import Atom
 import Rice
 
 // The launcher's search (Stage): the magnifier in the top bar opens into a field, the results come down

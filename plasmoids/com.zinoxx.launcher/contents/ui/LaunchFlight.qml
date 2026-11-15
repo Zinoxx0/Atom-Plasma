@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Effects
 import org.kde.kirigami as Kirigami
-import Atom
 import Rice
 
 // Launching from the launcher (Stage): the tile grows into the whole screen (a game's cover becomes its
