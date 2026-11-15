@@ -7,8 +7,12 @@
   buttons are the keys apps understand, Guide opens the launcher, View every window. Games get the
   controller to themselves.
 - An on-screen keyboard (Atom Keyboard, on each screen's sheet) in the screen's palette: the active layout's
-  keys from XKB, accented letters, typed as real key presses (characters the layout lacks go through the
-  clipboard, which gets its own back). It comes up on its own for a text field the controller clicked.
+  keys from XKB, accented letters, typed as real key presses. It comes up on its own for a text field the
+  controller clicked, drags out of the way by its bare parts (never from a key), and View sends it to the
+  top of the screen and back.
+- Atom Pad's input method (`pkg/atom-pad-im`, a small C program KWin starts as its input method): characters
+  the layout can't type (accents on a US layout) go straight into the focused field. Where an app has no
+  text-input support, the clipboard still carries them (and gets its own back).
 - The launcher reads an Xbox controller's X and Y by their place (X opened the Theme page, Y the menu).
 
 **Launcher**

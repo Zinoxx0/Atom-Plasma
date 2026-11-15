@@ -121,7 +121,11 @@ island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on ev
   View shows every window, Menu switches to the window before, Guide opens the launcher (held: the power
   page), Share takes a screenshot. Y brings up an **on-screen keyboard** in the theme's colours (your layout's
   keys and accented letters: the D-pad walks it, A types, X deletes, Y is space, LT shift); it also comes up
-  on its own when the controller puts you in a text field. While a game has the focus (Steam, Wine/Proton,
+  on its own when the controller puts you in a text field. Drag it out of the way by any bare part of it (its
+  grip, its edges; the controller: the pointer there, hold A), or press View to send it to the top of the
+  screen and back. Any character goes straight into the field through a small input method of its own
+  (`pkg/atom-pad-im`, which KWin starts; `rice.py install` builds it and picks it when no other input method is
+  set), so accents work on any layout. While a game has the focus (Steam, Wine/Proton,
   Lutris, Heroic, gamescope, Big Picture) the controller is left alone for it; View + Menu held for a second
   switches that by hand. Idle it costs nothing (it waits on the device); a stick held costs ~1.5% of a core.
   If Steam is running, turn off its own desktop controller layout so the two don't both move the pointer.

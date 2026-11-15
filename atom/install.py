@@ -92,6 +92,18 @@ def native_stale():
     return newest > lib.stat().st_mtime
 
 
+PAD_IM = HOME / ".local/bin/atom-pad-im"
+
+
+def pad_im_stale():
+    """Atom Pad's input method (the controller's keyboard types any character through it) is missing or older
+    than its source."""
+    src = ROOT / "pkg/atom-pad-im"
+    if not PAD_IM.exists():
+        return True
+    return max(f.stat().st_mtime for f in (src / "atom-pad-im.c", src / "build.sh")) > PAD_IM.stat().st_mtime
+
+
 class Plan:
     def __init__(self, dry):
         self.dry, self.done, self.blocked = dry, [], []
@@ -192,6 +204,8 @@ def install(dry=False):
     p.write(DROPIN, DROPIN_TEXT, ours_marker="Atom Plasma")
     if native_stale():                  # (missing, or a pull brought new sources)
         p.run(str(ROOT / "pkg/atom-native/build.sh"))
+    if caps.feature("gamepad", cfg) and pad_im_stale():     # (also sets it as KWin's input method, if none is)
+        p.run(str(ROOT / "pkg/atom-pad-im/build.sh"))
     for i, (name, icon, cmd, _) in LAUNCHERS.items():
         p.write(APPS / f"{i}.desktop", launcher(name, icon, cmd), ours_marker="X-AtomPlasma")
     p.write(SERVICEMENUS / "rice.desktop", servicemenu(), ours_marker="X-AtomPlasma")

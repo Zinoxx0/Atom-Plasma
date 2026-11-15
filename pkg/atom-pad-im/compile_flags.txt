@@ -1,0 +1,3 @@
+-Ibuild
+-Wall
+-Wextra

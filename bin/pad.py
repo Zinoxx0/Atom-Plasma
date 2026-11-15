@@ -17,7 +17,8 @@ Desktop mode (Xbox names; another pad's face buttons by their place: X is the le
     View + Menu held for a second: game mode on / off (auto again when switched back)
 The on-screen keyboard (plasmashell: Atom Pad + KeyboardWindow) takes the buttons while it shows: the D-pad
 walks its keys, A types one (a click after the stick), B hides it, X backspace, Y space, LB / RB move the
-text cursor, LT shift, RT / View the next set of keys, Menu Enter. It comes up on its own when a text field
+text cursor, LT shift, RT the next set of keys, View moves it to the top of the screen (or back down), Menu
+Enter (the pointer drags it by any bare part). It comes up on its own when a text field
 takes the focus right after the controller was used (KWin's input method state, VirtualKeyboard.active).
 Game mode: the controller is left to the game (not grabbed, nothing sent) while a game has the focus: a
 Steam game, Wine or Proton, a Lutris or Heroic game, gamescope, Steam's Big Picture. Guide held opens the
@@ -29,7 +30,9 @@ nothing sees it twice. Idle, it sleeps in poll(); a stick off its centre runs a 
 speed and scrolling are worked out per tick, sub-pixel remainders kept). Devices made by uinput (this
 daemon's, the nested tests' pretend pad, Steam's virtual pads) are never read. KWin's focused window comes
 from a small KWin script this loads (Focus over D-Bus). Typing: a key of the active layout (libxkbcommon
-says which key makes which character), anything else through the clipboard (Klipper, put back after).
+says which key makes which character), anything else through Atom Pad's input method (pkg/atom-pad-im: KWin
+starts it and lets it commit text into the focused field), or, where that can't (an app without text-input
+support), the clipboard, which gets its own back.
 D-Bus: org.zinoxx.AtomPad /Pad: Shell, Osk, Focus, Key, Text, Layout, Status, Mode.
 Settings (settings.json "pad", all optional): speed (pointer px/s at full tilt, 1700), scroll (wheel notches/s,
 18), deadzone (0.14).
@@ -734,7 +737,7 @@ def run():
                 return
             if name == "view":
                 if self.mode() == "osk":
-                    post({"osk": "layer"})
+                    post({"osk": "flip"})       # (the keyboard to the top of the screen, or back down)
                 else:
                     call("org.kde.kglobalaccel", "/component/kwin", "org.kde.kglobalaccel.Component",
                          "invokeShortcut", "Overview", sig="s")
@@ -818,19 +821,37 @@ def run():
             self.tap(*seq, code)
 
         def type_text(self, text):
-            km = self.keymap
-            for ch in text:
+            """Keys for what the layout types; the rest (a run of it at a time) through the input method, else
+            the clipboard."""
+            km, rest = self.keymap, ""
+            for ch in text + "\0":
+                keyed = ch in "\n\t \0" or bool(km and ch in km.chars)
+                if keyed and rest:
+                    if not self.commit(rest):
+                        self.paste(rest)
+                    rest = ""
+                if ch == "\0":
+                    break
                 if ch == "\n":
                     self.tap(e.KEY_ENTER)
                 elif ch == "\t":
                     self.tap(e.KEY_TAB)
                 elif ch == " ":
                     self.tap(e.KEY_SPACE)
-                elif km and ch in km.chars:
+                elif keyed:
                     code, level = km.chars[ch]
                     self.type_key(code, (SHIFT if level & 1 else 0) | (ALTGR if level & 2 else 0))
                 else:
-                    self.paste(ch)
+                    rest += ch
+
+        def commit(self, text):
+            """Into the focused text field through Atom Pad's input method (pkg/atom-pad-im, KWin starts it):
+            any character, no clipboard. False when it isn't running or no field has the focus."""
+            try:
+                o = bus.get_object("org.zinoxx.AtomPadIM", "/IM", introspect=False)
+                return bool(o.Commit(text, dbus_interface="org.zinoxx.AtomPadIM", timeout=0.5))
+            except dbus.DBusException:
+                return False
 
         def paste(self, text):
             """A character the layout can't type: through the clipboard (wl-copy, then Ctrl+V; a terminal's
