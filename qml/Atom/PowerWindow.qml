@@ -146,7 +146,7 @@ Window {
         origin: pw.origin
         radius: pw.p >= 1 ? -1 : pw.r
         visible: pw.phase !== "closed" && pw.r > 0.5
-        veil: pw.wasLead ? 0.52 : 0.36
+        veil: pw.wasLead ? Prefs.glassVeil : Prefs.glassVeil * 0.7
     }
     // a click anywhere on the blur folds it away
     MouseArea {

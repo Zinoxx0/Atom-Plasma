@@ -614,7 +614,8 @@ Window {
         origin: stage.rippleOrigin
         radius: matte || stage.bgO >= 0.999 ? -1 : reach * stage.bgO
         opacity: matte ? stage.bgO : 1
-        veil: matte ? 0 : 0.34
+        veil: matte ? 0 : Prefs.glassVeil       // (clear: the power page's glass, exactly)
+        grained: false                  // (the grain goes over the scrims: the launcher draws it, last)
         also: stage.finderShapes        // (the finder's plate: one blur region per window)
     }
     Item {
@@ -647,10 +648,10 @@ Window {
                         layer.enabled: glow.visible && visible
                         layer.effect: MultiEffect { colorization: 0.55; colorizationColor: glow.c; brightness: 0.04 }
                     }
-                    Rectangle {     // clear blur: a wash of its colour over the live blur
+                    Rectangle {     // clear blur: a breath of its colour on the glass
                         anchors.fill: parent
                         visible: !backdropStyle.matte
-                        color: C.alpha(glow.c, 0.2)
+                        color: C.alpha(glow.c, 0.08)
                     }
                     Kirigami.Icon {
                         x: parent.width * 0.94 - width; y: parent.height * 0.04
@@ -812,9 +813,10 @@ Window {
     // measured: careful
     readonly property var lightNow: {
         const w = rice.values._backdrop || ({})
-        // (clear blur: the live blur of the cleared desktop, near the frost's measure, under the backdrop's veil)
+        // (clear blur: the windows under the glass, unmeasured: as bright as a careful guess, or the
+        // wallpaper's measure if it's brighter, under the backdrop's veil)
         const v = backdropStyle.veil, g = y => Math.pow(Math.max(0, y), 1 / 2.2), Ys = relLum(rice.surfaceLowest)
-        const veiled = y => v > 0 ? Math.pow(v * g(Ys) + (1 - v) * g(y), 2.2) : y
+        const veiled = y => v > 0 ? Math.pow(v * g(Ys) + (1 - v) * g(Math.max(y, 0.35)), 2.2) : y
         const base = { top: veiled(w.top ?? 0.35), hero: veiled(w.hero ?? 0.35), rows: veiled(w.rows ?? 0.35) }
         const it = bgShown
         const careful = { top: 0.6, hero: 0.6, rows: 0.6 }

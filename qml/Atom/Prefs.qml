@@ -17,6 +17,11 @@ Item {
     }
     readonly property var value: file.value || ({})
     readonly property url grain: Qt.resolvedUrl("grain.png")       // the matte finish's grain (Backdrop, previews)
+    // The two styles, the same on every surface that wears them (measured on screenshots: the launcher and the
+    // power page must match): the grain is always the TOP layer of a backdrop (over its veil and any scrim:
+    // under a veil it faded to half), at this strength; the glass's veil is the power page's.
+    readonly property real grainAlpha: 0.05
+    readonly property real glassVeil: 0.52
     readonly property string blurStyle: value.blur && value.blur.style === "clear" ? "clear" : "matte"
     readonly property real launcherSize: {
         const v = value.launcher ? Number(value.launcher.size) : 1

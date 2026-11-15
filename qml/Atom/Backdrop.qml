@@ -11,7 +11,7 @@ import "../Rice/Color.js" as C
 //            fine grain (it dithers the bands a blurred picture makes in 8 bits): a still, opaque, matte
 //            finish; the windows behind it are hidden
 //   "clear"  clear blur: KWin's live blur of whatever is behind, windows included, like glass
-// Both under a veil of the palette's darkest surface (`veil`, 0: none). It fills a circle (a ripple: `origin`,
+// Both under a veil of the palette's darkest surface (`veil`, 0: none), and matte's grain over it all. It fills a circle (a ripple: `origin`,
 // `radius`) or, with radius < 0 (or a circle past every corner), the whole window. Fill the window with it
 // (its blur region and its picture are in window coordinates).
 Item {
@@ -24,8 +24,11 @@ Item {
     property real veil: 0.5
     property var also: []                   // more blur for the same window (its own glass): one blur region per window
     readonly property bool matte: style !== "clear"
-    readonly property url grain: Prefs.grain        // (the launcher grains its own layers too)
-    readonly property real grainAlpha: pal && pal.light ? 0.035 : 0.05
+    readonly property url grain: Prefs.grain
+    readonly property real grainAlpha: Prefs.grainAlpha
+    // its own grain on top (false: the surface draws it itself, over what it lays on the backdrop: the
+    // launcher's scrims; it must stay the top layer, or the veil and the scrims fade it)
+    property bool grained: true
     readonly property string frostSource: {
         const v = pal ? pal.values || ({}) : ({})
         return v._glassFull ? "file://" + v._glassFull : pal && pal.wallpaper ? "file://" + pal.wallpaper : ""
@@ -43,7 +46,7 @@ Item {
               : [{ x: bd.origin.x - bd.r, y: bd.origin.y - bd.r, width: 2 * bd.r, height: 2 * bd.r, radius: bd.r }]).concat(bd.also || [])
     }
 
-    // the matte picture: the frost and its grain, as one full-window texture (so it lines up with the screen)
+    // the matte picture: the frost, as one full-window texture (so it lines up with the screen)
     Item {
         id: frost
         width: bd.width
@@ -60,14 +63,18 @@ Item {
             layer.enabled: !frosted && bd.matte
             layer.effect: MultiEffect { blurEnabled: true; blur: 1; blurMax: 64; saturation: 0.3 }
         }
-        Image {
-            anchors.fill: parent
-            source: bd.matte ? bd.grain : ""
-            fillMode: Image.Tile
-            smooth: false
-            opacity: bd.grainAlpha
-        }
     }
+    // the grain, tiled over the whole window (a texture of its own: it goes over the veil)
+    Item {
+        id: grainArt
+        width: bd.width
+        height: bd.height
+        visible: false
+        Image { anchors.fill: parent; source: bd.matte && bd.grained ? bd.grain : ""; fillMode: Image.Tile; smooth: false }
+    }
+    // (live: it redraws only when the grain changes, i.e. once)
+    ShaderEffectSource { id: grainTex; width: bd.width; height: bd.height; visible: false; sourceItem: grainArt; hideSource: true; live: bd.matte && bd.grained
+                         smooth: false }     // (sampled sharp: filtered, the grain softened and read weaker)
     ShaderEffectSource { id: frostTex; width: bd.width; height: bd.height; visible: false; sourceItem: frost; hideSource: true; live: bd.matte && bd.shows }
 
     Shape {
@@ -86,6 +93,20 @@ Item {
             strokeWidth: -1
             strokeColor: "transparent"
             fillColor: C.alpha(bd.pal ? bd.pal.surfaceLowest : "#000000", bd.veil)
+            PathRectangle { x: bd.whole ? 0 : bd.origin.x - bd.r; y: bd.whole ? 0 : bd.origin.y - bd.r
+                            width: bd.whole ? bd.width : 2 * bd.r; height: bd.whole ? bd.height : 2 * bd.r; radius: bd.whole ? 0 : bd.r }
+        }
+    }
+    Shape {             // the grain, on top of everything (its strength: a layer's opacity)
+        anchors.fill: parent
+        visible: bd.shows && bd.matte && bd.grained
+        opacity: bd.grainAlpha
+        preferredRendererType: Shape.CurveRenderer
+        ShapePath {
+            strokeWidth: -1
+            strokeColor: "transparent"
+            fillColor: "transparent"
+            fillItem: bd.matte && bd.grained ? grainTex : null
             PathRectangle { x: bd.whole ? 0 : bd.origin.x - bd.r; y: bd.whole ? 0 : bd.origin.y - bd.r
                             width: bd.whole ? bd.width : 2 * bd.r; height: bd.whole ? bd.height : 2 * bd.r; radius: bd.whole ? 0 : bd.r }
         }

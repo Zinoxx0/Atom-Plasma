@@ -54,7 +54,9 @@ PlasmoidItem {
                                                   : Qt.rect(0, 0, 0, 0)
     function close() { if (Shell.kind === "launcher") Shell.close("launcher") }
     // opening clears the desk: the windows fly into their pins and come back on close (Atom Windows)
-    readonly property bool clearDesk: true
+    // (only in noisy matte, which hides them anyway: clear blur is glass, and shows what's behind it as the
+    // power page does)
+    readonly property bool clearDesk: Prefs.blurStyle !== "clear"
     // the power overlay (the shell's): every screen blurs, the session's actions big on this one
     function openPower(from) { Shell.open("power", Shell.screen || myScreenName, from || null) }
     // Meta (this applet holds the launcher shortcut): open on the screen of the active window, or close.
