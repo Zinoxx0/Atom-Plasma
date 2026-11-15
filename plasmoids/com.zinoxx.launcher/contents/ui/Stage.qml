@@ -731,22 +731,28 @@ Window {
                     GradientStop { position: 0.85; color: C.alpha(stage.rice.surfaceLowest, 0) }
                 }
             }
-            Rectangle {     // under the top bar: from the top
+            Rectangle {     // under the rows: one smooth curve from 0% at the top to the bottom of the screen (rowsCurve)
                 anchors.fill: parent
                 gradient: Gradient {
-                    GradientStop { position: 0; color: C.alpha(stage.rice.surfaceLowest, stage.scrimTop) }
-                    GradientStop { position: (stage.u(26) + stage.barH + stage.u(12)) / Math.max(1, stage.height); color: C.alpha(stage.rice.surfaceLowest, stage.scrimTop) }
-                    GradientStop { position: (stage.u(26) + stage.barH + stage.u(70)) / Math.max(1, stage.height); color: C.alpha(stage.rice.surfaceLowest, 0) }
-                    GradientStop { position: 1; color: C.alpha(stage.rice.surfaceLowest, 0) }
-                }
-            }
-            Rectangle {     // under the rows: from the bottom
-                anchors.fill: parent
-                gradient: Gradient {
-                    GradientStop { position: 0; color: C.alpha(stage.rice.surfaceLowest, 0) }
-                    GradientStop { position: Math.max(0, (stage.rowsTop - stage.u(90)) / Math.max(1, stage.height)); color: C.alpha(stage.rice.surfaceLowest, 0) }
-                    GradientStop { position: Math.max(0, (stage.rowsTop - stage.u(10)) / Math.max(1, stage.height)); color: C.alpha(stage.rice.surfaceLowest, stage.scrimRows) }
-                    GradientStop { position: 1; color: C.alpha(stage.rice.surfaceLowest, stage.scrimRows) }
+                    GradientStop { position: stage.rowsCurve[0].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[0].a) }
+                    GradientStop { position: stage.rowsCurve[1].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[1].a) }
+                    GradientStop { position: stage.rowsCurve[2].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[2].a) }
+                    GradientStop { position: stage.rowsCurve[3].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[3].a) }
+                    GradientStop { position: stage.rowsCurve[4].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[4].a) }
+                    GradientStop { position: stage.rowsCurve[5].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[5].a) }
+                    GradientStop { position: stage.rowsCurve[6].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[6].a) }
+                    GradientStop { position: stage.rowsCurve[7].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[7].a) }
+                    GradientStop { position: stage.rowsCurve[8].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[8].a) }
+                    GradientStop { position: stage.rowsCurve[9].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[9].a) }
+                    GradientStop { position: stage.rowsCurve[10].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[10].a) }
+                    GradientStop { position: stage.rowsCurve[11].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[11].a) }
+                    GradientStop { position: stage.rowsCurve[12].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[12].a) }
+                    GradientStop { position: stage.rowsCurve[13].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[13].a) }
+                    GradientStop { position: stage.rowsCurve[14].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[14].a) }
+                    GradientStop { position: stage.rowsCurve[15].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[15].a) }
+                    GradientStop { position: stage.rowsCurve[16].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[16].a) }
+                    GradientStop { position: stage.rowsCurve[17].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[17].a) }
+                    GradientStop { position: stage.rowsCurve[18].p; color: C.alpha(stage.rice.surfaceLowest, stage.rowsCurve[18].a) }
                 }
             }
             // a fine grain over it all: the dark, smooth gradients of a blurred picture band in 8 bits; noise
@@ -825,13 +831,23 @@ Window {
         if (it && it.art && it.art.hero && !(l && l.top !== undefined)) return careful
         return l ? { top: Math.max(base.top, l.top * 0.9), hero: Math.max(base.hero, l.hero * 0.9), rows: Math.max(base.rows, l.rows * 0.7) } : base
     }
-    property real scrimTop: scrimFor(lightNow.top, rice.fgDim, 4.5)
     property real scrimHero: scrimFor(lightNow.hero, rice.fgDim, 4.5)
     property real scrimRows: scrimFor(lightNow.rows, rice.fgDim, 4.5)
-    Behavior on scrimTop { NumberAnimation { duration: Tokens.ms(420); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
+    // The rows' scrim as one smooth curve (no edge anywhere, the user 2026-11-15): 0% at the top of the page,
+    // easing in (smoothstep: flat at both ends) to the strength the rows' text needs right where the first row
+    // starts, then on, gently, to a little more at the bottom of the screen. Sampled as gradient stops
+    // (a gradient is straight between its stops).
+    readonly property var rowsCurve: {
+        const H = Math.max(1, height), y1 = Math.max(1, Math.min(H - 1, rowsTop)), S = scrimRows
+        const Smax = Math.min(0.94, S + Math.max(0.08, S * 0.3)), ss = t => t * t * (3 - 2 * t)
+        const out = []
+        for (let i = 0; i <= 10; i++) out.push({ p: (y1 * i / 10) / H, a: S * ss(i / 10) })
+        for (let i = 1; i <= 8; i++) out.push({ p: (y1 + (H - y1) * i / 8) / H, a: S + (Smax - S) * ss(i / 8) })
+        return out
+    }
     Behavior on scrimHero { NumberAnimation { duration: Tokens.ms(420); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
     Behavior on scrimRows { NumberAnimation { duration: Tokens.ms(420); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
-    onLightNowChanged: if (Shell.debug) console.warn("ATOM home scrim top", scrimFor(lightNow.top, rice.fgDim, 4.5).toFixed(2), "hero", scrimFor(lightNow.hero, rice.fgDim, 4.5).toFixed(2), "rows", scrimFor(lightNow.rows, rice.fgDim, 4.5).toFixed(2))
+    onLightNowChanged: if (Shell.debug) console.warn("ATOM home scrim hero", scrimFor(lightNow.hero, rice.fgDim, 4.5).toFixed(2), "rows", scrimFor(lightNow.rows, rice.fgDim, 4.5).toFixed(2))
 
     // ------------------------------------------------------------------ the backdrop follows the focus
     property var bgItems: [null, null]
@@ -944,7 +960,9 @@ Window {
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: stage.u(12)
                         TopButton { height: stage.barH; rice: stage.rice; unit: stage.unit; icon: "arrow_back"; tip: "Back (Esc)"; focused: topBar.keyOn === "back"; onClicked: stage.setTab(stage.tabBefore) }
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: "Theme"; color: stage.rice.fg; font.family: Tokens.font.ui; font.weight: Font.Bold; font.pixelSize: stage.u(30) }
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: "Theme"; color: stage.rice.fg; font.family: Tokens.font.ui; font.weight: Font.Bold; font.pixelSize: stage.u(30)
+                               layer.enabled: true
+                               layer.effect: MultiEffect { shadowEnabled: true; shadowColor: Qt.rgba(0, 0, 0, 0.55); shadowBlur: 0.7; shadowVerticalOffset: 2; shadowHorizontalOffset: 0 } }
                     }
                     Rectangle {         // the pages' track: the one you're on is a solid pill
                         id: tabs
@@ -1046,8 +1064,10 @@ Window {
                         }
                         MouseArea { id: sm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (!stage.launcher.saverBusy) stage.launcher.setSaver(!stage.launcher.saverShown) }
                     }
-                    Text {
+                    Text {      // (a soft shadow of its own: nothing darkens the top of the page)
                         anchors.verticalCenter: parent.verticalCenter
+                        layer.enabled: true
+                        layer.effect: MultiEffect { shadowEnabled: true; shadowColor: Qt.rgba(0, 0, 0, 0.55); shadowBlur: 0.7; shadowVerticalOffset: 2; shadowHorizontalOffset: 0 }
                         text: Qt.formatTime(stage.now, "HH:mm")
                         color: stage.rice.fg
                         font.family: Tokens.font.ui
