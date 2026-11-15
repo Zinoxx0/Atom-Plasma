@@ -415,42 +415,44 @@ PlasmoidItem {
 
         Item { implicitWidth: root.u(Tokens.space.sm) }
 
-        // beads: the apps with news you haven't seen (Atom Notify), each a candy dot in the app's colour with
-        // a ring that fills a fifth per message; they overlap when there are many and fan out under the pointer
-        Row {
+        // notifications: the apps with news you haven't seen (Atom Notify), stacked exactly as the quiet apps are
+        // (resting on each other, one island: the user, 2026-11-15; they used to be beads that fanned out), each
+        // a candy dot in its app's colour with a ring that fills a fifth per message. A click opens the
+        // notifications panel at the first app's group and clears nothing: they're seen there, or when the
+        // app's window gets the focus.
+        Item {
             id: beads
-            visible: Notify.unseen.length > 0
-            Layout.alignment: Qt.AlignVCenter
+            readonly property int n: Notify.unseen.length
+            readonly property real slot: root.u(30)
+            readonly property real step: root.u(10)
+            readonly property real rise: root.u(2)
+            visible: n > 0
+            Layout.fillHeight: true
             Layout.rightMargin: visible ? root.u(6) : 0
-            spacing: fanned ? root.u(5) : Notify.unseen.length > 3 ? -root.u(9) : root.u(3)
-            Behavior on spacing { NumberAnimation { duration: Tokens.ms(380); easing.type: Tokens.grow } }
-            // under the pointer: each bead's own hover (see the apps' icons below for why not a HoverHandler)
-            property bool fanned: false
-            function hoverCheck() {
-                let any = false
-                for (let i = 0; i < beadIcons.count; i++) if (beadIcons.itemAt(i)?.hovered) any = true
-                if (any) { beadSettle.stop(); fanned = true } else beadSettle.restart()
+            Layout.preferredWidth: visible ? slot + (n - 1) * step : 0
+            Behavior on Layout.preferredWidth { NumberAnimation { duration: apps.glide; easing.type: Tokens.grow } }
+            Rectangle {     // its island lights up under the pointer, and in the accent while the panel is open
+                anchors { fill: parent; topMargin: root.u(5); bottomMargin: root.u(5) }
+                radius: height / 2
+                color: C.alpha(notesIsland.open ? pal.primary : pal.fg, notesIsland.open ? 0.22 : notesIsland.pressed ? 0.12 : notesIsland.containsMouse ? 0.08 : 0)
+                Behavior on color { ColorAnimation { duration: Tokens.fast } }
             }
-            Timer { id: beadSettle; interval: Tokens.ms(220); onTriggered: beads.fanned = false }
             Repeater {
                 id: beadIcons
                 model: Notify.unseen
-                // Plasma's tooltip wraps the bead's MouseArea (Qt Quick Controls' tooltips open as popup
-                // windows that take the pointer from the bar: the next click only closed the tooltip)
-                delegate: PlasmaCore.ToolTipArea {
+                delegate: Item {
                     id: bead
                     required property var modelData
                     required property int index
                     readonly property color tint: C.appTint(beadColors, pal.primary)
-                    readonly property bool hovered: beadArea.containsMouse
-                    onHoveredChanged: beads.hoverCheck()
                     Kirigami.ImageColors { id: beadColors; source: bead.modelData.icon }
-                    width: root.u(28); height: width
-                    z: Notify.unseen.length - index
-                    mainText: bead.modelData.name
-                    subText: bead.modelData.unread + " new"
-                    scale: hovered ? 1.12 : 1
-                    Behavior on scale { NumberAnimation { duration: Tokens.base; easing.type: Tokens.enter } }
+                    width: beads.slot
+                    height: beads.height
+                    x: index * beads.step
+                    y: ((beads.n - 1) / 2 - index) * beads.rise
+                    z: beads.n - index          // the lowest step in front, as the quiet apps'
+                    Behavior on x { NumberAnimation { duration: apps.glide; easing.type: Tokens.grow } }
+                    Behavior on y { NumberAnimation { duration: apps.glide; easing.type: Tokens.grow } }
                     Rectangle {     // the candy: the app's colour, glassy
                         anchors.centerIn: parent
                         width: root.u(24); height: width; radius: width / 2
@@ -467,7 +469,8 @@ PlasmoidItem {
                         }
                     }
                     Shape {     // how many: an arc around it
-                        anchors.fill: parent
+                        anchors.centerIn: parent
+                        width: root.u(28); height: width
                         preferredRendererType: Shape.CurveRenderer
                         ShapePath {
                             fillColor: "transparent"
@@ -475,24 +478,28 @@ PlasmoidItem {
                             strokeWidth: Math.max(1.5, root.u(2))
                             capStyle: ShapePath.RoundCap
                             PathAngleArc {
-                                centerX: bead.width / 2; centerY: bead.height / 2
-                                radiusX: bead.width / 2 - root.u(1); radiusY: radiusX
+                                centerX: root.u(14); centerY: root.u(14)
+                                radiusX: root.u(13); radiusY: radiusX
                                 startAngle: -90
                                 sweepAngle: Math.min(5, bead.modelData.unread) / 5 * 360
                             }
                         }
                     }
-                    MouseArea {
-                        id: beadArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            const p = mapToGlobal(0, 0)
-                            Shell.open("apps", Screen.name, { x: p.x, y: p.y, width: width, height: height }, { group: bead.modelData.key })
-                            Notify.markSeen(bead.modelData.key)
-                        }
-                    }
+                }
+            }
+            // the stack, as one island over its dots (Plasma's tooltip wraps it: a Qt Quick Controls tooltip
+            // would take the pointer from the bar)
+            PlasmaCore.ToolTipArea {
+                anchors.fill: parent
+                z: 1000
+                mainText: beads.n === 1 ? (Notify.unseen[0] ? Notify.unseen[0].name : "") : beads.n + " apps with news"
+                subText: Notify.unseen.map(u => u.name + ": " + u.unread + " new").join("\n")
+                Island {
+                    id: notesIsland
+                    anchors.fill: parent
+                    kind: "apps"
+                    args: ({ group: Notify.unseen[0] ? Notify.unseen[0].key : "" })
+                    cursorShape: Qt.PointingHandCursor
                 }
             }
         }
