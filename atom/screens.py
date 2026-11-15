@@ -186,9 +186,43 @@ def media_screen(ss, cfg):
     return max(near, key=area)["name"]
 
 
-TOP_RATIO = 1.05   # the Glimpse band's size next to the bar widgets' (settings ui.top)
+TOP_SIZE = 1.05    # the top bar's own size on each screen's standard size (settings top.size)
+TOP_RANGE = (0.6, 2.0)
 
 
+def top_size(cfg):
+    """The top bar's own size (Glimpse's strip and the shelf it opens; the Theme page's "Top bar size"): times
+    each screen's standard size, apart from the taskbar's size (ui)."""
+    try:
+        v = float((cfg.get("top") or {}).get("size", TOP_SIZE))
+    except (TypeError, ValueError):
+        return TOP_SIZE
+    return round(min(TOP_RANGE[1], max(TOP_RANGE[0], v)), 2)
+
+
+def top_scale(s, cfg):
+    """The top bar's scale on screen s (palette _topScale), from s's standard size (`comfort`). Settings from
+    before it had a size of its own (ui.top: a ratio to the taskbar's size) keep that until migrate.py moves
+    them to top.size."""
+    ui = cfg.get("ui") or {}
+    if "top" in ui:
+        return round(s["ui"] * float(ui["top"]), 2)
+    return round(s.get("comfort", 1.0) * top_size(cfg), 2)
+
+
+def retop(cfg=None):
+    """Only the top bar's size in every screen's palette (`rice.py top size`): Glimpse and the desk read their
+    palette live, so nothing else has to run. Each palette carries its screen's standard size (_standard)."""
+    cfg = util.settings() if cfg is None else cfg
+    changed = 0
+    for f in sorted(STATE.glob("palette-*.json")):
+        p = util.load_json(f)
+        if not isinstance(p, dict) or "_standard" not in p:
+            continue
+        t = top_scale({"ui": p.get("_scale", 1.0), "comfort": p["_standard"]}, cfg)
+        if p.get("_topScale") != t:
+            changed += util.write_if_changed(f, json.dumps(dict(p, _topScale=t), indent=2) + "\n")
+    return changed
 
 
 CLOCK_PT = 11      # the bar clock's points at UI size 1 (settings ui.clock_pt)
@@ -219,14 +253,13 @@ def apply_screens(ss, cfg, fallback):
         img = Path(s["image"]) if s["image"] else None
         p = with_meta(palette_for(img, cfg, ovs.get(s["id"])), img) if img else fallback
         g = glass(img, s)
-        top = float((cfg.get("ui") or {}).get("top", TOP_RATIO))
         gf = glass_full(img, s)
         p = dict(p, _glass=g, _glassBand=GLASS_BAND, _rim=rim(g, p), _glassFull=gf,
                  _backdrop=palette.zone_light(gf) if gf else {},            # how bright the launcher's backdrop gets under its text
                  _backdropSharp=palette.zone_light(img, aspect=s["w"] / s["h"]) if s.get("w") and s.get("h") else {},  # (no blur: the wallpaper itself)
                  _scale=s["ui"],                                            # size of that bar's widgets
                  _standard=s.get("comfort", 1.0),                           # the screen's standard size (the launcher's base)
-                 _topScale=round(s["ui"] * top, 2),                         # size of the Glimpse band up top
+                 _topScale=top_scale(s, cfg),                               # size of the top bar (Glimpse's band)
                  _display={k: s["display"][k] for k in ("id", "name", "label", "portrait", "sharedEdges", "scale")},
                  _layout=desk_layout(img, s),                               # the desktop widgets' places (com.zinoxx.desk)
                  _desk={"media": s["name"] == music, "clawd": s["name"] == music, "theme": theme_name},

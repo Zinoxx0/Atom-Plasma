@@ -360,4 +360,5 @@ def page():
             "walls": [{"name": w.name, "path": str(w), "thumb": str(walls.thumb(w))} for w in walls.walls()],
             "screens": screens_info([dict(s) for s in ss]), "presets": presets_info(ss),
             "presetLen": presets.PRESET_LEN, "moods": list(palette.MOODS), "ui": ui_info(ds),
+            "top": {"size": screens.top_size(util.settings())},     # (read after screens(): it migrates settings)
             "arrangement": {"problem": displays.describe(issues, ds), "fix": fix}}

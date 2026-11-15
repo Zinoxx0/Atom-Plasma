@@ -5,8 +5,9 @@ import Rice
 
 // The shell's own settings, read live from the rice's settings.json (~/.config/atom-plasma, written by rice.py:
 // a replaced file is one change): one object for every widget in plasmashell (Atom is one module, one engine).
-//   blurStyle      "matte" (noisy matte) | "clear" (clear blur) | "none" (no blur): the launcher's and the power
-//                  page's backdrop (rice.py blur matte|clear|none, the Theme page's "Blur style")
+//   backdropStyle  "matte" (noisy matte) | "clear" (clear blur) | "noise" (noisy only) | "none" (no blur): the
+//                  launcher's and the power page's backdrop (rice.py backdrop ..., the Theme page's "Backdrop
+//                  style"; settings backdrop.style, blur.style before 1.1)
 //   launcherSize   the launcher's own size on each screen's standard size (rice.py launcher size F)
 Item {
     id: prefs
@@ -22,7 +23,10 @@ Item {
     // under a veil it faded to half), at this strength; the glass's veil is the power page's.
     readonly property real grainAlpha: 0.05
     readonly property real glassVeil: 0.52
-    readonly property string blurStyle: value.blur && ["clear", "none"].indexOf(value.blur.style) >= 0 ? value.blur.style : "matte"
+    readonly property string backdropStyle: {
+        const st = (value.backdrop || value.blur || {}).style
+        return ["clear", "noise", "none"].indexOf(st) >= 0 ? st : "matte"
+    }
     // the bar's islands (rice.py bar style ...: Panel Colorizer looks): solid | matte | clear | none
     readonly property string barStyle: value.bar && ["matte", "clear", "none"].indexOf(value.bar.style) >= 0 ? value.bar.style : "solid"
     readonly property real launcherSize: {

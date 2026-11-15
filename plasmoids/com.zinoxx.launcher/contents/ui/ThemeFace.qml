@@ -8,7 +8,8 @@ import Rice
 //   wall    the wallpaper, badged with the screens it's on
 //   look    a saved theme: its screens as they sat (LayoutGlyph), and its name
 //   save    a place for a new one
-//   mood / colours-auto / accent / size / light   a swatch of what it does
+//   mood / colours-auto / accent / light / kb   a swatch of what it does
+//   backdrop / barstyle   what that style looks like over this screen's wallpaper
 // What's in use now wears a tick. Each kind builds only its own parts (a row holds 159 wallpapers).
 Item {
     id: face
@@ -21,7 +22,7 @@ Item {
 
     Loader {
         anchors.fill: parent
-        sourceComponent: face.kind === "wall" ? wallFace : face.kind === "blur" ? blurFace : face.kind === "barstyle" ? barFace
+        sourceComponent: face.kind === "wall" ? wallFace : face.kind === "backdrop" ? blurFace : face.kind === "barstyle" ? barFace
                        : face.kind ? cardFace : null
     }
 
@@ -56,13 +57,15 @@ Item {
         }
     }
 
-    // ---- a blur style: what it looks like over this screen's wallpaper (matte: the frost and its grain; clear:
-    // the wallpaper blurred live, a window's edge showing through), its name on it
+    // ---- a backdrop style: what it looks like over this screen's wallpaper (matte: the frost and its grain; clear:
+    // the wallpaper blurred live, a window's edge showing through; noisy only: the wallpaper sharp under the grain;
+    // no blur: the wallpaper sharp), its name on it
     Component {
         id: blurFace
         Item {
             readonly property bool matte: face.item && face.item.style === "matte"
-            readonly property bool sharp: face.item && face.item.style === "none"
+            readonly property bool sharp: face.item && (face.item.style === "none" || face.item.style === "noise")
+            readonly property bool grainy: face.item && (face.item.style === "matte" || face.item.style === "noise")
             readonly property var v: face.rice.values || ({})
             Kirigami.ShadowedRectangle {
                 anchors.fill: parent
@@ -98,15 +101,15 @@ Item {
                     layer.enabled: true
                     layer.effect: MultiEffect { blurEnabled: true; blur: 0.5; blurMax: 16 }
                 }
-                Image {         // the grain (matte)
+                Image {         // the grain (noisy matte, noisy only): stronger than the real one, to read at this size
                     anchors.fill: parent
-                    visible: parent.parent.matte
+                    visible: parent.parent.grainy
                     source: visible ? Prefs.grain : ""
                     fillMode: Image.Tile
                     smooth: false
-                    opacity: 0.09
+                    opacity: 0.2
                 }
-                Rectangle {     // the veil (no blur: only the dark shade, from the bottom)
+                Rectangle {     // the veil (sharp: only the dark shade, from the bottom)
                     anchors.fill: parent
                     color: parent.parent.sharp ? "transparent" : C.alpha(face.rice.surfaceLowest, parent.parent.matte ? 0.18 : 0.34)
                     gradient: parent.parent.sharp ? shade : null
@@ -255,7 +258,7 @@ Item {
                 font.pixelSize: face.u(face.kind === "look" ? 17 : 14)
             }
             Text {
-                visible: face.kind === "save" || face.kind === "colours-auto" || (face.kind === "size" && face.item.v === "auto")
+                visible: face.kind === "save" || face.kind === "colours-auto"
                 anchors.centerIn: parent
                 anchors.verticalCenterOffset: face.kind === "save" ? -face.u(10) : 0
                 text: face.kind === "save" ? "add" : face.kind === "colours-auto" ? "auto_awesome" : "fit_screen"
@@ -270,15 +273,6 @@ Item {
                 color: face.item && face.item.hex ? face.item.hex : "transparent"
                 border.width: 1
                 border.color: C.alpha("#ffffff", 0.3)
-            }
-            Text {          // a size
-                visible: (face.kind === "size" || face.kind === "lsize") && face.item.v !== "auto"
-                anchors.centerIn: parent
-                text: "Aa"
-                color: face.rice.fg
-                font.family: Tokens.font.display
-                font.weight: Font.DemiBold
-                font.pixelSize: face.u(26 * (0.62 + (((face.kind === "size" || face.kind === "lsize") && typeof face.item.v === "number" ? face.item.v : 1) - 1) * 1.1))
             }
             Loader {        // a keyboard, lit the way it would be
                 active: face.kind === "light" || face.kind === "kb"

@@ -7,7 +7,10 @@ import Rice
 // (the same commands the Theme panels run: rice.py <image> / preset load / theme set / ui set, rgb.py set).
 // Applying re-themes the desktop, and the launcher with it: its palette follows. Under the nested tests
 // (Shell.debug) nothing is run: "ATOM theme run <args>" says what would have been.
-// Items: { kind: look | save | wall | colours-auto | mood | accent | size | light, key, name, ... }
+// Items: { kind: look | save | wall | colours-auto | mood | accent | backdrop | barstyle | kb | lsize | top | tsize, key,
+// name, ... }; the three sizes are sliders ({ slider: true, v, min, max, step, def }: ThemeSlider, slide(it, v)).
+// Rows come in groups (a header row before each: Look, Launcher, Desktop > Taskbar, Keyboard lighting), the
+// themes above them all; Stage keeps which are open (all closed whenever the page is opened).
 // Each row also carries its own settings, shown in its header (nothing hides behind a settings button):
 // tools: [{ id, kind: button | toggle | minus | plus | value, icon, label, tip, on }] (tool(id) does them).
 // Live edits (an accent's colour, the intensity, the keyboards' brightness) queue: one command runs at a time
@@ -71,9 +74,8 @@ Item {
         else if (it.kind === "look") run(it.key, riceCmd(["preset", "load", it.name]))
         else if (it.kind === "colours-auto") run(it.key, riceCmd(["theme", "reset", "--screen", target]))
         else if (it.kind === "mood") run(it.key, riceCmd(["theme", "set", "--screen", target, "--mood", it.mood]))
-        else if (it.kind === "size") run(it.key, riceCmd(["ui", "set"].concat(it.v === "auto" ? ["--auto", "true"] : ["--auto", "false", "--size", String(it.v)])))
-        else if (it.kind === "lsize") run(it.key, riceCmd(["launcher", "size", String(it.v)]))
-        else if (it.kind === "blur") run(it.key, riceCmd(["blur", it.style]))
+        else if (it.slider) slide(it, it.v)
+        else if (it.kind === "backdrop") run(it.key, riceCmd(["backdrop", it.style]))
         else if (it.kind === "light") run(it.key, ["python3", sh.home + "/.config/plasma-rice/bin/rgb.py", "set", "all"].concat(it.args))
         else if (it.kind === "kb") {
             const a = it.args
@@ -85,6 +87,17 @@ Item {
 
     // ------------------------------------------------------------------ live edits and the rows' tools
     function setDraft(k, v) { const d = Object.assign({}, draft); d[k] = v; draft = d; build() }
+    function dropDraft(k, v) { if (draft[k] !== undefined && Math.abs(draft[k] - v) < 0.001) { const d = Object.assign({}, draft); delete d[k]; draft = d } }
+    // a size slider let go at v (on its steps): shown at once, applied in the background (the latest waits)
+    function slide(it, v) {
+        if (!it || !it.slider) return
+        v = Math.round(Math.round(Math.max(it.min, Math.min(it.max, v)) / it.step) * it.step * 100) / 100
+        setDraft("slider:" + it.key, v)
+        const argv = it.key === "lsize" ? ["launcher", "size", String(v)] : it.key === "top" ? ["top", "size", String(v)]
+                   : ["ui", "set", "--size", String(v)]
+        run("live:" + it.key, riceCmd(argv))
+    }
+    function sizeText(v) { return Number(v).toFixed(2) + "×" }
     function setAccent(role, hex) {
         if (role.startsWith("kb:")) {       // a keyboard's own colour (the accent editor, reused)
             const id = role.slice(3)
@@ -125,6 +138,12 @@ Item {
         if (id === "walls:random") run(id, riceCmd(["random", "--screen", target]))
         else if (id === "walls:folder") { if (page && page.dir) Qt.openUrlExternally("file://" + page.dir) }
         else if (id === "walls:discover") openFinder()
+        else if (id === "ui:auto") {        // the taskbar's size on each screen's standard size, or the same everywhere
+            const ui = page && page.ui || {}
+            const on = !(draft["ui:auto"] ?? !!ui.auto)
+            setDraft("ui:auto", on)
+            run("live:uiauto", riceCmd(["ui", "set", "--auto", String(on)]))
+        }
         else if (id === "intensity-" || id === "intensity+") {
             const v = Math.round(Math.max(0.3, Math.min(1.5, intensity + (id === "intensity+" ? 0.1 : -0.1))) * 10) / 10
             setDraft("intensity", v)
@@ -170,6 +189,9 @@ Item {
         return o
     }
     function barStyleName() { return ({ solid: "Solid", matte: "Noisy matte", clear: "Clear blur", none: "No blur" })[Prefs.barStyle] || "Solid" }
+    readonly property var backdropNames: ({ matte: "Noisy matte", clear: "Clear blur", noise: "Noisy only", none: "No blur" })
+    // the groups (a group inside another: its parent), in their order
+    readonly property var groupParent: ({ bar: "desk" })
     // ------------------------------------------------------------------ the rows
     function fileName(p) { return p ? String(p).split("/").pop() : "" }
     function build() {
@@ -186,7 +208,8 @@ Item {
             desc: "Every screen's wallpaper and hand-picked colours, together. Screens it doesn't know mirror the main one.",
         }))
         looks.push({ kind: "save", key: "save", name: "Save this look", meta: [], desc: "Keep every screen's wallpaper and colours under a short name, to come back to in one step." })
-        out.push({ id: "looks", title: "Themes", shape: "look", items: looks, divider: -1, labeled: false, count: true, tools: [] })
+        // (above the groups, always in sight: a theme is the whole look at once)
+        out.push({ id: "looks", group: "", title: "Themes", shape: "look", items: looks, divider: -1, labeled: false, count: true, tools: [] })
         // the collection
         const on = name => screens.filter(s => fileName(s.image) === name).map(s => s.label)
         const walls = page.walls.map((w, i) => ({
@@ -218,39 +241,46 @@ Item {
             { id: "intensity", kind: "value", icon: "contrast", label: "Intensity " + Math.round(intensity * 100) + "%" },
             { id: "intensity+", kind: "plus", icon: "add", tip: "Stronger accents" },
         ] })
-        // size
+        // the sizes, each a slider in steps of 0.05 on each screen's standard size (how big a pixel looks from where
+        // you sit): the launcher's, the top bar's, the taskbar's (ui: also the same size everywhere, "Automatic" off)
         const ui = page.ui || {}
-        const sizes = [{ kind: "size", key: "size:auto", v: "auto", name: "Automatic", current: !!ui.auto,
-                         meta: [ui.auto ? "Now" : "Each screen its standard size"], desc: "The same apparent size on every screen, whatever its resolution, size and distance." }]
-        for (const v of [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6])
-            sizes.push({ kind: "size", key: "size:" + v, v: v, name: v.toFixed(1) + "×", current: !ui.auto && Math.abs((ui.size || 0) - v) < 0.001,
-                         meta: [!ui.auto && Math.abs((ui.size || 0) - v) < 0.001 ? "Now" : "Overall"], desc: "Bars, the top band, popups and clocks on every screen, " + v.toFixed(1) + "× their standard size." })
-        out.push({ id: "size", title: "Desktop size", shape: "chip", items: sizes, divider: -1, labeled: true, count: false, tools: [] })
-        // the launcher's own size, apart from the desktop's: 1 = each screen's standard size
-        const lnow = launcher.homeSize
-        const lsizes = [0.85, 1.0, 1.15, 1.3, 1.45, 1.6].map(v => ({
-            kind: "lsize", key: "lsize:" + v, v: v, name: v.toFixed(2).replace(/0$/, "") + "×", current: Math.abs(lnow - v) < 0.001,
-            meta: [Math.abs(lnow - v) < 0.001 ? "Now" : "This launcher"],
-            desc: "This page and the launcher's home, " + v.toFixed(2).replace(/0$/, "") + "× their standard size on every screen. The desktop keeps its own size." }))
-        out.push({ id: "lsize", title: "Launcher size", shape: "chip", items: lsizes, divider: -1, labeled: true, count: false, tools: [] })
-        // the blur style of the launcher and the power page (Atom Backdrop): they always wear the same one
-        const blur = Prefs.blurStyle
-        out.push({ id: "blur", title: "Blur style", shape: "look", divider: -1, labeled: false, count: false, tools: [], items: [
-            { kind: "blur", key: "blur:matte", style: "matte", name: "Noisy matte", current: blur === "matte",
-              meta: [blur === "matte" ? "Now" : "The launcher and the power page"],
-              desc: "Your wallpaper, frosted, under a fine grain: a still, matte finish. The windows behind it are hidden." },
-            { kind: "blur", key: "blur:clear", style: "clear", name: "Clear blur", current: blur === "clear",
-              meta: [blur === "clear" ? "Now" : "The launcher and the power page"],
-              desc: "A live blur of whatever is behind, windows too, like glass." },
-            { kind: "blur", key: "blur:none", style: "none", name: "No blur", current: blur === "none",
-              meta: [blur === "none" ? "Now" : "The launcher and the power page"],
-              desc: "Your wallpaper as it is, sharp, with no blur or filter: only the dark shade that keeps the text readable." },
+        const Sl = (key, kind, name, v, def, desc, meta, defLabel) => ({ kind: kind, key: key, slider: true, name: name, v: v, min: 0.8, max: 1.8,
+                                                                         step: 0.05, def: def, defLabel: defLabel || "Standard", current: false, meta: meta, desc: desc })
+        const lnow = draft["slider:lsize"] ?? launcher.homeSize
+        out.push({ id: "lsize", title: "Launcher size", shape: "slider", divider: -1, labeled: false, count: false, tools: [], items: [
+            Sl("lsize", "lsize", "Launcher size", lnow, 1.0, "This launcher and its pages on every screen, on each screen's standard size. The desktop keeps its own sizes.",
+               [sizeText(lnow), "Each screen's standard size × this"]) ] })
+        // its backdrop (Atom Backdrop), the power page's too: they always wear the same one
+        const bd = Prefs.backdropStyle
+        const D = (style, desc) => ({ kind: "backdrop", key: "backdrop:" + style, style: style, name: backdropNames[style], current: bd === style,
+                                      meta: [bd === style ? "Now" : "The launcher and the power page"], desc: desc })
+        out.push({ id: "backdrop", title: "Backdrop style", shape: "look", divider: -1, labeled: false, count: false, tools: [], items: [
+            D("matte", "Your wallpaper, frosted, under a fine grain: a still, matte finish. The windows behind it are hidden."),
+            D("clear", "A live blur of whatever is behind, windows too, like glass."),
+            D("noise", "Your wallpaper as it is, sharp, under the same fine grain: its texture without the blur. The windows behind it are hidden."),
+            D("none", "Your wallpaper as it is, sharp, with no blur or filter: only the dark shade that keeps the text readable."),
         ] })
+        // the top bar (Glimpse's band): its own size
+        const tnow = draft["slider:top"] ?? ((page.top || {}).size || 1.05)
+        out.push({ id: "top", title: "Top bar size", shape: "slider", divider: -1, labeled: false, count: false, tools: [], items: [
+            Sl("top", "top", "Top bar size", tnow, 1.05, "The bar at the top of every screen: its strip and the window shelf it opens, on each screen's standard size.",
+               [sizeText(tnow), "Each screen's standard size × this"], "Default") ] })
+        // the taskbar: its size (its popups and the desk's clocks follow it), then its islands' glass
+        const auto = draft["ui:auto"] ?? !!ui.auto
+        const bnow = draft["slider:tsize"] ?? (ui.size || 1)
+        const own = (ui.screens || []).filter(x => x.own).map(x => "the " + String(x.label).toLowerCase() + " keeps its own " + sizeText(x.own))
+        out.push({ id: "tsize", title: "Taskbar size", shape: "slider", divider: -1, labeled: false, count: false, items: [
+            Sl("tsize", "tsize", "Taskbar size", bnow, 1.0,
+               (auto ? "The taskbar, its popups and the desk's clocks, on each screen's standard size." : "The taskbar, its popups and the desk's clocks, this size on every screen.")
+               + (own.length ? " (" + own.join(", ") + ".)" : ""),
+               [sizeText(bnow), auto ? "Each screen's standard size × this" : "The same on every screen"], auto ? "Standard" : "1×") ],
+            tools: [{ id: "ui:auto", kind: "toggle", icon: "auto_awesome", label: "Automatic", on: auto,
+                      tip: auto ? "On: each screen at its standard size × this" : "Off: this size on every screen" }] })
         // the taskbar's islands: their glass (rice.py bar style: Panel Colorizer looks, on every bar)
         const bs = Prefs.barStyle
         const B = (style, name, desc) => ({ kind: "barstyle", key: "bar:" + style, style: style, name: name, current: bs === style,
                                             meta: [bs === style ? "Now" : "Every bar"], desc: desc })
-        out.push({ id: "bar", group: "bar", title: "Island style", shape: "look", divider: -1, labeled: false, count: false, tools: [], items: [
+        out.push({ id: "bar", title: "Island style", shape: "look", divider: -1, labeled: false, count: false, tools: [], items: [
             B("solid", "Solid", "Dark glass you can't see through: the islands as they've always been."),
             B("matte", "Noisy matte", "Frosted, with the launcher's fine grain: the wallpaper softly through it."),
             B("clear", "Clear blur", "Glass: a clear blur of what's behind, lightly tinted."),
@@ -301,35 +331,39 @@ Item {
                        divider: -1, labeled: true, count: false, tools: tools,
                        note: d.ready ? "" : (d.connected ? "Needs a one-time setup (Fine-tune shows it)" : "Not connected") })
         }
-        // the groups: a header before each (it collapses the group; Stage keeps which are open)
-        const groupOf = { looks: "look", walls: "look", colours: "look", lsize: "launcher", blur: "launcher", bar: "bar", size: "desk" }
-        for (const r of out) if (!r.group) r.group = groupOf[r.id] || "look"
+        // the groups: a header before each (it opens and closes the group; Stage keeps which are open), a group's own
+        // rows, then the groups inside it (indented: depth)
+        const groupOf = { walls: "look", colours: "look", lsize: "launcher", backdrop: "launcher", top: "desk", tsize: "bar", bar: "bar" }
+        for (const r of out) if (r.group === undefined) r.group = groupOf[r.id] || (String(r.id).startsWith("kb-") ? "keys" : "look")
         const kbOn = kbs.filter(d => d.ready && (Object.assign({}, d.settings || {}, kbDraft(d.id)).on !== false)).length
         const heads = {
-            look: { title: "Look", icon: "palette", summary: (page.presets || []).length + " themes · " + (page.walls || []).length + " wallpapers · " + moodLabel(),
-                    desc: "Themes, wallpapers and colours: what every screen wears." },
-            launcher: { title: "Launcher", icon: "apps", summary: lnow + "× · " + ({ matte: "Noisy matte", clear: "Clear blur", none: "No blur" })[blur],
-                        desc: "This launcher's size and the blur it and the power page wear." },
-            bar: { title: "Taskbar", icon: "dock_to_bottom", summary: barStyleName(),
-                   desc: "How the bar's islands look." },
-            desk: { title: "Desktop", icon: "desktop_windows", summary: (ui.auto ? "Automatic size" : (ui.size || 1).toFixed(1) + "× size"),
-                    desc: "The size of the bars, popups and the desk's clocks on every screen." },
+            look: { title: "Look", icon: "palette", summary: (page.walls || []).length + " wallpapers · " + moodLabel(),
+                    desc: "Wallpapers and colours: what every screen wears." },
+            launcher: { title: "Launcher", icon: "apps", summary: sizeText(lnow) + " · " + backdropNames[bd],
+                        desc: "This launcher's size and the backdrop it and the power page wear." },
+            desk: { title: "Desktop", icon: "desktop_windows", summary: "Top bar " + sizeText(tnow) + " · taskbar " + sizeText(bnow),
+                    desc: "The top bar on every screen, and the taskbar." },
+            bar: { title: "Taskbar", icon: "dock_to_bottom", summary: (auto ? "Automatic " : "") + sizeText(bnow) + " · " + barStyleName(),
+                   desc: "The taskbar's size (its popups and the desk's clocks follow it) and how its islands look." },
             keys: { title: "Keyboard lighting", icon: "keyboard", summary: kbs.length ? kbOn + " of " + kbs.length + " on" : "No keyboards",
                     desc: "Each keyboard on its own: the screen it follows, its style or its own colour and effect, its brightness." },
         }
-        const grouped = []
-        for (const g of ["look", "launcher", "bar", "desk", "keys"]) {
+        const grouped = out.filter(r => !r.group)
+        const emit = (g, depth) => {
             const rs = out.filter(r => r.group === g)
-            if (!rs.length) continue
+            const kids = Object.keys(groupParent).filter(k => groupParent[k] === g)
+            if (!rs.length && !kids.some(k => out.some(r => r.group === k))) return
             const h = heads[g]
-            grouped.push({ id: "group:" + g, group: g, header: true, title: h.title, shape: "header", divider: -1, labeled: false, count: false, tools: [],
-                           items: [{ kind: "group", ctl: "group", group: g, key: "group:" + g, name: h.title, icon: h.icon, meta: [h.summary], desc: h.desc }] })
-            for (const r of rs) grouped.push(r)
+            grouped.push({ id: "group:" + g, group: g, header: true, depth: depth, title: h.title, shape: "header", divider: -1, labeled: false, count: false, tools: [],
+                           items: [{ kind: "group", ctl: "group", group: g, depth: depth, key: "group:" + g, name: h.title, icon: h.icon, meta: [h.summary], desc: h.desc }] })
+            for (const r of rs) { r.depth = depth; grouped.push(r) }
+            for (const k of kids) emit(k, depth + 1)
         }
+        for (const g of ["look", "launcher", "desk", "keys"]) emit(g, 0)
         rows = grouped
         rev++
     }
     onTargetChanged: build()
-    Connections { target: tm.launcher; function onHomeSizeChanged() { tm.build() } }
-    Connections { target: Prefs; function onBlurStyleChanged() { tm.build() } function onBarStyleChanged() { tm.build() } }
+    Connections { target: tm.launcher; function onHomeSizeChanged() { tm.dropDraft("slider:lsize", tm.launcher.homeSize); tm.build() } }
+    Connections { target: Prefs; function onBackdropStyleChanged() { tm.build() } function onBarStyleChanged() { tm.build() } }
 }

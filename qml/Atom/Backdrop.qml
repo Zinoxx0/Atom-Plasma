@@ -4,12 +4,13 @@ import QtQuick.Shapes
 import Atom.Native
 import Rice
 
-// A full-screen surface's backdrop in the blur style chosen on the Theme page (Atom Prefs.blurStyle), so the
+// A full-screen surface's backdrop in the style chosen on the Theme page (Atom Prefs.backdropStyle), so the
 // launcher and the power page always wear the same one:
 //   "matte"  noisy matte: the screen's wallpaper pre-blurred by the theme engine (palette _glassFull) under a
 //            fine grain (it dithers the bands a blurred picture makes in 8 bits): a still, opaque, matte
 //            finish; the windows behind it are hidden
 //   "clear"  clear blur: KWin's live blur of whatever is behind, windows included, like glass
+//   "noise"  noisy only: the screen's wallpaper itself, sharp, under matte's grain (texture without the blur)
 //   "none"   no blur: the screen's wallpaper itself, sharp and unfiltered, laid exactly where the desktop shows
 //            it (`offsetY`: how far below the screen's top this window starts); the windows behind are hidden
 // All under a veil of the palette's darkest surface (`veil`, 0: none), and matte's grain over it all. It fills a circle (a ripple: `origin`,
@@ -19,7 +20,7 @@ Item {
     id: bd
     required property var window            // the Window, for KWin's blur
     required property var pal               // RicePalette: the frost (_glassFull), the wallpaper, surfaceLowest
-    property string style: Prefs.blurStyle
+    property string style: Prefs.backdropStyle
     property point origin: Qt.point(width / 2, height / 2)
     property real radius: -1
     property real veil: 0.5
@@ -27,11 +28,11 @@ Item {
     property real offsetY: 0                // the window starts this far below its screen's top (the wallpaper lines up)
     readonly property bool matte: style === "matte"
     readonly property bool glass: style === "clear"
-    readonly property bool sharp: style === "none"
+    readonly property bool sharp: style === "none" || style === "noise"     // the wallpaper itself, unblurred
     readonly property bool pictured: matte || sharp     // a picture of the wallpaper (frosted or sharp) hides what's behind
     // style "veil": only the veil (over another surface that already wears the style: the power page over the
     // launcher); grainy: the matte grain on top all the same (under a veil it would fade)
-    property bool grainy: matte
+    property bool grainy: matte || style === "noise"
     readonly property url grain: Prefs.grain
     property real grainAlpha: Prefs.grainAlpha
     // its own grain on top (false: the surface draws it itself, over what it lays on the backdrop: the
@@ -62,7 +63,7 @@ Item {
         width: bd.width
         height: bd.height
         visible: false
-        Image {         // no blur: the wallpaper as the desktop shows it (scaled and cropped to the screen)
+        Image {         // no blur, noisy only: the wallpaper as the desktop shows it (scaled and cropped to the screen)
             readonly property real dpr: bd.window && bd.window.devicePixelRatio ? bd.window.devicePixelRatio : 1
             y: -bd.offsetY
             width: parent.width

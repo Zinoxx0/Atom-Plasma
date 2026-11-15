@@ -299,15 +299,18 @@ Window {
     readonly property int themeTab: 3
     property int tab: 0                         // 0 Home, 1 Games, 2 Apps, 3 the Theme page (no tab: the palette)
     property int tabBefore: 0                   // where the Theme page goes back to
-    // the Theme page in groups (ThemeModel's headers): the rows of the open ones (Look open to start)
-    property var groupsOpen: ({ look: true })
-    readonly property var themePage: ({ id: "theme", rows: tm.rows.filter(r => r.header || groupsOpen[r.group]) })
+    // the Theme page in groups (ThemeModel's headers; a group inside another shows when its parent is open):
+    // the themes, then each header, and the rows of the open ones. All closed whenever the page is opened.
+    property var groupsOpen: ({})
+    function groupShows(g) { for (let p = tm.groupParent[g]; p; p = tm.groupParent[p]) if (!groupsOpen[p]) return false; return true }
+    readonly property var themePage: ({ id: "theme", rows: tm.rows.filter(r => !r.group || (groupShows(r.group) && (r.header || !!groupsOpen[r.group]))) })
     function toggleGroup(g) {
         const o = Object.assign({}, groupsOpen); o[g] = !o[g]; groupsOpen = o
         if (Shell.debug) console.warn("ATOM theme group", g, o[g] ? "open" : "closed")
         Qt.callLater(() => {        // the header keeps the focus (rows above it may have gone)
             const ri = page.rows.findIndex(r => r.id === "group:" + g)
             if (ri >= 0) { const st = pageState(); st.row = -1; focusAt(ri, 0, "key") }
+            if (o[g]) Qt.callLater(focusInUse)      // (its rows, now made, open on what's in use)
         })
     }
     readonly property var emptyPage: ({ id: "", rows: [] })
@@ -502,7 +505,11 @@ Window {
             if (t >= 0) setLine("tools", st.row + 1, t); else setLine("tiles", st.row + 1)
             return
         }
-        if (line === "tiles") { const rr = rowObj(st.row); if (rr) focusAt(st.row, idxOf(rr.id) + dx, "key") }
+        if (line === "tiles") {
+            const t = currentTile()
+            if (t && t.slider) { t.nudge(dx); return }      // (a size slider: left and right move it, a step at a time)
+            const rr = rowObj(st.row); if (rr) focusAt(st.row, idxOf(rr.id) + dx, "key")
+        }
         else if (line === "tools") {
             for (let i = st.tool + dx; i >= 0 && i < toolsOf(r).length; i += dx) if (canFocusTool(r, i)) { setLine("tools", undefined, i); return }
         } else if (line === "desk") setLine("desk", undefined, Math.max(0, Math.min(deskTargets.length - 1, st.desk + dx)))
@@ -529,7 +536,7 @@ Window {
     function focusInUse() {
         const st = states[themeTab]
         let moved = false
-        tm.rows.forEach((r, k) => {
+        themePage.rows.forEach((r, k) => {
             if (st.idx[r.id] !== undefined) return
             const i = r.items.findIndex(it => it.current)
             const row = rowItem(k, themeTab)
@@ -548,7 +555,11 @@ Window {
         const id = rowId === "lights" ? "kb-laptop" : rowId
         const go = () => {
             const row = tm.rows.find(x => x.id === id)
-            if (row && !groupsOpen[row.group]) { const o = Object.assign({}, groupsOpen); o[row.group] = true; groupsOpen = o }
+            if (row && row.group) {     // its group open, and the groups it's in
+                const o = Object.assign({}, groupsOpen)
+                for (let g = row.group; g; g = tm.groupParent[g]) o[g] = true
+                groupsOpen = o
+            }
             Qt.callLater(() => { const r = page.rows.findIndex(x => x.id === id); if (r >= 0) focusAt(r, idxOf(id), "key") })
         }
         if (tm.rows.length) Qt.callLater(go)
@@ -591,7 +602,14 @@ Window {
     function setTab(i) {
         if (i !== themeTab) i = (i + 3) % 3
         if (i === tab) return
-        if (i === themeTab) { tabBefore = tab; tm.reload(); focusInUse() }
+        if (i === themeTab) {       // the Theme page opens fresh: every group closed, the themes first
+            tabBefore = tab
+            groupsOpen = ({})
+            const ss = states.slice(); ss[themeTab] = freshStates()[themeTab]; states = ss
+            focusRev++
+            tm.reload()
+            focusInUse()
+        }
         const dir = i > tab ? 1 : -1
         tabSwap.dir = dir
         tabSwap.next = i
@@ -607,6 +625,11 @@ Window {
         }
         ScriptAction { script: {
             const t0 = Date.now()
+            if (tabSwap.next === stage.themeTab) {      // (its rows made first, so it opens on what's in use: the theme)
+                const pg = pagesRep.itemAt(stage.themeTab)
+                if (pg) pg.made = true
+                stage.focusInUse()
+            }
             stage.tab = tabSwap.next
             rowsSlide.x = tabSwap.dir * stage.u(56)
             stage.settleAll()
@@ -836,7 +859,7 @@ Window {
                         onExtra: (i, from) => stage.themeExtra(th.extra[i].id)
                         opacity: stage.heroO2[index]
                         transform: Translate { x: stage.heroX[index] }
-                        onPrimary: { const t = stage.currentTile(); stage.activateItem(stage.currentItem, t) }
+                        onPrimary: stage.heroPrimary()
                         onPin: if (stage.currentItem) stage.launcher.toggleFavorite(stage.currentItem.favId)
                         onMore: from => { const t = stage.currentTile(); if (t && stage.currentItem) stage.launcher.menu.openFor(t, stage.currentItem.model, stage.currentItem.row) }
                     }
@@ -953,6 +976,7 @@ Window {
                                         onPointerOut: i => stage.unpointed(index, i)
                                         onActivated: (i, tile) => { stage.focusAt(index, i, "mouse"); stage.activateItem(entryAt(i), tile, index) }
                                         onMenu: (i, tile) => stage.itemMenu(entryAt(i), tile)
+                                        onSlid: (i, v) => stage.slid(entryAt(i), v)
                                         Component.onCompleted: Qt.callLater(() => { if (index === pg.st.row) pg.scrollTo(false) })
                                     }
                                 }
@@ -1095,6 +1119,11 @@ Window {
     property int heroSlot: 0
     function heroShow(it) {
         if (!it || heroItems[heroSlot] === it) return
+        const was = heroItems[heroSlot]
+        if (was && it.key && was.key === it.key && !heroFade.running) {     // (the same item, rebuilt: no cross-fade)
+            const items = heroItems.slice(); items[heroSlot] = it; heroItems = items
+            return
+        }
         const next = heroSlot ^ 1
         const items = heroItems.slice(); items[next] = it; heroItems = items
         heroFade.slotFrom = heroSlot
@@ -1143,9 +1172,10 @@ Window {
             mood: { eyebrow: "Mood", primary: "Use " + String(it.name).toLowerCase(), icon: "palette" },
             accent: String(it.role).startsWith("kb:") ? { eyebrow: "Keyboard lighting", primary: "Pick its colour", icon: "colorize" }
                     : { eyebrow: "Accent · " + it.role, primary: "Edit colour", icon: "colorize" },
-            size: { eyebrow: "Desktop size", primary: "Use this size", icon: "format_size" },
-            lsize: { eyebrow: "Launcher size", primary: "Use this size", icon: "fit_screen" },
-            blur: { eyebrow: "Blur style", primary: "Use this style", icon: "blur_on" },
+            lsize: { eyebrow: "Launcher", primary: "Back to " + tm.sizeText(it.def), icon: "restart_alt" },
+            top: { eyebrow: "Desktop", primary: "Back to " + tm.sizeText(it.def), icon: "restart_alt" },
+            tsize: { eyebrow: "Taskbar", primary: "Back to " + tm.sizeText(it.def), icon: "restart_alt" },
+            backdrop: { eyebrow: "Backdrop style", primary: "Use this style", icon: "blur_on" },
             barstyle: { eyebrow: "Taskbar islands", primary: "Use this style", icon: "dock_to_bottom" },
             kb: { eyebrow: "Keyboard lighting", primary: it.dev === "laptop" ? "Use on the laptop" : "Use on this keyboard", icon: "keyboard" },
             group: { eyebrow: "Settings", primary: groupsOpen[it.group] ? "Collapse" : "Expand", icon: groupsOpen[it.group] ? "expand_less" : "expand_more" },
@@ -1175,12 +1205,32 @@ Window {
         PlasmaExtras.MenuItem { separator: true }
         PlasmaExtras.MenuItem { text: "Delete"; icon: "edit-delete"; onClicked: if (lookMenu.it) tm.deletePreset(lookMenu.it.name) }
     }
+    // the hero's bright pill: what Enter does, but a size slider's goes back to its standard size
+    function heroPrimary() {
+        const it = currentItem, t = currentTile()
+        if (it && it.slider) {
+            if (t && t.cancelSlide) t.cancelSlide()
+            if (Shell.debug) console.warn("ATOM theme slide", it.key, it.def, "(reset)")
+            quietUntil = Date.now() + 700
+            tm.slide(it, it.def)
+            return
+        }
+        activateItem(it, t)
+    }
+    // a size slider let go (dragged, or its keys paused): applied
+    function slid(it, v) {
+        if (!it || !it.slider) return
+        if (Shell.debug) console.warn("ATOM theme slide", it.key, v.toFixed(2))
+        quietUntil = Date.now() + 700          // (the launcher's own size re-lays the page out under a still pointer)
+        tm.slide(it, v)
+    }
     // Enter, a click or the bright pill: a Theme item applies (or opens the panel it needs), anything else launches
     function activateItem(it, tile, ri) {
         if (!it) return
         if (it.ctl === "group") { toggleGroup(it.group); return }
         if (it.ctl) { rowControl(ri === undefined ? pageState().row : ri, it.ctl, ri === undefined ? "key" : "mouse"); return }
         if (!it.kind) { launchItem(it, tile); return }
+        if (it.slider) { if (tile && tile.commitNow) tile.commitNow(); return }      // (Enter: a slid value now, not after its pause)
         if (it.kind === "save") naming.openAt(tile, tm.suggestName())
         else if (it.kind === "accent") accentEd.openFor(it, tile)
         else tm.apply(it)

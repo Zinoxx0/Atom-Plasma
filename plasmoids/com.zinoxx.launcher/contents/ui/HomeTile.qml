@@ -8,6 +8,8 @@ import Rice
 //   poster  an app in a row of covers: a cover of its own (its colour, its icon's light, the icon on it)
 //   float   an app in a row of icons: the icon alone over a soft shadow; a glass plate comes with the focus
 //   theme   a Theme page item (ThemeFace draws it)
+//   slider  a Theme page size (ThemeSlider draws it): drag it, or left and right a step at a time (applied once
+//           the keys pause, or at Enter); `slid(v)` says where it was let go
 // The focused tile (of the active row) lifts a little, wears the ring (a white line just outside it, with a
 // gap, so it never covers the art) and glows in its own colour (the palette's glow sets how much); a glint
 // crosses it once as it takes the focus. Under the pointer (before the focus settles on it, or in a row
@@ -29,6 +31,8 @@ Item {
     property bool pinned: false
     property bool expanded: true            // a group's header: its group is open
     readonly property bool wide: !!(item && item.ctl === "group")
+    readonly property bool slider: !!(item && item.slider)
+    readonly property bool flat: wide || slider             // (wide tiles don't lift or glow: the ring alone)
     readonly property bool canPin: !!(item && !item.kind && !item.ctl && item.favId)
     readonly property bool hasMenu: !!(item && !item.ctl && (item.model || item.kind === "look"))
     property real unit: 1
@@ -38,6 +42,7 @@ Item {
     signal pointerOut()
     signal menu()
     signal pinToggle()
+    signal slid(real v)
 
     readonly property bool focused: current && rowActive
     readonly property bool pointerOn: pointerMode && (hit.containsMouse || corner.hot)
@@ -46,7 +51,7 @@ Item {
     readonly property bool hasArt: !!(item && item.art && item.art.portrait)
     readonly property bool themed: !!(item && item.kind)
     readonly property bool control: !!(item && item.ctl)      // "Show more" / "Show less" (HomeRow's)
-    readonly property string look: control ? "ctl" : themed ? "theme" : shape === "square" ? "float" : hasArt ? "cover" : "poster"
+    readonly property string look: control ? "ctl" : slider ? "slider" : themed ? "theme" : shape === "square" ? "float" : hasArt ? "cover" : "poster"
     readonly property real radius: Math.round(20 * unit)
     readonly property color ring: rice.light ? rice.fg : "#ffffff"
     readonly property real ringGap: Math.max(3, u(4))          // between the tile and its ring
@@ -57,7 +62,10 @@ Item {
     // its colour, read only where it shows: a poster's fill, or the glow of a tile that has had the focus
     property bool sampled: false
     onFocusedChanged: if (focused) { sampled = true; glint.restart() }
-    onItemChanged: sampled = focused
+    onItemChanged: {
+        sampled = focused
+        if (!isNaN(sliding) && item && Math.abs(item.v - sliding) < 0.001) sliding = NaN     // (applied: the item says it now)
+    }
     readonly property string colorSource: !item || item.ctl ? ""
                                         : themed ? (item.thumb ? "file://" + item.thumb : "")
                                         : hasArt ? item.art.portrait : item.icon
@@ -71,11 +79,11 @@ Item {
     property real enter: 0                  // the stage's entrance: how far right it still is
     transform: Translate { x: tile.enter }
     z: focused ? 2 : 0
-    scale: wide ? 1 : focused ? 1.07 : hovered ? 1.025 : 1
+    scale: flat ? 1 : focused ? 1.07 : hovered ? 1.025 : 1
     Behavior on scale { NumberAnimation { duration: tile.focusMs; easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
 
     // the light it gives off when focused, in its own colour (made while it shows)
-    property real glowV: focused && !wide ? 1 : 0
+    property real glowV: focused && !flat ? 1 : 0
     Behavior on glowV { NumberAnimation { duration: tile.focusMs } }
     Loader {
         anchors.fill: parent
@@ -92,7 +100,7 @@ Item {
     Loader {
         anchors.fill: parent
         sourceComponent: tile.look === "ctl" ? ctlLook : tile.look === "cover" ? coverLook : tile.look === "poster" ? posterLook
-                       : tile.look === "float" ? floatLook : tile.look === "theme" ? themeLook : null
+                       : tile.look === "float" ? floatLook : tile.look === "theme" ? themeLook : tile.look === "slider" ? sliderLook : null
     }
 
     // ---- cover: the game's own art
@@ -262,6 +270,33 @@ Item {
         ThemeFace { item: tile.item; rice: tile.rice; unit: tile.unit; radius: tile.radius }
     }
 
+    // ---- a size slider: where it is while it's moved (NaN: where the item says), its track's ends (ThemeSlider
+    // draws it there; the pointer is read against them)
+    property real sliding: NaN
+    property bool dragging: false
+    readonly property real sliderValue: !isNaN(sliding) ? sliding : item && item.slider ? item.v : 0
+    readonly property real trackL: u(158)
+    readonly property real trackR: width - u(44)
+    function snap(v) { const it = item; return Math.round(Math.round(Math.max(it.min, Math.min(it.max, v)) / it.step) * it.step * 100) / 100 }
+    function slideAt(x) { sliding = snap(item.min + (item.max - item.min) * Math.max(0, Math.min(1, (x - trackL) / Math.max(1, trackR - trackL)))) }
+    function nudge(dx) { if (!slider) return; sliding = snap((isNaN(sliding) ? item.v : sliding) + dx * item.step); settle.restart() }
+    function commitNow() {
+        settle.stop()
+        if (isNaN(sliding)) return
+        if (Math.abs(sliding - item.v) < 0.001) sliding = NaN
+        else slid(sliding)
+    }
+    function cancelSlide() { settle.stop(); dragging = false; sliding = NaN }
+    Timer { id: settle; interval: 650; onTriggered: tile.commitNow() }        // (the keys paused: applied)
+    Component {
+        id: sliderLook
+        ThemeSlider {
+            item: tile.item; rice: tile.rice; unit: tile.unit; radius: tile.radius
+            value: tile.sliderValue; trackL: tile.trackL; trackR: tile.trackR
+            focused: tile.focused; hovered: tile.pointerMode && hit.containsMouse; dragging: tile.dragging
+        }
+    }
+
     // ---- the focus: the ring (outside, with a gap), and a glint once (made only while it crosses)
     Rectangle {
         anchors.fill: parent
@@ -372,11 +407,21 @@ Item {
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         acceptedButtons: Qt.LeftButton | Qt.RightButton
+        preventStealing: tile.slider        // (a slider's drag is its own: the page doesn't scroll with it)
         // the stage decides whether the pointer means it (it rests here, or is slowing down on it) or is
         // only passing over on its way somewhere else (to the hero's buttons): only the first takes the focus
         onEntered: tile.pointed(mapToItem(null, mouseX, mouseY))
-        onPositionChanged: if (!tile.focused) tile.pointed(mapToItem(null, mouseX, mouseY))
+        onPositionChanged: mouse => {
+            if (tile.dragging) tile.slideAt(mouse.x)
+            // (dragging too: the stage keeps knowing where the pointer is, so what slides under it after a size
+            // is applied isn't taken for a move)
+            if (tile.dragging || !tile.focused) tile.pointed(mapToItem(null, mouseX, mouseY))
+        }
         onExited: tile.pointerOut()
-        onClicked: mouse => mouse.button === Qt.RightButton ? tile.menu() : tile.activated()
+        // a slider: pressed, it takes the focus and the value under the pointer; let go, it's applied
+        onPressed: mouse => { if (tile.slider && mouse.button === Qt.LeftButton) { tile.activated(); tile.dragging = true; tile.slideAt(mouse.x) } }
+        onReleased: if (tile.dragging) { tile.dragging = false; tile.commitNow() }
+        onCanceled: if (tile.dragging) { tile.dragging = false; tile.commitNow() }
+        onClicked: mouse => { if (tile.slider) return; mouse.button === Qt.RightButton ? tile.menu() : tile.activated() }
     }
 }

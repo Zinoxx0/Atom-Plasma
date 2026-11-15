@@ -9,8 +9,8 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "bin"))      # (rgb.py, the scripts)
 
 import rgb  # noqa: E402
-from atom import (apps, boot, kde, layout, palette, panel, presets, screens, style, terminals,  # noqa: E402
-                  theme, tokens, util, vscode, walls)
+from atom import (apps, boot, kde, layout, migrate, palette, panel, presets, screens, style,  # noqa: E402
+                  terminals, theme, tokens, util, vscode, walls)
 
 
 def _script(name, file):
@@ -44,6 +44,9 @@ alacritty = lambda p: terminals.alacritty(p, terminals.LOOK)  # noqa: E731
 place = layout.place
 rim = screens.rim
 media_screen = screens.media_screen
+top_size = screens.top_size
+top_scale = screens.top_scale
+settings_v3 = migrate.settings_v3
 theme_args = theme.theme_args
 unusable = walls.unusable
 # design tokens, boot, bar islands, keyboards

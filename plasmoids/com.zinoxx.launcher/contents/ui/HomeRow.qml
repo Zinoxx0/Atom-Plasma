@@ -14,6 +14,8 @@ import Rice
 // row of apps has one tile size.
 // A row can carry its own settings (the Theme page's: Shuffle, Intensity, Brightness...): they sit in its
 // header, after the title, always in sight; `toolFocus` rings the one the keys are on.
+// The Theme page's groups: a header row (shape "header", one wide tile) and size sliders (shape "slider",
+// one wide tile: ThemeSlider); a group inside another is indented (row.depth).
 Item {
     id: hr
     required property var row               // HomeModel's: { id, title, shape, items, divider, labeled, count }
@@ -37,14 +39,18 @@ Item {
     signal pointed(int i, point at)         // the pointer is over tile i (at: where, in the window)
     signal pointerOut(int i)
     signal menu(int i, Item tile)
+    signal slid(int i, real v)              // a size slider let go at v
     function u(n) { return Math.round(n * unit) }
 
     readonly property real base: u(118)
+    readonly property real indent: (row.depth || 0) * u(34)        // a group inside another
+    readonly property real wideW: Math.round(Math.min(width * 0.65, u(980)) - indent)
     readonly property size tileSize: row.shape === "portrait" ? Qt.size(Math.round(base * 0.98), Math.round(base * 1.47))
                                    : row.shape === "poster" ? Qt.size(Math.round(base * 1.34), Math.round(base * 2.0))
                                    : row.shape === "wall" ? Qt.size(Math.round(base * 1.72), Math.round(base * 0.97))
                                    : row.shape === "look" ? Qt.size(Math.round(base * 2.05), Math.round(base * 1.2))
-                                   : row.shape === "header" ? Qt.size(Math.round(Math.min(width * 0.65, u(980))), u(64))
+                                   : row.shape === "header" ? Qt.size(wideW, (row.depth || 0) > 0 ? u(56) : u(64))
+                                   : row.shape === "slider" ? Qt.size(wideW, u(92))
                                    : row.labeled ? Qt.size(Math.round(base * 0.9), Math.round(base * 0.9))
                                    : Qt.size(base, base)
     readonly property real pad: u(22)       // clear of the focused tile's lift and ring
@@ -96,7 +102,7 @@ Item {
 
         Row {
             id: header
-            x: hr.side
+            x: hr.side + hr.indent
             height: hr.titleH
             spacing: hr.u(18)
             opacity: hr.titleO
@@ -162,7 +168,7 @@ Item {
                     readonly property var entry: (hr.layout, hr.entryAt(index))
                     readonly property Item tile: t
                     readonly property bool parted: index > 0 && index === hr.row.divider && index % hr.columns !== 0
-                    x: hr.side + (index % hr.columns) * hr.cellW
+                    x: hr.side + hr.indent + (index % hr.columns) * hr.cellW
                     y: Math.floor(index / hr.columns) * (hr.lineH + hr.lineGap)
                     width: hr.tileSize.width
                     height: hr.lineH
@@ -195,6 +201,7 @@ Item {
                         onPointerOut: hr.pointerOut(slot.index)
                         onActivated: hr.activated(slot.index, t)
                         onMenu: hr.menu(slot.index, t)
+                        onSlid: v => hr.slid(slot.index, v)
                     }
                 }
             }

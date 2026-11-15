@@ -14,12 +14,15 @@
     rice.py bar style solid|matte|clear|none
                              the bar's islands: solid dark glass, noisy matte (the launcher's grain), clear
                              blur or no blur (a tint over the sharp wallpaper); settings bar.style
-    rice.py blur matte|clear|none
-                             the blur style of the launcher and the power page: noisy matte (the frosted
-                             wallpaper under a fine grain), clear blur (KWin's live blur) or none (the wallpaper
-                             itself, only the dark shade); settings blur.style
-    rice.py launcher size F  the launcher's own size, apart from the desktop's (ui): 1 = each screen's standard
+    rice.py backdrop matte|clear|noise|none
+                             the backdrop of the launcher and the power page: noisy matte (the frosted
+                             wallpaper under a fine grain), clear blur (KWin's live blur), noisy only (the
+                             wallpaper itself under the grain) or none (the wallpaper itself, only the dark
+                             shade); settings backdrop.style (`rice.py blur` still works)
+    rice.py launcher size F  the launcher's own size, apart from the taskbar's (ui): 1 = each screen's standard
                              size (how big a pixel looks from where you sit); settings launcher.size
+    rice.py top size F       the top bar's own size (Glimpse's band), apart from the taskbar's: 1 = each
+                             screen's standard size; settings top.size, applied live
     rice.py launcher-data    the launcher's own data (~/.cache/rice/launcher.json): Steam's art for the
                              installed games, when each app was last used and how much (atom/home.py)
     rice.py check FILE...    can these be wallpapers (format and readable)? names the ones that can't
@@ -126,13 +129,28 @@ def main(args):
     elif arg == "launcher-data":     # the launcher's own data: Steam's art for the games, when apps were used
         from atom import home
         print(home.write())
-    elif arg == "blur":             # the blur style of the launcher and the power page (Atom Prefs reads it live)
-        if len(args) < 2 or args[1] not in ("matte", "clear", "none"):
-            sys.exit("rice.py blur matte|clear|none")
+    elif arg in ("backdrop", "blur"):     # the launcher's and the power page's backdrop (Atom Prefs reads it live)
+        if len(args) < 2 or args[1] not in ("matte", "clear", "noise", "none"):
+            sys.exit("rice.py backdrop matte|clear|noise|none")
         cfg = util.user_settings()
-        cfg.setdefault("blur", {})["style"] = args[1]
+        cfg.pop("blur", None)       # (its name before 1.1)
+        cfg.setdefault("backdrop", {})["style"] = args[1]
         util.save_settings(cfg)
         print(args[1])
+    elif arg == "top":              # the top bar's own size (palettes' _topScale: Glimpse reads them live)
+        if len(args) < 3 or args[1] != "size":
+            sys.exit("rice.py top size F   (1 = the standard size on every screen)")
+        try:
+            v = round(max(screens.TOP_RANGE[0], min(screens.TOP_RANGE[1], float(args[2]))), 2)
+        except ValueError:
+            sys.exit("the size is a number (1 = the standard size)")
+        util.hold_lock()
+        cfg = util.user_settings()
+        (cfg.get("ui") or {}).pop("top", None)      # (the old ratio to the taskbar's size: replaced)
+        cfg.setdefault("top", {})["size"] = v
+        util.save_settings(cfg)
+        screens.retop()
+        print(v)
     elif arg == "bar":              # the bar's islands: their glass (Panel Colorizer looks, every bar)
         from atom import panel
         if len(args) < 3 or args[1] != "style" or args[2] not in panel.BAR_STYLES:

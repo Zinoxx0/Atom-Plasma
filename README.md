@@ -60,8 +60,9 @@ Limine and Plymouth (boot theming), Plasma Login Manager (login screen).
 - **UI size is standardised.** Each screen gets the size that looks the same from where you sit: the CSS
   reference pixel worked out from the screen's pixel density and a typical viewing distance for its kind
   (a laptop panel up close, a desk monitor, a TV across the room). A 1080p laptop panel gets a smaller UI,
-  and an 8K left at scale 1 a much bigger one. You can change it in the launcher under Theme → Size
-  (Automatic or one size everywhere, an overall size, and a per-screen override).
+  and an 8K left at scale 1 a much bigger one. The Theme page has a slider for each part, in steps of 0.05:
+  the launcher's size, the top bar's and the taskbar's (Desktop → Taskbar: Automatic or one size everywhere;
+  its popups and the desk's clocks follow it), each on top of that standard size.
 
 ## Features
 
@@ -88,10 +89,12 @@ island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on ev
   on the frosted wallpaper, under the top band (never over it): pages Home, Games and Apps as rows of
   tiles, the focused row in front, the others behind it, smaller and see-through; a hero for
   whatever has the focus; typing searches. The pointer focuses what it rests on, not what it sweeps across on
-  its way to the hero. The palette opens the Theme page (themes, wallpapers, colours, size, lighting), every
-  setting in sight: each row's own tools in its header (shuffle, the folder, finding more online, intensity,
+  its way to the hero. The palette opens the Theme page: your themes on top, then its groups, closed each time
+  it opens (Look: wallpapers and colours; Launcher; Desktop, with the Taskbar inside it; Keyboard lighting),
+  every setting in sight: each row's own tools in its header (shuffle, the folder, finding more online, intensity,
   the keyboards' brightness and power), an accent's colour edited at its tile, a look named where you save
-  it, the screens (one, or all) on the desk map. Its size follows the screen's UI size, so a big monitor
+  it, the screens (one, or all) on the desk map. Hovering a wallpaper shows it behind the page, fading straight
+  from one to the next. Its own size sits on the screen's standard size, so a big monitor
   shows more, not the same bigger. A game controller drives it too (D-pad or stick to move, A to open,
   B to go back, LB/RB for the pages, X for an item's options, Y for the Theme page), as it does the power
   overlay; the hints at the bottom switch to its buttons once you use it.
@@ -106,10 +109,11 @@ island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on ev
 - **Out of the way**: while the launcher or the power page is open the windows are minimized (the launcher's
   screen; every screen for the power page) and come back when it closes, and the bar's islands leave the
   launcher's screen for another one, as they do for a fullscreen game.
-- **Blur style** (Theme page): the launcher and the power page always wear the same backdrop: *Noisy matte*
-  (your wallpaper frosted under a fine grain, a still matte finish that hides the windows) or *Clear blur* (a
-  live blur of whatever is behind, like glass) or *No blur* (your wallpaper as it is, sharp, with only the dark
-  shade that keeps text readable). `rice.py blur matte|clear|none`.
+- **Backdrop style** (Theme page → Launcher): the launcher and the power page always wear the same backdrop:
+  *Noisy matte* (your wallpaper frosted under a fine grain, a still matte finish that hides the windows),
+  *Clear blur* (a live blur of whatever is behind, like glass), *Noisy only* (your wallpaper as it is, sharp,
+  under the same grain) or *No blur* (your wallpaper as it is, with only the dark shade that keeps text
+  readable). `rice.py backdrop matte|clear|noise|none`.
 - **Status island** (replaces Plasma's system tray): your apps' tray icons with menus in the rice's look
   (a click brings the app's window back; the quiet ones rest on each other in a stack, and an app with news
   steps out of it), the system's state, and beads for apps with notifications you haven't seen. The stack
@@ -164,7 +168,9 @@ fullscreen window (`qml/Rice/Clawd.qml`; the art is in `ClawdArt.js`, the acts a
 rice.py next|prev|random|<image> [--screen focused|all|<output>]   a wallpaper, and the theme from it
 rice.py preset save|load|delete <name>                             themes: every screen's look, by monitor
 rice.py theme show|set|reset ...                                   hand-picked colours per screen
-rice.py ui show|set ...                                            UI size
+rice.py ui show|set ...                                            UI size (the taskbar's)
+rice.py launcher size F | top size F                               the launcher's and the top bar's own size
+rice.py backdrop matte|clear|noise|none                            the launcher's and the power page's backdrop
 rice.py tiling toggle|tile|float [--screen ...]                    auto-tiling per screen
 rice.py displays [--fix]                                           monitors, arrangement, sizes
 rice.py install | doctor | setup                                   install, check, one-time settings

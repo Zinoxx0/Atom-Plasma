@@ -147,26 +147,27 @@ Window {
     readonly property real reach: Math.max(Math.hypot(origin.x, origin.y), Math.hypot(width - origin.x, origin.y),
                                            Math.hypot(origin.x, height - origin.y), Math.hypot(width - origin.x, height - origin.y))
     readonly property real r: reach * p
-    // the ripple of backdrop: the blur style chosen on the Theme page (Backdrop: noisy matte, the frosted
-    // wallpaper under a grain; clear blur, KWin's live blur), under a veil of the palette's darkest surface
+    // the ripple of backdrop: the backdrop style chosen on the Theme page (Backdrop: noisy matte, the frosted
+    // wallpaper under a grain; clear blur, KWin's live blur; noisy only and no blur, the wallpaper itself),
+    // under a veil of the palette's darkest surface
     // (over the launcher it was opened from: only the veil, the launcher's room under it; see `overHome`)
     Backdrop {
         anchors.fill: parent
         window: pw
         pal: pal
-        style: pw.overHome ? "veil" : Prefs.blurStyle
-        grainy: Prefs.blurStyle === "matte"
+        style: pw.overHome ? "veil" : Prefs.backdropStyle
+        grainy: Prefs.backdropStyle === "matte" || Prefs.backdropStyle === "noise"
         // (over the launcher its own grain still shows through the veil, faded: together they come to the one
         // grain, as noise adds: measured, 4.0 against 3.7 at the full strength)
         grainAlpha: pw.overHome ? Prefs.grainAlpha * Math.sqrt(1 - Math.pow(1 - veil, 2)) : Prefs.grainAlpha
         origin: pw.origin
         radius: pw.p >= 1 ? -1 : pw.r
         visible: pw.phase !== "closed" && pw.r > 0.5
-        // (no blur: the sharp wallpaper's detail is right behind the text, so the veil is at least what the
-        // theme engine's measure of it needs for the dim text to read, 4.5:1; the other styles soften it)
+        // (no blur, noisy only: the sharp wallpaper's detail is right behind the text, so the veil is at least
+        // what the theme engine's measure of it needs for the dim text to read, 4.5:1; the others soften it)
         readonly property var sharpLight: pal.values._backdropSharp || ({})
         veil: Math.max(pw.wasLead ? Prefs.glassVeil : Prefs.glassVeil * 0.7,
-                       Prefs.blurStyle === "none" && pw.wasLead ? C.scrim(Math.max(sharpLight.hero ?? 0.6, sharpLight.rows ?? 0.6), pal.fgDim, pal.surfaceLowest, 4.5) : 0)
+                       (Prefs.backdropStyle === "none" || Prefs.backdropStyle === "noise") && pw.wasLead ? C.scrim(Math.max(sharpLight.hero ?? 0.6, sharpLight.rows ?? 0.6), pal.fgDim, pal.surfaceLowest, 4.5) : 0)
     }
     // a click anywhere on the blur folds it away
     MouseArea {

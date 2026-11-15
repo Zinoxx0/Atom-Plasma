@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+**Theme page**
+- Hovering from one wallpaper to the next fades straight between them (it cut back to the wallpaper in use
+  first), each one once its picture has loaded; items that show the same picture (colours, sizes) leave it
+  alone.
+- Every group is closed whenever the page opens, and it opens on what's in use. Your themes sit above the
+  groups; the Taskbar group lives inside Desktop.
+- Sizes are sliders in steps of 0.05, from 0.80× to 1.80×: the launcher's, and the top bar's, which now has a
+  size of its own (it followed the taskbar's; `rice.py top size F`, settings `top.size`); the taskbar's size
+  moved into the Taskbar group.
+- "Blur style" is now "Backdrop style", with a fourth style, *Noisy only*: the sharp wallpaper under the
+  grain (`rice.py backdrop matte|clear|noise|none`; `rice.py blur` still works). Settings move from
+  `blur.style` to `backdrop.style` and from `ui.top` to `top.size` on their own (state version 3).
+
+**CI**
+- The test job installs libplasma (for qmllint) and the iCal libraries (for the calendar test).
+
 ## 1.0.0 (2026-11-15)
 
 The first release: a KDE Plasma 6.8 (Wayland) desktop themed from its wallpapers, with its own shell.

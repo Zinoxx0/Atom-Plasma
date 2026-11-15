@@ -152,6 +152,33 @@ class Screens(Golden):
         self.assertEqual(api.media_screen([three[0], three[2]], {}), "eDP-1")       # with two, the other one
         self.assertEqual(api.media_screen([], {}), "")
 
+    def test_top_bar_size(self):
+        main = {"ui": 1.3, "comfort": 0.95}
+        self.assertEqual(api.top_scale(main, {"ui": {"size": 1.3, "top": 1.05}}), round(1.3 * 1.05, 2))   # (before 1.1)
+        self.assertEqual(api.top_scale(main, {"ui": {"size": 1.3}, "top": {"size": 1.45}}), 1.38)  # its own, on the standard
+        self.assertEqual(api.top_scale({"ui": 2.0, "comfort": 1.0}, {"top": {"size": 1.2}}), 1.2)   # whatever the taskbar's
+        self.assertEqual(api.top_size({"top": {"size": 9}}), 2.0)
+        self.assertEqual(api.top_size({"top": {"size": "big"}}), 1.05)
+
+    def test_settings_v3(self):         # the top bar's own size and the backdrop's name, from the settings before
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "settings.json"
+            f.write_text(json.dumps({"version": 2, "ui": {"auto": False, "size": 1.3, "top": 1.05}, "blur": {"style": "none"}}))
+            old, api.util.SETTINGS = api.util.SETTINGS, f
+            try:
+                api.settings_v3([{"main": False, "ui": 1.2, "comfort": 0.85}, {"main": True, "ui": 1.3, "comfort": 0.95}])
+                cfg = json.loads(f.read_text())
+                api.settings_v3([])                                     # (again: nothing left to move)
+                self.assertEqual(json.loads(f.read_text()), cfg)
+            finally:
+                api.util.SETTINGS = old
+        self.assertEqual(cfg["top"], {"size": 1.45})
+        self.assertEqual(cfg["ui"], {"auto": False, "size": 1.3})
+        self.assertEqual(cfg["backdrop"], {"style": "none"})
+        self.assertNotIn("blur", cfg)
+        # the main screen's top bar keeps its size, to the nearest step
+        self.assertAlmostEqual(api.top_scale({"ui": 1.3, "comfort": 0.95}, cfg), 1.3 * 1.05, delta=0.95 * 0.05 / 2)
+
     def test_theme_args(self):
         self.assertEqual(api.theme_args(["theme", "set", "--primary", "#AABBCC", "--mood", "auto", "--intensity", "9"]),
                          {"primary": "#aabbcc", "mood": "auto", "intensity": 1.5})
