@@ -116,13 +116,13 @@ Item {
                 border.color: C.alpha("#ffffff", 0.3)
             }
             Text {          // a size
-                visible: face.kind === "size" && face.item.v !== "auto"
+                visible: (face.kind === "size" || face.kind === "lsize") && face.item.v !== "auto"
                 anchors.centerIn: parent
                 text: "Aa"
                 color: face.rice.fg
                 font.family: Tokens.font.display
                 font.weight: Font.DemiBold
-                font.pixelSize: face.u(26 * (0.62 + ((face.kind === "size" && typeof face.item.v === "number" ? face.item.v : 1) - 1) * 1.1))
+                font.pixelSize: face.u(26 * (0.62 + (((face.kind === "size" || face.kind === "lsize") && typeof face.item.v === "number" ? face.item.v : 1) - 1) * 1.1))
             }
             Loader {        // a keyboard, lit the way it would be
                 active: face.kind === "light"

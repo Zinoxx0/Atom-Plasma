@@ -60,13 +60,17 @@ Window {
     // one design (1440 x 900) sized by the screen's UI size (the rice's bar_scale: what the user picked as
     // comfortable from where they sit), only shrunk further where it wouldn't fit: a big screen shows more,
     // not the same bigger
-    readonly property real unit: Math.max(0.6, Math.min(rice.uiScale * 0.68, width / 1440, height / 900))
+    // The launcher's own size (the Theme page's "Launcher size": settings launcher.size), on the screen's
+    // standard size (how big a pixel looks from where you sit: the theme engine's _standard), never the
+    // desktop's size (that one is for the bars and the desk); shrunk only where it wouldn't fit
+    readonly property real standard: Number(rice.values._standard) || 1
+    readonly property real unit: Math.max(0.6, Math.min(0.8 * standard * launcher.homeSize, width / 1440, height / 900))
     function u(n) { return Math.round(n * unit) }
     readonly property real side: u(76)
     // the rows start under the hero; on a tall screen they sit lower (the hero and the art above get the
     // room), so the page isn't all in its top half
     readonly property real rowsTop: heroTop + heroH + u(26)
-    readonly property real barH: u(58)          // the top bar's one control height (a fullscreen page: big)
+    readonly property real barH: u(66)          // the top bar's one control height (a fullscreen page: big)
     // the hero right under the top bar, as tall as its content needs; the rows take everything below it
     readonly property real heroTop: u(26) + barH + u(34)
     readonly property real heroH: theming ? u(290) : u(236)
@@ -901,8 +905,8 @@ Window {
                         width: stage.theming ? implicitWidth : 0
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: stage.u(12)
-                        TopButton { rice: stage.rice; unit: stage.unit; icon: "arrow_back"; tip: "Back (Esc)"; focused: topBar.keyOn === "back"; onClicked: stage.setTab(stage.tabBefore) }
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: "Theme"; color: stage.rice.fg; font.family: Tokens.font.ui; font.weight: Font.Bold; font.pixelSize: stage.u(26) }
+                        TopButton { height: stage.barH; rice: stage.rice; unit: stage.unit; icon: "arrow_back"; tip: "Back (Esc)"; focused: topBar.keyOn === "back"; onClicked: stage.setTab(stage.tabBefore) }
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: "Theme"; color: stage.rice.fg; font.family: Tokens.font.ui; font.weight: Font.Bold; font.pixelSize: stage.u(30) }
                     }
                     Rectangle {         // the pages' track: the one you're on is a solid pill
                         id: tabs
@@ -950,7 +954,7 @@ Window {
                                              : tabMouse.containsMouse ? stage.rice.fg : stage.rice.fgDim
                                         font.family: Tokens.font.ui
                                         font.weight: Font.Bold
-                                        font.pixelSize: stage.u(21)
+                                        font.pixelSize: stage.u(23)
                                         Behavior on color { ColorAnimation { duration: Tokens.ms(240) } }
                                     }
                                     Rectangle {     // the keys' ring
@@ -972,23 +976,24 @@ Window {
                 Row {
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    spacing: stage.u(10)
-                    TopButton { id: searchButton; rice: stage.rice; unit: stage.unit; icon: "search"; tip: "Search (just type)"; focused: topBar.keyOn === "search"; onClicked: stage.openSearch("") }
-                    TopButton { id: themeButton; rice: stage.rice; unit: stage.unit; icon: "palette"; tip: "Theme"; focused: topBar.keyOn === "theme"; lit: stage.theming; onClicked: stage.toggleTheme() }
+                    spacing: stage.u(14)
+                    TopButton { id: searchButton; height: stage.barH; rice: stage.rice; unit: stage.unit; icon: "search"; tip: "Search (just type)"; focused: topBar.keyOn === "search"; onClicked: stage.openSearch("") }
+                    TopButton { id: themeButton; height: stage.barH; rice: stage.rice; unit: stage.unit; icon: "palette"; tip: "Theme"; focused: topBar.keyOn === "theme"; lit: stage.theming; onClicked: stage.toggleTheme() }
                     TopButton {
                         id: powerButton
+                        height: stage.barH
                         rice: stage.rice; unit: stage.unit
                         icon: "power_settings_new"; tip: "Power"; hotColor: stage.rice.bad
                         focused: topBar.keyOn === "power"
                         onClicked: stage.openPowerHere()
                     }
-                    Rectangle { width: 1; height: stage.u(28); anchors.verticalCenter: parent.verticalCenter; color: C.alpha(stage.rice.fg, 0.16) }
+                    Rectangle { width: 1; height: stage.u(38); anchors.verticalCenter: parent.verticalCenter; color: C.alpha(stage.rice.fg, 0.16) }
                     // the battery saver, while the laptop runs on battery
                     Rectangle {
                         visible: stage.launcher.unplugged || stage.launcher.saverOn
                         anchors.verticalCenter: parent.verticalCenter
-                        height: stage.u(44)
-                        width: saverRow.implicitWidth + stage.u(30)
+                        height: stage.u(56)
+                        width: saverRow.implicitWidth + stage.u(36)
                         radius: height / 2
                         color: stage.launcher.saverShown ? C.alpha(stage.rice.green, 0.22) : C.alpha(stage.rice.fg, sm.containsMouse ? 0.14 : 0.08)
                         opacity: stage.launcher.saverBusy ? 0.6 : 1
@@ -998,8 +1003,8 @@ Window {
                             spacing: stage.u(7)
                             readonly property real charge: Number(stage.launcher.batt["Percent"]) || 0
                             Text { anchors.verticalCenter: parent.verticalCenter; text: stage.launcher.saverShown ? "eco" : "battery_" + Math.min(6, Math.round(saverRow.charge / 100 * 6)) + "_bar"
-                                   color: stage.launcher.saverShown ? stage.rice.green : stage.rice.fg; font.family: Tokens.font.icons; font.pixelSize: stage.u(22) }
-                            Text { anchors.verticalCenter: parent.verticalCenter; text: Math.round(saverRow.charge) + "%"; color: stage.rice.fg; font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: stage.u(16) }
+                                   color: stage.launcher.saverShown ? stage.rice.green : stage.rice.fg; font.family: Tokens.font.icons; font.pixelSize: stage.u(28) }
+                            Text { anchors.verticalCenter: parent.verticalCenter; text: Math.round(saverRow.charge) + "%"; color: stage.rice.fg; font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: stage.u(20) }
                         }
                         MouseArea { id: sm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (!stage.launcher.saverBusy) stage.launcher.setSaver(!stage.launcher.saverShown) }
                     }
@@ -1009,13 +1014,13 @@ Window {
                         color: stage.rice.fg
                         font.family: Tokens.font.ui
                         font.weight: Font.Bold
-                        font.pixelSize: stage.u(27)
+                        font.pixelSize: stage.u(38)
                         font.features: { "tnum": 1 }
-                        leftPadding: stage.u(6)
-                        rightPadding: stage.u(6)
+                        leftPadding: stage.u(8)
+                        rightPadding: stage.u(8)
                     }
                     Rectangle {     // you
-                        width: stage.u(48); height: width; radius: width / 2
+                        width: stage.u(60); height: width; radius: width / 2
                         anchors.verticalCenter: parent.verticalCenter
                         gradient: Gradient {
                             orientation: Gradient.Horizontal
@@ -1025,7 +1030,7 @@ Window {
                         border.width: 2
                         border.color: C.alpha("#ffffff", 0.18)
                         Text { anchors.centerIn: parent; visible: face.status !== Image.Ready; text: stage.account.initial; color: stage.rice.onPrimary
-                               font.family: Tokens.font.ui; font.weight: Font.Bold; font.pixelSize: stage.u(20) }
+                               font.family: Tokens.font.ui; font.weight: Font.Bold; font.pixelSize: stage.u(26) }
                         Kirigami.ShadowedImage { id: face; anchors.fill: parent; radius: width / 2; source: stage.account.face; visible: status === Image.Ready; fillMode: Image.PreserveAspectCrop; color: "transparent" }
                     }
                 }
@@ -1542,7 +1547,8 @@ Window {
             "colours-auto": { eyebrow: "Colours", primary: "Use automatic", icon: "auto_awesome" },
             mood: { eyebrow: "Mood", primary: "Use " + String(it.name).toLowerCase(), icon: "palette" },
             accent: { eyebrow: "Accent · " + it.role, primary: "Edit colour", icon: "colorize" },
-            size: { eyebrow: "Size", primary: "Use this size", icon: "format_size" },
+            size: { eyebrow: "Desktop size", primary: "Use this size", icon: "format_size" },
+            lsize: { eyebrow: "Launcher size", primary: "Use this size", icon: "fit_screen" },
             light: { eyebrow: "Lighting", primary: "Use on both keyboards", icon: "keyboard" },
         }[it.kind]
         t.extra = []

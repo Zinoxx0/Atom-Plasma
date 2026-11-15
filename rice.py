@@ -11,6 +11,8 @@
                              Darkly): run once, and again only to put them back
     rice.py thumbs           (re)build picker thumbnails
     rice.py walls            the picker's list: wallpaper file names, one per line (thumbnails built)
+    rice.py launcher size F  the launcher's own size, apart from the desktop's (ui): 1 = each screen's standard
+                             size (how big a pixel looks from where you sit); settings launcher.size
     rice.py launcher-data    the launcher's own data (~/.cache/rice/launcher.json): Steam's art for the
                              installed games, when each app was last used and how much (atom/home.py)
     rice.py check FILE...    can these be wallpapers (format and readable)? names the ones that can't
@@ -116,6 +118,17 @@ def main(args):
     elif arg == "launcher-data":     # the launcher's own data: Steam's art for the games, when apps were used
         from atom import home
         print(home.write())
+    elif arg == "launcher":         # the launcher's own size (Atom Home reads settings.json live)
+        if len(args) < 3 or args[1] != "size":
+            sys.exit("rice.py launcher size F   (1 = the standard size on every screen)")
+        try:
+            v = round(max(0.6, min(2.0, float(args[2]))), 2)
+        except ValueError:
+            sys.exit("the size is a number (1 = the standard size)")
+        cfg = util.user_settings()
+        cfg.setdefault("launcher", {})["size"] = v
+        util.save_settings(cfg)
+        print(v)
     elif arg == "displays":
         ds, cfg = displays.probe(), util.settings()
         if "--json" in args:

@@ -31,7 +31,7 @@ Rectangle {
         text: tb.icon
         color: tb.hot ? tb.hotColor : tb.focused || tb.lit ? tb.rice.fg : C.mix(tb.rice.fg, tb.rice.fgDim, 0.4)
         font.family: Tokens.font.icons
-        font.pixelSize: Math.round(26 * tb.unit)
+        font.pixelSize: Math.round(tb.height * 0.48)      // (it grows with the button)
         Behavior on color { ColorAnimation { duration: Tokens.fast } }
     }
     Rectangle {     // the keys' ring: the launcher's language (white, outside, with a gap)

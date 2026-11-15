@@ -72,6 +72,7 @@ Item {
         else if (it.kind === "colours-auto") run(it.key, riceCmd(["theme", "reset", "--screen", target]))
         else if (it.kind === "mood") run(it.key, riceCmd(["theme", "set", "--screen", target, "--mood", it.mood]))
         else if (it.kind === "size") run(it.key, riceCmd(["ui", "set"].concat(it.v === "auto" ? ["--auto", "true"] : ["--auto", "false", "--size", String(it.v)])))
+        else if (it.kind === "lsize") run(it.key, riceCmd(["launcher", "size", String(it.v)]))
         else if (it.kind === "light") run(it.key, ["python3", sh.home + "/.config/plasma-rice/rgb.py", "set", "all"].concat(it.args))
     }
 
@@ -179,7 +180,14 @@ Item {
         for (const v of [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6])
             sizes.push({ kind: "size", key: "size:" + v, v: v, name: v.toFixed(1) + "×", current: !ui.auto && Math.abs((ui.size || 0) - v) < 0.001,
                          meta: [!ui.auto && Math.abs((ui.size || 0) - v) < 0.001 ? "Now" : "Overall"], desc: "Bars, the top band, popups and clocks on every screen, " + v.toFixed(1) + "× their standard size." })
-        out.push({ id: "size", title: "Size", shape: "chip", items: sizes, divider: -1, labeled: true, count: false, tools: [] })
+        out.push({ id: "size", title: "Desktop size", shape: "chip", items: sizes, divider: -1, labeled: true, count: false, tools: [] })
+        // the launcher's own size, apart from the desktop's: 1 = each screen's standard size
+        const lnow = launcher.homeSize
+        const lsizes = [0.85, 1.0, 1.15, 1.3, 1.45, 1.6].map(v => ({
+            kind: "lsize", key: "lsize:" + v, v: v, name: v.toFixed(2).replace(/0$/, "") + "×", current: Math.abs(lnow - v) < 0.001,
+            meta: [Math.abs(lnow - v) < 0.001 ? "Now" : "This launcher"],
+            desc: "This page and the launcher's home, " + v.toFixed(2).replace(/0$/, "") + "× their standard size on every screen. The desktop keeps its own size." }))
+        out.push({ id: "lsize", title: "Launcher size", shape: "chip", items: lsizes, divider: -1, labeled: true, count: false, tools: [] })
         // lighting: both keyboards at once (each one's own settings: Fine-tune)
         const dev = tm.lights && tm.lights.devices ? tm.lights.devices.find(d => d.ready) || tm.lights.devices[0] : null
         const st = dev ? dev.settings || {} : {}
@@ -204,4 +212,5 @@ Item {
         rev++
     }
     onTargetChanged: build()
+    Connections { target: tm.launcher; function onHomeSizeChanged() { tm.build() } }
 }

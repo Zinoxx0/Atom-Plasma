@@ -72,8 +72,9 @@ step "fine-tune back";  $F key 1 wait 600 key 1 wait 900      # the search it op
 step "theme back";      $F key 1 wait 1200; shot l-theme-back
 step "wheel down";      $F move 800 620 wait 300 wheel 15 wait 1000; shot l-wheel
 step "wheel up";        $F move 802 620 wait 300 wheel -15 wait 1000
-step "pointer on a tile"; $F key 106 wait 400 move 900 640 wait 100 glide 900 640 640 700 250 wait 700; shot l-hover
-P=$(grep -o 'ATOM home focus at [0-9]* [0-9]*' "$L" | tail -1)
+step "keys first";      $F key 106 wait 600
+P=$(grep -o 'ATOM home focus at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $(NF-1) + 110, $NF}')    # the next tile along
+step "pointer on a tile [$P]"; $F move 900 300 wait 100 glide 900 300 ${P:-640 700} 250 wait 700; shot l-hover
 step "pointer still, keys"; $F key 106 wait 600 key 105 wait 600
 step "pad";             python3 "$REPO/tools/nested/pad.py" down right north; $F wait 1200; shot l-pad
 step "pad back";        python3 "$REPO/tools/nested/pad.py" east; $F wait 900

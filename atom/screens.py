@@ -45,7 +45,8 @@ def screens(cfg=None):
         s = found.setdefault(o.connector, dict(
             id=o.id, name=o.connector, label=o.label, screen=d["screen"], x=d["x"], y=d["y"],
             w=round(o.w), h=round(o.h), main=d["screen"] == 0, desktops=[], image="",
-            ui=displays.ui_scale(o, cfg), display=dict(o.to_json(), sharedEdges=sorted(displays.shared_edges(o, ds)))))
+            ui=displays.ui_scale(o, cfg), comfort=displays.comfort(o),
+            display=dict(o.to_json(), sharedEdges=sorted(displays.shared_edges(o, ds)))))
         s["desktops"].append(d["id"])
         img = d["image"].removeprefix("file://")
         if not s["image"] and img and Path(img).is_file():
@@ -223,6 +224,7 @@ def apply_screens(ss, cfg, fallback):
         p = dict(p, _glass=g, _glassBand=GLASS_BAND, _rim=rim(g, p), _glassFull=gf,
                  _backdrop=palette.zone_light(gf) if gf else {},            # how bright the launcher's backdrop gets under its text
                  _scale=s["ui"],                                            # size of that bar's widgets
+                 _standard=s.get("comfort", 1.0),                           # the screen's standard size (the launcher's base)
                  _topScale=round(s["ui"] * top, 2),                         # size of the Glimpse band up top
                  _display={k: s["display"][k] for k in ("id", "name", "label", "portrait", "sharedEdges", "scale")},
                  _layout=desk_layout(img, s),                               # the desktop widgets' places (com.zinoxx.desk)
