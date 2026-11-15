@@ -91,7 +91,6 @@ Window {
     }
 
     property int step: 0
-    property int paintsBefore: 0
     Timer {
         id: seq
         interval: 300; running: true; repeat: true
@@ -109,25 +108,32 @@ Window {
                 break
             case 4:
                 win.check(a.playing === "" && Object.keys(a.fx).length === 0 && a.paints > 2, "a hop, and back at rest")
-                // nothing twinkles in this picture: a tick of the twinkle clock mustn't repaint it
-                win.paintsBefore = a.paints
-                a.twinkle++
                 break
-            case 5:
-                win.check(a.paints === win.paintsBefore, "no repaint without a change")
+            case 5: {
+                // nothing twinkles in this picture: a tick of the twinkle clock mustn't change it. Composed
+                // here and now and compared by its signature (counting repaints over a step also counted a
+                // blink, which comes off the wall clock every few seconds)
+                a.refresh()
+                const before = a.drawn
+                a.twinkle++
+                a.refresh()
+                win.check(a.drawn === before, "no repaint without a change")
+                break
+            }
+            case 6:
                 a.greet()
                 win.check(a.playing !== "" && a.prio === 1, "greets on hover")
                 // four quick clicks (a third of a second apart): dizzy, here and in the other view
                 a.poke()
                 win.check(a.prio === 2, "a click plays an act")
                 break
-            case 6: a.poke(); break
             case 7: a.poke(); break
-            case 8:
+            case 8: a.poke(); break
+            case 9:
                 a.poke()
                 win.check(a.playing === "dizzy" && a.prio === 3, "four clicks make it dizzy")
                 break
-            case 13:
+            case 14:
                 win.check(win.heard.indexOf("dizzy") >= 0, "a click reaches the other view (" + win.heard.join(",") + ")")
                 // a hobby, then work: it holds what it should
                 a.pinned = "knit"; a.activity = "idle"
@@ -139,7 +145,7 @@ Window {
                 a.animate = false
                 win.check(!a.live, "paused")
                 break
-            case 14:
+            case 15:
                 console.warn("clawd done " + win.failed)
                 Qt.quit()
             }

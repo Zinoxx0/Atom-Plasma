@@ -21,11 +21,17 @@ CHECKS = ["acts", "hobbies", "painted", "two views, one hobby", "two views, one 
 @unittest.skipUnless(shutil.which("qml6"), "needs qml6 (qt6-declarative)")
 class Clawd(unittest.TestCase):
     def test_clawd(self):
-        with tempfile.TemporaryDirectory() as cache:
-            os.mkdir(os.path.join(cache, "clawd"))      # (the hooks' folder: the views watch it for clicks)
+        with tempfile.TemporaryDirectory() as home:
+            # a home of its own, with the rice where the shell runs its scripts from ($HOME/.config/plasma-rice:
+            # a click is shared by run-argv.py), whatever this checkout's path; the cache and the runtime folder too
+            cache, runtime = os.path.join(home, "cache"), os.path.join(home, "runtime")
+            os.makedirs(os.path.join(cache, "clawd"))   # (the hooks' folder: the views watch it for clicks)
+            os.makedirs(os.path.join(home, ".config"))
+            os.mkdir(runtime, 0o700)
+            os.symlink(Path(__file__).resolve().parent.parent, os.path.join(home, ".config", "plasma-rice"))
             env = dict(os.environ, QT_QPA_PLATFORM="offscreen", QT_QUICK_BACKEND="rhi", QSG_RHI_BACKEND="opengl",
                        QT_FORCE_STDERR_LOGGING="1", QML_XHR_ALLOW_FILE_READ="1", QML_XHR_ALLOW_FILE_WRITE="1",
-                       XDG_CACHE_HOME=cache)
+                       HOME=home, XDG_CACHE_HOME=cache, XDG_RUNTIME_DIR=runtime)
             out = subprocess.run(["qml6", str(QML)], env=env, capture_output=True, text=True, timeout=120)
         lines = [line[len("qml: clawd "):] for line in out.stderr.splitlines() if line.startswith("qml: clawd ")]
         self.assertEqual([line for line in lines if line.startswith("FAIL")], [], out.stderr)
