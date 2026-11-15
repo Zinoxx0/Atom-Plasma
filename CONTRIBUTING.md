@@ -52,6 +52,10 @@ python3 -m unittest discover -s tests
   load time (a missing required property, a syntax error, a duplicate binding).
 - `tests/test_clawd.py` and `tests/test_barfit.py` run QML offscreen. They need OpenGL through a display
   (your session, or `xvfb-run` on a server).
+- `tests/test_gamepad.py` plugs in a pretend game controller (uinput) for a few seconds, so it runs only with
+  `RICE_DEVICE_TESTS=1` (and write access to `/dev/uinput`). Run it when you touch `Atom.Native`'s `Gamepad`.
+  To catch memory errors, build a copy with `-fsanitize=address` and run it with that copy's `libasan.so`
+  preloaded (`ATOM_NATIVE_QML=<its qml folder>`).
 
 Run the tests before every commit.
 

@@ -8,6 +8,7 @@
 #include <QGuiApplication>
 #include <QJSEngine>
 #include <QKeyEvent>
+#include <QPointer>
 #include <QSocketNotifier>
 #include <QTimer>
 #include <QWindow>
@@ -104,11 +105,15 @@ void Gamepad::scan()
     }
     // unplugged, or unplugged and another device given the same node meanwhile (the kernel reuses the
     // lowest free eventN): the open one isn't the one at that path any more
-    for (Pad *p : m_pads.values()) {
+    const QList<PadRef> pads = m_pads.values();
+    for (const PadRef &p : pads) {
         int version = 0;                    // (a removed device answers nothing but ENODEV)
-        if (!seen.contains(p->path) || ioctl(p->fd, EVIOCGVERSION, &version) < 0) {
-            close(p);
+        if (p->fd >= 0 && (!seen.contains(p->path) || ioctl(p->fd, EVIOCGVERSION, &version) < 0)) {
+            close(p.get());                 // (may send an arrow's release: a handler may turn us off)
         }
+    }
+    if (!m_active) {
+        return;
     }
     for (const QString &path : std::as_const(seen)) {
         if (!m_pads.contains(path)) {
@@ -128,7 +133,8 @@ void Gamepad::open(const QString &path)
         ::close(fd);                        // not a gamepad
         return;
     }
-    auto *p = new Pad;
+    auto pad = std::make_shared<Pad>();
+    Pad *p = pad.get();
     p->fd = fd;
     p->path = path;
     char name[256] = {};
@@ -142,50 +148,80 @@ void Gamepad::open(const QString &path)
         p->y = {a.minimum, a.maximum};
     }
     p->notifier = new QSocketNotifier(fd, QSocketNotifier::Read, this);
-    connect(p->notifier, &QSocketNotifier::activated, this, [this, p] { read(p); });
+    // (weak: the list owns the pad; the read holds it only while it runs)
+    connect(p->notifier, &QSocketNotifier::activated, this, [this, weak = std::weak_ptr<Pad>(pad)] {
+        if (PadRef pad = weak.lock()) {
+            read(std::move(pad));
+        }
+    });
     const bool was = present();
-    m_pads.insert(path, p);
+    m_pads.insert(path, std::move(pad));
     if (!was) {
         Q_EMIT presentChanged();
     }
 }
 
+void Gamepad::drop(Pad *p)
+{
+    if (p->fd < 0) {
+        return;
+    }
+    // the notifier may be the one whose signal we're in (a read that found the device gone): it goes
+    // after the event, and it stops watching the descriptor before the descriptor is closed
+    p->notifier->setEnabled(false);
+    p->notifier->deleteLater();
+    p->notifier = nullptr;
+    ::close(p->fd);
+    p->fd = -1;
+    const auto it = m_pads.constFind(p->path);
+    if (it != m_pads.cend() && it.value().get() == p) {
+        m_pads.erase(it);                   // (last: this may be what frees the pad)
+    }
+}
+
 void Gamepad::close(Pad *p)
 {
-    m_pads.remove(p->path);
-    delete p->notifier;
-    ::close(p->fd);
-    delete p;
-    steer();
-    if (m_pads.isEmpty()) {
+    const bool was = present();
+    drop(p);                                // (p may be gone now: only the list's state from here)
+    if (was && !present()) {
         Q_EMIT presentChanged();
     }
+    steer();                                // its directions no longer count
 }
 
 void Gamepad::closeAll()
 {
-    const auto pads = m_pads.values();
-    for (Pad *p : pads) {
-        close(p);
-    }
-    m_held = 0;
+    m_held = 0;                             // first: nothing below sends a key
     m_repeat->stop();
+    const bool was = present();
+    const QList<PadRef> pads = m_pads.values();
+    for (const PadRef &p : pads) {
+        drop(p.get());
+    }
+    if (was) {
+        Q_EMIT presentChanged();
+    }
 }
 
-void Gamepad::read(Pad *p)
+void Gamepad::read(PadRef pad)
 {
+    // Every key and signal below runs QML at once, and it can close the surface: the Gamepad turns off and
+    // closes this pad. `pad` keeps it alive meanwhile; after each one, a closed pad (fd < 0) ends the read.
+    Pad *p = pad.get();
     input_event ev[64];
-    for (;;) {
+    while (p->fd >= 0) {
         const ssize_t n = ::read(p->fd, ev, sizeof(ev));
         if (n <= 0) {
             if (n == 0 || (errno != EAGAIN && errno != EINTR)) {
                 close(p);                   // gone (ENODEV): another may be on its way at the same node
-                m_rescan->start();
+                if (m_active) {
+                    m_rescan->start();
+                }
             }
             return;
         }
         bool dir = false;
-        for (size_t i = 0; i < size_t(n) / sizeof(input_event); i++) {
+        for (size_t i = 0; i < size_t(n) / sizeof(input_event) && p->fd >= 0; i++) {
             const input_event &e = ev[i];
             if (e.type == EV_ABS) {
                 auto stick = [](int v, const Axis &ax, int held) {
@@ -212,20 +248,20 @@ void Gamepad::read(Pad *p)
                         break;
                     }
                     switch (e.code) {
-                    case BTN_SOUTH: press(Qt::Key_Return); Q_EMIT button(QStringLiteral("south")); break;
-                    case BTN_EAST: press(Qt::Key_Escape); Q_EMIT button(QStringLiteral("east")); break;
-                    case BTN_WEST: press(Qt::Key_Menu); Q_EMIT button(QStringLiteral("west")); break;
-                    case BTN_NORTH: setInUse(true); Q_EMIT button(QStringLiteral("north")); break;
-                    case BTN_TL: press(Qt::Key_Backtab, Qt::ShiftModifier); Q_EMIT button(QStringLiteral("lb")); break;
-                    case BTN_TR: press(Qt::Key_Tab); Q_EMIT button(QStringLiteral("rb")); break;
-                    case BTN_START: setInUse(true); Q_EMIT button(QStringLiteral("start")); break;
-                    case BTN_SELECT: setInUse(true); Q_EMIT button(QStringLiteral("select")); break;
+                    case BTN_SOUTH: tap(Qt::Key_Return, QStringLiteral("south")); break;
+                    case BTN_EAST: tap(Qt::Key_Escape, QStringLiteral("east")); break;
+                    case BTN_WEST: tap(Qt::Key_Menu, QStringLiteral("west")); break;
+                    case BTN_NORTH: tap(0, QStringLiteral("north")); break;
+                    case BTN_TL: tap(Qt::Key_Backtab, QStringLiteral("lb"), Qt::ShiftModifier); break;
+                    case BTN_TR: tap(Qt::Key_Tab, QStringLiteral("rb")); break;
+                    case BTN_START: tap(0, QStringLiteral("start")); break;
+                    case BTN_SELECT: tap(0, QStringLiteral("select")); break;
                     default: break;
                     }
                 }
             }
         }
-        if (dir) {
+        if (dir && p->fd >= 0) {
             steer();
         }
     }
@@ -234,7 +270,7 @@ void Gamepad::read(Pad *p)
 void Gamepad::steer()
 {
     int dx = 0, dy = 0;
-    for (const Pad *p : std::as_const(m_pads)) {
+    for (const PadRef &p : std::as_const(m_pads)) {
         dx += p->hatX + p->padX + p->stickX;
         dy += p->hatY + p->padY + p->stickY;
     }
@@ -261,17 +297,35 @@ void Gamepad::steer()
     }
 }
 
+void Gamepad::tap(int key, const QString &name, Qt::KeyboardModifiers mods)
+{
+    if (key) {
+        press(key, mods);
+    } else if (m_active) {
+        setInUse(true);
+    }
+    if (m_active) {                         // (its key may have closed the surface: then it's not for anyone)
+        Q_EMIT button(name);
+    }
+}
+
 void Gamepad::press(int key, Qt::KeyboardModifiers mods, bool repeat)
 {
+    if (!m_active) {
+        return;                             // (a handler turned us off earlier in this read)
+    }
     setInUse(true);
-    QWindow *w = QGuiApplication::focusWindow();
+    // the press can close the window it went to (Escape on the power overlay): the release then goes nowhere
+    QPointer<QWindow> w = QGuiApplication::focusWindow();
     if (!w) {
         return;
     }
     m_sending = true;
     QKeyEvent down(QEvent::KeyPress, key, mods, QString(), repeat);
     QCoreApplication::sendEvent(w, &down);
-    QKeyEvent up(QEvent::KeyRelease, key, mods, QString(), repeat);
-    QCoreApplication::sendEvent(w, &up);
+    if (w) {
+        QKeyEvent up(QEvent::KeyRelease, key, mods, QString(), repeat);
+        QCoreApplication::sendEvent(w, &up);
+    }
     m_sending = false;
 }

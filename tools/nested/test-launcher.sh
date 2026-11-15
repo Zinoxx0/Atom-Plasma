@@ -81,6 +81,10 @@ step "pad";             python3 "$REPO/tools/nested/pad.py" down right north; $F
 step "pad back";        python3 "$REPO/tools/nested/pad.py" east; $F wait 900
 step "meta closes";     qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu; $F wait 1200; shot l-meta-closed
 step "type y (app?)";   $F type "y" wait 300
+step "meta again";      qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu; $F wait 2200
+step "pad closes";      python3 "$REPO/tools/nested/pad.py" east; $F wait 1200      # B at Home: the launcher closes from inside the pad's read
+step "type z (app?)";   $F type "z" wait 300
+step "meta after the pad"; qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu; $F wait 1500
 step end
 kill $app; stop_plasma
 I
@@ -113,6 +117,9 @@ notbetween "...and the still pointer didn't grab it back" "pointer still, keys" 
 after "the pad walked down"           "pad" 'ATOM home tab 0 row 1 .*(key)'
 after "...and its Y opened the Theme page" "pad" 'ATOM home tab 3'
 after "...and its B left it"          "pad back" 'ATOM home tab 0 row'
+after "the pad's B closed the launcher"  "pad closes" 'shell kind ""'
+check "...and the keyboard came back"     'app typed "axyz"' "$N/out/app.log"
+after "...and plasmashell lived on (it crashed here once)" "meta after the pad" 'shell kind "launcher"'
 swap=$(grep -o 'ATOM home tab swap [0-9]*' "$L" | awk '{print $NF}' | sort -n | tail -1)
 [ "${swap:-999}" -lt 200 ] && echo "ok   page switches are quick (slowest ${swap} ms)" || { echo "FAIL a page switch took ${swap} ms"; fail=1; }
 grep -q "ATOM home apply" "$L" && { echo "FAIL something was applied"; fail=1; }

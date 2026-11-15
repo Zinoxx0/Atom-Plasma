@@ -17,6 +17,8 @@
 #include <QString>
 #include <QtQml/qqmlregistration.h>
 
+#include <memory>
+
 class QQmlEngine;
 class QJSEngine;
 class QSocketNotifier;
@@ -52,8 +54,11 @@ Q_SIGNALS:
 
 private:
     struct Axis { int min = 0; int max = 0; };
+    // A pad lives as long as someone holds it: the list of open pads, and a read in progress. A key the pad
+    // sends can close the surface, which turns the Gamepad off and closes every pad, from inside that read;
+    // the read then sees fd < 0 and stops, and the pad goes away after it.
     struct Pad {
-        int fd = -1;
+        int fd = -1;                        // -1: closed
         QString path, name;
         QSocketNotifier *notifier = nullptr;
         Axis x, y;
@@ -63,17 +68,20 @@ private:
     };
     explicit Gamepad(QObject *parent = nullptr);
     void scan();
+    using PadRef = std::shared_ptr<Pad>;
     void open(const QString &path);
-    void close(Pad *p);
+    void drop(Pad *p);                      // closes its device, nothing else (no signal, no key)
+    void close(Pad *p);                     // drop(), then what it changes: present, the arrow held
     void closeAll();
-    void read(Pad *p);
+    void read(PadRef pad);
     void steer();                           // the direction now held (every pad together): arrows, repeat
+    void tap(int key, const QString &name, Qt::KeyboardModifiers mods = Qt::NoModifier);  // a button: its key, then button(name)
     void press(int key, Qt::KeyboardModifiers mods = Qt::NoModifier, bool repeat = false);
 
     bool m_active = false;
     bool m_inUse = false;
     bool m_sending = false;
-    QHash<QString, Pad *> m_pads;
+    QHash<QString, PadRef> m_pads;
     QFileSystemWatcher *m_watch = nullptr;
     QTimer *m_repeat = nullptr;
     QTimer *m_rescan = nullptr;
