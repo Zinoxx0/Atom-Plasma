@@ -140,6 +140,13 @@ void Gamepad::open(const QString &path)
     char name[256] = {};
     ioctl(fd, EVIOCGNAME(sizeof(name) - 1), name);
     p->name = QString::fromUtf8(name);
+    // Xbox pads (xpad, and the Bluetooth ones through hid-generic) report X as BTN_X = 0x133, which the kernel
+    // also names BTN_NORTH, and Y as 0x134 = BTN_WEST: by place X is the LEFT button. Steam's database says
+    // the same (x:b3). Pads that follow the kernel's spec put their left button on BTN_WEST.
+    input_id id{};
+    ioctl(fd, EVIOCGID, &id);
+    p->xbox = id.vendor == 0x045e || p->name.contains(QLatin1String("xbox"), Qt::CaseInsensitive)
+              || p->name.contains(QLatin1String("x-box"), Qt::CaseInsensitive);
     input_absinfo a{};
     if (ioctl(fd, EVIOCGABS(ABS_X), &a) == 0) {
         p->x = {a.minimum, a.maximum};
@@ -247,7 +254,8 @@ void Gamepad::read(PadRef pad)
                     if (!down) {
                         break;
                     }
-                    switch (e.code) {
+                    const int place = p->xbox && e.code == BTN_NORTH ? BTN_WEST : p->xbox && e.code == BTN_WEST ? BTN_NORTH : e.code;
+                    switch (place) {
                     case BTN_SOUTH: tap(Qt::Key_Return, QStringLiteral("south")); break;
                     case BTN_EAST: tap(Qt::Key_Escape, QStringLiteral("east")); break;
                     case BTN_WEST: tap(Qt::Key_Menu, QStringLiteral("west")); break;

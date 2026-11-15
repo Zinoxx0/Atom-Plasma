@@ -6,6 +6,7 @@
 // keyboard drives, so nothing needs a second path:
 //   D-pad, left stick   the arrows (held: they repeat)       A (south)   Enter       B (east)   Escape
 //   LB / RB             Shift+Tab / Tab (the pages)          X (west)    Menu (an item's options)
+// (buttons by their place: an Xbox pad's X is the left one, Y the top one, whatever codes its driver sends)
 // Every press is also a signal, `button(name)`, for what has no key (Y, north: the launcher's Theme page).
 // Inactive, no device is open: a game in the foreground is never read.
 //
@@ -62,6 +63,7 @@ private:
         QString path, name;
         QSocketNotifier *notifier = nullptr;
         Axis x, y;
+        bool xbox = false;                  // its X and Y as Xbox pads report them (see open())
         int hatX = 0, hatY = 0;             // the D-pad as a hat (-1, 0, 1)
         int padX = 0, padY = 0;             // the D-pad as buttons
         int stickX = 0, stickY = 0;         // the left stick, past its threshold (-1, 0, 1)
