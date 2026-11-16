@@ -4,6 +4,8 @@
           by the desktop file Steam made for each game (Exec ... steam://rungameid/<appid>)
   usage   when each app was last used and how much (KActivities' score cache, what Kicker's recents read),
           keyed by desktop file id
+  each game also carries Steam's own `played` (minutes) and `lastPlayed` (unix time) when Steam has them
+  (userdata/<id>/config/localconfig.vdf, read only: the most recent of its accounts wins)
 
 `rice.py launcher-data` writes it to ~/.cache/rice/launcher.json (atomically, only when it changed): the
 launcher runs it as it opens and reads the file live (WatchedJson). Nothing here is slow: a directory walk
@@ -20,6 +22,7 @@ from . import util
 
 HOME = Path.home()
 STEAM_CACHE = HOME / ".local/share/Steam/appcache/librarycache"
+STEAM_USERDATA = HOME / ".local/share/Steam/userdata"
 ACTIVITY_DB = HOME / ".local/share/kactivitymanagerd/resources/database"
 OUT = util.CACHE / "launcher.json"
 
@@ -109,16 +112,43 @@ def banner_light(path, known):
     return known[key]
 
 
-def build(dirs=None, cache=STEAM_CACHE, db=ACTIVITY_DB):
+def steam_playtime(userdata=STEAM_USERDATA):
+    """{appid: {"played": minutes, "lastPlayed": unix}} from Steam's localconfig.vdf (its "apps" section: every
+    game the account launched). Text VDF, read by line: an app id opens a block, its Playtime/LastPlayed keys follow."""
+    out = {}
+    try:
+        files = sorted(userdata.glob("*/config/localconfig.vdf"), key=lambda f: f.stat().st_mtime)
+    except OSError:
+        return out
+    for f in files:                                 # (oldest first: the newest account wins)
+        try:
+            text = f.read_text(errors="replace")
+        except OSError:
+            continue
+        app = None
+        for line in text.splitlines():
+            m = re.match(r'\s*"(\d+)"\s*$', line)
+            if m:
+                app = m.group(1)
+                continue
+            m = re.match(r'\s*"(Playtime|LastPlayed)"\s*"(\d+)"', line)
+            if m and app:
+                key = "played" if m.group(1) == "Playtime" else "lastPlayed"
+                out.setdefault(app, {})[key] = int(m.group(2))
+    return out
+
+
+def build(dirs=None, cache=STEAM_CACHE, db=ACTIVITY_DB, userdata=STEAM_USERDATA):
     games = {}
     try:
         known = json.loads(LIGHT.read_text())
     except (OSError, ValueError):
         known = {}
     before = dict(known)
+    played = steam_playtime(userdata)
     for did, appid in steam_games(dirs).items():
         a = art(appid, cache)
-        games[did] = dict(a, appid=appid)
+        games[did] = dict(a, appid=appid, **played.get(appid, {}))
         if a.get("hero"):
             light = banner_light(a["hero"], known)
             if light:

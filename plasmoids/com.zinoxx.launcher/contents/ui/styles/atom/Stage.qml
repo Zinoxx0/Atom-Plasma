@@ -270,7 +270,12 @@ Window {
         if (!finder) sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" launcher-data #data')
         if (finder || (Shell.args && Shell.args.query)) Qt.callLater(() => stage.openSearch(Shell.args.query || ""))
     }
-    RiceShell { id: sh; onNewData: (source, data) => disconnectSource(source) }
+    RiceShell { id: sh; onNewData: (source, data) => { disconnectSource(source); if (source.indexOf("#scan") >= 0) stage.say("Library up to date") } }
+    function shell(cmd) { sh.connectSource(cmd) }          // (fixed commands only: each one is its own source name)
+    // a short line of news over the hints (scan done, ...)
+    property string news: ""
+    function say(t) { news = t; newsTimer.restart() }
+    Timer { id: newsTimer; interval: 2200; onTriggered: stage.news = "" }
 
     // ------------------------------------------------------------------ the scene
     Scene { id: scene; anchors.fill: parent; stage: atomStage }
@@ -294,6 +299,13 @@ Window {
         Loader { anchors.fill: parent; active: stage.page === "home" && !stage.searching; sourceComponent: homePage }
         Loader { anchors.fill: parent; active: stage.searching; sourceComponent: searchPage }
         Loader { anchors.fill: parent; active: stage.page === "apps" && !stage.searching; sourceComponent: appsPage }
+        Loader { anchors.fill: parent; active: stage.page === "games" && !stage.searching; sourceComponent: gamesPage }
+        Text {      // news (a scan done...)
+            x: stage.side; y: stage.height - stage.d(110)
+            text: stage.news; color: stage.rice.fg; opacity: stage.news ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: Tokens.ms(240) } }
+            font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: stage.d(16)
+        }
         TopBar { id: topBar; stage: atomStage }
         Caption { id: cap; stage: atomStage; content: stage.caption; opacity: stage.capO }
         Hints { stage: atomStage }
@@ -302,6 +314,7 @@ Window {
     Component { id: homePage; HomePage { stage: atomStage } }
     Component { id: searchPage; SearchPage { stage: atomStage } }
     Component { id: appsPage; AppsPage { stage: atomStage } }
+    Component { id: gamesPage; GamesPage { stage: atomStage } }
 
     // ------------------------------------------------------------------ keys (a pad's arrive as keys too)
     signal pageKey(var event)           // the page in view handles what's left

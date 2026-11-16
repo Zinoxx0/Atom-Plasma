@@ -68,6 +68,13 @@ cat > "$t/inner.sh" <<'I'
 #!/bin/bash
 source "$ATOM_NESTED/env.sh"
 [ -n "$ATOM_STYLE" ] && printf '%s\n' "$ATOM_STYLE" > "$N/config/atom-test-style"     # the launcher style to look at (tests only)
+if [ -n "$ATOM_MYAPPS" ]; then   # the user's own apps, icons and usage (Steam's games, pins, recents), as showcase.sh does
+    mkdir -p "$N/data" "$N/config"
+    ln -sfn "$HOME/.local/share/applications" "$N/data/applications"
+    ln -sfn "$HOME/.local/share/icons" "$N/data/icons"
+    cp -r "$HOME/.local/share/kactivitymanagerd" "$N/data/" 2>/dev/null
+    cp "$HOME/.config/kactivitymanagerdrc" "$N/config/" 2>/dev/null
+fi
 start_plasma 8
 qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "desktops().forEach(d => { d.wallpaperPlugin = 'org.kde.image'; d.currentConfigGroup = ['Wallpaper', 'org.kde.image', 'General']; d.writeConfig('Image', 'file://$WALL') })" >/dev/null
 sleep 1

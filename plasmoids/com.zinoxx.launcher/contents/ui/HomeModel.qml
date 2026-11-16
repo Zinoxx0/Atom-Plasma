@@ -71,6 +71,7 @@ Item {
             key: id || fav || String(r.display || ""), id: id, name: String(r.display || ""), desc: String(r.description || ""),
             icon: r.decoration, favId: fav, url: String(r.url || ""),
             art: g ? { portrait: f(g.portrait), hero: f(g.hero), logo: f(g.logo), header: f(g.header), light: g.light || null } : null,
+            played: g ? g.played || 0 : 0, lastPlayed: g ? g.lastPlayed || 0 : 0,     // Steam's own (minutes, unix time)
             game: !!g, last: u ? u.last : 0, score: u ? u.score : 0,
             model: model, row: o.index, roles: r,
         }

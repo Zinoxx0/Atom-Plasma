@@ -62,3 +62,34 @@ class HomeData(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SteamPlaytime(unittest.TestCase):
+    def test_reads_playtime_and_last_played(self):
+        import tempfile
+        from atom import home
+        with tempfile.TemporaryDirectory() as d:
+            cfg = Path(d) / "123" / "config"
+            cfg.mkdir(parents=True)
+            (cfg / "localconfig.vdf").write_text('''"UserLocalConfigStore"
+{
+	"Software" { "Valve" { "Steam" { "apps" {
+		"2358720"
+		{
+			"LastPlayed"		"1791970303"
+			"Playtime"		"3430"
+		}
+		"638970"
+		{
+			"Playtime"		"88"
+		}
+	} } } }
+}
+''')
+            got = home.steam_playtime(Path(d))
+        self.assertEqual(got["2358720"], {"played": 3430, "lastPlayed": 1791970303})
+        self.assertEqual(got["638970"], {"played": 88})
+
+    def test_no_steam(self):
+        from atom import home
+        self.assertEqual(home.steam_playtime(Path("/nonexistent/steam")), {})
