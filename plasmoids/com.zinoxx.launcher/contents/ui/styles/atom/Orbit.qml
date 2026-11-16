@@ -21,21 +21,49 @@ Item {
     property real reveal: 1                 // the opening's spiral: 0 in the core, 1 out on the ring
     readonly property real r: view.d(radius) * view.k * reveal
     readonly property real spin: -150 * (1 - reveal)
-    property alias current: pv.currentIndex
+    // placed: the items sit at their own angles (it.ang: degrees clockwise from 3 o'clock; the colour wheel, gauges) and
+    // the focus moves between them, nothing turns. gauge: a placed ring of values drawn as an arc filled to the focus
+    property bool placed: false
+    property bool gauge: false
+    property int placedCur: 0
+    property alias turned: pv.currentIndex
+    property int current: 0                 // the focus at rest (the slot, or a placed ring's)
+    onCurrentChanged: { if (placed) placedCur = current; else if (pv.currentIndex !== current) pv.currentIndex = current }
+    Connections { target: pv; function onCurrentIndexChanged() { if (!ring.placed) ring.current = pv.currentIndex } }
     property int picked: -1
-    readonly property int focusIndex: picked >= 0 ? picked : pv.currentIndex
+    readonly property int focusIndex: picked >= 0 ? picked : placed ? placedCur : pv.currentIndex
     readonly property var focusItem: items[focusIndex] || null
-    readonly property Item focusDelegate: (pv.count, pv.itemAtIndex(focusIndex))
+    readonly property Item focusDelegate: placed ? (placedRep.count, placedRep.itemAt(focusIndex)) : (pv.count, pv.itemAtIndex(focusIndex))
+    // a placed ring's items in order round it (for stepping)
+    readonly property var order: items.map((it, i) => i).sort((a, b) => (items[a].ang || 0) - (items[b].ang || 0))
+    function angleOf(i) { const it = items[i]; return it && it.ang !== undefined ? it.ang : 180 }
     function d(px) { return view.d(px) * view.k }
     signal hovered(int i)
     signal clicked(int i)
     signal rightClicked(int i, Item tile)
     anchors.fill: parent
 
+    // a gauge: a 270 deg track from bottom-left round the top to bottom-right, lit up to the value in focus
+    Shape {
+        anchors.fill: parent
+        visible: ring.gauge && ring.r > 1
+        preferredRendererType: Shape.CurveRenderer
+        readonly property real v: ring.angleOf(ring.focusIndex)
+        property real vA: v
+        Behavior on vA { NumberAnimation { duration: Tokens.ms(420); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
+        ShapePath {
+            fillColor: "transparent"; strokeColor: C.alpha(ring.view.rice.fg, 0.16); strokeWidth: ring.d(4.4); capStyle: ShapePath.RoundCap
+            PathAngleArc { centerX: ring.view.cx; centerY: ring.view.cy; radiusX: ring.r; radiusY: ring.r; startAngle: 135; sweepAngle: 270 }
+        }
+        ShapePath {
+            fillColor: "transparent"; strokeColor: ring.view.rice.primary; strokeWidth: ring.d(4.4); capStyle: ShapePath.RoundCap
+            PathAngleArc { centerX: ring.view.cx; centerY: ring.view.cy; radiusX: ring.r; radiusY: ring.r; startAngle: 135; sweepAngle: Math.max(0.01, parent.vA - 135) }
+        }
+    }
     // the hairline: brightest on the lens' side, fading to the far side
     Shape {
         anchors.fill: parent
-        visible: ring.r > 1
+        visible: !ring.gauge && ring.r > 1
         preferredRendererType: Shape.CurveRenderer
         ShapePath {
             strokeWidth: -1
@@ -55,7 +83,7 @@ Item {
     // the active ring's light at the lens
     Shape {
         anchors.fill: parent
-        visible: ring.active && ring.r > 1
+        visible: ring.active && !ring.gauge && ring.r > 1
         opacity: ring.active ? 0.9 : 0
         Behavior on opacity { NumberAnimation { duration: Tokens.ms(400) } }
         preferredRendererType: Shape.CurveRenderer
@@ -78,7 +106,7 @@ Item {
     PathView {
         id: pv
         anchors.fill: parent
-        model: ring.items.length
+        model: ring.placed ? 0 : ring.items.length
         interactive: false                  // the keys, the wheel and the pointer turn it, never a flick
         pathItemCount: ring.lengthy ? ring.window : ring.items.length
         preferredHighlightBegin: 0.5
@@ -99,69 +127,35 @@ Item {
             PathAngleArc { centerX: ring.view.cx; centerY: ring.view.cy; radiusX: ring.r; radiusY: ring.r; startAngle: ring.spin - 360 + pv.e; sweepAngle: -pv.e; moveToStart: false }
             PathAttribute { name: "fade"; value: ring.lengthy ? 0 : 1 }
         }
-        delegate: Item {
-            id: dl
-            required property int index
-            readonly property var it: ring.items[index] || null
-            readonly property real fade: PathView.fade === undefined ? 1 : PathView.fade
-            readonly property bool focused: ring.active && ring.focusIndex === index
-            readonly property bool planet: !!(dl.it && dl.it.art)
-            readonly property var roles: dl.it ? dl.it.roles : null      // (the launcher's menu reads the item's roles off it)
-            width: ring.d(dl.it && dl.it.big ? dl.it.big : ring.size)
-            height: width
-            z: focused ? 2 : 1
-            opacity: dl.fade * ring.reveal
-            visible: opacity > 0.01
-            Item {
-                anchors.fill: parent
-                scale: dl.focused ? 1.16 : 1
-                Behavior on scale { NumberAnimation { duration: Tokens.ms(300); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
-                Kirigami.ShadowedImage {
-                    visible: dl.planet
-                    anchors.fill: parent
-                    radius: width / 2
-                    source: visible ? dl.it.art : ""
-                    fillMode: Image.PreserveAspectCrop
-                    color: "transparent"
-                    border.width: Math.max(1.5, ring.d(1.5)); border.color: C.alpha(ring.view.rice.fg, 0.42)
-                    shadow.size: ring.d(26); shadow.yOffset: ring.d(10); shadow.color: Qt.rgba(0, 0, 0, 0.4)
-                }
-                Kirigami.Icon {
-                    visible: !dl.planet && !(dl.it && dl.it.glyph)
-                    anchors.fill: parent
-                    source: dl.it && !dl.it.glyph ? dl.it.icon : ""
-                }
-                Rectangle {     // a node (a category, an action, a setting): a glyph on a disc of glass
-                    visible: !!(dl.it && dl.it.glyph)
-                    anchors.fill: parent; radius: width / 2
-                    color: C.alpha(ring.view.rice.surfaceLowest, 0.55)
-                    border.width: Math.max(1.5, ring.d(1.5)); border.color: C.alpha(ring.view.rice.fg, dl.focused ? 0.6 : 0.26)
-                    Text { anchors.centerIn: parent; text: dl.it ? dl.it.glyph || "" : ""; color: ring.view.rice.fg
-                           font.family: Tokens.font.icons; font.pixelSize: parent.width * 0.46 }
-                }
-            }
-            Text {             // a node's name, under it
-                visible: !!(dl.it && dl.it.label)
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.top: parent.bottom; anchors.topMargin: ring.d(10)
-                text: dl.it ? dl.it.label || "" : ""
-                color: dl.focused ? ring.view.rice.fg : ring.view.rice.fgDim
-                font.family: Tokens.font.ui; font.weight: Font.Medium; font.pixelSize: ring.d(14)
-            }
-            MouseArea {
-                anchors.fill: parent
-                anchors.margins: -ring.d(6)
-                hoverEnabled: true
-                acceptedButtons: Qt.LeftButton | Qt.RightButton
-                cursorShape: Qt.PointingHandCursor
-                onContainsMouseChanged: if (containsMouse) ring.hovered(dl.index)
-                onClicked: mouse => mouse.button === Qt.RightButton ? ring.rightClicked(dl.index, dl) : ring.clicked(dl.index)
-            }
+        delegate: Node { orbit: ring }
+    }
+    Repeater {              // a placed ring: every item at its own angle
+        id: placedRep
+        model: ring.placed ? ring.items.length : 0
+        delegate: Node {
+            orbit: ring
+            readonly property real a: (ring.angleOf(index) + ring.spin) * Math.PI / 180
+            x: ring.view.cx + ring.r * Math.cos(a) - width / 2
+            y: ring.view.cy + ring.r * Math.sin(a) - height / 2
         }
     }
-    function turn(dd) { if (dd > 0) pv.incrementCurrentIndex(); else pv.decrementCurrentIndex() }
-    function bring() { if (picked >= 0) { pv.currentIndex = picked; picked = -1 } }      // the pointer's pick to the slot (the short way)
+    function turn(dd) {
+        if (placed) {       // the next item round (a gauge: up = more, no wrap)
+            const o = order, p = Math.max(0, o.indexOf(placedCur))
+            placedCur = o[gauge ? Math.max(0, Math.min(o.length - 1, p - dd)) : (p + dd + o.length) % o.length]
+            current = placedCur
+        } else if (dd > 0) pv.incrementCurrentIndex(); else pv.decrementCurrentIndex()
+    }
+    function bring() {      // the pointer's pick to the slot (the short way); on a placed ring it just stays the focus
+        if (picked < 0) return
+        if (placed) placedCur = picked; else pv.currentIndex = picked
+        current = picked
+        picked = -1
+    }
     readonly property bool moving: pv.moving
     // where an item is, in the view (its centre)
-    function centreOf(i) { const it = pv.itemAtIndex(i); return it ? Qt.point(it.x + it.width / 2, it.y + it.height / 2) : Qt.point(view.cx - r, view.cy) }
+    function centreOf(i) {
+        if (placed) { const a = angleOf(i) * Math.PI / 180; return Qt.point(view.cx + r * Math.cos(a), view.cy + r * Math.sin(a)) }
+        const it = pv.itemAtIndex(i); return it ? Qt.point(it.x + it.width / 2, it.y + it.height / 2) : Qt.point(view.cx - r, view.cy)
+    }
 }

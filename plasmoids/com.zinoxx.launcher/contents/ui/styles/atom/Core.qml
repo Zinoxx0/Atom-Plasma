@@ -100,6 +100,21 @@ Item {
             color: "transparent"
             opacity: core.popT; scale: M.lerp(0.86, 1, core.popT)
         }
+        Text {              // a gauge's value, big
+            anchors.centerIn: parent
+            visible: !!(core.item && core.item.mark)
+            text: core.item && core.item.mark ? core.item.name : ""
+            color: core.rice.fg
+            font.family: core.view.stage.wideFamily; font.pixelSize: parent.width * 0.2; font.variableAxes: core.view.stage.wide(118, 640)
+        }
+        Rectangle {         // a colour
+            anchors.centerIn: parent
+            visible: !!(core.item && core.item.sw)
+            width: parent.width * 0.42; height: width; radius: width / 2
+            color: core.item && core.item.sw ? core.item.sw : "transparent"
+            border.width: 1.5; border.color: Qt.rgba(1, 1, 1, 0.25)
+            opacity: core.popT; scale: M.lerp(0.86, 1, core.popT)
+        }
         Text {              // a node's glyph (a category, an action, a setting)
             anchors.centerIn: parent
             visible: !!(core.item && core.item.glyph)
@@ -111,7 +126,7 @@ Item {
         Kirigami.Icon {
             anchors.centerIn: parent
             anchors.verticalCenterOffset: -parent.height * 0.03
-            visible: !!(core.item && !core.item.art && !core.item.glyph)
+            visible: !!(core.item && !core.item.art && !core.item.glyph && !core.item.mark && !core.item.sw && !core.item.swc && !core.item.dot)
             width: parent.width * 0.44; height: width
             source: core.item ? core.item.icon : ""
             opacity: core.popT; scale: M.lerp(0.86, 1, core.popT)

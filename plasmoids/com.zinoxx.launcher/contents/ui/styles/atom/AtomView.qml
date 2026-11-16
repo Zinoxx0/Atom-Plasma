@@ -11,7 +11,7 @@ Item {
     required property var stage
     property var shells: []                 // [{ name, items, radius, size, window }]
     property color tint: rice.primary       // the focus's colour (the page reads it off its icon)
-    readonly property var rice: stage.rice
+    readonly property var rice: stage.look
     readonly property real k: stage.atomK
     function d(px) { return stage.d(px) }
     readonly property real cx: stage.atomAt.x
@@ -28,6 +28,7 @@ Item {
     // the lens: an angle (deg, clockwise from 3 o'clock) and a radius, so it glides along the rings
     readonly property real lensTarget: {
         if (!ring) return 180
+        if (ring.placed) return ring.angleOf(ring.focusIndex)        // a placed ring: the lens goes to the item
         if (mode !== "pointer" || ring.picked < 0) return 180
         const p = ring.centreOf(ring.picked)
         return Math.atan2(p.y - cy, p.x - cx) * 180 / Math.PI
@@ -62,6 +63,17 @@ Item {
         const t = Math.max(0, Math.min(rep.count - 1, at + dd))
         if (t === at) return
         if (ring) ring.picked = -1
+        const to = rep.itemAt(t)
+        const nowAt = to && to.gauge ? to.items.findIndex(x => x.now) : -1
+        if (nowAt >= 0) { to.placedCur = nowAt; to.current = nowAt }   // onto a gauge: its value now
+        else if (to && to.placed && to.items.length) {        // onto a placed ring: the item nearest the lens's angle
+            let best = 0, bd = 1e9
+            for (let i = 0; i < to.items.length; i++) {
+                const dd = Math.abs(((to.angleOf(i) - av.lensAngle) % 360 + 540) % 360 - 180)
+                if (dd < bd) { bd = dd; best = i }
+            }
+            to.placedCur = best; to.current = best
+        }
         at = t; mode = "slot"
         quietUntil = Date.now() + 400
     }
@@ -81,6 +93,8 @@ Item {
             radius: sh.radius || 300
             size: sh.size || 66
             window: sh.window || 16
+            placed: !!sh.placed
+            gauge: !!sh.gauge
             name: sh.name || ""
             reveal: M.enter(M.clamp((av.stage.atomT - index * 0.09) / 0.82))
             onHovered: i => av.pick(index, i)
@@ -126,8 +140,14 @@ Item {
             required property int index
             readonly property Item r: (rep.count, rep.itemAt(index))
             readonly property real big: r ? Math.max(r.size, ...(r.items || []).map(it => it.big || 0)) : 66
+            // rings close together (the colour wheel's) take turns above and below their slot; rings whose items carry their
+            // own names keep theirs above
+            readonly property var sh: av.shells[index] || ({})
+            readonly property bool tight: av.shells.some((o, j) => j !== index && Math.abs((o.radius || 300) - (sh.radius || 300)) < 110)
+            readonly property bool below: tight && index % 2 === 1 && !((sh.items || [])[0] && sh.items[0].label)
             x: av.cx - (r ? r.r : 0) - width / 2
-            y: av.cy - big * 0.58 * av.d(1) * av.k - av.d(30) * av.k - height
+            y: below ? av.cy + big * 0.58 * av.d(1) * av.k + av.d(14) * av.k
+                     : av.cy - big * 0.58 * av.d(1) * av.k - av.d(30) * av.k - height
             text: r ? r.name : ""
             color: av.at === index ? av.rice.fg : av.rice.fgDim
             font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: av.d(14.5)

@@ -7,7 +7,7 @@ import Rice
 Row {
     id: hints
     required property var stage
-    readonly property var rice: hints.stage.rice
+    readonly property var rice: hints.stage.look
     function d(px) { return hints.stage.d(px) }
     x: hints.stage.side
     y: hints.stage.height - height - hints.d(34)

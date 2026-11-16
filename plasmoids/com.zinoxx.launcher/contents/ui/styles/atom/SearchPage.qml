@@ -68,7 +68,7 @@ Item {
     }
     Kirigami.ImageColors { id: colours; source: atom.focusItem ? atom.focusItem.icon : "" }
     Connections { target: atom; function onFocusItemChanged() { colours.update() } }
-    readonly property color tint: C.appTint(colours, page.stage ? page.stage.rice.primary : "#888888")
+    readonly property color tint: C.appTint(colours, page.stage ? page.stage.look.primary : "#888888")
 
     readonly property var caption: {
         const it = atom.focusItem, r = atom.ring

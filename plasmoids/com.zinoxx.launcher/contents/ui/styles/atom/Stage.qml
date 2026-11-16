@@ -25,6 +25,11 @@ Window {
     readonly property string screenName: screenObj ? screenObj.name : ""
     // what children get as their `stage` (`stage: stage` inside a child binds the child's own property to itself)
     readonly property Window atomStage: stage
+    // the colours every part wears: the screen's palette, or a wallpaper's being previewed on the Theme page (they glide
+    // from one to the other: RicePalette eases its roles)
+    property var previewValues: null
+    RicePalette { id: lookPal; given: true; values: stage.previewValues || stage.rice.values }
+    readonly property RicePalette look: lookPal
 
     screen: screenObj
     x: screenObj ? screenObj.virtualX : 0
@@ -117,6 +122,10 @@ Window {
     }
     onPhaseChanged: {
         if (Shell.debug) console.warn("ATOM atom stage", screenName, "phase", phase, Date.now() % 100000)
+        if (Shell.debug && phase === "open") {      // where the top's buttons are (the nested tests click them: look-launcher.sh)
+            const at = b => { const q = b.mapToItem(null, b.width / 2, b.height / 2); return Math.round(screenObj.virtualX + q.x) + " " + Math.round(screenObj.virtualY + topGap + q.y) }
+            console.warn("ATOM home tabs at 0 0 search at", at(topBar.searchButton), "theme at", at(topBar.themeButton), "power at", at(topBar.powerButton))
+        }
         if (phase === "opening") { shownAt = Date.now(); coldOpen = idle || gameUp }
         if (phase === "closed") restTimer.restart()
         else { restTimer.stop(); idle = false }
@@ -235,7 +244,7 @@ Window {
     // what the page has in focus (the pages report it): the caption, the core and the scene's light follow it
     property var focusItem: null                // { hero }: a game's art for the scene
     property var caption: ({ where: [], name: "" })
-    property color focusTint: rice.primary      // the focus's colour (the page reads it off its icon)
+    property color focusTint: look.primary      // the focus's colour (the page reads it off its icon)
     // the page in view: what A, X and the caption's tools do, the hints, which caption button the keys are on (-1: none)
     property var pageApi: null              // { act(i), tool(i), wheel(dy) }
     property var hints: ({ pad: [], keys: [] })
@@ -300,9 +309,10 @@ Window {
         Loader { anchors.fill: parent; active: stage.searching; sourceComponent: searchPage }
         Loader { anchors.fill: parent; active: stage.page === "apps" && !stage.searching; sourceComponent: appsPage }
         Loader { anchors.fill: parent; active: stage.page === "games" && !stage.searching; sourceComponent: gamesPage }
+        Loader { anchors.fill: parent; active: stage.page === "theme" && !stage.searching; sourceComponent: themePage }
         Text {      // news (a scan done...)
             x: stage.side; y: stage.height - stage.d(110)
-            text: stage.news; color: stage.rice.fg; opacity: stage.news ? 1 : 0
+            text: stage.news; color: stage.look.fg; opacity: stage.news ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: Tokens.ms(240) } }
             font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: stage.d(16)
         }
@@ -315,6 +325,7 @@ Window {
     Component { id: searchPage; SearchPage { stage: atomStage } }
     Component { id: appsPage; AppsPage { stage: atomStage } }
     Component { id: gamesPage; GamesPage { stage: atomStage } }
+    Component { id: themePage; ThemePage { stage: atomStage } }
 
     // ------------------------------------------------------------------ keys (a pad's arrive as keys too)
     signal pageKey(var event)           // the page in view handles what's left
@@ -341,6 +352,10 @@ Window {
     Connections {       // the pad's Y: the Theme page
         target: Gamepad
         enabled: stage.wanted && stage.phase === "open"
-        function onButton(name) { if (name === "north" && !stage.searching) stage.toggleTheme() }
+        function onButton(name) {
+            if (name !== "north" || stage.searching) return
+            if (stage.page === "theme" && stage.pageApi && stage.pageApi.north) stage.pageApi.north()      // (the Theme page's Y: shuffle)
+            else stage.toggleTheme()
+        }
     }
 }

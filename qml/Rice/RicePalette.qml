@@ -14,6 +14,7 @@ Item {
 
     property string output: ""                  // the widget's Screen.name
     property var values: ({})                   // the raw palette JSON
+    property bool given: false                  // values given from outside (a preview): no file, no shell
     readonly property bool loaded: values.primary !== undefined
     readonly property real uiScale: values._scale || 1          // rice settings bar_scale
     readonly property real topScale: values._topScale || 1      // rice settings top_scale
@@ -109,13 +110,13 @@ Item {
     }
     WatchedJson {
         id: file
-        path: rp.output ? String(StandardPaths.writableLocation(StandardPaths.HomeLocation)).replace(/^file:\/\//, "")
+        path: rp.output && !rp.given ? String(StandardPaths.writableLocation(StandardPaths.HomeLocation)).replace(/^file:\/\//, "")
                           + "/.local/state/rice/palette-" + rp.output + ".json" : ""
         debounce: 120                           // one read per burst of writes
         onChanged: rp.take(file.raw)
     }
     function refresh() {
-        if (!output) return;
+        if (!output || given) return;
         file.read();
         viaShell.restart();
     }
@@ -124,7 +125,7 @@ Item {
                          + ' || cat "$HOME/.local/state/rice/palette.json" #pal ' + output);
     }
     // no answer, or no file for this screen: the shell's way (the global palette as the fallback)
-    Timer { id: viaShell; interval: 250; onTriggered: if (!file.answered || !file.value) rp.shellRead() }
+    Timer { id: viaShell; interval: 250; onTriggered: if (!rp.given && (!file.answered || !file.value)) rp.shellRead() }
     RiceShell {
         id: sh
         onNewData: (source, data) => rp.take(data["stdout"] ?? "")

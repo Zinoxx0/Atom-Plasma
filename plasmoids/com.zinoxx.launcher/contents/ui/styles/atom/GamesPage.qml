@@ -42,13 +42,13 @@ Item {
             id: chips
             anchors.right: parent.right
             spacing: page.stage.d(8)
-            Text { text: "Library"; color: page.stage.rice.fg; font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: page.stage.d(16); anchors.verticalCenter: parent.verticalCenter }
+            Text { text: "Library"; color: page.stage.look.fg; font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: page.stage.d(16); anchors.verticalCenter: parent.verticalCenter }
             Repeater {
                 model: page.stores
                 Rectangle { required property string modelData; required property int index
                     width: ct.implicitWidth + page.stage.d(24); height: page.stage.d(34); radius: height / 2
-                    color: page.store === index ? C.alpha(page.stage.rice.fg, 0.14) : "transparent"
-                    Text { id: ct; anchors.centerIn: parent; text: modelData; color: page.store === index ? page.stage.rice.fg : page.stage.rice.fgDim
+                    color: page.store === index ? C.alpha(page.stage.look.fg, 0.14) : "transparent"
+                    Text { id: ct; anchors.centerIn: parent; text: modelData; color: page.store === index ? page.stage.look.fg : page.stage.look.fgDim
                            font.family: Tokens.font.ui; font.weight: Font.Medium; font.pixelSize: page.stage.d(15) }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: page.setStore(index) } }
             }
@@ -80,7 +80,7 @@ Item {
                 Kirigami.ShadowedRectangle {        // a game without a banner: its icon's colour
                     anchors.fill: parent; radius: page.stage.d(18)
                     visible: !card.g || !card.g.banner
-                    color: C.mix(C.appTint(colours, page.stage.rice.primary), "#000000", 0.45)
+                    color: C.mix(C.appTint(colours, page.stage.look.primary), "#000000", 0.45)
                     shadow.size: page.stage.d(30); shadow.yOffset: page.stage.d(12); shadow.color: Qt.rgba(0, 0, 0, 0.4)
                     Kirigami.ImageColors { id: colours; source: card.g && !card.g.banner ? card.g.icon : "" }
                     Row { anchors.verticalCenter: parent.verticalCenter; x: page.stage.d(26); spacing: page.stage.d(18)
@@ -101,11 +101,11 @@ Item {
                 }
                 Rectangle {     // the focus: a white ring and the accent's glow
                     anchors.fill: parent; anchors.margins: -page.stage.d(2); radius: page.stage.d(20)
-                    color: "transparent"; border.width: Math.max(2, page.stage.d(2)); border.color: page.stage.rice.fg
+                    color: "transparent"; border.width: Math.max(2, page.stage.d(2)); border.color: page.stage.look.fg
                     opacity: card.on ? 1 : hm.containsMouse ? 0.45 : 0
                     Behavior on opacity { NumberAnimation { duration: Tokens.ms(200) } }
                     Rectangle { anchors.fill: parent; anchors.margins: -page.stage.d(10); radius: page.stage.d(28); z: -1; color: "transparent"
-                                border.width: page.stage.d(10); border.color: C.alpha(page.stage.rice.primary, card.on ? 0.3 : 0) }
+                                border.width: page.stage.d(10); border.color: C.alpha(page.stage.look.primary, card.on ? 0.3 : 0) }
                 }
                 MouseArea { id: hm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                     acceptedButtons: Qt.LeftButton | Qt.RightButton

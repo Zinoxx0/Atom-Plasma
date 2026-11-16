@@ -10,7 +10,9 @@ Item {
     id: bar
     required property var stage
     readonly property Item powerButton: powerBtn
-    readonly property var rice: bar.stage.rice
+    readonly property Item themeButton: themeBtn
+    readonly property Item searchButton: field
+    readonly property var rice: bar.stage.look
     function d(px) { return bar.stage.d(px) }
     x: bar.stage.side
     y: bar.d(30)
@@ -129,7 +131,7 @@ Item {
             }
             MouseArea { id: fm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.IBeamCursor; onClicked: if (!field.on) bar.stage.openSearch("") }
         }
-        Plain { icon: "palette"; lit: bar.stage.page === "theme"; onClicked: bar.stage.toggleTheme() }
+        Plain { id: themeBtn; icon: "palette"; lit: bar.stage.page === "theme"; onClicked: bar.stage.toggleTheme() }
         Plain { id: powerBtn; icon: "power_settings_new"; hot: bar.rice.bad; onClicked: bar.stage.openPowerHere() }
         Rectangle {         // the battery saver, while the laptop runs on battery
             visible: bar.stage.launcher.unplugged || bar.stage.launcher.saverOn

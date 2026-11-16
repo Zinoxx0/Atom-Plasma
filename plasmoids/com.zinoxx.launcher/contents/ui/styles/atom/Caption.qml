@@ -11,7 +11,7 @@ Item {
     id: cap
     required property var stage
     property var content: ({})
-    readonly property var rice: cap.stage.rice
+    readonly property var rice: cap.stage.look
     function d(px) { return cap.stage.d(px) }
     x: cap.stage.side
     y: cap.stage.atomAt.y - col.height / 2

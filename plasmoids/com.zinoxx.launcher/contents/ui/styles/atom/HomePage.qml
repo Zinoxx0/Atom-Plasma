@@ -46,7 +46,7 @@ Item {
     // the focus's colour, off its icon (or a game's art)
     Kirigami.ImageColors { id: colours; source: atom.focusItem ? (atom.focusItem.art || atom.focusItem.icon) : "" }
     Connections { target: atom; function onFocusItemChanged() { colours.update() } }
-    readonly property color tint: C.appTint(colours, page.stage.rice.primary)
+    readonly property color tint: C.appTint(colours, page.stage.look.primary)
 
     // what the stage shows for the focus: the caption, the scene's light and art
     function ago(t) {

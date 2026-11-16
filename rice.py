@@ -26,6 +26,8 @@
                              launcher.style, applied at the next opening
     rice.py top size F       the top bar's own size (Glimpse's band), apart from the taskbar's: 1 = each
                              screen's standard size; settings top.size, applied live
+    rice.py walls-index      every wallpaper as the theme engine sees it (mood, hue, the palette it would make), for
+                             Atom's Theme page: ~/.cache/rice/walls-index.json, only new or changed files analysed
     rice.py launcher-data    the launcher's own data (~/.cache/rice/launcher.json): Steam's art for the
                              installed games, when each app was last used and how much (atom/home.py)
     rice.py check FILE...    can these be wallpapers (format and readable)? names the ones that can't
@@ -134,6 +136,9 @@ def main(args):
         print(walls.WALLDIR)
     elif arg == "page":
         print(json.dumps(theme.page()))
+    elif arg == "walls-index":       # every wallpaper's mood, hue and palette (Atom's colour wheel)
+        from atom import wallindex
+        print(wallindex.write())
     elif arg == "launcher-data":     # the launcher's own data: Steam's art for the games, when apps were used
         from atom import home
         print(home.write())
