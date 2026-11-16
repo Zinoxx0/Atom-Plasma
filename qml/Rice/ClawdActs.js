@@ -165,6 +165,26 @@ function every(act) {
 // ---------- the acts ----------
 const ACTS = {}
 
+// ---- getting about: jumps carried by a flight (ClawdRoof: the island <-> the roof, the popup -> the roof) ----
+// Only poses: the flight's arc does the moving (no dy), and its timing comes in `env` so each pose lands
+// on its part of the arc. env.crouch: gathering itself before the flight starts; env.up: the arc's rise
+// (to its top); env.down: its fall (to the touchdown). Then the landing: a squash and a puff of dust.
+ACTS.leap = (seed, env) => {
+    const crouch = env.crouch ?? 110, up = Math.max(40, env.up ?? 230), down = Math.max(40, env.down ?? 230)
+    const push = Math.min(80, Math.round(up * 0.35)), reach = Math.min(55, Math.round(down * 0.3))
+    return [{ d: crouch, sh: "c" },                                // gathering itself
+            { d: push, sh: "s" },                                  // the push off the ground
+            { d: up - push, legs: "tuck" },                        // rising
+            { d: down - reach, legs: "dangle" },                   // falling, feet first
+            { d: reach, sh: "s" },                                 // reaching for the ground
+            { d: 90, sh: "c", dust: 1 }, { d: 70, sh: "d", dust: 2 }]   // touchdown
+}
+// dropping onto something from above (env.fall: how long it falls), and landing
+ACTS.land = (seed, env) => [{ d: Math.max(40, env.fall ?? 300), legs: "dangle" },
+                            { d: 90, sh: "c", dust: 1 }, { d: 70, sh: "d", dust: 2 }]
+// springing up and away (env.crouch, then env.rise)
+ACTS.liftoff = (seed, env) => [{ d: env.crouch ?? 60, sh: "c" }, { d: 70, sh: "s" }, { d: Math.max(40, env.rise ?? 200), legs: "tuck" }]
+
 // ---- hover: hello ----
 ACTS.hop = () => hop(2)
 ACTS.wave = [{ d: 100, armR: 1 }, { d: 90, armR: 6 }, { d: 130, armR: 2, eyes: "joy" }, { d: 110, armR: 6, eyes: "joy" },

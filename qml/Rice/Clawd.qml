@@ -286,7 +286,7 @@ Item {
 
     // ---------- acts ----------
     property string playing: ""
-    property int prio: 0                // 0 loops and idle, 1 hover, 2 clicks, 3 dizzy
+    property int prio: 0                // 0 loops and idle, 1 hover, 2 clicks, 3 dizzy, 4 a jump (ClawdRoof)
     property bool mine: false           // the act is the state's own (its loop, or how it came on)
     property var frames: []
     property int fi: 0
@@ -405,6 +405,8 @@ Item {
         }
     }
     function hop() { play("hop", 1) }
+    // ends the act now (a jump cut short: its flight stopped), back to the plain pose
+    function stopAct() { player.stop(); fi = frames.length; playing = ""; prio = 0; mine = false; fx = still }
     // how each after-answer state comes on (not for a view made while it's already there: the others
     // played it when it happened)
     onDoingChanged: {

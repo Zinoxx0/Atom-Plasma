@@ -136,52 +136,82 @@ Window {
     property real arc: 0                                                // 0..1 along it
     property bool towardRoof: true
     readonly property real hopH: snap(clawd.height * 0.55)
-    // the arc: from the far end to the rest spot (towardRoof) or back, rising above the roof on the way
+    // A jump, not a glide: Clawd crouches where he is (crouchMs), flies a ballistic arc (straight in time,
+    // a parabola up and down: quick off the ground, hanging at the top, quick into the landing) and lands
+    // with a squash and a puff of dust. His poses (Clawd's act "leap") get the arc's own timings, so the push
+    // off, the tuck, the dangle and the touchdown fall on their part of the flight. (It used to glide on
+    // an in-out curve and only then hop on the spot: carried up, then the jump.)
+    readonly property int crouchMs: Tokens.ms(110)
+    readonly property int airMs: Tokens.ms(460)
+    readonly property int landMs: Tokens.ms(160)                        // the touchdown's two poses
+    property real lift: 0                   // the arc's bow (the parabola's 4·lift·t(1-t))
+    // the bow that peaks `apex` px over the higher end (the roof), with the far end `fy` px lower:
+    // y(t) = fy·t - 4·lift·t(1-t) (or mirrored) has its top at fy - (fy + 4·lift)² / (16·lift)
+    function bowFor(apex) {
+        const d = Math.max(0, fy), b = 8 * d + 16 * apex
+        return Math.max(apex, (b + Math.sqrt(Math.max(0, b * b - 64 * d * d))) / 32)
+    }
+    // when it reaches the top, 0..1 along the flight
+    function topAt() {
+        const t = (Math.max(0, fy) + 4 * lift) / (8 * lift)
+        return Math.max(0.2, Math.min(0.8, towardRoof ? t : 1 - t))
+    }
+    // the arc: from the far end to the rest spot (towardRoof) or back
     function along(t) {
         const a = towardRoof ? 1 - t : t                 // 1 = at the far end, 0 = at rest
         tr.x = fx * a
-        tr.y = fy * a - hopH * 4 * t * (1 - t)
+        tr.y = fy * a - lift * 4 * t * (1 - t)
         sc.k = fk + (1 - fk) * (1 - a)
     }
     onArcChanged: along(arc)
+    function leap() {
+        const top = topAt()
+        clawd.play("leap", 4, 0, false, { crouch: crouchMs, up: Math.round(airMs * top), down: Math.round(airMs * (1 - top)) })
+    }
     SequentialAnimation {
         id: flight
         property bool down: false
-        ScriptAction { script: { clawd.opacity = 1; if (!flight.down) w.miniOpacity = 0 } }
-        NumberAnimation { target: win; property: "arc"; from: 0; to: 1; duration: Tokens.ms(560); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove }
-        ScriptAction { script: { if (flight.down) { w.miniOpacity = 1; clawd.opacity = 0 } else clawd.hop(); win.rest(!flight.down) } }
+        ScriptAction { script: { clawd.opacity = 1; if (!flight.down) w.miniOpacity = 0; win.leap() } }
+        PauseAnimation { duration: win.crouchMs }
+        NumberAnimation { target: win; property: "arc"; from: 0; to: 1; duration: win.airMs; easing.type: Easing.Linear }
+        // up: he's home (the touchdown plays on); down: the touchdown first, then the island's Clawd takes over
+        ScriptAction { script: if (!flight.down) win.rest(true) }
+        PauseAnimation { duration: flight.down ? win.landMs : 0 }
+        ScriptAction { script: if (flight.down) { w.miniOpacity = 1; win.rest(false) } }
     }
     SequentialAnimation {
-        id: leaving         // up and away: into the popup
+        id: leaving         // up and away: into the popup (a crouch, then a spring upwards)
+        ScriptAction { script: clawd.play("liftoff", 4, 0, false, { crouch: Tokens.ms(60), rise: Tokens.ms(240) }) }
+        PauseAnimation { duration: Tokens.ms(60) }
         ParallelAnimation {
-            NumberAnimation { target: tr; property: "y"; to: -win.hopH; duration: Tokens.ms(240); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmOut }
+            NumberAnimation { target: tr; property: "y"; to: -win.hopH; duration: Tokens.ms(240); easing.type: Easing.OutQuad }
             NumberAnimation { target: clawd; property: "opacity"; to: 0; duration: Tokens.ms(240); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmOut }
         }
         ScriptAction { script: win.rest(false) }
     }
     SequentialAnimation {
-        id: arriving        // back from the popup: drops onto the roof
-        ScriptAction { script: { sc.k = 1; tr.x = 0; tr.y = -win.hopH; clawd.opacity = 0 } }
+        id: arriving        // back from the popup: drops onto the roof (falling, feet first) and lands
+        ScriptAction { script: { clawd.stopAct(); sc.k = 1; tr.x = 0; tr.y = -win.hopH; clawd.opacity = 0 } }
         PauseAnimation { duration: Tokens.ms(120) }
+        ScriptAction { script: clawd.play("land", 4, 0, false, { fall: Tokens.ms(300) }) }
         ParallelAnimation {
-            NumberAnimation { target: tr; property: "y"; to: 0; duration: Tokens.ms(420); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn }
-            NumberAnimation { target: clawd; property: "opacity"; to: 1; duration: Tokens.ms(260) }
+            NumberAnimation { target: tr; property: "y"; to: 0; duration: Tokens.ms(300); easing.type: Easing.InQuad }
+            NumberAnimation { target: clawd; property: "opacity"; to: 1; duration: Tokens.ms(180) }
         }
-        ScriptAction { script: clawd.hop() }
     }
-    function stopAll() { flight.stop(); leaving.stop(); arriving.stop() }
+    function stopAll() { flight.stop(); leaving.stop(); arriving.stop(); clawd.stopAct() }
     function rest(on) { tr.x = 0; tr.y = 0; sc.k = 1; clawd.opacity = on ? 1 : 0 }
-    function up() {         // island -> roof
+    function up() {         // island -> roof: a good jump, peaking well over the roof
         stopAll()
         const d = fromMini()
-        fx = d.x; fy = d.y; fk = miniK; towardRoof = true; arc = 0; along(0)
+        fx = d.x; fy = d.y; fk = miniK; towardRoof = true; lift = bowFor(hopH * 0.7); arc = 0; along(0)
         flight.down = false
         flight.start()
     }
-    function down() {       // roof -> island
+    function down() {       // roof -> island: a little hop off the edge, then the drop into his seat
         stopAll()
         const d = fromMini()
-        fx = d.x; fy = d.y; fk = miniK; towardRoof = false; arc = 0; along(0)
+        fx = d.x; fy = d.y; fk = miniK; towardRoof = false; lift = bowFor(hopH * 0.35); arc = 0; along(0)
         flight.down = true
         flight.start()
     }
