@@ -157,7 +157,7 @@ Window {
     onCloseTChanged: if (phase === "closing") applyClose(closeT)
     function startOpen() { applyOpen(0); openClock.restart() }
     function applyOpen(t) {
-        const D = openMs, home = finder ? 0 : 1
+        const D = openMs, home = 1          // (the finder too: the same scene, over the windows, which stay)
         bgO = home * M.track(t, 0, D * 0.45, M.enter)
         pullT = home * M.track(t, 0, D * 0.6, M.enter)
         planeO = M.track(t, D * 0.04, D * 0.5, M.enter)
@@ -292,12 +292,14 @@ Window {
         }
         // the page in view (only that one exists: a page is made when it's shown)
         Loader { anchors.fill: parent; active: stage.page === "home" && !stage.searching; sourceComponent: homePage }
+        Loader { anchors.fill: parent; active: stage.searching; sourceComponent: searchPage }
         TopBar { id: topBar; stage: atomStage }
         Caption { id: cap; stage: atomStage; content: stage.caption; opacity: stage.capO }
         Hints { stage: atomStage }
     }
 
     Component { id: homePage; HomePage { stage: atomStage } }
+    Component { id: searchPage; SearchPage { stage: atomStage } }
 
     // ------------------------------------------------------------------ keys (a pad's arrive as keys too)
     signal pageKey(var event)           // the page in view handles what's left
@@ -307,6 +309,11 @@ Window {
         if (!Gamepad.sending) Gamepad.inUse = false
         const k = event.key
         if (k === Qt.Key_Escape) { if (searching) closeSearch(); else if (page === "theme") setPage(pageBefore); else launcher.close(); event.accepted = true; return }
+        if (searching) {        // the query takes letters, spaces and Backspace; the arrows and Enter go to the results
+            if (k === Qt.Key_Backspace) { launcher.query = launcher.query.slice(0, -1); event.accepted = true; return }
+            if (event.text && event.text.length && event.text >= " " && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) {
+                launcher.query += event.text; event.accepted = true; return }
+        }
         if (k === Qt.Key_Tab) { stepPage(1); event.accepted = true; return }
         if (k === Qt.Key_Backtab) { stepPage(-1); event.accepted = true; return }
         pageKey(event)
