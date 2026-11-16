@@ -11,9 +11,11 @@ PlasmoidItem {
         Component.onCompleted: {
             Shell.debug = true
             // the launcher style under test (look-launcher.sh ATOM_STYLE=...): the nested config's file, never the user's settings
+            // (asynchronous: a synchronous read here, at start, made the engine warn "evaluate a function in an invalid context")
             const x = new XMLHttpRequest()
-            x.open("GET", StandardPaths.writableLocation(StandardPaths.GenericConfigLocation) + "/atom-test-style", false)
-            try { x.send(); const v = String(x.responseText || "").trim(); if (v) Shell.styleOverride = v } catch (e) { }
+            x.onreadystatechange = () => { if (x.readyState === XMLHttpRequest.DONE) { const v = String(x.responseText || "").trim(); if (v) Shell.styleOverride = v } }
+            x.open("GET", StandardPaths.writableLocation(StandardPaths.GenericConfigLocation) + "/atom-test-style")
+            x.send()
         }
         Island { id: isl; anchors.fill: parent; kind: "demo"
             onClicked: console.warn("ATOM-TEST island a clicked", JSON.stringify(globalRect()))

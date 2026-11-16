@@ -80,6 +80,7 @@ printf '%s\n' "$@" > "$t/steps"
 cat > "$t/inner.sh" <<'I'
 #!/bin/bash
 source "$ATOM_NESTED/env.sh"
+rm -f "$N/config/atom-test-style"      # (the nested config outlives a run: a style from the last one mustn't stay)
 [ -n "$ATOM_STYLE" ] && printf '%s\n' "$ATOM_STYLE" > "$N/config/atom-test-style"     # the launcher style to look at (tests only)
 if [ -n "$ATOM_MYAPPS" ]; then   # the user's own apps, icons and usage (Steam's games, pins, recents), as showcase.sh does
     mkdir -p "$N/data" "$N/config"

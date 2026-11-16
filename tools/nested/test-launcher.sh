@@ -44,6 +44,7 @@ A
 cat > "$t/inner.sh" <<'I'
 #!/bin/bash
 source "$ATOM_NESTED/env.sh"
+printf 'simplified\n' > "$N/config/atom-test-style"     # this tests the simplified style, whatever the user picked
 start_plasma 7
 qml6 "$REPO/tools/nested/app.qml" >> "$N/out/app.log" 2>&1 & app=$!
 for i in $(seq 30); do grep -q "island a at" "$L" && break; sleep 0.3; done

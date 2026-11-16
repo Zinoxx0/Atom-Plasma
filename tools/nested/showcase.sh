@@ -40,6 +40,7 @@ thick=$(kreadconfig6 --file plasmashellrc --group PlasmaViews --group "Panel 23"
 cat > "$t/inner.sh" <<'I'
 #!/bin/bash
 source "$ATOM_NESTED/env.sh"
+rm -f "$N/config/atom-test-style"
 [ -n "$ATOM_STYLE" ] && printf '%s\n' "$ATOM_STYLE" > "$N/config/atom-test-style"     # a launcher style to show (tests only)
 printf '[PlasmaViews][Panel 1]\nfloating=0\n\n[PlasmaViews][Panel 1][Defaults]\nthickness=%s\n' "${THICK:-64}" > "$N/config/plasmashellrc"
 cp "$HOME/.cache/claude-usage.json" "$N/cache/" 2>/dev/null       # (the meters read it from the cache dir)
