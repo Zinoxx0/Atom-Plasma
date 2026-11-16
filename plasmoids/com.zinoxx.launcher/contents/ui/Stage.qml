@@ -800,6 +800,21 @@ Window {
         return here ? { thumb: here.thumb, image: here.image } : { thumb: "", image: rice.wallpaper }
     }
 
+    // ------------------------------------------------------------------ the top's gradient (2026-11-16, the user: "a
+    // basic tasteful dark gradient" behind the top bar): from the top edge, in the backdrop's deepest colour (so light
+    // on a light theme), under everything of the content; not in the finder (it's over the windows)
+    Rectangle {
+        anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+        height: stage.u(250)
+        visible: !stage.finder && opacity > 0.01
+        opacity: stage.topO * (1 - stage.coverP)
+        gradient: Gradient {
+            GradientStop { position: 0; color: C.alpha(stage.rice.surfaceLowest, 0.78) }
+            GradientStop { position: 0.45; color: C.alpha(stage.rice.surfaceLowest, 0.38) }
+            GradientStop { position: 1; color: C.alpha(stage.rice.surfaceLowest, 0) }
+        }
+    }
+
     // ------------------------------------------------------------------ the content: comes forward as one
     FocusScope {
         id: keys

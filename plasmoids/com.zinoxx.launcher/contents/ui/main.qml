@@ -417,14 +417,17 @@ PlasmoidItem {
         id: stages
         model: root.myScreen ? [root.myScreen] : []
         delegate: Loader {
+            id: stageLoader
             required property var modelData
-            readonly property url want: root.styleUrl(root.style)
-            function load(url) { setSource(url, { screenObj: modelData, launcher: root, rice: pal, account: me }) }
-            onWantChanged: load(want)
-            Component.onCompleted: load(want)
+            // (no functions of its own: a delegate being dropped while the screen settles ran one in a dead context)
+            Component.onCompleted: setSource(root.styleUrl(root.style), { screenObj: modelData, launcher: root, rice: pal, account: me })
+            Connections {
+                target: root
+                function onStyleChanged() { stageLoader.setSource(root.styleUrl(root.style), { screenObj: stageLoader.modelData, launcher: root, rice: pal, account: me }) }
+            }
             onStatusChanged: if (status === Loader.Error && source !== root.styleUrl("simplified")) {
                 console.warn("launcher: the style", root.style, "didn't load; simplified instead")
-                load(root.styleUrl("simplified"))
+                setSource(root.styleUrl("simplified"), { screenObj: modelData, launcher: root, rice: pal, account: me })
             }
         }
     }
