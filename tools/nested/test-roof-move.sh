@@ -4,7 +4,8 @@
 # places in one output change, as when a monitor comes back after a power cut (2026-11-16: the 1440p went
 # from x 0 to 2400 and its roof Clawd stayed at the old spot, floating on the 4K). The roof must stand on its
 # own bar's screen, its bottom on that screen's bottom edge: before the swap, right after it, and after the
-# islands leave and come back. Exit 0 = all good.
+# islands leave and come back; and it must span the island (a roof mapped before the island was measured
+# stayed too narrow for Clawd's spot). Exit 0 = all good.
 #   tools/nested/test-roof-move.sh
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
@@ -85,6 +86,9 @@ for label in ("before", "gone", "standin", "off", "back", "again"):
         x, y, w, h = s["out"][shown[0]]
         _, rx, ry, rw, rh = s["roofs"][0]
         ok = x <= rx and rx + rw <= x + w and abs((ry + rh) - (y + h)) <= 1
+        # and it spans the island, not just Clawd: mapped before the island was measured, it stayed 112 px of
+        # its 215 on the laptop (2026-11-16) with Clawd outside it (here at 1.15: ~107 px for Clawd alone)
+        ok = ok and rw >= 150
     print(f"{'ok  ' if ok else 'FAIL'} {label}: bar shown on {shown}, roofs {s['roofs']}, outputs {s['out']}")
     fail |= not ok
 sys.exit(fail)

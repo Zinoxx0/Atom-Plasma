@@ -354,10 +354,12 @@ PlasmoidItem {
     function measure() {
         const it = compactRepresentationItem, lay = fit.panelLayout, sc = myScreen
         if (!it || !lay || !sc || !it.width) return
-        islandH = lay.height                // the layout runs from the island's top to the screen's edge
         islandR = Shell.rectOf(it, it.width, 0, 0, 0).x - sc.virtualX
         islandW = it.shown
         seatW = it.seatW
+        // last: a height is what lets the roof window map (ClawdRoof `wanted`); set first, the very first
+        // measure mapped it sized for an island of width 0 (2026-11-16: a 112 px roof, Clawd outside it)
+        islandH = lay.height                // the layout runs from the island's top to the screen's edge
     }
     // again whenever the island may have moved: the bar reflowed (its container moved), the bar itself
     // moved or resized, this widget's width changed (numbers folding), the islands came to this screen

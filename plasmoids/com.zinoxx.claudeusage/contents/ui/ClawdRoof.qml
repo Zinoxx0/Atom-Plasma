@@ -24,8 +24,31 @@ Window {
     transientParent: null
     color: "transparent"
     flags: Qt.FramelessWindowHint | Qt.WindowDoesNotAcceptFocus
-    width: Math.max(1, Math.ceil(w.roofWinW))
-    height: Math.max(1, Math.ceil(w.roofWinH))
+    // The size it should have, put back by hand if the platform changes it: layer-shell-qt applies a
+    // compositor configure (answering an older size request, e.g. the one made as it maps) to the window
+    // behind the binding's back, and the binding, its inputs unchanged, never re-applies (2026-11-16: the
+    // laptop's roof stuck at 112 px of its 215, Clawd standing outside it: he jumped into nothing).
+    readonly property int wantW: Math.max(1, Math.ceil(w.roofWinW))
+    readonly property int wantH: Math.max(1, Math.ceil(w.roofWinH))
+    width: wantW
+    height: wantH
+    readonly property bool sizeOff: Math.abs(width - wantW) > 1 || Math.abs(height - wantH) > 1
+    property int resizes: 0                 // tries since the wanted size last changed (no endless tug of war)
+    onWantWChanged: resizes = 0
+    onWantHChanged: resizes = 0
+    onSizeOffChanged: if (sizeOff && visible) resync.restart()
+    onVisibleChanged: if (sizeOff && visible) resync.restart()
+    Timer {
+        id: resync
+        interval: 120                       // (lets a configure already on its way land first)
+        onTriggered: {
+            if (!win.sizeOff || !win.visible || win.resizes >= 3) return
+            win.resizes++
+            console.warn("ClawdRoof: the window is", win.width, "x", win.height, "instead of", win.wantW, "x", win.wantH, "- resizing it")
+            win.width = Qt.binding(() => win.wantW)
+            win.height = Qt.binding(() => win.wantH)
+        }
+    }
     LayerShell.Window.scope: "dock"
     LayerShell.Window.layer: LayerShell.Window.LayerTop
     LayerShell.Window.anchors: LayerShell.Window.AnchorBottom | LayerShell.Window.AnchorLeft
@@ -38,7 +61,8 @@ Window {
     // mapped while its bar is the one showing (kwin/rice_islands) and the screen isn't the launcher's; it
     // fades with the bar (kwin/rice_islands: fadeIn, fadeOut), so the roof Clawd leaves and arrives with the islands
     // (never before its screen is known: a layer surface stays on the output it was mapped on)
-    readonly property bool wanted: !!scr && w.barSeen && !w.screenBusy && w.islandH > 0
+    // (and never before the island is measured: islandH comes last, islandW is checked too)
+    readonly property bool wanted: !!scr && w.barSeen && !w.screenBusy && w.islandH > 0 && w.islandW > 0
     onScrChanged: if (visible) { visible = false; Qt.callLater(() => { visible = Qt.binding(() => wanted || shown > 0) }) }
     property real shown: wanted ? 1 : 0
     Behavior on shown { NumberAnimation { duration: Tokens.ms(win.wanted ? 180 : 120); easing.type: Easing.BezierSpline; easing.bezierCurve: win.wanted ? Tokens.calmIn : Tokens.calmOut } }
