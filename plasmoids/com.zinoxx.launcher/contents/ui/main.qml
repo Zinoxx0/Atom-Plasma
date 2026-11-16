@@ -81,7 +81,7 @@ PlasmoidItem {
     // with the clipboard) and typing on the desktop open the finder, the launcher's search alone (Stage's
     // search-only mode: no backdrop, no home, the windows stay). Every bar has a launcher: the one on the islands'
     // screen answers.
-    Component.onCompleted: KRunner.active = true
+    Component.onCompleted: { KRunner.active = true; root.style = root.styleWanted }
     Connections {
         target: KRunner
         function onRequested(action, query) {
@@ -409,9 +409,38 @@ PlasmoidItem {
     // A new choice applies while the launcher is closed (never under an open one); a style that fails to load
     // falls back to simplified.
     readonly property string styleWanted: Shell.styleOverride || Prefs.launcherStyle      // (the override: nested tests only)
-    property string style: styleWanted
-    function takeStyle() { if (!root.shown && root.style !== root.styleWanted) root.style = root.styleWanted }
+    property string style: ""               // what the stages show: set at start, then only by takeStyle (never a binding:
+                                            // a binding swapped the launcher the moment the setting changed, open or not)
+    // the swap waits for the stage to have closed (its closing animation plays out)
+    function takeStyle() {
+        if (root.shown || root.style === root.styleWanted) return
+        const st = stages.objectAt(0) ? stages.objectAt(0).item : null
+        if (st && st.phase && st.phase !== "closed") { styleWait.restart(); return }
+        root.style = root.styleWanted
+        if (root.restyling && root.restyling.style === root.style) {      // asked from the Theme page: open the new one there
+            const r = root.restyling
+            root.restyling = null
+            restyleTimeout.stop()
+            Qt.callLater(() => { Shell.open("launcher", r.screen, Shell.island("launcher", r.screen)); Windows.restore(r.screen, "restyle") })
+        }
+    }
+    Timer { id: styleWait; interval: 80; onTriggered: root.takeStyle() }
     onStyleWantedChanged: takeStyle()
+    // switching from the Theme page (its "Launcher style"; ThemeModel writes the setting): this launcher closes and the
+    // other opens on the same screen once the setting has arrived; the windows stay away in between
+    property var restyling: null            // { style, screen }
+    function restyle(style) {
+        const scr = Shell.screen || root.myScreenName
+        root.restyling = { style: style, screen: scr }
+        Windows.clear(scr, "restyle")
+        restyleTimeout.restart()
+        if (Shell.debug) Shell.styleOverride = style      // (the nested tests write no settings: the override stands in)
+        root.close()
+    }
+    Timer {     // the setting never came (the command failed): the windows come back
+        id: restyleTimeout; interval: 5000
+        onTriggered: if (root.restyling) { Windows.restore(root.restyling.screen, "restyle"); root.restyling = null }
+    }
     function styleUrl(name) { return Qt.resolvedUrl(name === "simplified" ? "Stage.qml" : "styles/" + name + "/Stage.qml") }
     Instantiator {
         id: stages
@@ -420,10 +449,13 @@ PlasmoidItem {
             id: stageLoader
             required property var modelData
             // (no functions of its own: a delegate being dropped while the screen settles ran one in a dead context)
-            Component.onCompleted: setSource(root.styleUrl(root.style), { screenObj: modelData, launcher: root, rice: pal, account: me })
+            Component.onCompleted: setSource(root.styleUrl(root.style || root.styleWanted), { screenObj: modelData, launcher: root, rice: pal, account: me })
             Connections {
                 target: root
-                function onStyleChanged() { stageLoader.setSource(root.styleUrl(root.style), { screenObj: stageLoader.modelData, launcher: root, rice: pal, account: me }) }
+                function onStyleChanged() {
+                    if (root.style && String(stageLoader.source) !== String(root.styleUrl(root.style)))
+                        stageLoader.setSource(root.styleUrl(root.style), { screenObj: stageLoader.modelData, launcher: root, rice: pal, account: me })
+                }
             }
             onStatusChanged: if (status === Loader.Error && source !== root.styleUrl("simplified")) {
                 console.warn("launcher: the style", root.style, "didn't load; simplified instead")

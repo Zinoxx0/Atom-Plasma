@@ -1193,6 +1193,7 @@ Window {
             top: { eyebrow: "Desktop", primary: "Back to " + tm.sizeText(it.def), icon: "restart_alt" },
             tsize: { eyebrow: "Taskbar", primary: "Back to " + tm.sizeText(it.def), icon: "restart_alt" },
             backdrop: { eyebrow: "Backdrop style", primary: "Use this style", icon: "blur_on" },
+            launcherstyle: { eyebrow: "Launcher", primary: it.current ? "In use" : "Switch to it", icon: "swap_horiz" },
             barstyle: { eyebrow: "Taskbar islands", primary: "Use this style", icon: "dock_to_bottom" },
             kb: { eyebrow: "Keyboard lighting", primary: it.dev === "laptop" ? "Use on the laptop" : "Use on this keyboard", icon: "keyboard" },
             group: { eyebrow: "Settings", primary: groupsOpen[it.group] ? "Collapse" : "Expand", icon: groupsOpen[it.group] ? "expand_less" : "expand_more" },

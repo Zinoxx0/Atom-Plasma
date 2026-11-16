@@ -91,9 +91,7 @@ Item {
                 : { name: x.name, label: x.name, art: x.thumb ? "file://" + x.thumb : "", now: !!x.current, it: x }) : [] })
         } else if (n === "Launcher") {
             const g = gauge("Size", (row("lsize") || { items: [] }).items[0]); if (g) { g.radius = 196; out.push(g) }
-            out.push({ name: "Style", radius: 300, size: 62, items: [
-                { name: "Simplified", label: "Simplified", glyph: "view_agenda", style: "simplified", now: Prefs.launcherStyle === "simplified" },
-                { name: "Atom's", label: "Atom's", glyph: "public", style: "atom", now: Prefs.launcherStyle === "atom" }] })
+            const st = page.options("Style", row("lstyle"), { simplified: "view_agenda", atom: "public" }); if (st) { st.radius = 300; out.push(st) }
             const b = page.options("Backdrop", row("backdrop"), page.styleGlyph); if (b) { b.radius = 420; out.push(b) }
         } else if (n === "Desktop") {
             const t = page.gauge("Top bar", (row("top") || { items: [] }).items[0]); if (t) { t.radius = 196; out.push(t) }
@@ -168,7 +166,6 @@ Item {
             page.stage.say("Intensity " + Math.round(it.v * 100) + "%")
         } else if (it.slider) { tm.slide(it.slider, it.v); page.stage.say(atom.ring.name + " " + it.name) }
         else if (it.accent) { tm.setAccent("primary", it.hex); page.stage.say("Accent set") }
-        else if (it.style) { tm.run("style", tm.riceCmd(["launcher", "style", it.style])); page.stage.say(it.name + " opens next time") }
         else if (it.it && it.it.kind === "save") { tm.savePreset(tm.suggestName()); page.stage.say("Saved") }
         else if (it.it && it.it.kind === "accent" && it.it.role) { tm.setAccent(it.it.role, it.it.hex); page.stage.say(it.name) }
         else if (it.it) { tm.apply(it.it); page.stage.say(it.name) }
@@ -191,7 +188,8 @@ Item {
                            facts: [[page.cap1(it.w.mood), "mood"], [it.w.pal.primary, "accent", it.w.pal.primary], [it.w.pal._scheme === "light" ? "Light" : "Dark", "interface"]],
                            acts: [["A", "Apply"], ["Y", "Shuffle"]], tools: [["shuffle", "Shuffle"], ["folder_open", "Folder"]] }
         if (it.mark) return { where: [page.section, r.name], name: it.name, desc: it.now ? "Now" : "", acts: [["A", "Set"]] }
-        return { where: [page.section, r.name].concat(n), name: it.name, desc: it.now ? "In use" : (it.it && it.it.desc) || "", acts: [["A", "Use"]] }
+        return { where: [page.section, r.name].concat(n), name: it.name, desc: it.now ? "In use" : (it.it && it.it.desc) || "",
+                 acts: [["A", it.it && it.it.kind === "launcherstyle" && !it.now ? "Switch to it" : "Use"]] }
     }
     function publish() {
         if (!page.stage) return

@@ -10,6 +10,7 @@ import Rice
 //   save    a place for a new one
 //   mood / colours-auto / accent / light / kb   a swatch of what it does
 //   backdrop / barstyle   what that style looks like over this screen's wallpaper
+//   launcherstyle         a little picture of that launcher (rows of tiles, or rings round a core) over it
 // What's in use now wears a tick. Each kind builds only its own parts (a row holds 159 wallpapers).
 Item {
     id: face
@@ -23,7 +24,91 @@ Item {
     Loader {
         anchors.fill: parent
         sourceComponent: face.kind === "wall" ? wallFace : face.kind === "backdrop" ? blurFace : face.kind === "barstyle" ? barFace
-                       : face.kind ? cardFace : null
+                       : face.kind === "launcherstyle" ? styleFace : face.kind ? cardFace : null
+    }
+
+    // ---- a launcher style: its picture over this screen's wallpaper (darkened as the launcher darkens it)
+    Component {
+        id: styleFace
+        Item {
+            readonly property bool atom: face.item && face.item.style === "atom"
+            Kirigami.ShadowedRectangle {
+                anchors.fill: parent; radius: face.radius; color: "#0b0f16"
+                shadow.size: face.u(18); shadow.yOffset: face.u(6); shadow.color: Qt.rgba(0, 0, 0, 0.45)
+            }
+            Item {
+                anchors.fill: parent
+                layer.enabled: true
+                layer.effect: MultiEffect { maskEnabled: true; maskSource: styleMask; maskThresholdMin: 0.5; maskSpreadAtMin: 1.0 }
+                Image {
+                    anchors.fill: parent
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    source: face.rice.wallpaper ? "file://" + face.rice.wallpaper : ""
+                    sourceSize.width: 480
+                    layer.enabled: true
+                    layer.effect: MultiEffect { blurEnabled: true; blur: 0.6; blurMax: 32 }
+                }
+                Rectangle { anchors.fill: parent; color: C.alpha(face.rice.surfaceLowest, 0.5) }
+                Column {        // simplified: a big title, then rows of tiles
+                    visible: !parent.parent.atom
+                    x: parent.width * 0.1; y: parent.height * 0.3
+                    spacing: face.u(6)
+                    Rectangle { width: face.u(54); height: face.u(9); radius: height / 2; color: C.alpha("#ffffff", 0.85) }
+                    Item { width: 1; height: face.u(4) }
+                    Repeater {
+                        model: 2
+                        Row {
+                            spacing: face.u(5)
+                            Repeater { model: 6; Rectangle { width: face.u(15); height: width; radius: face.u(4); color: C.alpha("#ffffff", index === 0 ? 0.85 : 0.38) } }
+                        }
+                    }
+                }
+                Item {          // atom's: rings round a core, a few items on them
+                    visible: parent.parent.atom
+                    anchors.fill: parent
+                    readonly property real cx: width * 0.62
+                    readonly property real cy: height * 0.6
+                    Repeater {
+                        model: [0.2, 0.32, 0.44]
+                        Rectangle {
+                            required property real modelData
+                            required property int index
+                            readonly property real r: parent.height * modelData
+                            x: parent.cx - r; y: parent.cy - r; width: 2 * r; height: width; radius: r
+                            color: "transparent"; border.width: 1; border.color: C.alpha("#ffffff", 0.32)
+                            Repeater {
+                                model: 5 + parent.index * 2
+                                Rectangle {
+                                    required property int index
+                                    readonly property real a: (index / (5 + parent.parent.index * 2)) * 2 * Math.PI + parent.parent.index
+                                    width: face.u(7); height: width; radius: width / 2
+                                    x: parent.r + parent.r * Math.cos(a) - width / 2; y: parent.r + parent.r * Math.sin(a) - height / 2
+                                    color: C.alpha("#ffffff", 0.8)
+                                }
+                            }
+                        }
+                    }
+                    Rectangle {
+                        readonly property real r: parent.height * 0.12
+                        x: parent.cx - r; y: parent.cy - r; width: 2 * r; height: width; radius: r
+                        color: C.alpha(face.rice.primary, 0.55); border.width: 1; border.color: C.alpha("#ffffff", 0.5)
+                    }
+                }
+            }
+            Rectangle { id: styleMask; anchors.fill: parent; radius: face.radius; visible: false; layer.enabled: true }
+            Text {
+                anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: face.u(12) }
+                horizontalAlignment: Text.AlignHCenter
+                text: face.item ? face.item.name : ""
+                color: "#ffffff"
+                style: Text.Raised
+                styleColor: Qt.rgba(0, 0, 0, 0.5)
+                font.family: Tokens.font.display
+                font.weight: Font.DemiBold
+                font.pixelSize: face.u(17)
+            }
+        }
     }
 
     // ---- a wallpaper: its thumbnail, decoded at the tile's size

@@ -83,6 +83,7 @@ Item {
             run(it.key, ["python3", sh.home + "/.config/plasma-rice/bin/rgb.py", "set", it.dev].concat(a))
         }
         else if (it.kind === "barstyle") run(it.key, riceCmd(["bar", "style", it.style]))
+        else if (it.kind === "launcherstyle") { if (!it.current) { run(it.key, riceCmd(["launcher", "style", it.style])); launcher.restyle(it.style) } }
     }
 
     // ------------------------------------------------------------------ live edits and the rows' tools
@@ -250,6 +251,14 @@ Item {
         out.push({ id: "lsize", title: "Launcher size", shape: "slider", divider: -1, labeled: false, count: false, tools: [], items: [
             Sl("lsize", "lsize", "Launcher size", lnow, 1.0, "This launcher and its pages on every screen, on each screen's standard size. The desktop keeps its own sizes.",
                [sizeText(lnow), "Each screen's standard size × this"]) ] })
+        // which launcher this is (settings launcher.style): picking the other closes this one and opens it (main.qml restyle)
+        const ls = Shell.styleOverride || Prefs.launcherStyle
+        const L = (style, name, desc) => ({ kind: "launcherstyle", key: "lstyle:" + style, style: style, name: name, current: ls === style,
+                                            meta: [ls === style ? "Now" : "Opens at once"], desc: desc })
+        out.push({ id: "lstyle", title: "Launcher style", shape: "look", divider: -1, labeled: false, count: false, tools: [], items: [
+            L("simplified", "Simplified", "Rows of your apps and games under a big picture of the one in focus."),
+            L("atom", "Atom's", "Your apps as an atom: rings round a glass core you turn, games as banners, your wallpapers as a colour wheel."),
+        ] })
         // its backdrop (Atom Backdrop), the power page's too: they always wear the same one
         const bd = Prefs.backdropStyle
         const D = (style, desc) => ({ kind: "backdrop", key: "backdrop:" + style, style: style, name: backdropNames[style], current: bd === style,
@@ -333,14 +342,14 @@ Item {
         }
         // the groups: a header before each (it opens and closes the group; Stage keeps which are open), a group's own
         // rows, then the groups inside it (indented: depth)
-        const groupOf = { walls: "look", colours: "look", lsize: "launcher", backdrop: "launcher", top: "desk", tsize: "bar", bar: "bar" }
+        const groupOf = { walls: "look", colours: "look", lsize: "launcher", lstyle: "launcher", backdrop: "launcher", top: "desk", tsize: "bar", bar: "bar" }
         for (const r of out) if (r.group === undefined) r.group = groupOf[r.id] || (String(r.id).startsWith("kb-") ? "keys" : "look")
         const kbOn = kbs.filter(d => d.ready && (Object.assign({}, d.settings || {}, kbDraft(d.id)).on !== false)).length
         const heads = {
             look: { title: "Look", icon: "palette", summary: (page.walls || []).length + " wallpapers · " + moodLabel(),
                     desc: "Wallpapers and colours: what every screen wears." },
-            launcher: { title: "Launcher", icon: "apps", summary: sizeText(lnow) + " · " + backdropNames[bd],
-                        desc: "This launcher's size and the backdrop it and the power page wear." },
+            launcher: { title: "Launcher", icon: "apps", summary: (ls === "atom" ? "Atom's" : "Simplified") + " · " + sizeText(lnow) + " · " + backdropNames[bd],
+                        desc: "Which launcher this is, its size and the backdrop it and the power page wear." },
             desk: { title: "Desktop", icon: "desktop_windows", summary: "Top bar " + sizeText(tnow) + " · taskbar " + sizeText(bnow),
                     desc: "The top bar on every screen, and the taskbar." },
             bar: { title: "Taskbar", icon: "dock_to_bottom", summary: (auto ? "Automatic " : "") + sizeText(bnow) + " · " + barStyleName(),
@@ -365,5 +374,5 @@ Item {
     }
     onTargetChanged: build()
     Connections { target: tm.launcher; function onHomeSizeChanged() { tm.dropDraft("slider:lsize", tm.launcher.homeSize); tm.build() } }
-    Connections { target: Prefs; function onBackdropStyleChanged() { tm.build() } function onBarStyleChanged() { tm.build() } }
+    Connections { target: Prefs; function onBackdropStyleChanged() { tm.build() } function onBarStyleChanged() { tm.build() } function onLauncherStyleChanged() { tm.build() } }
 }
