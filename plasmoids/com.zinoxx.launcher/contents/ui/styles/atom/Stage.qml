@@ -309,6 +309,7 @@ Window {
         MouseArea {     // bare space: a right click closes (a left one never does: a missed item mustn't)
             anchors.fill: parent
             acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onPressed: if (Shell.debug) console.warn("ATOM atom bare press")
             onClicked: mouse => { if (mouse.button === Qt.RightButton) stage.launcher.close() }
             onWheel: wheel => stage.wheeled(wheel)
         }

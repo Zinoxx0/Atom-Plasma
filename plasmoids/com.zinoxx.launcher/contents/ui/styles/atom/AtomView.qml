@@ -1,4 +1,5 @@
 import QtQuick
+import Atom
 import Rice
 
 // The atom: rings round a core, a lens on the focus, each ring's name above its slot.
@@ -98,7 +99,7 @@ Item {
             name: sh.name || ""
             reveal: M.enter(M.clamp((av.stage.atomT - index * 0.09) / 0.82))
             onHovered: i => av.pick(index, i)
-            onClicked: i => { av.pick(index, i); if (av.at === index) av.launched(items[i]) }
+            onClicked: i => { if (Shell.debug) console.warn("ATOM atom click ring", index, "item", i, "focus ring", av.at); av.pick(index, i); if (av.at === index) av.launched(items[i]) }
             onRightClicked: (i, dl) => { av.at = index; picked = i; av.mode = "pointer"; av.options(items[i], dl) }
         }
     }

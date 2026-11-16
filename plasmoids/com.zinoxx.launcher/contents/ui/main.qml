@@ -417,6 +417,11 @@ PlasmoidItem {
         const st = stages.objectAt(0) ? stages.objectAt(0).item : null
         if (st && st.phase && st.phase !== "closed") { styleWait.restart(); return }
         root.style = root.styleWanted
+        for (let i = 0; i < stages.count; i++) {
+            const l = stages.objectAt(i)
+            if (l && String(l.source) !== String(root.styleUrl(root.style)))
+                l.setSource(root.styleUrl(root.style), { screenObj: l.modelData, launcher: root, rice: pal, account: me })
+        }
         if (root.restyling && root.restyling.style === root.style) {      // asked from the Theme page: open the new one there
             const r = root.restyling
             root.restyling = null
@@ -450,13 +455,7 @@ PlasmoidItem {
             required property var modelData
             // (no functions of its own: a delegate being dropped while the screen settles ran one in a dead context)
             Component.onCompleted: setSource(root.styleUrl(root.style || root.styleWanted), { screenObj: modelData, launcher: root, rice: pal, account: me })
-            Connections {
-                target: root
-                function onStyleChanged() {
-                    if (root.style && String(stageLoader.source) !== String(root.styleUrl(root.style)))
-                        stageLoader.setSource(root.styleUrl(root.style), { screenObj: stageLoader.modelData, launcher: root, rice: pal, account: me })
-                }
-            }
+            // (a new style: takeStyle reloads the live ones; a handler here ran in a dead delegate's context at start)
             onStatusChanged: if (status === Loader.Error && source !== root.styleUrl("simplified")) {
                 console.warn("launcher: the style", root.style, "didn't load; simplified instead")
                 setSource(root.styleUrl("simplified"), { screenObj: modelData, launcher: root, rice: pal, account: me })

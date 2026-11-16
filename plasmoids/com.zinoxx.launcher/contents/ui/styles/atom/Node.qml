@@ -1,4 +1,5 @@
 import QtQuick
+import Atom
 import QtQuick.Shapes
 import org.kde.kirigami as Kirigami
 import Rice
@@ -23,15 +24,22 @@ Item {
     opacity: node.fade * orbit.reveal
     visible: opacity > 0.01
 
-    Item {
+    // its look: only the one it needs is made (an item used to make every kind and hide all but one: a ring of 19
+    // apps was ~130 items, and every category change remade them)
+    Loader {
         anchors.fill: parent
         scale: node.focused && node.kind !== "mark" ? 1.16 : 1
         Behavior on scale { NumberAnimation { duration: Tokens.ms(300); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
+        sourceComponent: node.kind === "icon" ? iconLook : node.kind === "art" ? artLook : node.kind === "glyph" ? glyphLook
+                       : node.kind === "swatch" ? (node.it.swc ? wheelLook : swatchLook) : node.kind === "dot" ? dotLook
+                       : node.kind === "mark" ? markLook : null
+    }
+    Component { id: iconLook; Kirigami.Icon { source: node.it ? node.it.icon : "" } }
+    Component {
+        id: artLook
         Kirigami.ShadowedImage {
-            visible: node.kind === "art"
-            anchors.fill: parent
             radius: width / 2
-            source: visible ? node.it.art : ""
+            source: node.it ? node.it.art : ""
             asynchronous: true
             sourceSize.width: 256
             fillMode: Image.PreserveAspectCrop
@@ -39,28 +47,28 @@ Item {
             border.width: Math.max(1.5, node.orbit.d(1.5)); border.color: C.alpha(node.pal.fg, 0.42)
             shadow.size: node.orbit.d(26); shadow.yOffset: node.orbit.d(10); shadow.color: Qt.rgba(0, 0, 0, 0.4)
         }
-        Kirigami.Icon {
-            visible: node.kind === "icon"
-            anchors.fill: parent
-            source: visible ? node.it.icon : ""
-        }
-        Rectangle {         // a node: a glyph on a disc of glass
-            visible: node.kind === "glyph"
-            anchors.fill: parent; radius: width / 2
+    }
+    Component {             // a node: a glyph on a disc of glass
+        id: glyphLook
+        Rectangle {
+            radius: width / 2
             color: C.alpha(node.pal.surfaceLowest, 0.55)
             border.width: Math.max(1.5, node.orbit.d(1.5)); border.color: C.alpha(node.pal.fg, node.focused ? 0.6 : 0.26)
-            Text { anchors.centerIn: parent; text: node.kind === "glyph" ? node.it.glyph : ""; color: node.pal.fg
+            Text { anchors.centerIn: parent; text: node.it ? node.it.glyph || "" : ""; color: node.pal.fg
                    font.family: Tokens.font.icons; font.pixelSize: parent.width * 0.46 }
         }
-        Rectangle {         // a swatch: one colour
-            visible: node.kind === "swatch" && !node.it.swc
-            anchors.fill: parent; radius: width / 2
-            color: node.kind === "swatch" && node.it.sw ? node.it.sw : "transparent"
+    }
+    Component {             // a swatch: one colour
+        id: swatchLook
+        Rectangle {
+            radius: width / 2
+            color: node.it && node.it.sw ? node.it.sw : "transparent"
             border.width: Math.max(1.5, node.orbit.d(1.5)); border.color: Qt.rgba(1, 1, 1, 0.22)
         }
-        Shape {             // ... or colours round a disc
-            visible: node.kind === "swatch" && !!node.it.swc
-            anchors.fill: parent
+    }
+    Component {             // ... or colours round a disc
+        id: wheelLook
+        Shape {
             preferredRendererType: Shape.CurveRenderer
             ShapePath {
                 strokeColor: Qt.rgba(1, 1, 1, 0.22); strokeWidth: Math.max(1.5, node.orbit.d(1.5))
@@ -74,19 +82,25 @@ Item {
                 PathAngleArc { centerX: node.width / 2; centerY: node.height / 2; radiusX: node.width / 2 - 1; radiusY: radiusX; startAngle: 0; sweepAngle: 360 }
             }
         }
-        Rectangle {         // a wallpaper on the wheel: its accent, glowing a little
-            visible: node.kind === "dot"
-            anchors.fill: parent; radius: width / 2
-            color: node.kind === "dot" ? node.it.dot : "transparent"
+    }
+    Component {             // a wallpaper on the wheel: its accent, glowing a little
+        id: dotLook
+        Rectangle {
+            radius: width / 2
+            color: node.it && node.it.dot ? node.it.dot : "transparent"
             border.width: Math.max(1, node.orbit.d(1.2)); border.color: C.alpha(node.pal.fg, 0.3)
             Rectangle { anchors.centerIn: parent; width: parent.width * 2; height: width; radius: width / 2; z: -1
                         color: C.alpha(parent.color, 0.22) }
         }
-        Rectangle {         // a gauge's value: a small mark, bigger on the quarters
-            visible: node.kind === "mark"
-            anchors.centerIn: parent
-            width: node.orbit.d(node.it && node.it.major ? 6 : 4); height: width; radius: width / 2
-            color: C.alpha(node.pal.fg, node.it && node.it.major ? 0.75 : 0.45)
+    }
+    Component {             // a gauge's value: a small mark, bigger on the quarters
+        id: markLook
+        Item {
+            Rectangle {
+                anchors.centerIn: parent
+                width: node.orbit.d(node.it && node.it.major ? 6 : 4); height: width; radius: width / 2
+                color: C.alpha(node.pal.fg, node.it && node.it.major ? 0.75 : 0.45)
+            }
         }
     }
     Rectangle {             // the one in use
@@ -110,6 +124,7 @@ Item {
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         cursorShape: Qt.PointingHandCursor
         onContainsMouseChanged: if (containsMouse) node.orbit.hovered(node.index)
+        onPressed: if (Shell.debug) console.warn("ATOM atom node press", node.orbit.index, node.index)
         onClicked: mouse => mouse.button === Qt.RightButton ? node.orbit.rightClicked(node.index, node) : node.orbit.clicked(node.index)
     }
 }

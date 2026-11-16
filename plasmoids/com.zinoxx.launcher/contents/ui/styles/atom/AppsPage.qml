@@ -1,5 +1,6 @@
 import QtQuick
 import org.kde.kirigami as Kirigami
+import Atom
 import Rice
 
 // Atom's Apps: every app. The outer ring is the categories (All, then the menu's: a glyph and a name each), the middle
@@ -20,6 +21,8 @@ Item {
         return out
     }
     property int cat: 0
+    property double catAt: 0                // when the category changed (the debug log times the apps' arrival)
+    function catIndex(it) { return it ? page.cats.findIndex(c => c.label === it.label) : -1 }   // (by name: the rings hold copies)
     property var apps: []
     // a category's apps, read through delegates (Kicker's models are lists of rows)
     Repeater {
@@ -31,14 +34,16 @@ Item {
             readonly property var entry: ({ key: String(model.favoriteId || model.display || ""), name: String(model.display || ""), desc: String(model.description || ""),
                                             icon: model.decoration, model: rows.model, row: index, roles: model })
         }
-        onCountChanged: settle.restart()
+        onCountChanged: Qt.callLater(page.collect)     // (once per turn of the event loop, however many rows came)
     }
-    Timer { id: settle; interval: 60; onTriggered: page.collect() }
     function collect() {
         const out = []
         for (let i = 0; i < rows.count; i++) { const r = rows.itemAt(i); if (r && r.entry.name) out.push(r.entry) }
         out.sort((a, b) => a.name.localeCompare(b.name))
         page.apps = out
+        const r1 = atom.ringAt(1)
+        if (r1) { r1.picked = -1; r1.current = 0 }         // a new category: its first app at the slot
+        if (Shell.debug) console.warn("ATOM atom apps", out.length, "for", page.cats[page.cat] ? page.cats[page.cat].label : "-", Date.now() - page.catAt, "ms")
     }
     // the app the actions are for: the one at the apps ring's focus (kept while the focus is on the actions)
     readonly property var app: { const r = atom.ringAt(1); return r ? r.focusItem : null }
@@ -70,8 +75,14 @@ Item {
         onOptions: (it, dl) => { if (it && it.model && dl) page.stage.launcher.menu.openFor(dl, it.model, it.row) }
     }
     function activate(it) {
+        if (Shell.debug) console.warn("ATOM atom apps activate", it ? it.name : "-", "ring", atom.at)
         if (!it) return
-        if (atom.at === 2) { page.cat = page.cats.indexOf(it); atom.at = 1; return }          // a category: its apps
+        if (atom.at === 2) {        // a category: its apps, the focus on them
+            const i = page.catIndex(it)
+            if (i >= 0) page.cat = i
+            atom.at = 1; atom.mode = "slot"
+            return
+        }
         if (atom.at === 1) { page.stage.launch(it); return }
         const a = page.apps.find(x => x.key === (page.app && page.app.key)) || page.app       // an action on the app in focus
         if (!a) return
@@ -81,8 +92,19 @@ Item {
     }
     // the categories ring: the apps change once it rests on one
     Connections { target: atom; function onFocusItemChanged() { if (atom.at === 2) catSettle.restart() } }
-    Timer { id: catSettle; interval: 380; onTriggered: { const i = page.cats.indexOf(atom.focusItem); if (i >= 0) page.cat = i } }
-    onCatChanged: settle.restart()
+    Timer {     // (the nested tests: where each category's node is, to point at it)
+        running: Shell.debug; interval: 1500
+        onTriggered: {
+            const r = atom.ringAt(2), st = page.stage
+            if (!r) return
+            for (let i = 0; i < r.items.length; i++) {
+                const c = r.centreOf(i), g = r.mapToItem(null, c.x, c.y)
+                console.warn("ATOM atom cat", i, r.items[i].label, "at", Math.round(st.screenObj.virtualX + g.x), Math.round(st.screenObj.virtualY + st.topGap + g.y))
+            }
+        }
+    }
+    Timer { id: catSettle; interval: 240; onTriggered: { if (atom.at !== 2) return; const i = page.catIndex(atom.focusItem); if (i >= 0) page.cat = i } }
+    onCatChanged: { catAt = Date.now(); Qt.callLater(page.collect) }
 
     Kirigami.ImageColors { id: colours; source: atom.focusItem && atom.at === 1 ? atom.focusItem.icon : "" }
     Connections { target: atom; function onFocusItemChanged() { colours.update() } }
