@@ -21,6 +21,9 @@
                              shade); settings backdrop.style (`rice.py blur` still works)
     rice.py launcher size F  the launcher's own size, apart from the taskbar's (ui): 1 = each screen's standard
                              size (how big a pixel looks from where you sit); settings launcher.size
+    rice.py launcher style NAME   which launcher opens: simplified (rows under a hero) or atom (the apps as an
+                             atom); any folder of the launcher's ui/styles/ with a Stage.qml is a style; settings
+                             launcher.style, applied at the next opening
     rice.py top size F       the top bar's own size (Glimpse's band), apart from the taskbar's: 1 = each
                              screen's standard size; settings top.size, applied live
     rice.py launcher-data    the launcher's own data (~/.cache/rice/launcher.json): Steam's art for the
@@ -100,6 +103,11 @@ from pathlib import Path
 from atom import displays, presets, screens, theme, tiling, util, walls
 
 
+def launcher_styles():
+    """The launcher's styles: simplified (its Stage.qml) and every ui/styles/NAME/ holding a Stage.qml."""
+    d = util.ROOT / "plasmoids/com.zinoxx.launcher/contents/ui/styles"
+    return ["simplified"] + sorted(x.name for x in d.iterdir() if (x / "Stage.qml").exists()) if d.is_dir() else ["simplified"]
+
 def main(args):
     target = "focused"
     if "--screen" in args:
@@ -161,9 +169,18 @@ def main(args):
         util.save_settings(cfg)
         screens.restyle_bars()
         print(args[2])
+    elif arg == "launcher" and len(args) >= 2 and args[1] == "style":   # which launcher opens (read live, at the next opening)
+        styles = launcher_styles()
+        if len(args) < 3 or args[2] not in styles:
+            sys.exit("rice.py launcher style " + "|".join(styles))
+        cfg = util.user_settings()
+        cfg.setdefault("launcher", {})["style"] = args[2]
+        util.save_settings(cfg)
+        print(args[2])
     elif arg == "launcher":         # the launcher's own size (Atom Home reads settings.json live)
         if len(args) < 3 or args[1] != "size":
-            sys.exit("rice.py launcher size F   (1 = the standard size on every screen)")
+            sys.exit("rice.py launcher size F   (1 = the standard size on every screen)\n"
+                     "rice.py launcher style " + "|".join(launcher_styles()))
         try:
             v = round(max(0.6, min(2.0, float(args[2]))), 2)
         except ValueError:

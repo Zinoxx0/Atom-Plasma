@@ -67,6 +67,7 @@ printf '%s\n' "$@" > "$t/steps"
 cat > "$t/inner.sh" <<'I'
 #!/bin/bash
 source "$ATOM_NESTED/env.sh"
+[ -n "$ATOM_STYLE" ] && printf '%s\n' "$ATOM_STYLE" > "$N/config/atom-test-style"     # the launcher style to look at (tests only)
 start_plasma 8
 qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "desktops().forEach(d => { d.wallpaperPlugin = 'org.kde.image'; d.currentConfigGroup = ['Wallpaper', 'org.kde.image', 'General']; d.writeConfig('Image', 'file://$WALL') })" >/dev/null
 sleep 1

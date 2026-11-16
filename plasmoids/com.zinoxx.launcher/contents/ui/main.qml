@@ -101,7 +101,7 @@ PlasmoidItem {
             })
             return
         }
-        const st = stages.objectAt(0)
+        const st = stages.objectAt(0)?.item
         if (Shell.kind === "launcher" && Shell.screen === myScreenName && st) { st.openSearch(query || ""); return }
         Shell.open("launcher", myScreenName, null, { searchOnly: true, query: query || "" })
     }
@@ -136,6 +136,7 @@ PlasmoidItem {
     // Meta+Shift+W (~/.local/share/applications/net.local.rice-wallpapers.desktop) leaves a note,
     // then opens the launcher: read it once per opening
     onShownChanged: {
+        Qt.callLater(root.takeStyle)        // a launcher style chosen while it was open applies once it's closed
         if (root.shown) sh.connectSource('f="$HOME/.local/state/rice/launcher-open"; cat "$f" 2>/dev/null; rm -f "$f" #mode')
         else { view = "apps"; wallMode = "desktop" }
     }
@@ -403,15 +404,28 @@ PlasmoidItem {
     signal stageEntered()               // the stage's content starts coming in (the grid's apps follow)
 
     // ------------------------------------------------------------------ the stage (fullscreen, its own surface)
+    // One per screen, in the chosen style (settings launcher.style: "simplified" = Stage.qml, or any folder
+    // styles/NAME/ with a Stage.qml). Only that style's files are compiled and made: other styles cost nothing.
+    // A new choice applies while the launcher is closed (never under an open one); a style that fails to load
+    // falls back to simplified.
+    readonly property string styleWanted: Shell.styleOverride || Prefs.launcherStyle      // (the override: nested tests only)
+    property string style: styleWanted
+    function takeStyle() { if (!root.shown && root.style !== root.styleWanted) root.style = root.styleWanted }
+    onStyleWantedChanged: takeStyle()
+    function styleUrl(name) { return Qt.resolvedUrl(name === "simplified" ? "Stage.qml" : "styles/" + name + "/Stage.qml") }
     Instantiator {
         id: stages
         model: root.myScreen ? [root.myScreen] : []
-        delegate: Stage {
+        delegate: Loader {
             required property var modelData
-            screenObj: modelData
-            launcher: root
-            rice: pal
-            account: me
+            readonly property url want: root.styleUrl(root.style)
+            function load(url) { setSource(url, { screenObj: modelData, launcher: root, rice: pal, account: me }) }
+            onWantChanged: load(want)
+            Component.onCompleted: load(want)
+            onStatusChanged: if (status === Loader.Error && source !== root.styleUrl("simplified")) {
+                console.warn("launcher: the style", root.style, "didn't load; simplified instead")
+                load(root.styleUrl("simplified"))
+            }
         }
     }
 }

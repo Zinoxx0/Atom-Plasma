@@ -34,6 +34,7 @@ QtObject {
     property var args: ({})
     readonly property bool busy: kind !== ""
     property bool debug: false              // tests: log every transition (console.warn "ATOM")
+    property string styleOverride: ""       // tests: the nested session's launcher style (its config's atom-test-style)
 
     // The bar's islands live on ONE screen at a time; KWin's rice_islands script picks it and fades the bars
     // (kwin/rice_islands), and says so over D-Bus (Atom.Native Bus, topic "bar"): `screen` holds the islands

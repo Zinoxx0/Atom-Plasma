@@ -9,6 +9,8 @@ import Rice
 //                  launcher's and the power page's backdrop (rice.py backdrop ..., the Theme page's "Backdrop
 //                  style"; settings backdrop.style, blur.style before 1.1)
 //   launcherSize   the launcher's own size on each screen's standard size (rice.py launcher size F)
+//   launcherStyle  which launcher opens: "simplified" (Stage.qml) or a folder of the launcher's styles/ with a
+//                  Stage.qml ("atom"); rice.py launcher style NAME
 Item {
     id: prefs
     visible: false
@@ -29,6 +31,10 @@ Item {
     }
     // the bar's islands (rice.py bar style ...: Panel Colorizer looks): solid | matte | clear | none
     readonly property string barStyle: value.bar && ["matte", "clear", "none"].indexOf(value.bar.style) >= 0 ? value.bar.style : "solid"
+    readonly property string launcherStyle: {
+        const v = value.launcher ? String(value.launcher.style || "") : ""
+        return /^[a-z0-9-]+$/.test(v) ? v : "simplified"
+    }
     readonly property real launcherSize: {
         const v = value.launcher ? Number(value.launcher.size) : 1
         return v > 0 ? Math.max(0.6, Math.min(2, v)) : 1
