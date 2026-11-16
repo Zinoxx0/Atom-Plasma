@@ -3,7 +3,7 @@
 # (2560x1440 @1.15 by default: ATOM_NESTED_W/H/SCALE), its real palette and wallpaper, the launcher's jewel
 # on a bar, Shell.debug on (nothing on the Theme page is applied: dry runs). Then a list of steps:
 #
-#   tools/nested/look-launcher.sh OUTDIR step...
+#   tools/nested/look-launcher.sh OUTDIR step...   (env: ATOM_STYLE=atom a launcher style; ATOM_MYAPPS=1 your apps; ATOM_WALL=FILE its palette)
 #     open | meta            open it (the jewel; meta = the launcher shortcut)
 #     key:CODE               a key (evdev codes: 108 down, 103 up, 105 left, 106 right, 28 enter, 1 esc, 15 tab)
 #     type:TEXT  wait:MS  move:X,Y  click  clickat:X,Y (a move, then the click: fresh surface)  rclick  wheel:N  drag:X1,Y1,X2,Y2  glide:X1,Y1,X2,Y2,MS (no button)
@@ -18,9 +18,22 @@ mkdir -p "$out"
 state="$HOME/.local/state/rice"
 pal="$state/palette-Virtual-0.json"
 [ -e "$pal" ] && { echo "a palette-Virtual-0.json is already there: not touching it" >&2; exit 2; }
-cp "$state/palette-HDMI-A-1.json" "$pal"
-trap 'rm -f "$pal"; rm -rf "$t"' EXIT
-wall=$(python3 -c "import json; print(json.load(open('$state/palette-HDMI-A-1.json'))['_wallpaper'])")
+trap 'rm -f "$pal" "$HOME"/.cache/rice/glass/Virtual-0-* "$HOME"/.cache/rice/glass-full/Virtual-0-*; rm -rf "$t"' EXIT
+if [ -n "${ATOM_WALL:-}" ]; then   # another wallpaper: the palette the theme engine makes for it (as the virtual screen)
+    python3 -c '
+import json, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from atom import screens, util
+ss = screens.screens()
+s = next((x for x in ss if x["main"]), ss[0])
+p = screens.screen_palette(dict(s, name="Virtual-0"), Path(sys.argv[2]), util.settings(), desk={"media": True, "clawd": True, "theme": ""})
+Path(sys.argv[3]).write_text(json.dumps(p, indent=2) + "\n")
+' "$(cd "$(dirname "$0")/../.." && pwd)" "$(realpath "$ATOM_WALL")" "$pal" || exit 1
+else
+    cp "$state/palette-HDMI-A-1.json" "$pal"
+fi
+wall=$(python3 -c "import json; print(json.load(open('$pal'))['_wallpaper'])")
 t=$(mktemp -d)
 cat > "$t/appletsrc" <<A
 [Containments][1]

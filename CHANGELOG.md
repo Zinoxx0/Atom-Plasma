@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+**Launcher styles** (new: settings `launcher.style`, `rice.py launcher style NAME`)
+- Two launchers, each its own code: **Simplified** (the rows under a hero, as before; the default) and
+  **Atom's** (new): your apps as an atom. Rings round a glass core that shows what has the focus: Pinned,
+  Play (games with their art) and Recent on Home; categories, their apps and the app's own actions on Apps;
+  a grid of Steam banners with play time and the library's buttons on Games; search as one ring of matches.
+  Its Theme page is a dial of sections: your wallpapers as a colour wheel (one ring per mood, each where
+  its colour is; the page wears the one you're on), sizes as gauges, choices as rings of options.
+- Only the chosen style is loaded; a new choice applies the next time the launcher opens, and a style that
+  fails to load falls back to Simplified. Any `ui/styles/NAME/Stage.qml` is a style.
+- Simplified's top got the new look: the pages as words with a beam of accent light, a search field,
+  plain theme and power buttons, the time with the date, on a gradient from the top edge.
+- `rice.py walls-index`: every wallpaper's mood, hue and palette (for the colour wheel), cached.
+- `rice.py launcher-data` now carries Steam's play time and last session for each game.
+
 **Game controller** (new: `bin/pad.py`, `atom-plasma-pad.service`, feature `gamepad`)
 - A controller drives the desktop: the left stick is the pointer, the right one scrolls, the D-pad and the
   buttons are the keys apps understand, Guide opens the launcher, View every window. Games get the

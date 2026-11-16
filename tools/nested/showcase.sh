@@ -18,7 +18,7 @@ state="$HOME/.local/state/rice"
 pal="$state/palette-Virtual-0.json"
 [ -e "$pal" ] && { echo "a palette-Virtual-0.json is already there: not touching it" >&2; exit 2; }
 t=$(mktemp -d)
-trap 'rm -f "$pal"; rm -rf "$t"' EXIT
+trap 'rm -f "$pal" "$HOME"/.cache/rice/glass/Virtual-0-* "$HOME"/.cache/rice/glass-full/Virtual-0-*; rm -rf "$t"' EXIT
 python3 - "$repo" "$wall" "$pal" <<'P' || exit 1
 import json, sys
 from pathlib import Path
@@ -40,6 +40,7 @@ thick=$(kreadconfig6 --file plasmashellrc --group PlasmaViews --group "Panel 23"
 cat > "$t/inner.sh" <<'I'
 #!/bin/bash
 source "$ATOM_NESTED/env.sh"
+[ -n "$ATOM_STYLE" ] && printf '%s\n' "$ATOM_STYLE" > "$N/config/atom-test-style"     # a launcher style to show (tests only)
 printf '[PlasmaViews][Panel 1]\nfloating=0\n\n[PlasmaViews][Panel 1][Defaults]\nthickness=%s\n' "${THICK:-64}" > "$N/config/plasmashellrc"
 cp "$HOME/.cache/claude-usage.json" "$N/cache/" 2>/dev/null       # (the meters read it from the cache dir)
 # the launcher as it is: the apps (the games' .desktop files and icons are the user's own), the pins and

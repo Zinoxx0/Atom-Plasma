@@ -222,8 +222,15 @@ Window {
     property string page: "home"                // home | games | apps | theme
     readonly property var tabs: ["home", "games", "apps"]
     property string pageBefore: "home"
+    // a page (or the search) comes in as the launcher does: its rings spiral out of the core (one short clock)
+    property double pageAsked: 0
+    NumberAnimation { id: pageClock; target: stage; property: "atomT"; from: 0; to: 1; duration: Tokens.ms(820) }
+    function pageIn() { pageAsked = Date.now(); if (phase === "open") pageClock.restart() }
+    onSearchingChanged: pageIn()
+    function pageLoaded(name) { if (Shell.debug) console.warn("ATOM atom page made", name, Date.now() - pageAsked, "ms") }
     function setPage(p) {
         if (p === page) return
+        pageIn()
         if (p === "theme") pageBefore = page === "theme" ? pageBefore : page
         page = p
         if (Shell.debug) console.warn("ATOM atom page", p)
@@ -271,6 +278,7 @@ Window {
 
     // fresh every time it opens: Home, nothing searched
     onOpened: {
+        pageAsked = Date.now()
         page = "home"
         searching = false
         launcher.query = ""
@@ -305,11 +313,11 @@ Window {
             onWheel: wheel => stage.wheeled(wheel)
         }
         // the page in view (only that one exists: a page is made when it's shown)
-        Loader { anchors.fill: parent; active: stage.page === "home" && !stage.searching; sourceComponent: homePage }
-        Loader { anchors.fill: parent; active: stage.searching; sourceComponent: searchPage }
-        Loader { anchors.fill: parent; active: stage.page === "apps" && !stage.searching; sourceComponent: appsPage }
-        Loader { anchors.fill: parent; active: stage.page === "games" && !stage.searching; sourceComponent: gamesPage }
-        Loader { anchors.fill: parent; active: stage.page === "theme" && !stage.searching; sourceComponent: themePage }
+        Loader { anchors.fill: parent; active: stage.page === "home" && !stage.searching; sourceComponent: homePage; onLoaded: stage.pageLoaded("home") }
+        Loader { anchors.fill: parent; active: stage.searching; sourceComponent: searchPage; onLoaded: stage.pageLoaded("search") }
+        Loader { anchors.fill: parent; active: stage.page === "apps" && !stage.searching; sourceComponent: appsPage; onLoaded: stage.pageLoaded("apps") }
+        Loader { anchors.fill: parent; active: stage.page === "games" && !stage.searching; sourceComponent: gamesPage; onLoaded: stage.pageLoaded("games") }
+        Loader { anchors.fill: parent; active: stage.page === "theme" && !stage.searching; sourceComponent: themePage; onLoaded: stage.pageLoaded("theme") }
         Text {      // news (a scan done...)
             x: stage.side; y: stage.height - stage.d(110)
             text: stage.news; color: stage.look.fg; opacity: stage.news ? 1 : 0

@@ -104,6 +104,10 @@ island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on ev
   typing on the bare desktop open the launcher's search on its own: the field and its results on one
   frosted glass plate at the top of the screen, over whatever is there (Alt+Shift+F2 searches the clipboard). The shell
   holds KRunner's place on the bus and KRunner's own daemon is masked (`rice.py install`).
+- **Launcher styles**: the launcher above is **Simplified**; **Atom's** shows your apps as an atom (rings round
+  a glass core: up/down turn a ring, left/right step between rings; the pointer picks in place, the wheel turns),
+  games as a grid of banners, and a Theme page where your wallpapers form a colour wheel. `rice.py launcher
+  style simplified|atom`, or Theme page → Launcher → Style.
 - **Power** (the power island, or the launcher's power button): a ripple of blur spreads over every screen
   and the session's actions come up big on yours.
 - **Out of the way**: while the launcher or the power page is open the windows are minimized (the launcher's
@@ -186,6 +190,8 @@ rice.py theme show|set|reset ...                                   hand-picked c
 rice.py ui show|set ...                                            UI size (the taskbar's)
 rice.py launcher size F | top size F                               the launcher's and the top bar's own size
 rice.py backdrop matte|clear|noise|none                            the launcher's and the power page's backdrop
+rice.py launcher style simplified|atom                             which launcher opens (the next time it opens)
+rice.py walls-index                                                every wallpaper's mood, hue and palette (Atom's colour wheel)
 bin/pad.py status | mode auto|desktop|game                         the game controller (atom-plasma-pad.service)
 rice.py tiling toggle|tile|float [--screen ...]                    auto-tiling per screen
 rice.py displays [--fix]                                           monitors, arrangement, sizes
