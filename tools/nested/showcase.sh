@@ -26,7 +26,10 @@ sys.path.insert(0, sys.argv[1])
 from atom import screens, util
 ss = screens.screens()
 s = next((x for x in ss if x["main"]), ss[0])
-p = screens.screen_palette(s, Path(sys.argv[2]), util.settings(), desk={"media": True, "clawd": True, "theme": ""})
+# as the nested screen (Virtual-0): the glass/frost cache keeps ONE file per screen name, so computing it as the
+# real main screen deleted that screen's live frost and glass (its palette then pointed at nothing; 2026-11-16)
+p = screens.screen_palette(dict(s, name="Virtual-0"), Path(sys.argv[2]), util.settings(),
+                           desk={"media": True, "clawd": True, "theme": ""})
 Path(sys.argv[3]).write_text(json.dumps(p, indent=2) + "\n")
 print("palette", p.get("_mood"), p["primary"], p["secondary"], p["tertiary"])
 P
