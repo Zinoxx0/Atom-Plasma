@@ -55,7 +55,7 @@ Item {
         x: scene.stage.atomAt.x - r; y: scene.stage.atomAt.y - r
         width: 2 * r; height: 2 * r
         opacity: scene.stage.bgO * (scene.stage.rice.light ? 0.45 : 1)
-        property color c: scene.stage.focusColour
+        property color c: scene.stage.focusTint
         Behavior on c { ColorAnimation { duration: Tokens.ms(600); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
         ShapePath {
             strokeWidth: -1

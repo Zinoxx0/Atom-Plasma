@@ -23,6 +23,8 @@ Window {
     required property RicePalette rice
     required property Account account
     readonly property string screenName: screenObj ? screenObj.name : ""
+    // what children get as their `stage` (`stage: stage` inside a child binds the child's own property to itself)
+    readonly property Window atomStage: stage
 
     screen: screenObj
     x: screenObj ? screenObj.virtualX : 0
@@ -231,9 +233,9 @@ Window {
     Timer { interval: 1000 * (60 - new Date().getSeconds()); running: stage.phase !== "closed"; repeat: true; onTriggered: { stage.now = new Date(); interval = 60000 } }
 
     // what the page has in focus (the pages report it): the caption, the core and the scene's light follow it
-    property var focusItem: null
+    property var focusItem: null                // { hero }: a game's art for the scene
     property var caption: ({ where: [], name: "" })
-    readonly property color focusColour: focusItem && focusItem.colour ? focusItem.colour : rice.primary
+    property color focusTint: rice.primary      // the focus's colour (the page reads it off its icon)
     // the page in view: what A, X and the caption's tools do, the hints, which caption button the keys are on (-1: none)
     property var pageApi: null              // { act(i), tool(i), wheel(dy) }
     property var hints: ({ pad: [], keys: [] })
@@ -271,7 +273,7 @@ Window {
     RiceShell { id: sh; onNewData: (source, data) => disconnectSource(source) }
 
     // ------------------------------------------------------------------ the scene
-    Scene { id: scene; anchors.fill: parent; stage: stage }
+    Scene { id: scene; anchors.fill: parent; stage: atomStage }
 
     // ------------------------------------------------------------------ the content
     FocusScope {
@@ -288,13 +290,17 @@ Window {
             onClicked: mouse => { if (mouse.button === Qt.RightButton) stage.launcher.close() }
             onWheel: wheel => stage.wheeled(wheel)
         }
-        TopBar { id: topBar; stage: stage }
-        Caption { id: cap; stage: stage; content: stage.caption; opacity: stage.capO }
-        Hints { stage: stage }
+        // the page in view (only that one exists: a page is made when it's shown)
+        Loader { anchors.fill: parent; active: stage.page === "home" && !stage.searching; sourceComponent: homePage }
+        TopBar { id: topBar; stage: atomStage }
+        Caption { id: cap; stage: atomStage; content: stage.caption; opacity: stage.capO }
+        Hints { stage: atomStage }
     }
 
+    Component { id: homePage; HomePage { stage: atomStage } }
+
     // ------------------------------------------------------------------ keys (a pad's arrive as keys too)
-    signal key(var event)               // the page in view handles what's left
+    signal pageKey(var event)           // the page in view handles what's left
     function wheeled(wheel) { if (pageApi && pageApi.wheel) pageApi.wheel(wheel.angleDelta.y || -wheel.pixelDelta.y) }
     function onKey(event) {
         if (powerOver) { event.accepted = true; return }
@@ -303,7 +309,7 @@ Window {
         if (k === Qt.Key_Escape) { if (searching) closeSearch(); else if (page === "theme") setPage(pageBefore); else launcher.close(); event.accepted = true; return }
         if (k === Qt.Key_Tab) { stepPage(1); event.accepted = true; return }
         if (k === Qt.Key_Backtab) { stepPage(-1); event.accepted = true; return }
-        key(event)
+        pageKey(event)
         if (event.accepted) return
         if (event.text && event.text.trim() && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) {
             openSearch(event.text === "/" ? "" : event.text)
