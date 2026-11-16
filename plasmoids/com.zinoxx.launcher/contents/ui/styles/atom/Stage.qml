@@ -293,6 +293,7 @@ Window {
         // the page in view (only that one exists: a page is made when it's shown)
         Loader { anchors.fill: parent; active: stage.page === "home" && !stage.searching; sourceComponent: homePage }
         Loader { anchors.fill: parent; active: stage.searching; sourceComponent: searchPage }
+        Loader { anchors.fill: parent; active: stage.page === "apps" && !stage.searching; sourceComponent: appsPage }
         TopBar { id: topBar; stage: atomStage }
         Caption { id: cap; stage: atomStage; content: stage.caption; opacity: stage.capO }
         Hints { stage: atomStage }
@@ -300,6 +301,7 @@ Window {
 
     Component { id: homePage; HomePage { stage: atomStage } }
     Component { id: searchPage; SearchPage { stage: atomStage } }
+    Component { id: appsPage; AppsPage { stage: atomStage } }
 
     // ------------------------------------------------------------------ keys (a pad's arrive as keys too)
     signal pageKey(var event)           // the page in view handles what's left

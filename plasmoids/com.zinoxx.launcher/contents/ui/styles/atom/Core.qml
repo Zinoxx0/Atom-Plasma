@@ -100,10 +100,18 @@ Item {
             color: "transparent"
             opacity: core.popT; scale: M.lerp(0.86, 1, core.popT)
         }
+        Text {              // a node's glyph (a category, an action, a setting)
+            anchors.centerIn: parent
+            visible: !!(core.item && core.item.glyph)
+            text: core.item ? core.item.glyph || "" : ""
+            color: core.rice.fg
+            font.family: Tokens.font.icons; font.pixelSize: parent.width * 0.34
+            opacity: core.popT; scale: M.lerp(0.86, 1, core.popT)
+        }
         Kirigami.Icon {
             anchors.centerIn: parent
             anchors.verticalCenterOffset: -parent.height * 0.03
-            visible: !!(core.item && !core.item.art)
+            visible: !!(core.item && !core.item.art && !core.item.glyph)
             width: parent.width * 0.44; height: width
             source: core.item ? core.item.icon : ""
             opacity: core.popT; scale: M.lerp(0.86, 1, core.popT)

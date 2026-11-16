@@ -65,6 +65,7 @@ Item {
         at = t; mode = "slot"
         quietUntil = Date.now() + 400
     }
+    function ringAt(i) { rep.count; return rep.itemAt(i) }
     function launch() { if (focusItem) launched(focusItem) }
     function openOptions() { if (ring && focusItem) options(focusItem, ring.focusDelegate) }
 

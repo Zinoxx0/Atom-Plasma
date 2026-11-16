@@ -127,10 +127,26 @@ Item {
                     shadow.size: ring.d(26); shadow.yOffset: ring.d(10); shadow.color: Qt.rgba(0, 0, 0, 0.4)
                 }
                 Kirigami.Icon {
-                    visible: !dl.planet
+                    visible: !dl.planet && !(dl.it && dl.it.glyph)
                     anchors.fill: parent
-                    source: dl.it ? dl.it.icon : ""
+                    source: dl.it && !dl.it.glyph ? dl.it.icon : ""
                 }
+                Rectangle {     // a node (a category, an action, a setting): a glyph on a disc of glass
+                    visible: !!(dl.it && dl.it.glyph)
+                    anchors.fill: parent; radius: width / 2
+                    color: C.alpha(ring.view.rice.surfaceLowest, 0.55)
+                    border.width: Math.max(1.5, ring.d(1.5)); border.color: C.alpha(ring.view.rice.fg, dl.focused ? 0.6 : 0.26)
+                    Text { anchors.centerIn: parent; text: dl.it ? dl.it.glyph || "" : ""; color: ring.view.rice.fg
+                           font.family: Tokens.font.icons; font.pixelSize: parent.width * 0.46 }
+                }
+            }
+            Text {             // a node's name, under it
+                visible: !!(dl.it && dl.it.label)
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.bottom; anchors.topMargin: ring.d(10)
+                text: dl.it ? dl.it.label || "" : ""
+                color: dl.focused ? ring.view.rice.fg : ring.view.rice.fgDim
+                font.family: Tokens.font.ui; font.weight: Font.Medium; font.pixelSize: ring.d(14)
             }
             MouseArea {
                 anchors.fill: parent
