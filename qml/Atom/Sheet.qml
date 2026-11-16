@@ -6,8 +6,12 @@ import Rice
 // into its island when it closes. Each kind's content is a QML file (`panels`, kind -> url); the sheet
 // sizes itself to the content's implicit size and moves when that changes (a sub-page, a longer list).
 //
-// The content is laid out once at its final size and revealed by the growing shape (clipped), so text
-// never reflows mid-morph. Bind BlurBehind / InputMask to `shape`.
+// The shape moves on critically damped springs (no overshoot), stepped every frame: a new target half-way
+// (the pointer moving on to another island, the content growing) bends the motion without a jolt, and a
+// slow frame slows it down instead of making it jump. The content is laid out once at its final size and
+// rides along centred in the glass, clipped by it, so text never reflows mid-morph; switching panels
+// cross-fades the old content out quickly and the new one in. Bind InputMask to `shape` and BlurBehind to
+// `shape` while `frosted`.
 Item {
     id: sheet
 
@@ -29,9 +33,13 @@ Item {
     property color rimA: "white"
     property color rimB: "white"
 
-    // live shape, in this item's coordinates
-    readonly property var shape: ({ x: sx, y: sy, width: sw, height: sh, radius: sr })
+    // live shape, in this item's coordinates (a new object once per frame, not once per edge)
+    readonly property var shape: shapeNow
+    property var shapeNow: ({ x: 0, y: 0, width: 0, height: 0, radius: 0 })
     readonly property bool shown: phase !== "closed"
+    // KWin's blur behind it, only while the glass is all there: blur at full strength under glass still
+    // fading in or out smeared the island it grows from, then popped off
+    readonly property bool frosted: shown && fade > 0.95 && sw > 2 && sh > 2
     property string phase: "closed"             // closed, opening, open, closing
     readonly property Item content: slots[front] ? slots[front].item : null
 
@@ -43,16 +51,13 @@ Item {
     property real sr: 0
     property real lift: 0           // the glass's shadow, 0 while it is still the island
     property real fade: 0           // the whole sheet's opacity (its first and last moments)
-    property bool animate: false
-    readonly property bool collapsing: phase === "closing"
-    readonly property int dur: collapsing ? Tokens.collapse : Tokens.morph
-    readonly property int curve: collapsing ? Tokens.exit : Tokens.grow
-    Behavior on sx { enabled: sheet.animate; NumberAnimation { duration: sheet.dur; easing.type: sheet.curve } }
-    Behavior on sy { enabled: sheet.animate; NumberAnimation { duration: sheet.dur; easing.type: sheet.curve } }
-    Behavior on sw { enabled: sheet.animate; NumberAnimation { duration: sheet.dur; easing.type: sheet.curve } }
-    Behavior on sh { enabled: sheet.animate; NumberAnimation { duration: sheet.dur; easing.type: sheet.curve } }
-    Behavior on sr { enabled: sheet.animate; NumberAnimation { duration: sheet.dur; easing.type: sheet.curve } }
-    Behavior on lift { enabled: sheet.animate; NumberAnimation { duration: sheet.dur; easing.type: sheet.curve } }
+    // where each spring is going and how fast it moves now (px/s)
+    property real gx: 0; property real gy: 0; property real gw: 0; property real gh: 0; property real gr: 0; property real gl: 0
+    property real vx: 0; property real vy: 0; property real vw: 0; property real vh: 0; property real vr: 0; property real vl: 0
+    property bool moving: false
+    // spring stiffness (rad/s): 22 covers 90% of the way in ~0.18 s, starting gently and easing out; it folds
+    // back into its island quicker. Follows the system animation speed (0 = no animations: it jumps).
+    readonly property real stiffness: (phase === "closing" ? 30 : 22) / Math.max(Tokens.speed, 0.01)
 
     // where the current content wants the panel: centred over its island, kept inside the bounds
     readonly property size want: content ? Qt.size(Math.ceil(content.implicitWidth) + 2 * pad,
@@ -65,9 +70,55 @@ Item {
         const y = Math.max(bounds.y, island.y - gap - h)
         return Qt.rect(Math.round(x), Math.round(y), w, h)
     }
-    function goTo(r, radius, l) { sx = r.x; sy = r.y; sw = r.width; sh = r.height; sr = radius; lift = l }
     function islandRadius() { return Math.min(island.height, island.width) / 2 }
     onTargetChanged: if (phase === "opening" || phase === "open") goTo(target, radius, 1)
+
+    // head for a shape (the springs keep the speed they have)
+    function goTo(r, rad, l) {
+        gx = r.x; gy = r.y; gw = r.width; gh = r.height; gr = rad; gl = l
+        if (Tokens.speed <= 0) rest()
+        else moving = true
+    }
+    // be there now, at rest
+    function place(r, rad, l) {
+        gx = r.x; gy = r.y; gw = r.width; gh = r.height; gr = rad; gl = l
+        rest()
+    }
+    function rest() {
+        sx = gx; sy = gy; sw = gw; sh = gh; sr = gr; lift = gl
+        vx = 0; vy = 0; vw = 0; vh = 0; vr = 0; vl = 0
+        moving = false
+        publish()
+        settled()
+    }
+    function publish() { shapeNow = { x: sx, y: sy, width: sw, height: sh, radius: sr } }
+    // one frame of the springs: the exact critically damped step, so any frame rate gives the same curve
+    function step(dt) {
+        const w = stiffness, e = Math.exp(-w * dt)
+        const one = (x, v, g) => { const d = x - g, c = v + w * d; return [g + (d + c * dt) * e, (v - w * c * dt) * e] }
+        let s
+        s = one(sx, vx, gx); sx = s[0]; vx = s[1]
+        s = one(sy, vy, gy); sy = s[0]; vy = s[1]
+        s = one(sw, vw, gw); sw = s[0]; vw = s[1]
+        s = one(sh, vh, gh); sh = s[0]; vh = s[1]
+        s = one(sr, vr, gr); sr = s[0]; vr = s[1]
+        s = one(lift, vl, gl); lift = s[0]; vl = s[1]
+        const near = (x, v, g) => Math.abs(x - g) < 0.25 && Math.abs(v) < 6
+        if (near(sx, vx, gx) && near(sy, vy, gy) && near(sw, vw, gw) && near(sh, vh, gh) && near(sr, vr, gr)
+                && Math.abs(lift - gl) < 0.01)
+            rest()
+        else
+            publish()
+    }
+    FrameAnimation {
+        running: sheet.moving
+        // (a long frame counts as a normal one: the motion pauses through a hitch instead of skipping ahead)
+        onTriggered: sheet.step(frameTime > 0 ? Math.min(frameTime, 0.02) : 1 / 120)
+    }
+    function settled() {
+        if (phase === "opening") phase = "open"
+        tidy()
+    }
 
     // ------------------------------------------------------------------ content (two slots: cross-fade)
     property int front: 0
@@ -75,14 +126,25 @@ Item {
     function load(k) {
         const back = 1 - front
         const s = slots[back]
-        s.kindLoaded = k
-        // every panel takes: ricePalette, screenName, ui (from props), kind and args (what it was opened with)
-        s.setSource(panels[k] || "", Object.assign({ kind: k, args: Shell.args }, props))
-        if (!s.item) { console.warn("Atom.Sheet: no panel for", k); return false }
-        s.item.opacity = 0
+        const a = JSON.stringify(Shell.args || {})
+        // the content on its way out comes back as it is (switching away and straight back); else new content
+        if (!(s.item && s.kindLoaded === k && s.argsLoaded === a)) {
+            s.kindLoaded = k
+            s.argsLoaded = a
+            // every panel takes: ricePalette, screenName, ui (from props), kind and args (what it was opened with)
+            s.setSource(panels[k] || "", Object.assign({ kind: k, args: Shell.args }, props))
+            if (!s.item) { console.warn("Atom.Sheet: no panel for", k); return false }
+            s.item.opacity = 0
+        }
         slots[front].leave()
         front = back
         return true
+    }
+    // content that has faded out goes once the shape is at rest (destroying a panel mid-glide cost a frame)
+    function tidy() {
+        if (moving) return
+        for (const s of slots)
+            if (s && s !== slots[front] && s.gone) { s.setSource(""); s.kindLoaded = ""; s.argsLoaded = ""; s.gone = false }
     }
 
     function present(k, from) {
@@ -106,33 +168,34 @@ Item {
             if (slots[front].kindLoaded !== kind || !slots[front].item) { if (!load(kind)) return }
             if (wasClosed) {
                 fadeOut.stop()
-                if (phase === "closed") {
-                    animate = false
-                    goTo(island, islandRadius(), 0)
+                if (phase === "closed") {           // born as the island itself, then grows out of it
+                    place(island, islandRadius(), 0)
                     fade = 0
                 }
-                animate = true
                 phase = "opening"
                 fadeIn.restart()
-                settle.restart()
             }
             goTo(target, radius, 1)         // open, or glide to another island's panel
             if (fresh) slots[front].enter(wasClosed)
         } else if (phase !== "closed") {
             phase = "closing"
-            settle.stop()
             slots[front].leave()
+            fadeIn.stop()
             goTo(island, islandRadius(), 0)
             fadeOut.restart()
         }
     }
-    Timer { id: settle; interval: sheet.dur; onTriggered: if (sheet.phase === "opening") sheet.phase = "open" }
-    NumberAnimation { id: fadeIn; target: sheet; property: "fade"; to: 1; duration: Math.round(Tokens.morph * 0.3); easing.type: Easing.OutQuad }
+    NumberAnimation { id: fadeIn; target: sheet; property: "fade"; to: 1; duration: Tokens.fast; easing.type: Easing.OutQuad }
     SequentialAnimation {
         id: fadeOut
-        PauseAnimation { duration: Math.round(Tokens.collapse * 0.45) }
-        NumberAnimation { target: sheet; property: "fade"; to: 0; duration: Math.round(Tokens.collapse * 0.55); easing.type: Easing.InQuad }
-        ScriptAction { script: { sheet.phase = "closed"; slotA.setSource(""); slotB.setSource("") } }
+        PauseAnimation { duration: Tokens.ms(40) }
+        NumberAnimation { target: sheet; property: "fade"; to: 0; duration: Tokens.ms(140); easing.type: Easing.InOutQuad }
+        ScriptAction { script: sheet.closed() }
+    }
+    function closed() {
+        phase = "closed"
+        place(island, islandRadius(), 0)
+        for (const s of slots) { s.setSource(""); s.kindLoaded = ""; s.argsLoaded = ""; s.gone = false }
     }
 
     // ------------------------------------------------------------------ drawing
@@ -150,7 +213,11 @@ Item {
     }
     Item {
         id: clipper
-        x: sheet.sx; y: sheet.sy; width: sheet.sw; height: sheet.sh
+        // the clip keeps clear of the glass's round corners, so content never pokes out of them while the
+        // shape changes (at rest the panel's padding keeps it clear anyway)
+        readonly property real inset: Math.ceil(sheet.sr * 0.3)
+        x: sheet.sx + inset; y: sheet.sy + inset
+        width: Math.max(0, sheet.sw - 2 * inset); height: Math.max(0, sheet.sh - 2 * inset)
         visible: glass.visible
         opacity: sheet.fade
         clip: true
@@ -162,45 +229,55 @@ Item {
                 id: slot
                 required property int index
                 property string kindLoaded: ""
-                // laid out at the panel's final place, revealed by the growing shape; content on its way
-                // out keeps the place it had
-                property rect frozen: Qt.rect(0, 0, 0, 0)
+                property string argsLoaded: ""
+                property bool gone: false           // faded out, waiting for the shape to rest to be unloaded
                 readonly property bool isFront: sheet.front === index
-                readonly property rect place: isFront ? sheet.target : frozen
-                x: place.x - sheet.sx + sheet.pad
-                y: place.y - sheet.sy + sheet.pad
-                width: item ? Math.min(item.implicitWidth, place.width - 2 * sheet.pad) : 0
-                height: item ? Math.min(item.implicitHeight, place.height - 2 * sheet.pad) : 0
+                // laid out at its final size; content on its way out keeps the size it had
+                property bool held: false
+                property real heldW: 0
+                property real heldH: 0
+                width: held ? heldW : item ? Math.min(item.implicitWidth, Math.max(0, sheet.bounds.width - 2 * sheet.pad)) : 0
+                height: held ? heldH : item ? Math.min(item.implicitHeight, Math.max(0, sheet.bounds.height - 2 * sheet.pad)) : 0
+                // centred in the glass, on whole pixels: it rides along as the glass glides and grows
+                x: Math.round(sheet.sx + (sheet.sw - width) / 2) - clipper.x
+                y: Math.round(sheet.sy + (sheet.sh - height) / 2) - clipper.y
                 focus: isFront
+                enabled: isFront                    // (faded-out content takes no clicks)
                 Component.onCompleted: index === 0 ? sheet.slotA = slot : sheet.slotB = slot
-                transform: Translate { id: rise }
+                transform: Translate { id: nudge }
                 function enter(opening) {
                     leaving.stop()
-                    entering.delay = opening ? Math.round(Tokens.morph * 0.35) : Math.round(Tokens.morph * 0.2)
+                    held = false
+                    gone = false
+                    entering.delay = opening ? Tokens.ms(70) : Tokens.ms(40)
+                    entering.rise = opening ? 6 : 0
                     entering.restart()
                     if (item && item.enter) item.enter()
                     Qt.callLater(() => { if (item) item.forceActiveFocus() })
                 }
                 function leave() {
-                    frozen = sheet.target
                     if (!item) return
+                    heldW = width
+                    heldH = height
+                    held = true
                     entering.stop()
                     leaving.restart()
                 }
                 SequentialAnimation {
                     id: entering
                     property int delay: 0
-                    ScriptAction { script: { if (slot.item) slot.item.opacity = 0; rise.y = 6 } }
+                    property real rise: 0
+                    ScriptAction { script: nudge.y = entering.rise }
                     PauseAnimation { duration: entering.delay }
                     ParallelAnimation {
-                        NumberAnimation { target: slot.item; property: "opacity"; to: 1; duration: Tokens.base; easing.type: Tokens.enter }
-                        NumberAnimation { target: rise; property: "y"; to: 0; duration: Tokens.slow; easing.type: Tokens.enter }
+                        NumberAnimation { target: slot.item; property: "opacity"; to: 1; duration: Tokens.ms(200); easing.type: Easing.OutCubic }
+                        NumberAnimation { target: nudge; property: "y"; to: 0; duration: Tokens.ms(320); easing.type: Easing.OutCubic }
                     }
                 }
                 SequentialAnimation {
                     id: leaving
-                    NumberAnimation { target: slot.item; property: "opacity"; to: 0; duration: Tokens.fast; easing.type: Tokens.exit }
-                    ScriptAction { script: { if (sheet.slots[sheet.front] !== slot) slot.setSource("") } }
+                    NumberAnimation { target: slot.item; property: "opacity"; to: 0; duration: Tokens.ms(110); easing.type: Easing.OutQuad }
+                    ScriptAction { script: { if (sheet.slots[sheet.front] !== slot) { slot.gone = true; sheet.tidy() } } }
                 }
             }
         }

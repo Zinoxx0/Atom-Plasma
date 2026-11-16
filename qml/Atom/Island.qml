@@ -20,7 +20,10 @@ MouseArea {
     hoverEnabled: true
     function globalRect() { return Shell.rectOf(isl, -reach, -reach, width + 2 * reach, height + 2 * reach) }
     onClicked: Shell.toggle(kind, screenName, globalRect(), args)
-    onContainsMouseChanged: if (containsMouse) { place(); Shell.hover(kind, screenName, globalRect(), args) }
+    onContainsMouseChanged: {
+        if (containsMouse) { place(); Shell.hover(kind, screenName, globalRect(), args) }
+        else Shell.unhover(kind, screenName)
+    }
 
     function place() { if (kind && screenName && width > 0) Shell.place(kind, screenName, globalRect()) }
     onWidthChanged: Qt.callLater(place)

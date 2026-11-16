@@ -97,6 +97,7 @@ QtObject {
     // button). Dismissing the power page returns to it, as it was; an action run (close(k, true)) closes both.
     property var under: null                // { kind, screen, args } or null
     function open(k, scr, anchorRect, a) {
+        hoverWait.stop()
         // kind last: it's the one hosts react to, the rest is read then. The screen just before it: a
         // panel moving to another screen (the launcher follows the pointer) keeps its kind, so the new
         // screen's host reacts to the screen and must find the anchor and args already there
@@ -110,6 +111,7 @@ QtObject {
     }
     function close(k, all) {
         if (k && k !== kind) return
+        hoverWait.stop()
         if (kind) {
             closedKind = kind
             closedScreen = screen
@@ -134,9 +136,26 @@ QtObject {
         open(k, scr, anchorRect, a)
     }
     // while a panel is open, pointing at another island on the same screen moves the sheet there
-    // (menu-bar style); the launcher, fullscreen, never follows the pointer
+    // (menu-bar style) once the pointer rests on it a moment: crossing islands on the way to another one
+    // (or off the bar) no longer flicks through their panels. Islands call unhover when the pointer leaves.
+    // The launcher, fullscreen, never follows the pointer.
     function hover(k, scr, anchorRect, a) {
-        if (kind && !(kind in solo) && !(k in solo) && kind !== k && screen === scr) open(k, scr, anchorRect, a)
+        if (!kind || (kind in solo) || (k in solo) || kind === k || screen !== scr) { hoverWait.stop(); return }
+        hoverNext = { k: k, scr: scr, anchor: anchorRect, args: a }
+        hoverWait.restart()
+    }
+    function unhover(k, scr) {
+        const n = hoverNext
+        if (hoverWait.running && n && n.k === k && n.scr === scr) hoverWait.stop()
+    }
+    property var hoverNext: null            // { k, scr, anchor, args } of the island the pointer rests on
+    property Timer hoverWait: Timer {
+        interval: 70
+        onTriggered: {
+            const n = shell.hoverNext
+            if (n && shell.kind && !(shell.kind in shell.solo) && shell.kind !== n.k && shell.screen === n.scr)
+                shell.open(n.k, n.scr, n.anchor, n.args)
+        }
     }
     // kinds that never follow the pointer (and never open by it): their own surfaces, not the sheet
     readonly property var solo: ({ launcher: true, power: true })

@@ -176,7 +176,7 @@ PlasmoidItem {
         Layout.preferredWidth: Layout.minimumWidth
         Layout.fillHeight: true
         onClicked: root.togglePanel()
-        onContainsMouseChanged: if (containsMouse) root.hoverPanel()
+        onContainsMouseChanged: if (containsMouse) root.hoverPanel(); else portal.unhover()
 
         RowLayout {
             id: row

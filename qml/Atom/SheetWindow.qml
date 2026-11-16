@@ -128,7 +128,7 @@ Window {
         visible: Shell.debug
         TapHandler { onTapped: (pt) => console.warn("ATOM surface tapped at", Math.round(pt.position.x), Math.round(pt.position.y), "shown", sheet.shown) }
     }
-    BlurBehind { window: win; shapes: (sheet.shown && sheet.sw > 2 ? [sheet.shape] : []).concat(osk.shapes) }
+    BlurBehind { window: win; shapes: (sheet.frosted ? [sheet.shape] : []).concat(osk.shapes) }
 
     // a click anywhere else (another window, the bar) takes the keyboard away: the panel closes
     onActiveChanged: {

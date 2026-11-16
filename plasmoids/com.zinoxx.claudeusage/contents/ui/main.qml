@@ -221,7 +221,7 @@ PlasmoidItem {
         // the pointer. A click on Clawd itself plays one of its acts, anywhere else opens the popup.
         // (whichever Clawd is out: the island's, or the one on its roof)
         readonly property Item seen: root.place === "roof" ? roof.clawd : mini
-        onContainsMouseChanged: if (containsMouse) { seen.greet(); root.hoverPanel() }
+        onContainsMouseChanged: if (containsMouse) { seen.greet(); root.hoverPanel() } else portal.unhover()
         onPositionChanged: mouse => seen.lookAt(seen.mapFromItem(compact, mouse.x, mouse.y).x / seen.width)
 
         // the hairline between this and the system rings, halfway across the gap (its own right padding,

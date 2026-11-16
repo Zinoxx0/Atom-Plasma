@@ -23,6 +23,7 @@ QtObject {
     function show() { Shell.open(kind, screenName, rect()) }
     function close() { Shell.close(kind) }
     function hover() { Shell.hover(kind, screenName, rect()) }
+    function unhover() { Shell.unhover(kind, screenName) }
 
     onScreenNameChanged: Shell.portal(screenName, kind, popup)
     Component.onCompleted: Shell.portal(screenName, kind, popup)
