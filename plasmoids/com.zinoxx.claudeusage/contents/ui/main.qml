@@ -355,7 +355,7 @@ PlasmoidItem {
         const it = compactRepresentationItem, lay = fit.panelLayout, sc = myScreen
         if (!it || !lay || !sc || !it.width) return
         islandH = lay.height                // the layout runs from the island's top to the screen's edge
-        islandR = it.mapToGlobal(it.width, 0).x - sc.virtualX
+        islandR = Shell.rectOf(it, it.width, 0, 0, 0).x - sc.virtualX
         islandW = it.shown
         seatW = it.seatW
     }

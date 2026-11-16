@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Window
 import org.kde.layershell as LayerShell
+import Atom
 import Atom.Native
 import Rice
 
@@ -97,7 +98,7 @@ Window {
     // mini's spot (its feet, bottom centre) in this window's coordinates, and the scale that matches it
     function miniFeet() {
         if (!mini || !scr) return { x: restX + clawd.width / 2, y: height }
-        const g = mini.mapToGlobal(mini.width / 2, mini.height)
+        const g = Shell.rectOf(mini, mini.width / 2, mini.height, 0, 0)
         return { x: g.x - (scr.virtualX + Math.round(w.roofWinX)), y: g.y - (scr.virtualY + scr.height - height) }
     }
     readonly property real miniK: w.roofPx > 0 ? w.seatPx / w.roofPx : 1

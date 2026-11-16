@@ -637,7 +637,7 @@ PlasmoidItem {
                         enabled: !app.inStack
                         hoverEnabled: true
                         acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-                        function globalRect() { const p = mapToGlobal(0, 0); return { x: p.x, y: p.y, width: width, height: height } }
+                        function globalRect() { return Shell.rectOf(area, 0, 0, width, height) }
                         onClicked: mouse => {
                             if (Shell.debug) console.warn("ATOM tray click", app.appId, mouse.button, "window", Windows.windowOf(app.pid, app.names))
                             const p = mapToGlobal(mouse.x, mouse.y)

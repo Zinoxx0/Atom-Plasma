@@ -171,4 +171,18 @@ QtObject {
         islands = next
     }
     function island(k, scr) { return islands[scr + "/" + k] ?? null }
+
+    // an item's rect in global logical px (x, y: a point of the item's own; width, height: passed through).
+    // Not mapToGlobal: that adds Qt's idea of the window's global position, which can go stale for a bar
+    // (2026-11-16, a monitor coming back after a power cut moved the 1440p from x 0 to 2400 and its bar's items
+    // still mapped as if at 0: the roof Clawd stood on the 4K). The item's place in its window plus the
+    // window's offset in its own screen, clamped to that screen (a bar filling the width sits at 0).
+    function rectOf(item, x, y, width, height) {
+        const win = item.Window.window, s = win ? win.screen : null
+        if (!s) { const g = item.mapToGlobal(x, y); return { x: g.x, y: g.y, width: width, height: height } }
+        const p = item.mapToItem(null, x, y)
+        const inside = (v, room) => Math.max(0, Math.min(v, Math.max(0, room)))
+        return { x: s.virtualX + inside(win.x - s.virtualX, s.width - win.width) + p.x,
+                 y: s.virtualY + inside(win.y - s.virtualY, s.height - win.height) + p.y, width: width, height: height }
+    }
 }

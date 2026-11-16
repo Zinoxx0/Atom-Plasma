@@ -18,10 +18,7 @@ MouseArea {
     readonly property bool open: Shell.kind === kind && Shell.screen === screenName
 
     hoverEnabled: true
-    function globalRect() {
-        const p = mapToGlobal(-reach, -reach)
-        return { x: p.x, y: p.y, width: width + 2 * reach, height: height + 2 * reach }
-    }
+    function globalRect() { return Shell.rectOf(isl, -reach, -reach, width + 2 * reach, height + 2 * reach) }
     onClicked: Shell.toggle(kind, screenName, globalRect(), args)
     onContainsMouseChanged: if (containsMouse) { place(); Shell.hover(kind, screenName, globalRect(), args) }
 

@@ -17,9 +17,7 @@ QtObject {
     readonly property bool open: Shell.kind === kind && Shell.screen === screenName
     function rect() {                       // the island, global logical px
         const it = widget.compactRepresentationItem
-        if (!it) return null
-        const p = it.mapToGlobal(0, 0)
-        return { x: p.x, y: p.y, width: it.width, height: it.height }
+        return it ? Shell.rectOf(it, 0, 0, it.width, it.height) : null
     }
     function toggle() { Shell.toggle(kind, screenName, rect()) }
     function show() { Shell.open(kind, screenName, rect()) }
