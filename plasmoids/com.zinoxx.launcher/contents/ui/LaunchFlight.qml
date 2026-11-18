@@ -32,7 +32,7 @@ Item {
         anchors.fill: parent
         color: launchFly.art ? "#000000" : C.mix(flyColors.c, "#0b0f16", 0.5)
         QtObject { id: flyColors; readonly property color c: C.appTint(flyIc, launchFly.stage.rice.primary) }
-        Kirigami.ImageColors { id: flyIc; source: launchFly.item ? launchFly.item.icon : "" }
+        ImagePalette { id: flyIc; source: launchFly.item ? launchFly.item.icon : "" }
     }
     Image {
         anchors.fill: parent

@@ -82,7 +82,7 @@ Item {
                     visible: !card.g || !card.g.banner
                     color: C.mix(C.appTint(colours, page.stage.look.primary), "#000000", 0.45)
                     shadow.size: page.stage.d(30); shadow.yOffset: page.stage.d(12); shadow.color: Qt.rgba(0, 0, 0, 0.4)
-                    Kirigami.ImageColors { id: colours; source: card.g && !card.g.banner ? card.g.icon : "" }
+                    ImagePalette { id: colours; source: card.g && !card.g.banner ? card.g.icon : "" }
                     Row { anchors.verticalCenter: parent.verticalCenter; x: page.stage.d(26); spacing: page.stage.d(18)
                         Kirigami.Icon { width: page.ch * 0.42; height: width; source: card.g ? card.g.icon : ""; anchors.verticalCenter: parent.verticalCenter }
                         Text { width: page.cw - page.ch * 0.42 - page.stage.d(80); text: card.g ? card.g.name : ""; color: "#ffffff"; wrapMode: Text.WordWrap; maximumLineCount: 2

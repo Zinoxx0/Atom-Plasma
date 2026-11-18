@@ -69,7 +69,7 @@ Item {
     readonly property string colorSource: !item || item.ctl ? ""
                                         : themed ? (item.thumb ? "file://" + item.thumb : "")
                                         : hasArt ? item.art.portrait : item.icon
-    Kirigami.ImageColors {
+    ImagePalette {
         id: colors
         source: tile.look === "poster" || tile.sampled ? tile.colorSource : ""
     }

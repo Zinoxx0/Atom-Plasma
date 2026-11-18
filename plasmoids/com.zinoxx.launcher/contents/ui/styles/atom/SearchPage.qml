@@ -66,8 +66,7 @@ Item {
         if (it.web) { Qt.openUrlExternally("https://duckduckgo.com/?q=" + encodeURIComponent(page.query)); page.stage.launcher.close(); return }
         page.stage.launcher.launch(it.model, it.row)
     }
-    Kirigami.ImageColors { id: colours; source: atom.focusItem ? atom.focusItem.icon : "" }
-    Connections { target: atom; function onFocusItemChanged() { colours.update() } }
+    ImagePalette { id: colours; source: atom.focusItem ? atom.focusItem.icon : "" }
     readonly property color tint: C.appTint(colours, page.stage ? page.stage.look.primary : "#888888")
 
     readonly property var caption: {

@@ -34,7 +34,7 @@ Item {
     visible: opacity > 0
 
     // the album art lights the glass under the module, like the apps do under their icons
-    Kirigami.ImageColors { id: artColors; source: media.artUrl }
+    ImagePalette { id: artColors; source: media.artUrl }
     Item {
         x: -g.px(24)
         y: -media.y

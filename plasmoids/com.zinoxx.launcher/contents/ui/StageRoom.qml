@@ -37,7 +37,7 @@ Item {
                     opacity: room.slot === index ? room.glowLevel[index] : 0
                     visible: opacity > 0.001
                     property var item: room.items[index]
-                    Kirigami.ImageColors { id: glowColors; source: glow.item ? glow.item.icon : "" }
+                    ImagePalette { id: glowColors; source: glow.item ? glow.item.icon : "" }
                     readonly property color c: C.appTint(glowColors, room.stage.rice.primary)
                     Image {     // noisy matte: the frosted wallpaper itself, coloured
                         anchors.fill: parent

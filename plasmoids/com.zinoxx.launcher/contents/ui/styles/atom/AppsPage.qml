@@ -106,8 +106,7 @@ Item {
     Timer { id: catSettle; interval: 240; onTriggered: { if (atom.at !== 2) return; const i = page.catIndex(atom.focusItem); if (i >= 0) page.cat = i } }
     onCatChanged: { catAt = Date.now(); Qt.callLater(page.collect) }
 
-    Kirigami.ImageColors { id: colours; source: atom.focusItem && atom.at === 1 ? atom.focusItem.icon : "" }
-    Connections { target: atom; function onFocusItemChanged() { colours.update() } }
+    ImagePalette { id: colours; source: atom.focusItem && atom.at === 1 ? atom.focusItem.icon : "" }
     readonly property color tint: C.appTint(colours, page.stage ? page.stage.look.primary : "#888888")
 
     readonly property var caption: {
