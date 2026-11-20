@@ -1,0 +1,12 @@
+# Atom Plasma: Claude's usage limits, at login and every 5 minutes of the wall clock (so a wake from
+# suspend checks at once instead of 5 minutes of awake time later).
+[Unit]
+Description=Atom Plasma: Claude usage limits, every 5 minutes
+
+[Timer]
+OnStartupSec=30s
+OnCalendar=*:0/5
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

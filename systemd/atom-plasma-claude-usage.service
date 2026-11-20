@@ -1,0 +1,12 @@
+# Atom Plasma: Claude's usage limits straight from Anthropic (bin/claude-usage.py), so the Claude island's rings
+# stay right when no Claude Code session runs here: after a reboot, or while Claude is used on the web, the
+# phone or another computer. Started by its timer; skipped while a session here writes the numbers itself.
+[Unit]
+Description=Atom Plasma: Claude usage limits from Anthropic
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.config/plasma-rice/bin/claude-usage.py
+Nice=10
+TimeoutStartSec=1min

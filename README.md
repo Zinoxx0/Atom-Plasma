@@ -177,6 +177,12 @@ Clawd learns what Claude Code is doing from its hooks, and the usage rings from 
 status line, have it write that file as well (the script says how). Restart open Claude Code sessions
 afterwards: they read their hooks when they start.
 
+The status line only runs while a Claude Code session does, so the `atom-plasma-claude-usage` timer also
+asks Anthropic for the limits at login and every 5 minutes (`bin/claude-usage.py`, with Claude Code's own
+sign-in, which it only reads): the rings stay right after a reboot and while Claude is used on the web, the
+phone or another computer. When Claude Code hasn't run for about 8 hours its sign-in has expired, and the
+rings wait until Claude Code next starts and renews it.
+
 Each one is a single canvas, repainted only when its picture changes, and it holds still behind a
 fullscreen window (`qml/Rice/Clawd.qml`; the art is in `ClawdArt.js`, the acts and hobbies in
 `ClawdActs.js`). To look at them while changing them, `tools/clawd/sheet.qml` renders contact sheets.
@@ -208,7 +214,7 @@ Theme page; Meta+Alt+T toggles tiling.
 | --- | --- |
 | `atom/` | the Python library: displays, reconcile, palettes (OKLab moods), screens, presets, KDE/KWin/apps theming, panels, tiling, caps, install, doctor |
 | `rice.py` | the command line (below) |
-| `bin/` | the programs units, widgets, shortcuts and Claude Code's hooks run: the display watcher, keyboard lights, weather, the calendar's agenda, the update check, Clawd's hooks and status line, wallpapers from wallhaven |
+| `bin/` | the programs units, widgets, shortcuts and Claude Code's hooks run: the display watcher, keyboard lights, weather, the calendar's agenda, the update check, Clawd's hooks and status line, Claude's usage check, wallpapers from wallhaven |
 | `qml/Rice/` | shared QML: design tokens, the per-screen palette, Clawd (its art and its acts), controls |
 | `qml/Atom/` | the shell: its switchboard, the morphing sheet, panels (calendar, control center, clipboard...), notification cards, the power overlay |
 | `plasmoids/` | the launcher, Glimpse (task strip and top band), desk clock, the clock and status islands, system rings, Claude usage, session, tiling toggle, the shell's host |

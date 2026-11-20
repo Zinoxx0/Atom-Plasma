@@ -8,7 +8,8 @@ import Rice
 
 // Claude usage limits with Clawd in the panel.
 // Data:    ~/.cache/claude-usage.json  (written by ~/.claude/statusline.sh, when the numbers change and
-//          every 20 s while a session runs)
+//          every 20 s while a session runs) and ~/.cache/claude-usage-poll.json (bin/claude-usage.py, from
+//          Anthropic every 5 minutes): qml/Rice/ClaudeUsage.qml
 // Colours: this screen's palette (RicePalette, written by ~/.config/plasma-rice/rice.py)
 PlasmoidItem {
     id: root
@@ -29,8 +30,8 @@ PlasmoidItem {
     readonly property real uiScale: pal.uiScale
 
     // ---------- data ----------
-    // the limits, watched (no polling); the 80% / 95% notifications come from ~/.claude/statusline.sh
-    // when the data changes (contents/code/alerts.py)
+    // the limits, watched (no polling); the 80% / 95% notifications come from ~/.claude/statusline.sh and
+    // bin/claude-usage.py when the data changes (contents/code/alerts.py)
     // every bar has this widget, the islands show on one (kwin/rice_islands): the others' data rests (each
     // source reads its file again the moment it's live)
     readonly property bool live: Shell.barShown(myScreenName) || panelOpen

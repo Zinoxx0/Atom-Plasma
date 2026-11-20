@@ -5,7 +5,8 @@ something it didn't make (a file in the way is reported, not replaced).
   links      ~/.config/plasma-rice to the clone (when it's cloned elsewhere: units, widgets and shortcuts call
              that path), plasmoids/*, lnf/* and kwin/* into ~/.local/share (symlinks into the repo, so a git pull is
              the update), the user units in systemd/ into ~/.config/systemd/user
-  units      enabled by feature: the display watcher always; keyboard lights, the update check when on
+  units      enabled by feature: the display watcher always; keyboard lights, Claude's usage check, the update
+             check when on
   plasmashell  its drop-in (the widgets read and write the rice's files with XMLHttpRequest)
   shortcuts  command launchers (Meta+Alt+N / B / Shift+N: next, previous, random wallpaper; Meta+Shift+W the
              Theme page; Meta+Alt+T tiling)
@@ -223,6 +224,8 @@ def install(dry=False):
         want.append("atom-plasma-rgb-watch.service")
     if caps.feature("gamepad", cfg):
         want.append("atom-plasma-pad.service")
+    if caps.feature("claude", cfg):
+        want.append("atom-plasma-claude-usage.timer")       # (the rings stay right with no session here)
     if caps.feature("update_check", cfg):
         want += ["atom-plasma-update-check.timer", "atom-plasma-update-tidy.timer"]
     # KRunner is replaced by the launcher's search (Atom.Native's KRunner holds its place on the bus, so its

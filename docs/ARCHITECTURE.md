@@ -29,7 +29,7 @@ commands the shell runs (`rice.py ...`).
 | `pkg/` | Packages built from source: `atom-native`, a fork of the rounded-corners effect, a BlueZ fix. |
 | `tests/` | `python3 -m unittest discover -s tests`: the engine (golden outputs), QML run offscreen, and a qmllint pass. |
 | `tools/` | Development tools: nested KWin sessions for testing the shell (`tools/nested/`), a uinput pointer (`pointer.py`), screenshot sheets. |
-| `bin/` | Programs that units, hooks, widgets and shortcuts run by path: `displayd.py` (display watcher), `rgb.py` (keyboard lighting), `pad.py` (a game controller drives the desktop: evdev in, uinput out), `weather.py`, `agenda.py`, `update-check.py`, `wallhaven.py`, `battery-saver.py`, Claude Code's side (`clawd-hook.sh`, `clawd-intent.py`, `ask.sh`, `claude-statusline.sh`; `rice.py install` sets them in `~/.claude/settings.json`), and small wrappers. They find the `atom` package one folder up. |
+| `bin/` | Programs that units, hooks, widgets and shortcuts run by path: `displayd.py` (display watcher), `rgb.py` (keyboard lighting), `pad.py` (a game controller drives the desktop: evdev in, uinput out), `weather.py`, `agenda.py`, `update-check.py`, `wallhaven.py`, `battery-saver.py`, Claude Code's side (`clawd-hook.sh`, `clawd-intent.py`, `ask.sh`, `claude-statusline.sh`; `rice.py install` sets them in `~/.claude/settings.json`; `claude-usage.py`, the usage limits from Anthropic every 5 minutes), and small wrappers. They find the `atom` package one folder up. |
 
 ## How a change of wallpaper reaches the screen
 
