@@ -118,27 +118,15 @@ PlasmoidItem {
     }
     function run(cmd) { sh.connectSource(cmd + " #run") }      // a fixed set of commands: fixed names (RiceShell)
 
-    // what the right side shows: the apps, or the wallpapers (to set them, or to pick the hero)
-    property string view: "apps"
-    property string wallMode: "desktop"
-    function openWallpapers(mode, tab) {
-        wallMode = mode; view = "walls"
-        if (tab && wallsPane) wallsPane.tab = tab
-        else openTab = tab || ""
-    }
     // Atom Home's Theme page (the stage watches themeAsk), at a row: walls, colours or lights
     property int themeAsk: 0
     property string themeRow: ""
     function openTheme(row) { themeRow = row || ""; themeAsk++ }
-    // the detailed Theme panels (Fine-tune) once its Loader (inside the popup, out of this scope's reach) has made it
-    property Item wallsPane: null
-    property string openTab: ""         // a tab asked for before the Theme page was first built
     // Meta+Shift+W (~/.local/share/applications/net.local.rice-wallpapers.desktop) leaves a note,
     // then opens the launcher: read it once per opening
     onShownChanged: {
         Qt.callLater(root.takeStyle)        // a launcher style chosen while it was open applies once it's closed
         if (root.shown) sh.connectSource('f="$HOME/.local/state/rice/launcher-open"; cat "$f" 2>/dev/null; rm -f "$f" #mode')
-        else { view = "apps"; wallMode = "desktop" }
     }
     // the wheel over the emblem: this screen's next / previous wallpaper
     function stepWallpaper(d) { run('python3 "$HOME/.config/plasma-rice/rice.py" ' + (d > 0 ? "next" : "prev") + " --screen '" + Screen.name + "'") }

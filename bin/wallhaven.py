@@ -2,6 +2,13 @@
 """Fetch new wallpapers from wallhaven.cc into the collection (settings wallpaper_dir, else Pictures/Wallpapers).
 
     wallhaven.py [--dry-run] [--screen focused|<output>|<display id>] [count] [tags]
+    wallhaven.py --browse [--skip ID,ID...] [--screen ...] [count] [tags]   the picks to look at, nothing kept
+    wallhaven.py --get URL...                                             keep these (wallhaven's own full images)
+
+--browse (the launcher's "Find more online") finds the picks the same way but keeps nothing: it prints
+{"query", "tags", "thin", "picks": [{"id", "url", "thumb" (a local copy of its preview), "res", "fav"}]} and
+--skip leaves out the ids already shown (the next batch). --get downloads the given full images
+(https://w.wallhaven.cc/full/... only) into the collection, remembers them as seen, and prints {"saved": [paths]}.
 
 tags: comma-separated, e.g. "modern, clean, aesthetic". wallhaven finds nothing for
 most multi-word queries, so each tag is searched on its own and the results are
@@ -35,6 +42,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # (bin/..: the
 from atom import util  # noqa: E402
 
 SEEN = util.CACHE / "wallhaven-seen.json"
+THUMBS = util.CACHE / "wallhaven-thumbs"        # --browse's previews (kept a week)
+FULL = re.compile(r"^https://w\.wallhaven\.cc/full/[a-z0-9]{2}/wallhaven-[a-z0-9]+\.(?:jpg|jpeg|png)$")
 API = "https://wallhaven.cc/api/v1/search?"
 UA = {"User-Agent": "plasma-rice/1.0"}
 DEFAULT_QUERIES = ["landscape", "scenery", "night city", "sky", "sunset", "mountains", "lake"]
@@ -139,12 +148,71 @@ def target(key):
     return next((d for d in ds if key in (d.connector, d.id)), next((d for d in ds if d.primary), None))
 
 
+def keep(urls, walldir):
+    """--get: these full images into the collection (only wallhaven's own), remembered as seen"""
+    urls = [u for u in urls if FULL.match(u)]
+    walldir.mkdir(parents=True, exist_ok=True)
+
+    def fetch(url):
+        dest = walldir / Path(urllib.parse.urlparse(url).path).name    # wallhaven-<id>.<ext>
+        if dest.exists():
+            return str(dest)
+        tmp = dest.with_name(dest.name + ".part")
+        try:
+            tmp.write_bytes(get(url))
+            tmp.replace(dest)
+            return str(dest)
+        except OSError:
+            tmp.unlink(missing_ok=True)
+            return None
+
+    with ThreadPoolExecutor(4) as ex:
+        saved = [p for p in ex.map(fetch, urls) if p]
+    try:
+        seen = set(json.loads(SEEN.read_text()))
+    except (OSError, ValueError):
+        seen = set()
+    SEEN.parent.mkdir(parents=True, exist_ok=True)
+    SEEN.write_text(json.dumps(sorted(seen | {Path(p).stem.removeprefix("wallhaven-") for p in saved})))
+    print(json.dumps({"saved": saved}))
+
+
+def previews(picks):
+    """--browse: a local copy of each pick's preview (the launcher reads files, not the network)"""
+    THUMBS.mkdir(parents=True, exist_ok=True)
+    import time
+    for old in THUMBS.iterdir():
+        if old.stat().st_mtime < time.time() - 7 * 86400:
+            old.unlink(missing_ok=True)
+
+    def one(it):
+        dest = THUMBS / f"{it['id']}.jpg"
+        if not dest.exists():
+            try:
+                dest.write_bytes(get(it["thumbs"].get("large") or it["thumbs"]["small"]))
+            except (OSError, KeyError):
+                return ""
+        return str(dest)
+
+    with ThreadPoolExecutor(8) as ex:
+        return list(ex.map(one, picks))
+
+
 def main():
     args = sys.argv[1:]
     if args and args[0] in ("-h", "--help"):
         sys.exit(__doc__)
+    if args and args[0] == "--get":
+        keep(args[1:], util.wallpaper_dir(util.settings()))
+        return
     dry = "--dry-run" in args
-    args = [a for a in args if a != "--dry-run"]
+    browse = "--browse" in args
+    args = [a for a in args if a not in ("--dry-run", "--browse")]
+    shown = set()
+    if "--skip" in args:
+        i = args.index("--skip")
+        shown = {x for x in (args[i + 1] if i + 1 < len(args) else "").split(",") if x}
+        del args[i:i + 2]
     screen = "focused"
     if "--screen" in args:
         i = args.index("--screen")
@@ -169,7 +237,7 @@ def main():
     except (OSError, ValueError):
         seen = set()
     have = {p.stem.removeprefix("wallhaven-") for p in WALLDIR.iterdir()}
-    skip = seen | have
+    skip = seen | have | shown
 
     per_tag = [resolve(t, cats) for t in tags]
     thin = [t for t, ss in zip(tags, per_tag) if not ss]
@@ -208,6 +276,12 @@ def main():
                 it = l.pop(0)
                 picks.append(it); taken.add(it["id"])
 
+    if browse:
+        thumbs = previews(picks)
+        print(json.dumps({"query": query, "tags": tags, "thin": thin,
+                          "picks": [{"id": it["id"], "url": it["path"], "thumb": t, "res": it.get("resolution", ""),
+                                     "fav": it.get("favorites", 0)} for it, t in zip(picks, thumbs) if t]}))
+        return
     if dry:
         print(json.dumps({"query": query, "tags": tags, "thin": thin,
                           "searches": [[f"{x.q} [{x.cats}] {x.total}" for x in ss] for ss in per_tag],

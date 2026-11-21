@@ -94,7 +94,8 @@ island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on ev
   one you're editing is framed in the accent) with its Wallpapers and Colours. Below it, Everywhere: saved
   looks, the launcher, the desktop and keyboard lighting, each with its value now. On the right, the section
   you're on. Wallpapers are a grid sorted by the accent each one gives, filtered by mood. The one in focus
-  previews on the desk map and across the whole page, palette and all. Every choice is a picture of what it
+  previews on the desk map and across the whole page, palette and all; "Find more online" searches wallhaven
+  right there and downloads only what you pick. Every choice is a picture of what it
   does, and every size a slider of ticks. Its own size sits on the screen's standard size, so a big monitor
   shows more, not the same bigger. A game controller drives it too (D-pad or stick to move, A to open,
   B to go back, LB/RB for the pages, X for an item's options, Y for the Theme page and, there, a random

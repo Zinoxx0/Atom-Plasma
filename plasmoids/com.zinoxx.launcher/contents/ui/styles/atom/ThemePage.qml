@@ -24,7 +24,6 @@ Item {
         unit: page.stage.unit
         topInset: page.stage.d(140)
         wideFamily: page.stage.wideFamily
-        canDiscover: false          // (the wallhaven panel lives in the simplified launcher)
         veil: 0.42
         opacity: page.stage.capO
         origin: Qt.point(page.stage.screenObj ? page.stage.screenObj.virtualX : 0, (page.stage.screenObj ? page.stage.screenObj.virtualY : 0) + page.stage.topGap)

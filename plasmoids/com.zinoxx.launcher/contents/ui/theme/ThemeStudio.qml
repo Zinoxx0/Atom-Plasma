@@ -32,13 +32,11 @@ Item {
     required property real unit
     property real topInset: d(140)
     property bool active: true              // the keys are here (not on the host's top bar)
-    property bool canDiscover: true         // "Find more online" (the simplified launcher has the wallhaven panel)
     property real veil: 0.5                 // the uniform shade over the backdrop (the text's contrast)
     property point origin: Qt.point(0, 0)   // the window's place on the desktop (the tests' logged positions)
     property string wideFamily: wideFont.status === FontLoader.Ready ? wideFont.name : Tokens.font.display
     signal preview(var values, string image, string thumb)
     signal leave()
-    signal discover()
     signal giveKeys()
     FontLoader { id: wideFont; source: Qt.resolvedUrl("../../fonts/HubotSans.ttf") }
     // the lab's pixels: drawn on the 1440p with the launcher at unit 0.836
@@ -115,6 +113,63 @@ Item {
         say(w.name + " on " + targetLabel)
     }
     function shuffle() { model.tool("walls:random"); say("A random wallpaper on " + targetLabel) }
+
+    // ---------------------------------------------------------------- Find more online (wallhaven, StudioOnline)
+    property bool online: false
+    property string onlineQuery: ""
+    property var onlineResults: []          // [{ id, url, thumb (a local copy), res, fav }]
+    property int onlineIndex: 0
+    property string onlineState: ""         // "" | "busy" | "empty" | "error"
+    property var adding: ({})               // id -> "busy" | the path it was saved to
+    signal onlineFresh()
+    readonly property var onlineIdeas: {
+        const recent = (launcher.cfg && launcher.cfg.tagHistory ? Array.from(launcher.cfg.tagHistory) : []).slice(0, 4)
+        const ideas = ["night city", "rain", "cozy", "sunset", "mountains", "stars", "minimal", "cyberpunk", "autumn", "lake"]
+        return recent.map(q => ({ q: q, recent: true })).concat(ideas.filter(q => recent.indexOf(q) < 0).slice(0, 10 - recent.length).map(q => ({ q: q, recent: false })))
+    }
+    function added(it) { const s = adding[it.id]; return !!s && s !== "busy" }
+    function openOnline() {
+        online = true
+        if (Shell.debug) console.warn("ATOM theme online")
+        enterTimer.restart()
+    }
+    function closeOnline() {
+        online = false
+        focusLater("walls:grid")
+    }
+    function browse(q, more) {
+        q = String(q || "").trim()
+        stopTyping()
+        if (onlineState === "busy") return
+        if (!more) {
+            onlineQuery = q
+            onlineResults = []
+            onlineIndex = 0
+            if (q && launcher.cfg) launcher.cfg.tagHistory = [q].concat(Array.from(launcher.cfg.tagHistory || []).filter(h => h.toLowerCase() !== q.toLowerCase())).slice(0, 6)
+        }
+        onlineState = "busy"
+        const scr = model.target === "all" ? screenName : model.target
+        const argv = ["python3", home + "/.config/plasma-rice/bin/wallhaven.py", "--browse", "--screen", scr]
+        if (more && onlineResults.length) argv.push("--skip", onlineResults.map(r => r.id).join(","))
+        argv.push("24", q)
+        if (Shell.debug) console.warn("ATOM theme browse", JSON.stringify(q), more ? "(more)" : "")
+        sh.exec("wbrowse", argv)
+    }
+    // A on a result: into your wallpapers (once in: on the screen)
+    function onlinePick(it) {
+        if (!it) return
+        const st = adding[it.id]
+        if (st === "busy") return
+        if (st) { applyWall({ file: fileName(st), path: st, name: "The new one" }); return }
+        setAdding(it.id, "busy")
+        if (Shell.debug) { console.warn("ATOM theme run wallhaven.py --get", it.url); setAdding(it.id, "/dry-run/wallhaven-" + it.id + ".jpg"); return }
+        sh.exec("wget", ["python3", home + "/.config/plasma-rice/bin/wallhaven.py", "--get", it.url])
+    }
+    function setAdding(id, v) { const a = Object.assign({}, adding); if (v) a[id] = v; else delete a[id]; adding = a }
+    // typing in the search field: it takes the keyboard, and gives it back when the focus moves on
+    property Item typingField: null
+    function startTyping(field) { typingField = field; field.forceActiveFocus(); field.cursorPosition = field.text.length }
+    function stopTyping() { if (!typingField) return; const f = typingField; typingField = null; f.focus = false; giveKeys() }
     function north() { if (section !== "walls") return false; shuffle(); return true }
 
     // ---------------------------------------------------------------- the sections
@@ -142,6 +197,7 @@ Item {
         return ""
     }
     function setSection(id, enter) {
+        if (id !== "walls") online = false
         if (id !== section) {
             section = id
             if (Shell.debug) console.warn("ATOM theme section", id)
@@ -161,16 +217,19 @@ Item {
     function entryKey() {
         const l = lastKey[section]
         if (l && findKey(l)) return l
-        if (section === "walls") return "walls:grid"
+        if (section === "walls") return online ? (onlineResults.length ? "on:grid" : "on:field") : "walls:grid"
         let best = null
         for (const f of regs) if (!f.inSide && f.visible) { const p = f.mapToItem(ts, 0, 0); if (!best || p.y < best.y - 1 || (Math.abs(p.y - best.y) <= 1 && p.x < best.x)) best = { f: f, x: p.x, y: p.y } }
         return best ? best.f.fkey : "sec:" + section
     }
     readonly property var head: {
         const n = targetScreen ? "<b>" + wallName(fileName(targetScreen.image)) + "</b>" : ""
+        if (section === "walls" && online) return { title: "Find more online", count: onlineResults.length ? String(onlineResults.length) : "", chip: true,
+                                                    sub: "from wallhaven · scenery shaped for this screen, none you have",
+                                                    tools: [["arrow_back", "Your wallpapers", "", "online:back"]].concat(onlineResults.length ? [["refresh", "More", "", "online:more"]] : []) }
         if (section === "walls") return { title: "Wallpapers", count: String(allWalls.length), chip: true, sub: n + " is on it now · sorted by the accent each one gives",
-                                          tools: [["shuffle", "Shuffle", "Y", "walls:random"], ["folder_open", "Folder", "", "walls:folder"]]
-                                                 .concat(canDiscover ? [["travel_explore", "Find more online", "", "walls:discover"]] : []) }
+                                          tools: [["shuffle", "Shuffle", "Y", "walls:random"], ["folder_open", "Folder", "", "walls:folder"],
+                                                  ["travel_explore", "Find more online", "", "walls:discover"]] }
         if (section === "colours") return { title: "Colours", count: "", chip: true, sub: "read from " + n, tools: [] }
         if (section === "looks") return { title: "Saved looks", count: String(((model.page && model.page.presets) || []).length), chip: false,
                                           sub: "Every screen's wallpaper and colours in one step · the one in focus previews on your desk", tools: [] }
@@ -181,7 +240,9 @@ Item {
     function toolDo(id) {
         if (Shell.debug) console.warn("ATOM theme tool", id)
         if (id === "walls:random") shuffle()
-        else if (id === "walls:discover") discover()
+        else if (id === "walls:discover") openOnline()
+        else if (id === "online:back") closeOnline()
+        else if (id === "online:more") browse(onlineQuery, true)
         else model.tool(id)
     }
     function slide(it, v) {
@@ -201,10 +262,14 @@ Item {
     Timer { id: refocusTimer; interval: 0; onTriggered: ts.refocus() }
     Timer { id: relensTimer; interval: 0; onTriggered: ts.relens() }
     function relensSoon() { relensTimer.restart() }
+    property string pendingKey: ""
+    Timer { id: focusTimer; interval: 0; onTriggered: { const k = ts.pendingKey; ts.pendingKey = ""; ts.focusKey(k, "key") } }
+    function focusLater(k) { pendingKey = k; focusTimer.restart() }
     function refocus() { if (!focused) focusKey(entryKey(), "jump") }
     function focusItem(f, from) {
         if (!f) return
         const was = focused
+        if (typingField && f.fkey !== "on:field") stopTyping()
         focused = f
         if (!f.inSide && f.fkey) { const l = Object.assign({}, lastKey); l[section] = f.fkey; lastKey = l }
         if (from === "key" && f.rail && f.fkey.slice(4) !== section) setSection(f.fkey.slice(4), false)     // walking the sections shows them
@@ -260,11 +325,11 @@ Item {
     onPointerAtChanged: movedAt = Date.now()
     function pointerFresh() { const t = Date.now(); return t - movedAt < 150 && t > quietUntil }
     function pointed(f) { if (f !== focused && pointerFresh()) focusItem(f, "mouse") }
+    // a grid's tile under the pointer: the grid picks it (its owner keeps the index), then the focus is there
     function pointedTile(region, i, click) {
         if (!click && !pointerFresh()) return
-        const w = shownWalls[i]
-        if (w && w.file !== wallFile) { wallFile = w.file; schedulePreview() }
-        if (focused !== region) focusItem(region, "mouse"); else relens()
+        region.pick(i)
+        if (focused !== region) focusItem(region, "mouse"); else { relens(); schedulePreview() }
     }
     function clicked(f, focusOnly) {
         focusItem(f, "mouse")
@@ -306,7 +371,7 @@ Item {
             if (w) {
                 pv = {}
                 for (const s of model.targets) pv[s.name] = w.thumb
-                image = w.path; thumb = w.thumb
+                image = w.path || ""; thumb = w.thumb
                 values = w.pal ? Object.assign({}, rice.values, w.pal) : null
             }
         } else if (f && f.look && f.look.preset) {
@@ -329,11 +394,20 @@ Item {
         else if (k === Qt.Key_Up) move(0, -1)
         else if (k === Qt.Key_Down) move(0, 1)
         else if (k === Qt.Key_Return || k === Qt.Key_Enter || k === Qt.Key_Space) activate()
-        else if (k === Qt.Key_Escape) { if (focused && !focused.inSide) focusKey("sec:" + section, "key"); else return false }
+        else if (k === Qt.Key_Escape) {
+            if (online && focused && !focused.inSide) closeOnline()
+            else if (focused && !focused.inSide) focusKey("sec:" + section, "key")
+            else return false
+        }
         else if (k === Qt.Key_Tab) stepSection(1)
         else if (k === Qt.Key_Backtab) stepSection(-1)
         else if (k === Qt.Key_PageUp || k === Qt.Key_PageDown) cycleTarget(k === Qt.Key_PageDown ? 1 : -1)
         else if (k === Qt.Key_Menu) { if (focused) focused.menu() }
+        else if (focused && focused.fkey === "on:field" && event.text && event.text >= " " && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) {
+            const f = wallsLoader.item && wallsLoader.item.field
+            if (!f) return false
+            startTyping(f); f.insert(f.cursorPosition, event.text)
+        }
         else return false
         return true
     }
@@ -350,7 +424,8 @@ Item {
     Connections { target: ts.model; function onStatusChanged() { if (ts.model.status) ts.say(ts.model.status) } }
 
     // ================================================================ the page
-    Rectangle { anchors.fill: parent; color: C.alpha(ts.look.surfaceLowest, ts.veil) }     // uniform: no edge anywhere
+    // uniform: no edge anywhere (stronger for a light palette: a light wallpaper previewed over the room's dark scrims)
+    Rectangle { anchors.fill: parent; color: C.alpha(ts.look.surfaceLowest, ts.look.light ? Math.max(ts.veil, 0.62) : ts.veil) }
     RectangularShadow {         // the lens's glow, under the content
         visible: ts.active && !!ts.focused && ts.lw > 0
         x: ts.lx; y: ts.ly; width: ts.lw; height: ts.lh
@@ -398,9 +473,12 @@ Item {
                 }
                 Row {
                     spacing: ts.d(10)
-                    ScreenTag { studio: ts; visible: ts.head.chip; anchors.verticalCenter: parent.verticalCenter }
+                    ScreenTag { id: headTag; studio: ts; visible: ts.head.chip; anchors.verticalCenter: parent.verticalCenter }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
+                        // (never under the header's buttons)
+                        width: Math.min(implicitWidth, header.width - headTools.width - (headTag.visible ? headTag.width + ts.d(10) : 0) - ts.d(32))
+                        elide: Text.ElideRight
                         text: ts.head.sub
                         textFormat: Text.StyledText
                         color: ts.look.fgDim
@@ -409,6 +487,7 @@ Item {
                 }
             }
             Row {
+                id: headTools
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: ts.d(2)
@@ -423,7 +502,8 @@ Item {
                         text: modelData[1]
                         pad: modelData[2]
                         desc: "<b>" + modelData[1] + "</b> " + ({ "walls:random": "A random wallpaper for " + ts.targetLabel + ".", "walls:folder": "Open the wallpapers' folder.",
-                                                                  "walls:discover": "Browse wallhaven and download more." })[modelData[3]]
+                                                                  "walls:discover": "Look on wallhaven for more, shaped for this screen.", "online:back": "Back to the wallpapers you have.",
+                                                                  "online:more": "The next ones it found." })[modelData[3]]
                         act: modelData[1]
                         onActivated: ts.toolDo(modelData[3])
                     }
@@ -440,7 +520,7 @@ Item {
                 id: wallsLoader
                 anchors.fill: parent
                 active: ts.section === "walls"
-                sourceComponent: StudioWalls { studio: ts }
+                sourceComponent: ts.online ? onlineC : wallsC
                 onLoaded: ts.relensSoon()
             }
             Loader {
@@ -456,6 +536,9 @@ Item {
         }
     }
     onSectionChanged: bodyIn.restart()
+    onOnlineChanged: bodyIn.restart()
+    Component { id: wallsC; StudioWalls { studio: ts } }
+    Component { id: onlineC; StudioOnline { studio: ts } }
     Component { id: coloursC; StudioColours { studio: ts } }
     Component { id: looksC; StudioLooks { studio: ts } }
     Component { id: launcherC; StudioLauncher { studio: ts } }
@@ -594,7 +677,33 @@ Item {
         }
     }
 
-    RiceShell { id: sh; onNewData: (source, data) => disconnectSource(source) }
+    RiceShell {
+        id: sh
+        onNewData: (source, data) => {
+            const kind = (source.match(/#(\w+)(?: \d+)?$/) || [])[1], out = data["stdout"] ?? ""
+            if (kind === "wbrowse") {
+                try {
+                    const r = JSON.parse(out), have = new Set(ts.onlineResults.map(x => x.id))
+                    const more = (r.picks || []).filter(x => !have.has(x.id))
+                    const first = !ts.onlineResults.length
+                    ts.onlineResults = ts.onlineResults.concat(more)
+                    ts.onlineState = ts.onlineResults.length ? "" : "empty"
+                    if (first && more.length) { ts.onlineFresh(); ts.focusLater("on:grid") }
+                    else if (!more.length && !first) ts.say("Nothing more for that")
+                } catch (e) { ts.onlineState = "error" }
+            } else if (kind === "wget") {
+                let saved = []
+                try { saved = JSON.parse(out).saved || [] } catch (e) { }
+                for (const it of ts.onlineResults) if (ts.adding[it.id] === "busy") ts.setAdding(it.id, saved.find(p => p.indexOf("wallhaven-" + it.id + ".") >= 0) || "")
+                if (saved.length) {
+                    ts.say("Added to your wallpapers")
+                    ts.model.reload()
+                    sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" walls-index #windex')
+                } else ts.say("Couldn't download it")
+            }
+            disconnectSource(source)
+        }
+    }
     Component.onCompleted: {
         model.reload()
         sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" walls-index #windex')     // (only new or changed files)

@@ -14,6 +14,10 @@
   editor opens at a swatch), back to the wallpaper's, and intensity. Saved looks: each as its desk in
   miniature, plus this desk to save. Launcher and Desktop: every style as a picture over your wallpaper,
   sizes as tick sliders. Lighting: both keyboards side by side, each with its keys as they shine.
+- Find more online: wallhaven inside the page. Describe what you'd like (or pick a recent search or an idea);
+  the results are shaped for the screen you're editing and leave out what you have. Nothing is downloaded until
+  you pick one: A adds it to your wallpapers, A again sets it. More brings the next ones. (`wallhaven.py
+  --browse` / `--get`.) The old detailed theme panels are gone.
 - One focus ring glides over it all: arrows or a pad's D-pad move it, A applies, B goes back to the sections
   and then out, LB/RB step the sections, PgUp/PgDn the screen, Y shuffles, X opens a look's or an accent's
   options. The pointer takes the focus where it rests.

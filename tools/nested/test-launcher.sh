@@ -3,7 +3,7 @@
 # walk the rows, Tab switches pages, typing searches; Esc clears the query, leaves the search, then closes
 # it and the keyboard goes back to the app; Meta (plasmashell's activateLauncherMenu) opens it on the
 # active window's screen; the palette opens the Theme page (ThemeStudio: on the wallpaper in use, in the grid;
-# "Find more online" opens the detailed panels, Esc leaves them; left out of the grid lands on its section, walking
+# "Find more online" opens wallhaven in the page (typed, Enter searches), Esc goes back to yours; left out of the grid lands on its section, walking
 # the sections shows them, Tab steps them, a size slider takes left and right and applies once the keys pause;
 # Esc goes to the sections, then out); a left click on bare space keeps it open, a right click closes it; a pretend
 # game controller (pad.py) walks and opens it too. Nothing on the Theme page is APPLIED here: rice.py
@@ -65,8 +65,9 @@ step "meta";            qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaSh
 T=$(grep -o 'ATOM home tabs at .* theme at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $(NF-1), $NF}')
 step "theme [$T]";      $F move ${T:-1470 50} click wait 1600; shot l-theme              # it opens on the wallpaper in use, in the grid
 X=$(grep -o 'ATOM theme part tool:walls:discover at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $(NF-1), $NF}')
-step "find more [$X]";  $F move ${X:-2300 230} click wait 1400; shot l-fine
-step "fine-tune back";  $F key 1 wait 600 key 1 wait 900      # the search it opened on, then the panel
+step "find more [$X]";  $F move ${X:-2300 230} click wait 1400; shot l-online                # wallhaven, in the page
+step "online search";   $F move 800 20 key 28 wait 300 type "rain" key 28 wait 3500; shot l-online-found   # the field: type, Enter
+step "online back";     $F key 1 wait 900                                                 # Esc: back to yours (the search left the field)
 step "theme right";     $F move 800 20 key 108 wait 600 key 106 wait 700                 # down into the grid, the next wallpaper along (previewed)
 step "theme left out";  $F key 105 wait 250 key 105 wait 250 key 105 wait 250 key 105 wait 250 key 105 wait 250 key 105 wait 250 key 105 wait 700   # out of the grid: its section
 step "down a section";  $F key 108 wait 900; shot l-colours                               # walking the sections shows them
@@ -108,7 +109,8 @@ check "tab switched to Games"       'ATOM home tab 1' "$L"
 check "typing opened the search"    'ATOM home search "f"' "$L"
 check "the palette opened the Theme page" 'ATOM home tab 3 row 0' "$L"
 check "...on the wallpaper in use, in the grid" 'ATOM theme focus walls:grid (jump)' "$L"
-check "Find more opened the panels" 'ATOM stage view walls' "$L"
+check "Find more online opened its view" 'ATOM theme online' "$L"
+check "...and searched what was typed" 'ATOM theme browse "rain"' "$L"
 after() { sed -n "/ATOM ## $2/,\$p" "$L" | grep -q -- "$3" && echo "ok   $1" || { echo "FAIL $1"; fail=1; }; }
 after "left out of the grid: its section" "theme left out" 'ATOM theme focus sec:walls (key)'
 after "walking the sections showed them" "down a section" 'ATOM theme section colours'

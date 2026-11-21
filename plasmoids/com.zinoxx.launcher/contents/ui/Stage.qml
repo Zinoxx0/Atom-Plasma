@@ -253,7 +253,7 @@ Window {
     // it rested at first). KWin's rice_islands script says which screen the pointer is on the moment it
     // crosses over (Shell.bar.pointer); without it, KWin is asked every 150 ms.
     property string pointerAt: ""
-    readonly property bool following: stage.wanted && !stage.powerOver && (stage.phase === "opening" || stage.phase === "open") && stage.launcher.view !== "walls"
+    readonly property bool following: stage.wanted && !stage.powerOver && (stage.phase === "opening" || stage.phase === "open")
     onFollowingChanged: if (following && Shell.bar) pointerSeen(Shell.bar.pointer || "")
     Connections {
         target: Shell
@@ -277,7 +277,7 @@ Window {
         })
     }
     function pointerSeen(name) {
-        if (!name || !wanted || phase === "closing" || launcher.view === "walls") return
+        if (!name || !wanted || phase === "closing") return
         const before = pointerAt
         pointerAt = name
         if (!before || name === before || name === screenName) return
@@ -464,11 +464,6 @@ Window {
         else { quietUntil = Date.now() + focusMs * 1.5 + 80; focusRev++; if (!theming) ensureVisible(true) }
         if (Shell.debug) { console.warn("ATOM home line", line, line === "top" ? "top " + topItems[st.top] : ""); logFocus() }
     }
-    // "Find more online" (the Theme page): the wallhaven search lives in the detailed panel, opened on it
-    function openFinder() {
-        launcher.openWallpapers("desktop", "walls")
-        Qt.callLater(() => { if (launcher.wallsPane) launcher.wallsPane.discover = true })
-    }
     // Meta+Shift+W: the Theme page, at a section (walls, colours or lights)
     property string themeAt: ""
     function openTheme(rowId) {
@@ -542,12 +537,10 @@ Window {
     }
     function scrollPage(animate) { ensureVisible(animate) }
     // a click on bare space (the backdrop, the page between the rows): the right button closes the launcher; the
-    // left one never does (the user, 2026-11-15: a missed tile closing it was annoying). Out of the detailed
-    // panels (the frosted card), either one comes back to the launcher.
+    // left one never does (the user, 2026-11-15: a missed tile closing it was annoying)
     function bareClick(button) {
         if (Shell.debug) console.warn("ATOM stage bare click", button === Qt.RightButton ? "right" : "left")
-        if (launcher.view === "walls") launcher.view = "apps"
-        else if (button === Qt.RightButton) launcher.close()
+        if (button === Qt.RightButton) launcher.close()
     }
     // the wheel (and a touchpad) scrolls the page, as a page; the keys and the pad walk the focus
     function onWheel(ev, pos) {
@@ -729,7 +722,7 @@ Window {
             id: plane
             anchors.fill: parent
             // the search takes the whole room: the page under it goes (only the frosted backdrop stays)
-            opacity: stage.planeO * (stage.searchOpen ? 1 - stage.searchP : 1) * (stage.launcher.view === "walls" ? 0 : 1) * (1 - stage.coverP)
+            opacity: stage.planeO * (stage.searchOpen ? 1 - stage.searchP : 1) * (1 - stage.coverP)
             visible: opacity > 0.01
             scale: stage.planeS * M.lerp(1, 0.965, stage.coverP)
             Behavior on opacity { enabled: stage.phase === "open" && !coverAnim.running; NumberAnimation { duration: Tokens.base } }
@@ -794,7 +787,6 @@ Window {
                     origin: Qt.point(stage.screenObj ? stage.screenObj.virtualX : 0, (stage.screenObj ? stage.screenObj.virtualY : 0) + stage.topGap)
                     onPreview: (values, image, thumb) => stage.studioPreview(values, image, thumb)
                     onLeave: stage.setLine("top", undefined, stage.topItems.indexOf("theme"))
-                    onDiscover: stage.openFinder()
                     onGiveKeys: keys.forceActiveFocus()
                     Component.onDestruction: stage.studioPreview(null, "", "")
                 }
@@ -890,9 +882,7 @@ Window {
                                         active: (stage.focusRev, index === pg.st.row)
                                         z: active ? 1 : 0
                                         lines: (stage.focusRev, pg.st.lines[entry.id] ?? 1)
-                                        groupOpen: false
                                         tilesFocused: (stage.focusRev, (pg.st.line || "tiles") === "tiles")
-                                        toolFocus: (stage.focusRev, index === pg.st.row && pg.st.line === "tools") ? pg.st.tool : -1
                                         pointerMode: stage.pointerMode
                                         isPinned: it => !!it.favId && stage.launcher.isFavorite(it.favId)
                                         onPinToggle: i => { const it = entryAt(i); if (it && it.favId) { if (Shell.debug) console.warn("ATOM home pin", it.favId); stage.launcher.toggleFavorite(it.favId) } }
@@ -962,57 +952,7 @@ Window {
         }
 
 
-        // ---- the Theme page (WallpaperPane) in a frosted card, for now
-        Frost {
-            id: wallsCard
-            readonly property real w: Math.min(stage.u(1220), stage.width - 2 * stage.u(40))
-            backdrop: frostTex
-            visible: opacity > 0.01
-            width: w
-            height: stage.height - 2 * stage.u(56)
-            x: Math.round((stage.width - w) / 2)
-            y: stage.u(56) + (stage.launcher.view === "walls" ? 0 : stage.u(24))
-            opacity: stage.launcher.view === "walls" && stage.contentIn ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: Tokens.base; easing.type: Tokens.move } }
-            Behavior on y { NumberAnimation { duration: Tokens.slow; easing.type: Tokens.grow } }
-            radius: Tokens.radius.xl
-            tintAlpha: 0.66
-            rimA: stage.rice.primary
-            rimB: stage.rice.tertiary
-            MouseArea { anchors.fill: parent }
-            Loader {
-                anchors.fill: parent
-                anchors.margins: Tokens.space.xl
-                active: stage.launcher.view === "walls" || item !== null
-                enabled: stage.launcher.view === "walls"
-                onEnabledChanged: if (enabled && item) Qt.callLater(() => item.forceActiveFocus())
-                onLoaded: { stage.launcher.wallsPane = item; if (stage.launcher.openTab) item.tab = stage.launcher.openTab; stage.launcher.openTab = ""; item.forceActiveFocus() }
-                sourceComponent: WallpaperPane {
-                    cfg: stage.launcher.cfg
-                    mode: "desktop"
-                    screenName: stage.screenName
-                    onBack: { stage.launcher.view = "apps"; Qt.callLater(() => keys.forceActiveFocus()) }
-                }
-            }
-        }
     }
-    // the frosted card's texture (the screen's glass, as the old stage had it): loaded only while the card
-    // shows (a screen-sized picture: it was decoded for every launcher, used or not)
-    Item {
-        id: frostArt
-        width: stage.width
-        height: stage.height
-        Image {
-            anchors.fill: parent
-            fillMode: Image.PreserveAspectCrop
-            asynchronous: true
-            readonly property string pre: stage.rice.values._glassFull || ""
-            readonly property bool needed: stage.launcher.view === "walls"
-            source: !needed ? "" : pre ? "file://" + pre : stage.rice.wallpaper ? "file://" + stage.rice.wallpaper : ""
-            sourceSize.width: pre ? 0 : 96
-        }
-    }
-    ShaderEffectSource { id: frostTex; width: stage.width; height: stage.height; visible: false; sourceItem: frostArt; hideSource: true; live: stage.launcher.view === "walls" }
 
     // ------------------------------------------------------------------ the hero follows the focus (cross-fade)
     property var heroItems: [null, null]
@@ -1114,7 +1054,6 @@ Window {
         if (powerOver) { event.accepted = true; return }       // (the power page has the keys)
         pointerMode = false                                 // the keys (or a pad) in use: the pointer's hover goes
         if (!Gamepad.sending) Gamepad.inUse = false         // the keyboard again: its keys in the hints
-        if (launcher.view === "walls") return
         const k = event.key
         if (theming && !searchOpen && pageState().line !== "top" && studio && studio.key(event)) { event.accepted = true; return }
         if (k === Qt.Key_Escape) { if (searchOpen) closeSearch(); else if (theming) setTab(tabBefore); else launcher.close(); event.accepted = true; return }
@@ -1138,12 +1077,11 @@ Window {
         target: Gamepad
         enabled: stage.wanted && stage.phase === "open"
         function onButton(name) {
-            if (name !== "north" || stage.launcher.view === "walls" || stage.searchOpen) return
+            if (name !== "north" || stage.searchOpen) return
             if (stage.theming && stage.studio && stage.studio.north()) return       // (the Theme page's Y: shuffle)
             stage.toggleTheme()
         }
     }
-    Connections { target: stage.launcher; function onViewChanged() { if (Shell.debug) console.warn("ATOM stage view", stage.launcher.view) } }
     property date now: new Date()
     Timer { running: stage.phase !== "closed"; repeat: true; interval: 10000; triggeredOnStart: true; onTriggered: stage.now = new Date() }
 }
