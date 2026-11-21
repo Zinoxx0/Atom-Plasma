@@ -241,6 +241,16 @@ Window {
         setPage(tabs[(i + dd + tabs.length) % tabs.length])
     }
     function toggleTheme() { setPage(page === "theme" ? pageBefore : "theme") }
+    function takeKeys() { keys.forceActiveFocus() }         // (an editor on the Theme page closed)
+    // Meta+Shift+W: the Theme page, at a section (walls, colours or lights)
+    Connections {
+        target: stage.launcher
+        enabled: stage.wanted
+        function onThemeAskChanged() {
+            if (stage.page !== "theme") stage.setPage("theme")
+            else if (stage.pageApi && stage.pageApi.openSection) stage.pageApi.openSection(stage.launcher.themeRow)
+        }
+    }
     function openPowerHere() {          // (the shell keeps the launcher under the power page opened from it)
         const b = topBar.powerButton, p = b.mapToGlobal(0, 0)
         launcher.openPower({ x: p.x, y: p.y, width: b.width, height: b.height })
@@ -326,8 +336,9 @@ Window {
             font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: stage.d(16)
         }
         TopBar { id: topBar; stage: atomStage }
-        Caption { id: cap; stage: atomStage; content: stage.caption; opacity: stage.capO }
-        Hints { stage: atomStage }
+        // (the Theme page has its own header and footer: the shared page, ThemeStudio)
+        Caption { id: cap; stage: atomStage; content: stage.caption; opacity: stage.capO; visible: stage.page !== "theme" }
+        Hints { stage: atomStage; visible: stage.page !== "theme" }
     }
 
     Component { id: homePage; HomePage { stage: atomStage } }
@@ -343,6 +354,8 @@ Window {
         if (powerOver) { event.accepted = true; return }
         if (!Gamepad.sending) Gamepad.inUse = false
         const k = event.key
+        // the Theme page first (it walks its own parts; B/Esc it doesn't take leaves it)
+        if (page === "theme" && !searching && pageApi && pageApi.key && pageApi.key(event)) { event.accepted = true; return }
         if (k === Qt.Key_Escape) { if (searching) closeSearch(); else if (page === "theme") setPage(pageBefore); else launcher.close(); event.accepted = true; return }
         if (searching) {        // the query takes letters, spaces and Backspace; the arrows and Enter go to the results
             if (k === Qt.Key_Backspace) { launcher.query = launcher.query.slice(0, -1); event.accepted = true; return }
@@ -363,8 +376,8 @@ Window {
         enabled: stage.wanted && stage.phase === "open"
         function onButton(name) {
             if (name !== "north" || stage.searching) return
-            if (stage.page === "theme" && stage.pageApi && stage.pageApi.north) stage.pageApi.north()      // (the Theme page's Y: shuffle)
-            else stage.toggleTheme()
+            if (stage.page === "theme" && stage.pageApi && stage.pageApi.north && stage.pageApi.north()) return     // (the Theme page's Y: shuffle)
+            stage.toggleTheme()
         }
     }
 }

@@ -109,6 +109,30 @@ Item {
         setDraft("accent:" + role, hex)
         run("live:accent", riceCmd(["theme", "set", "--screen", target, "--" + role, hex]))
     }
+    // the three accents back to the wallpaper's, in one go
+    function resetAccents() {
+        for (const r of ["primary", "secondary", "tertiary"]) setDraft("accent:" + r, undefined)
+        run("live:accent", riceCmd(["theme", "set", "--screen", target, "--primary", "auto", "--secondary", "auto", "--tertiary", "auto"]))
+    }
+    function setIntensity(v) {
+        v = Math.round(Math.max(0.3, Math.min(1.5, v)) * 10) / 10
+        setDraft("intensity", v)
+        run("live:intensity", riceCmd(["theme", "set", "--screen", target, "--intensity", String(v)]))
+    }
+    // a keyboard: the screen it follows ("lead" = the theme's), its brightness, on or off
+    function setFollow(id, to) {
+        setDraft("kb:" + id + ":follow", to)
+        run("live:follow:" + id, ["python3", sh.home + "/.config/plasma-rice/bin/rgb.py", "set", id, "--follow", to])
+    }
+    function setKbBright(id, v) {
+        v = Math.max(0, Math.min(100, Math.round(v)))
+        setDraft("kb:" + id + ":brightness", v)
+        run("live:kbright:" + id, ["python3", sh.home + "/.config/plasma-rice/bin/rgb.py", "set", id, "--brightness", String(v)])
+    }
+    function kbPower(id, on) {
+        setDraft("kb:" + id + ":on", on)
+        run("live:kbon:" + id, ["python3", sh.home + "/.config/plasma-rice/bin/rgb.py", "set", id, "--on", String(on)])
+    }
     function resetAccent(role) {
         if (role.startsWith("kb:")) {       // "Automatic": back to following its screen
             const id = role.slice(3)
@@ -122,7 +146,8 @@ Item {
     readonly property real intensity: { const d = draft.intensity; if (d !== undefined) return d; const ov = here().overrides || {}; return ov.intensity !== undefined && ov.intensity !== "auto" ? Number(ov.intensity) : 1 }
     readonly property var lightDevs: tm.lights && tm.lights.devices ? tm.lights.devices.filter(d => d.ready) : []
     readonly property int brightness: draft.brightness !== undefined ? draft.brightness : lightDevs.length ? (lightDevs[0].settings || {}).brightness ?? 0 : 0
-    function here() { return screens.find(s => s.name === screenName) || screens.find(s => s.main) || screens[0] || {} }
+    // the screen whose colours are shown: the one being edited (every screen: the launcher's own)
+    function here() { const n = target === "all" ? screenName : target; return screens.find(s => s.name === n) || screens.find(s => s.name === screenName) || screens.find(s => s.main) || screens[0] || {} }
     // presets: names up to 10 characters (rice.py trims them the same way)
     function savePreset(name) { const n = String(name || "").trim().slice(0, 10); if (n) run("save", riceCmd(["preset", "save", n])) }
     function deletePreset(name) { run("delete:" + name, riceCmd(["preset", "delete", name])) }
@@ -198,7 +223,7 @@ Item {
     function build() {
         if (!page) return
         const out = []
-        const here = screens.find(s => s.name === screenName) || screens.find(s => s.main) || screens[0] || {}
+        const here = tm.here()
         // themes: whole looks, every screen's wallpaper and hand-picked colours
         const looks = page.presets.map(p => ({
             kind: "look", key: "look:" + p.name, name: p.name, preset: p, current: !!p.current,

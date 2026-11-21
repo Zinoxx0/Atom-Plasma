@@ -89,14 +89,16 @@ island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on ev
   on the frosted wallpaper, under the top band (never over it): pages Home, Games and Apps as rows of
   tiles, the focused row in front, the others behind it, smaller and see-through; a hero for
   whatever has the focus; typing searches. The pointer focuses what it rests on, not what it sweeps across on
-  its way to the hero. The palette opens the Theme page: your themes on top, then its groups, closed each time
-  it opens (Look: wallpapers and colours; Launcher; Desktop, with the Taskbar inside it; Keyboard lighting),
-  every setting in sight: each row's own tools in its header (shuffle, the folder, finding more online, intensity,
-  the keyboards' brightness and power), an accent's colour edited at its tile, a look named where you save
-  it, the screens (one, or all) on the desk map. Hovering a wallpaper shows it behind the page, fading straight
-  from one to the next. Its own size sits on the screen's standard size, so a big monitor
+  its way to the hero. The palette opens the **Theme page**, the same in both launcher styles and all on one
+  screen. On the left, the screen you're editing: your desk as it stands (pick a screen, or all of them; the
+  one you're editing is framed in the accent) with its Wallpapers and Colours. Below it, Everywhere: saved
+  looks, the launcher, the desktop and keyboard lighting, each with its value now. On the right, the section
+  you're on. Wallpapers are a grid sorted by the accent each one gives, filtered by mood. The one in focus
+  previews on the desk map and across the whole page, palette and all. Every choice is a picture of what it
+  does, and every size a slider of ticks. Its own size sits on the screen's standard size, so a big monitor
   shows more, not the same bigger. A game controller drives it too (D-pad or stick to move, A to open,
-  B to go back, LB/RB for the pages, X for an item's options, Y for the Theme page), as it does the power
+  B to go back, LB/RB for the pages, X for an item's options, Y for the Theme page and, there, a random
+  wallpaper), as it does the power
   overlay; the hints at the bottom switch to its buttons once you use it.
   Other screens keep their windows; move the pointer to one and the launcher follows (your search comes
   along). Closing, or picking a window in the top band, brings the windows back where they were.
@@ -106,7 +108,7 @@ island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on ev
   holds KRunner's place on the bus and KRunner's own daemon is masked (`rice.py install`).
 - **Launcher styles**: the launcher above is **Simplified**; **Atom's** shows your apps as an atom (rings round
   a glass core: up/down turn a ring, left/right step between rings; the pointer picks in place, the wheel turns),
-  games as a grid of banners, and a Theme page where your wallpapers form a colour wheel. `rice.py launcher
+  and games as a grid of banners; the Theme page is the same as Simplified's. `rice.py launcher
   style simplified|atom`, or Theme page → Launcher → Style.
 - **Power** (the power island, or the launcher's power button): a ripple of blur spreads over every screen
   and the session's actions come up big on yours.

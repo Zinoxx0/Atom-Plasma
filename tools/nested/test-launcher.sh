@@ -2,10 +2,10 @@
 # The launcher (Atom Home) in a nested Plasma (tools/nested/run.sh): it opens out of the jewel, the arrows
 # walk the rows, Tab switches pages, typing searches; Esc clears the query, leaves the search, then closes
 # it and the keyboard goes back to the app; Meta (plasmashell's activateLauncherMenu) opens it on the
-# active window's screen; the palette opens the Theme page (the themes, then its groups, all closed whenever it
-# opens: Enter on a header opens it; the arrows walk it, up reaches a row's own tools in its header, "Find more
-# online" opens the detailed panels, Esc leaves them, then the page; a size slider takes left and right and
-# applies once the keys pause); a left click on bare space keeps it open, a right click closes it; a pretend
+# active window's screen; the palette opens the Theme page (ThemeStudio: on the wallpaper in use, in the grid;
+# "Find more online" opens the detailed panels, Esc leaves them; left out of the grid lands on its section, walking
+# the sections shows them, Tab steps them, a size slider takes left and right and applies once the keys pause;
+# Esc goes to the sections, then out); a left click on bare space keeps it open, a right click closes it; a pretend
 # game controller (pad.py) walks and opens it too. Nothing on the Theme page is APPLIED here: rice.py
 # and rgb.py would change the user's real theme and keyboards. Screenshots in the logs folder. Exit 0 = all good.
 set -u
@@ -63,22 +63,17 @@ step "esc closes";      $F key 1 wait 200; shot l-closing; $F wait 900; shot l-c
 step "type x (app?)";   $F type "x" wait 300
 step "meta";            qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu; $F wait 2200; shot l-meta
 T=$(grep -o 'ATOM home tabs at .* theme at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $(NF-1), $NF}')
-step "theme [$T]";      $F move ${T:-1470 50} click wait 1400; shot l-theme
-step "theme down";      $F move 800 20 key 108 wait 900                        # down: the Look group's header (row 1, under the themes)
-step "open Look";       $F key 28 wait 1200
-step "down to the walls"; $F key 108 wait 1200; shot l-tools                    # down: the wallpapers' header tools first
-step "tools right";     $F key 106 wait 900; shot l-theme-walls
-W=$(grep -o 'ATOM home focus at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $NF}')      # the walls row (it has the focus)
-step "drag the page [$W]"; $F drag 800 ${W:-550} 800 $(( ${W:-550} - 200 )) wait 1200; shot l-drag      # (dragging moves the page up)
-step "back up";         $F move 800 300 wait 200 drag 800 300 800 700 wait 900 key 103 wait 300 key 103 wait 1200    # (a swipe on the hero: never a click; then to the tools)
-X=$(grep -o 'ATOM theme tool walls:discover at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $(NF-1), $NF}')
-step "find more [$X]";  $F move ${X:-400 390} click wait 1400; shot l-fine
+step "theme [$T]";      $F move ${T:-1470 50} click wait 1600; shot l-theme              # it opens on the wallpaper in use, in the grid
+X=$(grep -o 'ATOM theme part tool:walls:discover at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $(NF-1), $NF}')
+step "find more [$X]";  $F move ${X:-2300 230} click wait 1400; shot l-fine
 step "fine-tune back";  $F key 1 wait 600 key 1 wait 900      # the search it opened on, then the panel
-step "theme back";      $F key 1 wait 1200; shot l-theme-back
-step "theme again";     $F move ${T:-1470 50} click wait 1400 move 800 20 key 108 wait 700 key 108 wait 900     # (Look closed again: down, down = Launcher)
-step "open Launcher";   $F key 28 wait 1200 key 108 wait 900; shot l-slider                                     # its first row: the size slider
-step "slide";           $F key 106 wait 150 key 106 wait 1500; shot l-slid                                     # two steps up, applied after the pause
-step "theme back again"; $F key 1 wait 1200
+step "theme right";     $F move 800 20 key 108 wait 600 key 106 wait 700                 # down into the grid, the next wallpaper along (previewed)
+step "theme left out";  $F key 105 wait 250 key 105 wait 250 key 105 wait 250 key 105 wait 250 key 105 wait 250 key 105 wait 250 key 105 wait 700   # out of the grid: its section
+step "down a section";  $F key 108 wait 900; shot l-colours                               # walking the sections shows them
+step "tab sections";    $F key 15 wait 700 key 15 wait 900; shot l-launcher               # Tab: the next ones (Saved looks, Launcher)
+step "into Launcher";   $F key 106 wait 700 key 108 wait 800; shot l-slider              # its style, then down: the size slider
+step "slide";           $F key 106 wait 150 key 106 wait 1500; shot l-slid              # two steps up, applied after the pause
+step "theme back";      $F key 1 wait 600 key 1 wait 1200; shot l-theme-back             # Esc: to the sections, then out
 step "wheel down";      $F move 800 620 wait 300 wheel 15 wait 1000; shot l-wheel     # (the wheel scrolls the page)
 step "wheel up";        $F move 802 620 wait 300 wheel -15 wait 1000
 step "keys first";      $F key 106 wait 1300
@@ -86,7 +81,7 @@ P=$(grep -o 'ATOM home focus at [0-9]* [0-9]*' "$L" | tail -1 | awk '{print $(NF
 step "pointer on a tile [$P]"; $F move 900 300 wait 100 glide 900 300 ${P:-640 700} 250 wait 700; shot l-hover
 step "pointer still, keys"; $F key 106 wait 600 key 105 wait 600
 step "pad";             python3 "$REPO/tools/nested/pad.py" down right north; $F wait 1200; shot l-pad
-step "pad back";        python3 "$REPO/tools/nested/pad.py" east; $F wait 900
+step "pad back";        python3 "$REPO/tools/nested/pad.py" east; $F wait 700; python3 "$REPO/tools/nested/pad.py" east; $F wait 900     # B: to the sections, then out
 step "left click, bare"; $F move 1450 760 click wait 900; shot l-left-click     # (bare space: a left click keeps it open)
 step "right click, bare"; $F move 1452 760 click right wait 1300                # (a right click closes it)
 step "meta reopens";    qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu; $F wait 2200
@@ -112,16 +107,14 @@ check "down moved the focus a row"  'ATOM home tab 0 row 1' "$L"
 check "tab switched to Games"       'ATOM home tab 1' "$L"
 check "typing opened the search"    'ATOM home search "f"' "$L"
 check "the palette opened the Theme page" 'ATOM home tab 3 row 0' "$L"
-check "down walked the Theme page"  'ATOM theme line tiles row 1' "$L"
-check "down reached the row's tools" 'ATOM theme line tools row 2 tool walls:random' "$L"
-check "right walked the tools"      'ATOM theme line tools row 2 tool walls:folder' "$L"
-check "the page opened on the themes, every group closed" 'ATOM home tab 3 row 1 item Look (key)' "$L"
-check "Enter opened the Look group" 'ATOM theme group look open' "$L"
+check "...on the wallpaper in use, in the grid" 'ATOM theme focus walls:grid (jump)' "$L"
 check "Find more opened the panels" 'ATOM stage view walls' "$L"
 after() { sed -n "/ATOM ## $2/,\$p" "$L" | grep -q -- "$3" && echo "ok   $1" || { echo "FAIL $1"; fail=1; }; }
+after "left out of the grid: its section" "theme left out" 'ATOM theme focus sec:walls (key)'
+after "walking the sections showed them" "down a section" 'ATOM theme section colours'
+after "Tab walked the sections"       "tab sections" 'ATOM theme section launcher'
+after "into the section, down to its slider" "into Launcher" 'ATOM theme focus sl:lsize (key)'
 after "Esc left the Theme page"     "theme back" 'ATOM home tab 0 row'
-after "dragging moved the page"       "drag the page" 'ATOM page dragged to [1-9]'
-after "the page opened again with Look closed" "theme again" 'ATOM home tab 3 row 2 item Launcher (key)'
 after "the slider took the keys"      "slide" 'ATOM theme slide lsize [0-9.]*$'
 after "...and applied once they paused (a dry run)" "slide" 'ATOM theme run .*rice.py launcher size [0-9.]*$'
 notbetween() { sed -n "/ATOM ## $2/,/ATOM ## $3/p" "$L" | grep -q -- "$4" && { echo "FAIL $1"; fail=1; } || echo "ok   $1"; }

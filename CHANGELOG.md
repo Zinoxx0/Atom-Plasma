@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+**Theme page, redesigned** (the same page in both launcher styles; designed in the Atom lab)
+- Everything on one screen, nothing folded away. On the left, two panels of one kind: the screen you're
+  editing (your desk to scale, the one you edit framed in the accent, "All screens" beside it) with its
+  Wallpapers and Colours, then Everywhere (Saved looks, Launcher, Desktop, Lighting), each showing its
+  value now. On the right, the section, whole.
+- Wallpapers: a grid of every one, sorted by the accent it would give (a dot says which), filtered by mood,
+  badged with the screens it's on. The one in focus previews on the desk map and on the whole page (its
+  picture and its palette). Shuffle, the folder and finding more online sit in the header.
+- Colours: the moods as pictures of what they make from the screen's hue, the three accents (the colour
+  editor opens at a swatch), back to the wallpaper's, and intensity. Saved looks: each as its desk in
+  miniature, plus this desk to save. Launcher and Desktop: every style as a picture over your wallpaper,
+  sizes as tick sliders. Lighting: both keyboards side by side, each with its keys as they shine.
+- One focus ring glides over it all: arrows or a pad's D-pad move it, A applies, B goes back to the sections
+  and then out, LB/RB step the sections, PgUp/PgDn the screen, Y shuffles, X opens a look's or an accent's
+  options. The pointer takes the focus where it rests.
+
 **Launcher styles** (new: settings `launcher.style`, `rice.py launcher style NAME`)
 - Two launchers, each its own code: **Simplified** (the rows under a hero, as before; the default) and
   **Atom's** (new): your apps as an atom. Rings round a glass core that shows what has the focus: Pinned,

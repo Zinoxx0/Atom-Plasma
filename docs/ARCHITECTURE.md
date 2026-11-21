@@ -54,8 +54,10 @@ User settings live in `~/.config/atom-plasma/settings.json` over the repository'
   on a hidden bar stop their timers and reads.
 - **The launcher** (`plasmoids/com.zinoxx.launcher`): `main.qml` is the island; `Stage.qml` is the
   full-screen home (focus, navigation, open and close), with `StageRoom` (the backdrop that follows the
-  focus), `StageTopBar`, `StageSearch`, `LaunchFlight` and `ScreensCard` beside it, the rows and tiles in
-  `HomeRow` and `HomeTile`, and the data in `HomeModel` and `ThemeModel`.
+  focus), `StageTopBar`, `StageSearch` and `LaunchFlight` beside it, the rows and tiles in `HomeRow` and
+  `HomeTile`, and the data in `HomeModel` and `ThemeModel`. Each style (`ui/styles/NAME/`) has its own look;
+  the Theme page (`ui/theme/ThemeStudio.qml` and its parts) is shared by every style: the stage gives it the
+  keys, the wheel and the pad's Y, and wears the wallpaper and palette it previews.
 
 ## Rules the code follows
 
