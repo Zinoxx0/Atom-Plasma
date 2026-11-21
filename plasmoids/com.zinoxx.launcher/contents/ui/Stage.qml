@@ -829,7 +829,9 @@ Window {
                             property bool made: false           // its rows exist (from the first time it shows on)
                             onVisibleChanged: if (visible) made = true
                             Component.onCompleted: made = visible
-                            visible: index === stage.tab
+                            // (never the Theme page's: ThemeStudio is that page, and this one's bare Flickable and its
+                            // click catcher sat over it and ate every click and hover below the hero's line)
+                            visible: index === stage.tab && index !== stage.themeTab
                             width: rowsSlide.width
                             height: rowsSlide.height
                             function rowAt(ri) { return made ? rowsRep.itemAt(ri) : null }

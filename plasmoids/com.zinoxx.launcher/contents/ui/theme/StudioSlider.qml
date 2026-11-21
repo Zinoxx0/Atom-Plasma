@@ -25,6 +25,7 @@ Focusable {
     readonly property int at: Math.round((shown - min) / step)
     readonly property int defAt: Math.round((def - min) / step)
     width: studio.d(960)
+    readonly property bool narrow: width < studio.d(700)
     height: studio.d(70)
     lensRadius: studio.d(18)
     function setStep(k) {
@@ -36,7 +37,8 @@ Focusable {
     }
     onNudged: dx => setStep(at + dx)
     onActivated: if (rest.running) { rest.stop(); done() }
-    function done() { moving = false; commit(shown) }
+    // (applied only when it changed: a click on the tick it's at, or a release where it started, does nothing)
+    function done() { moving = false; if (Math.abs(shown - value) > step / 4) commit(shown) }
     Timer { id: rest; interval: 650; onTriggered: sl.done() }
     Rectangle { anchors.fill: parent; radius: sl.studio.d(18); color: C.alpha(sl.lk.surfaceHigh, sl.hovered ? 0.62 : 0.4) }
     Row {
@@ -72,18 +74,18 @@ Focusable {
         id: valueBox
         anchors.right: parent.right; anchors.rightMargin: sl.studio.d(24)
         anchors.verticalCenter: parent.verticalCenter
-        spacing: sl.studio.d(26)
+        spacing: sl.studio.d(sl.narrow ? 16 : 26)
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            width: sl.studio.d(124)
+            width: sl.studio.d(sl.narrow ? 92 : 124)
             horizontalAlignment: Text.AlignRight
             text: sl.fmt(sl.shown)
             color: sl.lk.fg
-            font.family: Tokens.font.display; font.weight: Font.DemiBold; font.pixelSize: sl.studio.d(30); font.features: { "tnum": 1 }
+            font.family: Tokens.font.display; font.weight: Font.DemiBold; font.pixelSize: sl.studio.d(sl.narrow ? 26 : 30); font.features: { "tnum": 1 }
         }
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            width: sl.studio.d(150)
+            width: sl.studio.d(sl.narrow ? 64 : 150)
             text: sl.defLabel + "\n" + sl.fmt(sl.def)
             color: sl.lk.fgDim
             lineHeight: 1.15

@@ -291,6 +291,7 @@ Item {
         lensJump = false
     }
     onWidthChanged: relensSoon()
+    onUnitChanged: relensSoon()             // (the launcher's own size changed: everything moved)
     onHeightChanged: relensSoon()
 
     // ---------------------------------------------------------------- the preview: what the focus would give
@@ -482,8 +483,11 @@ Item {
         }
     }
 
-    // the footer: what the focus is, and the keys (a pad's buttons when it's the one in use)
+    // the footer: what the focus is, and the keys (a pad's buttons when it's the one in use); not while the keys are on
+    // the host's top bar (it has its own)
     Item {
+        opacity: ts.active ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: Tokens.ms(250) } }
         x: ts.d(72)
         width: ts.width - 2 * ts.d(72)
         y: ts.height - ts.d(34) - height
