@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Window
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasmoid
 import org.kde.kirigami as Kirigami
@@ -16,8 +17,11 @@ Item {
     property var g                          // the Glimpse root
     // the icons fill the island (the bar gives this widget its whole height: CanFillArea). App icons carry
     // ~15% of empty margin inside their box, so a box of ~78% of the height shows a glyph of ~55%, and the
-    // pins sit close: their own margins already part them
-    readonly property int iconSize: Math.max(16, Math.min(Math.round(Kirigami.Units.iconSizes.medium * g.uiScale * 1.6), Math.round(height * 0.78)))
+    // pins sit close: their own margins already part them. Their size comes from the FREE look's island height (the
+    // bar's height less its top padding, atom/panel.py BAR_PAD: 6 above, 2 past the bottom): docked, the padding
+    // goes and the island grows to the floor's top, and the pins only re-centre in it instead of growing
+    readonly property real freeH: Window.window ? Math.min(height, Window.window.height - 4) : height
+    readonly property int iconSize: Math.max(16, Math.min(Math.round(Kirigami.Units.iconSizes.medium * g.uiScale * 1.6), Math.round(freeH * 0.78)))
     readonly property int pinW: iconSize + Math.round(iconSize * 0.08)
     readonly property int count: g.launchers.count
     // every pin, 1 px apart; folded as far as it goes: one pin and the folder

@@ -22,6 +22,10 @@
   and then out, LB/RB step the sections, PgUp/PgDn the screen, Y shuffles, X opens a look's or an accent's
   options. The pointer takes the focus where it rests.
 
+**Bar**
+- Docked (a window maximized or touching it), the islands fill the floor to its top: the launcher's jewel no
+  longer stops short of it, and the icons sit in the floor's middle. The pins keep their size.
+
 **Launcher styles** (new: settings `launcher.style`, `rice.py launcher style NAME`)
 - Two launchers, each its own code: **Simplified** (the rows under a hero, as before; the default) and
   **Atom's** (new): your apps as an atom. Rings round a glass core that shows what has the focus: Pinned,

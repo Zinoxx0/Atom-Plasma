@@ -58,7 +58,12 @@ ISLAND_RADIUS = TOKENS["radius"]["md"]     # islands share the windows' corner r
 # window wherever an outline mustn't show (the window clips it): the bottom (the screen's edge), the left
 # (the launcher's side) and the right (the clock's). Two pixels: Plasma's panel layout leaves its first and
 # last logical pixel empty, and a fractional scale can stretch the window's last row a little past it.
+# Docked, the top padding goes (BAR_PAD_DOCKED): the floor fills the bar's whole height up to the window's edge, so
+# the islands (the launcher's jewel, a hovered island's plate) fill it too and the content sits in its middle; with
+# the free look's 6 px the jewel stopped short of the floor's top (the user, 2026-11-21: "an upper padding").
+# Glimpse sizes its pins from the free look's height, so docking re-centres them without resizing them.
 BAR_PAD = {"top": 6, "bottom": -2, "left": -2, "right": -2}
+BAR_PAD_DOCKED = dict(BAR_PAD, top=0)
 
 
 def notch(o, r=ISLAND_RADIUS):
@@ -100,7 +105,7 @@ def panel_settings(p=None, docked=False):
     blur region)."""
     ps = preset()["panel"]
     n = ps["normal"]
-    n["padding"] = {"enabled": True, "side": dict(BAR_PAD)}
+    n["padding"] = {"enabled": True, "side": dict(BAR_PAD_DOCKED if docked else BAR_PAD)}
     if not p:
         n["enabled"] = False
         return ps
