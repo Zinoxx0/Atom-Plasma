@@ -87,7 +87,7 @@ Item {
     onResultsChanged: if (atom.ring) { atom.ring.current = 0; atom.ring.picked = -1; atom.mode = "slot" }   // the best match in the slot
     Component.onCompleted: {
         if (!page.stage) return
-        page.stage.pageApi = { act: i => i === 0 ? atom.launch() : atom.openOptions(), wheel: dy => atom.turn(dy > 0 ? -1 : 1) }
+        page.stage.pageApi = { act: i => i === 0 ? atom.launch() : atom.openOptions(), wheel: (dy, at) => atom.wheelAt(dy > 0 ? -1 : 1, at) }
         page.stage.hints = { pad: [["↕", "Turn"], ["A", "Open"], ["X", "Options"], ["B", "Back"]],
                              keys: [["↑ ↓", "Turn"], ["Enter", "Open"], ["Esc", "Back"]] }
         collect(); publish()

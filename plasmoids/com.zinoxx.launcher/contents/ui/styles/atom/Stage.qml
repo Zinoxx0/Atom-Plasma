@@ -263,7 +263,7 @@ Window {
     property var caption: ({ where: [], name: "" })
     property color focusTint: look.primary      // the focus's colour (the page reads it off its icon)
     // the page in view: what A, X and the caption's tools do, the hints, which caption button the keys are on (-1: none)
-    property var pageApi: null              // { act(i), tool(i), wheel(dy) }
+    property var pageApi: null              // { act(i), tool(i), wheel(dy, at): at = the pointer, in the page }
     property var hints: ({ pad: [], keys: [] })
     property int capFocus: -1
     function act(i) { if (pageApi && pageApi.act) pageApi.act(i) }
@@ -321,7 +321,7 @@ Window {
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             onPressed: if (Shell.debug) console.warn("ATOM atom bare press")
             onClicked: mouse => { if (mouse.button === Qt.RightButton) stage.launcher.close() }
-            onWheel: wheel => stage.wheeled(wheel)
+            onWheel: wheel => stage.wheeled(wheel.angleDelta.y || -wheel.pixelDelta.y, Qt.point(wheel.x, wheel.y))
         }
         // the page in view (only that one exists: a page is made when it's shown)
         Loader { anchors.fill: parent; active: stage.page === "home" && !stage.searching; sourceComponent: homePage; onLoaded: stage.pageLoaded("home") }
@@ -329,6 +329,19 @@ Window {
         Loader { anchors.fill: parent; active: stage.page === "apps" && !stage.searching; sourceComponent: appsPage; onLoaded: stage.pageLoaded("apps") }
         Loader { anchors.fill: parent; active: stage.page === "games" && !stage.searching; sourceComponent: gamesPage; onLoaded: stage.pageLoaded("games") }
         Loader { anchors.fill: parent; active: stage.page === "theme" && !stage.searching; sourceComponent: themePage; onLoaded: stage.pageLoaded("theme") }
+        // the wheel, over the page (the simplified's wheelLayer): a layer that takes only the wheel. Under the page, the
+        // bare MouseArea above missed it more often than not (nested, 2026-11-22). Not on the Theme page: its grids
+        // scroll themselves first (the bare MouseArea still hands it the rest)
+        Item {
+            anchors.fill: parent
+            z: 50
+            enabled: stage.page !== "theme"
+            WheelHandler {
+                id: wheelAll
+                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                onWheel: ev => stage.wheeled(ev.angleDelta.y || -ev.pixelDelta.y, wheelAll.point.position)
+            }
+        }
         Text {      // news (a scan done...)
             x: stage.side; y: stage.height - stage.d(110)
             text: stage.news; color: stage.look.fg; opacity: stage.news ? 1 : 0
@@ -349,7 +362,7 @@ Window {
 
     // ------------------------------------------------------------------ keys (a pad's arrive as keys too)
     signal pageKey(var event)           // the page in view handles what's left
-    function wheeled(wheel) { if (pageApi && pageApi.wheel) pageApi.wheel(wheel.angleDelta.y || -wheel.pixelDelta.y) }
+    function wheeled(dy, at) { if (Shell.debug) console.warn("ATOM atom stage wheel", dy, Math.round(at.x), Math.round(at.y)); if (pageApi && pageApi.wheel) pageApi.wheel(dy, at) }
     function onKey(event) {
         if (powerOver) { event.accepted = true; return }
         if (!Gamepad.sending) Gamepad.inUse = false

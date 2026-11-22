@@ -7,17 +7,21 @@ import Rice
 // One item on a ring (Orbit), by what it carries: art (a round picture: a game, a theme, a backdrop's preview), a glyph
 // (a node: a category, an action, a section), sw / swc (a colour swatch: one colour, or colours round a disc), dot (a
 // wallpaper on the colour wheel: its accent), mark (a gauge's value), else an icon. A label under it if it has one; a
-// ring round it when it's the one in use (`now`).
+// ring round it when it's the one in use (`now`). It cuts its own gap in the ring's haze (a HazeHole in the ring's mask).
+// On a docked ring (Home) the ring places it and sizes it (the dock); elsewhere the focus grows a little.
 Item {
     id: node
     required property var orbit             // the Orbit (not `ring`: a binding `ring: ring` would bind to itself)
     required property int index
     readonly property var it: orbit.items[index] || null
-    readonly property real fade: PathView.fade === undefined ? 1 : PathView.fade
+    readonly property real fade: orbit.docked ? orbit.fadeAt(index) : PathView.fade === undefined ? 1 : PathView.fade
     readonly property bool focused: orbit.active && orbit.focusIndex === index
     readonly property string kind: !it ? "" : it.art ? "art" : it.glyph ? "glyph" : (it.sw || it.swc) ? "swatch" : it.dot ? "dot" : it.mark ? "mark" : "icon"
     readonly property var roles: it ? it.roles : null      // (the launcher's menu reads the item's roles off it)
     readonly property var pal: orbit.view.rice
+    readonly property real lookScale: orbit.docked ? orbit.scaleAt(index) : focused && kind !== "mark" ? 1.16 : 1
+    // the lens round it when it has the focus: its shown size at rest (a docked focus: the dock's), x 1.16 (+ the view's margin)
+    readonly property real lensSize: width * (orbit.docked ? orbit.focusScale(index) : 1) * 1.16
     width: orbit.d(it && it.big ? it.big : orbit.size)
     height: width
     z: focused ? 2 : 1
@@ -27,9 +31,10 @@ Item {
     // its look: only the one it needs is made (an item used to make every kind and hide all but one: a ring of 19
     // apps was ~130 items, and every category change remade them)
     Loader {
+        id: look
         anchors.fill: parent
-        scale: node.focused && node.kind !== "mark" ? 1.16 : 1
-        Behavior on scale { NumberAnimation { duration: Tokens.ms(300); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
+        scale: node.lookScale
+        Behavior on scale { enabled: !node.orbit.docked; NumberAnimation { duration: Tokens.ms(300); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
         sourceComponent: node.kind === "icon" ? iconLook : node.kind === "art" ? artLook : node.kind === "glyph" ? glyphLook
                        : node.kind === "swatch" ? (node.it.swc ? wheelLook : swatchLook) : node.kind === "dot" ? dotLook
                        : node.kind === "mark" ? markLook : null
@@ -117,13 +122,21 @@ Item {
         color: node.focused ? node.pal.fg : node.pal.fgDim
         font.family: Tokens.font.ui; font.weight: Font.Medium; font.pixelSize: node.orbit.d(node.kind === "mark" ? 13 : 14)
     }
+    HazeHole {              // its gap in the ring's haze (made here, drawn in the ring's mask; gone with it)
+        parent: node.orbit.holes
+        cx: node.x + node.width / 2 - node.orbit.hazeX
+        cy: node.y + node.height / 2 - node.orbit.hazeY
+        rad: node.visible ? node.width / 2 * look.scale + node.orbit.d(9) : 0
+        soft: node.orbit.d(4)
+        opacity: node.opacity
+    }
     MouseArea {
         anchors.fill: parent
-        anchors.margins: -node.orbit.d(node.kind === "dot" || node.kind === "mark" ? 9 : 6)    // (small ones: a bigger target than they look)
+        anchors.margins: -node.orbit.d(node.kind === "dot" || node.kind === "mark" ? 9 : 16)   // (a bigger target than it looks: the lab's round 5)
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         cursorShape: Qt.PointingHandCursor
-        onContainsMouseChanged: if (containsMouse) node.orbit.hovered(node.index)
+        onContainsMouseChanged: containsMouse ? node.orbit.hovered(node.index) : node.orbit.unhovered(node.index)
         onPressed: if (Shell.debug) console.warn("ATOM atom node press", node.orbit.index, node.index)
         onClicked: mouse => mouse.button === Qt.RightButton ? node.orbit.rightClicked(node.index, node) : node.orbit.clicked(node.index)
     }

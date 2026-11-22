@@ -4,7 +4,7 @@ import Rice
 
 // Atom's Home: the atom of what you use. Pinned (your pins) inside, Play (games with their art, the launchers) in the
 // middle, Recent (what you used lately, then the most used) outside; the focus's caption on the left. HomeModel (the
-// launcher's shared data) feeds it.
+// launcher's shared data) feeds it. Its rings are docks (AtomView.dock: the focus big, its neighbours making room).
 Item {
     id: page
     required property var stage
@@ -38,6 +38,7 @@ Item {
         id: atom
         stage: page.stage
         shells: page.shells
+        dock: true
         tint: page.tint
         onLaunched: it => page.stage.launch(it)
         onOptions: (it, dl) => { if (it && it.model && dl) page.stage.launcher.menu.openFor(dl, it.model, it.row) }
@@ -78,7 +79,7 @@ Item {
         if (!page.stage) return
         page.stage.pageApi = {
             act: i => i === 0 ? atom.launch() : atom.openOptions(),
-            wheel: dy => atom.turn(dy > 0 ? -1 : 1),
+            wheel: (dy, at) => atom.wheelAt(dy > 0 ? -1 : 1, at),
         }
         page.stage.hints = {
             pad: [["↕", "Turn"], ["↔", "Ring"], ["A", "Open"], ["X", "Options"], ["LB RB", "Pages"], ["Y", "Theme"], ["B", "Close"]],

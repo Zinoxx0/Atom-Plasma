@@ -4,8 +4,9 @@ import org.kde.kirigami as Kirigami
 import Rice
 
 // The atom's core: a glass orb that shows what has the focus (its icon, or a game's art), tinted by its colour and lit
-// from below, with a crisp light along its upper rim and a sheen; round it a fine tick bezel (every 6 deg, longer every
-// 30) and three short arcs in the focus's colour that turn a step whenever the focus changes.
+// from below, with a crisp light along its upper rim and a sheen; round it a soft glow and a fine rim in the focus's
+// colour, and three short arcs in it that turn a step whenever the focus changes. (Its tick bezel went in the lab's
+// round 6: small clutter.)
 Item {
     id: core
     required property var view
@@ -22,25 +23,23 @@ Item {
 
     Behavior on tint { ColorAnimation { duration: Tokens.ms(500); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
 
-    // the bezel: ticks every 6 deg, longer ones every 30 (dashes, in stroke widths)
+    // the focus's colour as a soft glow just round the orb (the lab's round 5: the colour stays with the core, the atom
+    // itself isn't lit), and a fine rim of it
     Shape {
-        id: bezel
-        readonly property real r: core.dia / 2 + core.view.d(32) * core.view.k
+        id: glow
+        readonly property real reach: core.dia / 2 + core.view.d(40) * core.view.k
         anchors.centerIn: parent
-        width: 2 * r + 20; height: width
-        rotation: -6 * core.turns
-        Behavior on rotation { NumberAnimation { duration: Tokens.ms(1100); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
+        width: 2 * reach; height: width
         preferredRendererType: Shape.CurveRenderer
-        readonly property real c: 2 * Math.PI * r
         ShapePath {
-            fillColor: "transparent"; strokeColor: C.alpha(core.rice.fg, 0.32); strokeWidth: 5
-            strokeStyle: ShapePath.DashLine; dashPattern: [1.6 / 5, (bezel.c / 60 - 1.6) / 5]; capStyle: ShapePath.FlatCap
-            PathAngleArc { centerX: bezel.width / 2; centerY: bezel.height / 2; radiusX: bezel.r; radiusY: bezel.r; startAngle: 0; sweepAngle: 360 }
-        }
-        ShapePath {
-            fillColor: "transparent"; strokeColor: C.alpha(core.rice.fg, 0.58); strokeWidth: 8
-            strokeStyle: ShapePath.DashLine; dashPattern: [2.2 / 8, (bezel.c / 12 - 2.2) / 8]; capStyle: ShapePath.FlatCap
-            PathAngleArc { centerX: bezel.width / 2; centerY: bezel.height / 2; radiusX: bezel.r + 1.5; radiusY: bezel.r + 1.5; startAngle: 0; sweepAngle: 360 }
+            strokeWidth: -1
+            fillGradient: RadialGradient {
+                centerX: glow.reach; centerY: glow.reach; centerRadius: glow.reach; focalX: glow.reach; focalY: glow.reach
+                GradientStop { position: 0; color: C.alpha(core.tint, 0.26) }
+                GradientStop { position: core.dia / 2 / glow.reach; color: C.alpha(core.tint, 0.26) }
+                GradientStop { position: 1; color: C.alpha(core.tint, 0) }
+            }
+            PathAngleArc { centerX: glow.reach; centerY: glow.reach; radiusX: glow.reach; radiusY: glow.reach; startAngle: 0; sweepAngle: 360 }
         }
     }
     // three short arcs in the focus's colour, turning a step on every change
@@ -75,6 +74,10 @@ Item {
             color: C.mix(core.rice.surfaceLowest, core.tint, 0.12)
             opacity: 0.84
             border.width: 1; border.color: C.alpha(core.rice.light ? "#000000" : "#ffffff", 0.13)
+        }
+        Rectangle {         // the rim, in the focus's colour
+            anchors.fill: parent; anchors.margins: -1; radius: width / 2
+            color: "transparent"; border.width: 1; border.color: C.alpha(core.tint, 0.45)
         }
         Shape {             // light from below, in the focus's colour
             anchors.fill: parent
