@@ -1,5 +1,0 @@
-src/
-pkg/
-bluez/
-*.pkg.tar.zst
-*.log
