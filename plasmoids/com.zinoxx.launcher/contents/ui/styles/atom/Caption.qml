@@ -17,6 +17,10 @@ Item {
     y: cap.stage.atomAt.y - col.height / 2
     width: cap.d(780)
     height: col.height
+    function chip(padKey) {
+        const i = cap.stage.input
+        return i === "pad" ? padKey : i === "keys" ? ({ A: "Enter", X: "Menu", Y: "Y" }[padKey] || padKey) : ""
+    }
     property int swaps: 0
     onContentChanged: { swaps++; slide.restart() }
     property real slideT: 1
@@ -110,9 +114,10 @@ Item {
                     color: C.alpha(cap.rice.fg, am.containsMouse ? 0.12 : 0)
                     border.width: act.keyed ? Math.max(1.5, cap.d(1.6)) : 0; border.color: cap.rice.fg
                     Row { id: actRow; anchors.centerIn: parent; spacing: cap.d(10)
-                        Rectangle { width: Math.max(height, pg.implicitWidth + cap.d(12)); height: cap.d(26); radius: height / 2; anchors.verticalCenter: parent.verticalCenter
+                        Rectangle { visible: pg.text !== ""; width: Math.max(height, pg.implicitWidth + cap.d(12)); height: cap.d(26); radius: height / 2; anchors.verticalCenter: parent.verticalCenter
                                     color: "transparent"; border.width: Math.max(1, cap.d(1.5)); border.color: act.lit ? cap.rice.primary : C.alpha(cap.rice.fg, 0.34)
-                                    Text { id: pg; anchors.centerIn: parent; text: String(act.modelData[0]); color: act.lit ? cap.rice.fg : cap.rice.fgDim
+                                    // the pad's letter, the key that does it, or nothing for the pointer
+                                    Text { id: pg; anchors.centerIn: parent; text: cap.chip(String(act.modelData[0])); color: act.lit ? cap.rice.fg : cap.rice.fgDim
                                            font.family: Tokens.font.ui; font.weight: Font.Bold; font.pixelSize: cap.d(12.5) } }
                         Text { anchors.verticalCenter: parent.verticalCenter; text: String(act.modelData[1]); color: cap.rice.fg
                                font.family: Tokens.font.ui; font.weight: act.lit ? Font.DemiBold : Font.Medium; font.pixelSize: cap.d(17) } }

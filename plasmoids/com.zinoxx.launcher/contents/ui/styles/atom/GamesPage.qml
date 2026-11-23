@@ -168,7 +168,8 @@ Item {
             page.quietUntil = Date.now() + 500
             if (k === Qt.Key_PageDown || k === Qt.Key_PageUp) page.setStore(page.store + (k === Qt.Key_PageDown ? 1 : -1))
             else if (page.zone === "grid") {
-                if (k === Qt.Key_Up && page.cur - cols >= 0) page.cur -= cols
+                if (k === Qt.Key_Up && page.cur - cols < 0) return              // (the top bar's: the stage takes it)
+                else if (k === Qt.Key_Up) page.cur -= cols
                 else if (k === Qt.Key_Down && page.cur + cols < n) page.cur += cols
                 else if (k === Qt.Key_Right && page.cur % cols < cols - 1 && page.cur + 1 < n) page.cur++
                 else if (k === Qt.Key_Left && page.cur % cols > 0) page.cur--
@@ -183,6 +184,7 @@ Item {
                 else if (k === Qt.Key_Left && col > 0) page.btn--
                 else if (k === Qt.Key_Down && row === 0) page.btn = acts + Math.min(col, nt - 1)
                 else if (k === Qt.Key_Up && row === 1) page.btn = Math.min(col, acts - 1)
+                else if (k === Qt.Key_Up) return                                    // (the top bar's)
                 else if (k === Qt.Key_Return || k === Qt.Key_Enter || k === Qt.Key_Space) { if (page.btn < acts) page.stage.act(page.btn); else page.tool(page.btn - acts) }
                 else if (k !== Qt.Key_Left && k !== Qt.Key_Up && k !== Qt.Key_Down) return
             }

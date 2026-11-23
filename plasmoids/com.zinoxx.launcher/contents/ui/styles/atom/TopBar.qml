@@ -5,7 +5,8 @@ import Rice
 
 // Atom's top bar (its own: the simplified style has another): the jewel, the pages as words with a beam of accent
 // light under the one you're on (it follows the pointer over them), LB/RB while a pad is in use; the search field
-// (the query while searching), theme, power, the battery saver while on battery, the time with the date.
+// (the query while searching), theme, power, the battery saver while on battery, the time with the date. The keys and
+// the pad walk it too (stage.zone "top"): the one they're on wears a white ring (stage.topKeyed).
 Item {
     id: bar
     required property var stage
@@ -21,6 +22,18 @@ Item {
     opacity: bar.stage.topO
     transform: Translate { y: (1 - bar.stage.topO) * -bar.d(14) }
 
+    // the keys' focus on a part: a white ring round it
+    component KeyRing: Rectangle {
+        property bool on: false
+        anchors.fill: parent
+        anchors.margins: -bar.d(5)
+        radius: height / 2
+        color: "transparent"
+        border.width: Math.max(1.5, bar.d(2)); border.color: bar.rice.fg
+        opacity: on ? 1 : 0
+        visible: opacity > 0.01
+        Behavior on opacity { NumberAnimation { duration: Tokens.ms(160) } }
+    }
     component Glyph: Rectangle {
         property alias text: g.text
         width: Math.max(height, g.implicitWidth + bar.d(12)); height: bar.d(26); radius: height / 2
@@ -32,13 +45,15 @@ Item {
         id: pb
         property string icon
         property bool lit
+        property bool keyed
         property color hot: bar.rice.fg
         signal clicked()
         width: bar.d(52); height: width
         anchors.verticalCenter: parent ? parent.verticalCenter : undefined
         Rectangle { anchors.fill: parent; radius: width / 2; color: C.alpha(bar.rice.fg, pbm.containsMouse || pb.lit ? 0.12 : 0)
                     Behavior on color { ColorAnimation { duration: Tokens.fast } } }
-        Text { anchors.centerIn: parent; text: pb.icon; color: pbm.containsMouse ? pb.hot : bar.rice.fg; font.family: Tokens.font.icons; font.pixelSize: bar.d(26) }
+        Text { anchors.centerIn: parent; text: pb.icon; color: pbm.containsMouse || pb.keyed ? pb.hot : bar.rice.fg; font.family: Tokens.font.icons; font.pixelSize: bar.d(26) }
+        KeyRing { on: pb.keyed; anchors.margins: -bar.d(3) }
         MouseArea { id: pbm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: pb.clicked() }
     }
 
@@ -54,15 +69,17 @@ Item {
                      c1: "#ffffff"; c2: C.mix(bar.rice.tertiary, "#ffffff", 0.55); c3: C.mix(bar.rice.red, "#ffffff", 0.15); c4: C.mix(bar.rice.teal, "#ffffff", 0.15); glow: "#ffffff" }
             MouseArea { id: jm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: bar.stage.page !== "home" ? bar.stage.setPage("home") : bar.stage.launcher.close() }
+            KeyRing { on: bar.stage.topKeyed === "jewel" }
         }
-        Glyph { text: "LB"; visible: Gamepad.inUse }
+        Glyph { text: "LB"; visible: bar.stage.input === "pad" }
         Item {
             id: tabs
             width: tabRow.width; height: bar.height
             anchors.verticalCenter: parent.verticalCenter
             property int hovered: -1
             readonly property int on: bar.stage.tabs.indexOf(bar.stage.page)
-            readonly property Item at: (rep.count, rep.itemAt(hovered >= 0 ? hovered : on))
+            readonly property int keyed: bar.stage.tabs.indexOf(bar.stage.topKeyed)
+            readonly property Item at: (rep.count, rep.itemAt(keyed >= 0 ? keyed : hovered >= 0 ? hovered : on))
             Row {
                 id: tabRow
                 anchors.verticalCenter: parent.verticalCenter
@@ -75,12 +92,13 @@ Item {
                         required property int index
                         width: tt.implicitWidth + bar.d(32); height: bar.height
                         Text { id: tt; anchors.centerIn: parent; text: tab.modelData
-                               color: tabs.on === tab.index || tm.containsMouse ? bar.rice.fg : bar.rice.fgDim
+                               color: tabs.on === tab.index || tabs.keyed === tab.index || tm.containsMouse ? bar.rice.fg : bar.rice.fgDim
                                font.family: bar.stage.wideFamily; font.pixelSize: bar.d(21); font.variableAxes: bar.stage.wide(112, 600)
                                Behavior on color { ColorAnimation { duration: Tokens.ms(220) } } }
                         MouseArea { id: tm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                     onContainsMouseChanged: tabs.hovered = containsMouse ? tab.index : (tabs.hovered === tab.index ? -1 : tabs.hovered)
                                     onClicked: bar.stage.setPage(bar.stage.tabs[tab.index]) }
+                        KeyRing { on: tabs.keyed === tab.index; anchors.topMargin: bar.d(8); anchors.bottomMargin: bar.d(8); anchors.leftMargin: 0; anchors.rightMargin: 0 }
                     }
                 }
             }
@@ -100,7 +118,7 @@ Item {
                             color: C.alpha(bar.rice.primary, bar.rice.light ? 0.12 : 0.28) }
             }
         }
-        Glyph { text: "RB"; visible: Gamepad.inUse }
+        Glyph { text: "RB"; visible: bar.stage.input === "pad" }
     }
 
     Row {
@@ -130,9 +148,10 @@ Item {
                                 PropertyAction { value: 1 } PauseAnimation { duration: 530 } PropertyAction { value: 0 } PauseAnimation { duration: 530 } } }
             }
             MouseArea { id: fm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.IBeamCursor; onClicked: if (!field.on) bar.stage.openSearch("") }
+            KeyRing { on: bar.stage.topKeyed === "search" }
         }
-        Plain { id: themeBtn; icon: "palette"; lit: bar.stage.page === "theme"; onClicked: bar.stage.toggleTheme() }
-        Plain { id: powerBtn; icon: "power_settings_new"; hot: bar.rice.bad; onClicked: bar.stage.openPowerHere() }
+        Plain { id: themeBtn; icon: "palette"; lit: bar.stage.page === "theme"; keyed: bar.stage.topKeyed === "theme"; onClicked: bar.stage.toggleTheme() }
+        Plain { id: powerBtn; icon: "power_settings_new"; hot: bar.rice.bad; keyed: bar.stage.topKeyed === "power"; onClicked: bar.stage.openPowerHere() }
         Rectangle {         // the battery saver, while the laptop runs on battery
             visible: bar.stage.launcher.unplugged || bar.stage.launcher.saverOn
             anchors.verticalCenter: parent.verticalCenter
@@ -144,6 +163,7 @@ Item {
                        color: bar.stage.launcher.saverShown ? bar.rice.green : bar.rice.fg; font.family: Tokens.font.icons; font.pixelSize: bar.d(22) }
                 Text { anchors.verticalCenter: parent.verticalCenter; text: Math.round(sr.charge) + "%"; color: bar.rice.fg; font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: bar.d(16) } }
             MouseArea { id: sm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (!bar.stage.launcher.saverBusy) bar.stage.launcher.setSaver(!bar.stage.launcher.saverShown) }
+            KeyRing { on: bar.stage.topKeyed === "saver" }
         }
         Column {
             anchors.verticalCenter: parent.verticalCenter

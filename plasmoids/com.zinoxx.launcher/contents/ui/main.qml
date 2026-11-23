@@ -72,7 +72,7 @@ PlasmoidItem {
             if (Shell.kind === "launcher") { Shell.close("launcher"); return }
             // where the islands are (kwin/rice_islands: the pointer's screen unless fullscreen covers it)
             const scr = Shell.home(root.myScreenName)
-            Shell.open("launcher", scr, Shell.island("launcher", scr))
+            Shell.open("launcher", scr, Shell.island("launcher", scr), { input: "keys" })
         }
     }
 
@@ -332,6 +332,7 @@ PlasmoidItem {
     compactRepresentation: Island {
         id: compact
         kind: "launcher"
+        args: ({ input: "pointer" })        // (opened by a click: in the pointer's look, no key hints)
         // a pill, not a square: the bar's one wide, accent-filled island (panel/build.py launcher_style)
         Layout.minimumWidth: Math.round(emblem.implicitWidth * 1.8 * root.s)
         Layout.preferredWidth: Layout.minimumWidth

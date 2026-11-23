@@ -33,6 +33,7 @@ QtObject {
     property var anchor: null
     property var args: ({})
     readonly property bool busy: kind !== ""
+    property double padOpened: 0            // when the pad's Guide last asked for the launcher (bin/pad.py says so just before)
     property bool debug: false              // tests: log every transition (console.warn "ATOM")
     property string styleOverride: ""       // tests: the nested session's launcher style (its config's atom-test-style)
 

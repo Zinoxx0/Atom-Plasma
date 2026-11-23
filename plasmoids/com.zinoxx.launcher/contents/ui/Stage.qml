@@ -120,7 +120,13 @@ Window {
             ? Qt.point(a.x - screenObj.virtualX + a.width / 2, a.y - screenObj.virtualY - topGap + a.height / 2)
             : Qt.point(width / 2, height / 2)
         pointerAt = ""
-        pointerMode = false
+        // the input it was opened with shows its hints (nothing for a click on the jewel: the user, 2026-11-23); a
+        // follow from another screen keeps the one in use
+        if (!(Shell.args && Shell.args.carry)) {
+            const padded = Date.now() - Shell.padOpened < 1500
+            if (padded) Gamepad.inUse = true
+            pointerMode = !padded && Shell.args.input === "pointer"
+        }
         pointerSeenAt = Qt.point(-1, -1)
         pointerKnown = false
         aim = null

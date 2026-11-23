@@ -59,6 +59,7 @@ QtObject {
     function take(d) {
         if (!d) return
         if (d.action === "power") { Shell.toggle("power", Windows.activeScreen || Shell.home(""), null); return }
+        if (d.input === "pad") { Shell.padOpened = Date.now(); return }       // (the launcher opens next: in the pad's look)
         switch (d.osk) {
         case "show": show(); break
         case "hide": hide(); break

@@ -2,8 +2,9 @@ import QtQuick
 import Atom.Native
 import Rice
 
-// Atom's hints, bottom left: what the controls do on this page, the pad's letters while a pad is in use, the keys
-// otherwise. stage.hints = { pad: [["LB RB", "Pages"], ...], keys: [["Tab", "Pages"], ...] } (the page sets it).
+// Atom's hints, bottom left: what the controls do on this page, for the input in use only (stage.input: the pad's
+// letters, the keys, NOTHING for the pointer: the user, 2026-11-23). stage.hints = { pad: [["LB RB", "Pages"], ...],
+// keys: [["Tab", "Pages"], ...] } (the page sets it); on the top bar its own; every page adds the way up to it.
 Row {
     id: hints
     required property var stage
@@ -12,9 +13,20 @@ Row {
     x: hints.stage.side
     y: hints.stage.height - height - hints.d(34)
     spacing: hints.d(24)
-    opacity: hints.stage.topO
+    opacity: hints.stage.topO * (hints.stage.keysShown ? 1 : 0)
+    Behavior on opacity { enabled: hints.stage.phase === "open"; NumberAnimation { duration: Tokens.ms(260) } }
+    visible: opacity > 0.01
+    readonly property bool pad: hints.stage.input === "pad"
+    readonly property var shown: hints.stage.zone === "top"
+        ? (pad ? [["✥", "Move"], ["A", "Select"], ["B", "Back"]] : [["← →", "Move"], ["Enter", "Select"], ["Esc", "Back"]])
+        : (pad ? (hints.stage.hints.pad || []).concat([["≡", "Top bar"]]) : (hints.stage.hints.keys || []).concat([["F10", "Top bar"]]))
+    // (kept while the pointer's in use, so they don't change as they fade)
+    property var model: []
+    onShownChanged: if (hints.stage.keysShown) model = shown
+    Connections { target: hints.stage; function onKeysShownChanged() { if (hints.stage.keysShown) hints.model = hints.shown } }
+    Component.onCompleted: model = shown
     Repeater {
-        model: (Gamepad.inUse ? (hints.stage.hints.pad || []) : (hints.stage.hints.keys || []))
+        model: hints.model
         Row {
             required property var modelData
             spacing: hints.d(8)

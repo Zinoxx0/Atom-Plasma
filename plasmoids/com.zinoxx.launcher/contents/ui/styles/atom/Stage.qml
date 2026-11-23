@@ -101,6 +101,15 @@ Window {
             : Qt.point(width / 2, height / 2)
         pointerAt = ""
         finder = !!(Shell.args && Shell.args.searchOnly)
+        zone = "page"
+        // the input it was opened with (its hints show only that one's: the user, 2026-11-23): the pad's Guide, a
+        // click on the jewel, else the keys (Meta). A follow from another screen keeps the one in use.
+        if (!(Shell.args && Shell.args.carry)) {
+            const padded = Date.now() - Shell.padOpened < 1500
+            input = padded ? "pad" : Shell.args && Shell.args.input === "pointer" ? "pointer" : "keys"
+            if (padded) Gamepad.inUse = true
+        }
+        pointerKnown = false
         if (phase === "closed") {
             phase = "opening"
             waitFrame = true            // the desk clears on the first frame (onFrameSwapped)
@@ -374,13 +383,78 @@ Window {
     Component { id: gamesPage; GamesPage { stage: atomStage } }
     Component { id: themePage; ThemePage { stage: atomStage } }
 
+    // ------------------------------------------------------------------ the input in use: its hints only
+    // "pointer" (nothing shown: the user, 2026-11-23), "keys" or "pad". A real pointer move makes it the pointer
+    // (content sliding under a still one doesn't move it here: this layer never moves); a key or a pad's button the
+    // keys or the pad.
+    property string input: "keys"
+    onInputChanged: { if (input === "pointer") zone = "page"; if (Shell.debug) console.warn("ATOM atom input", input) }
+    property bool pointerKnown: false
+    property point pointerLast: Qt.point(0, 0)
+    HoverHandler {
+        target: null
+        onPointChanged: {
+            const p = point.position
+            if (stage.pointerKnown && Math.abs(p.x - stage.pointerLast.x) + Math.abs(p.y - stage.pointerLast.y) > 1 && stage.phase !== "closed")
+                stage.input = "pointer"
+            stage.pointerKnown = true
+            stage.pointerLast = p
+        }
+    }
+    readonly property bool keysShown: input !== "pointer"
+
+    // ------------------------------------------------------------------ the top bar, for the keys and the pad
+    // (the user, 2026-11-23: Theme and power couldn't be reached without the pointer). The pad's Menu (≡) or F10
+    // from anywhere, Up from the top of a grid, or up past the Theme page's top; Left/Right walk it, A/Enter picks,
+    // Down or B goes back to the page.
+    property string zone: "page"                // page | top
+    property int topAt: 0
+    readonly property var topItems: ["jewel", "home", "apps", "games", "search", "theme", "power"].concat(launcher.unplugged || launcher.saverOn ? ["saver"] : [])
+    readonly property string topKeyed: zone === "top" && keysShown ? topItems[topAt] || "" : ""
+    function enterTop(at) {
+        zone = "top"
+        const i = topItems.indexOf(at || (page === "theme" ? "theme" : page))
+        topAt = i >= 0 ? i : 0
+        if (Shell.debug) console.warn("ATOM atom top", topItems[topAt])
+    }
+    function leaveTop() {
+        zone = "page"
+        if (page === "theme" && pageApi && pageApi.enter) pageApi.enter()
+        if (Shell.debug) console.warn("ATOM atom top left")
+    }
+    function topKey(k) {
+        if (k === Qt.Key_Left || k === Qt.Key_Right) {
+            topAt = Math.max(0, Math.min(topItems.length - 1, topAt + (k === Qt.Key_Right ? 1 : -1)))
+            if (Shell.debug) console.warn("ATOM atom top", topItems[topAt])
+            return true
+        }
+        if (k === Qt.Key_Down || k === Qt.Key_Escape) { leaveTop(); return true }
+        if (k === Qt.Key_Return || k === Qt.Key_Enter || k === Qt.Key_Space) { topPick(topItems[topAt]); return true }
+        return k === Qt.Key_Up
+    }
+    function topPick(id) {
+        if (Shell.debug) console.warn("ATOM atom top pick", id)
+        if (id === "jewel") { if (page !== "home") setPage("home"); else launcher.close(); return }
+        if (id === "home" || id === "apps" || id === "games") { setPage(id); return }
+        if (id === "search") { zone = "page"; openSearch(""); return }
+        if (id === "theme") { toggleTheme(); if (page === "theme") zone = "page"; return }
+        if (id === "power") { openPowerHere(); return }
+        if (id === "saver" && !launcher.saverBusy) launcher.setSaver(!launcher.saverShown)
+    }
+
     // ------------------------------------------------------------------ keys (a pad's arrive as keys too)
     signal pageKey(var event)           // the page in view handles what's left
     function wheeled(dy, at) { if (Shell.debug) console.warn("ATOM atom stage wheel", dy, Math.round(at.x), Math.round(at.y)); if (pageApi && pageApi.wheel) pageApi.wheel(dy, at) }
     function onKey(event) {
         if (powerOver) { event.accepted = true; return }
         if (!Gamepad.sending) Gamepad.inUse = false
+        input = Gamepad.sending ? "pad" : "keys"
         const k = event.key
+        if (k === Qt.Key_F10 && !searching) { zone === "top" ? leaveTop() : enterTop(); event.accepted = true; return }
+        if (zone === "top") {
+            if (k === Qt.Key_Tab || k === Qt.Key_Backtab) { stepPage(k === Qt.Key_Tab ? 1 : -1); enterTop(); event.accepted = true; return }
+            if (topKey(k)) { event.accepted = true; return }
+        }
         // the Theme page first (it walks its own parts; B/Esc it doesn't take leaves it)
         if (page === "theme" && !searching && pageApi && pageApi.key && pageApi.key(event)) { event.accepted = true; return }
         if (k === Qt.Key_Escape) { if (searching) closeSearch(); else if (page === "theme") setPage(pageBefore); else launcher.close(); event.accepted = true; return }
@@ -393,15 +467,18 @@ Window {
         if (k === Qt.Key_Backtab) { stepPage(-1); event.accepted = true; return }
         pageKey(event)
         if (event.accepted) return
+        if (k === Qt.Key_Up && !searching) { enterTop(); event.accepted = true; return }    // (up past a page's top)
         if (event.text && event.text.trim() && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) {
             openSearch(event.text === "/" ? "" : event.text)
             event.accepted = true
         }
     }
-    Connections {       // the pad's Y: the Theme page
+    Connections {       // the pad's Y: the Theme page; its Menu (≡): the top bar
         target: Gamepad
         enabled: stage.wanted && stage.phase === "open"
         function onButton(name) {
+            stage.input = "pad"
+            if (name === "start" && !stage.powerOver) { stage.zone === "top" ? stage.leaveTop() : stage.enterTop(); return }
             if (name !== "north" || stage.searching) return
             if (stage.page === "theme" && stage.pageApi && stage.pageApi.north && stage.pageApi.north()) return     // (the Theme page's Y: shuffle)
             stage.toggleTheme()

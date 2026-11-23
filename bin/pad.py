@@ -770,11 +770,13 @@ def run():
                 if not self.guide_long and m != "game":
                     if self.osk:
                         self.show_keyboard(False)
+                    post({"input": "pad"})      # (first, on the same bus: the launcher opens showing the pad's buttons)
                     call("org.kde.plasmashell", "/PlasmaShell", "org.kde.PlasmaShell", "activateLauncherMenu")
 
         def guide_held(self):
             self.guide_long = True
             if self.mode() == "game":
+                post({"input": "pad"})
                 call("org.kde.plasmashell", "/PlasmaShell", "org.kde.PlasmaShell", "activateLauncherMenu")
             else:
                 post({"action": "power"})
