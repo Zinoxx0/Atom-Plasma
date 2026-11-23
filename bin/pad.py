@@ -903,7 +903,7 @@ def run():
         # ---- status
         def status(self):
             return {"mode": self.mode(), "forced": self.forced, "game": self.game, "shell": self.shell, "osk": self.osk,
-                    "last": self.last, "precise": self.precise, "focus": self.focus,
+                    "last": self.last, "precise": self.precise, "focus": self.focus, "screen": self.screen,
                     "pads": [{"name": p.name, "path": p.path, "grabbed": p.grabbed} for p in self.pads.values()]}
 
     d = Daemon()
