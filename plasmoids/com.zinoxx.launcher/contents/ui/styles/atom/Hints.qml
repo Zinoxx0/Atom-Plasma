@@ -19,7 +19,8 @@ Row {
     readonly property bool pad: hints.stage.input === "pad"
     readonly property var shown: hints.stage.zone === "top"
         ? (pad ? [["✥", "Move"], ["A", "Select"], ["B", "Back"]] : [["← →", "Move"], ["Enter", "Select"], ["Esc", "Back"]])
-        : (pad ? (hints.stage.hints.pad || []).concat([["≡", "Top bar"]]) : (hints.stage.hints.keys || []).concat([["F10", "Top bar"]]))
+        : pad ? (hints.stage.hints.pad || []).concat([["≡", "Top bar"]])
+              : (hints.stage.hints.keys || []).concat(hints.stage.searching ? [] : [["F10", "Top bar"]])
     // (kept while the pointer's in use, so they don't change as they fade)
     property var model: []
     onShownChanged: if (hints.stage.keysShown) model = shown

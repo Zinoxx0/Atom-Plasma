@@ -77,9 +77,12 @@ Item {
             width: tabRow.width; height: bar.height
             anchors.verticalCenter: parent.verticalCenter
             property int hovered: -1
-            readonly property int on: bar.stage.tabs.indexOf(bar.stage.page)
+            readonly property int on: bar.stage.searching ? -1 : bar.stage.tabs.indexOf(bar.stage.page)
             readonly property int keyed: bar.stage.tabs.indexOf(bar.stage.topKeyed)
             readonly property Item at: (rep.count, rep.itemAt(keyed >= 0 ? keyed : hovered >= 0 ? hovered : on))
+            property Item lastAt: null
+            onAtChanged: if (at) lastAt = at
+            Component.onCompleted: if (at) lastAt = at
             Row {
                 id: tabRow
                 anchors.verticalCenter: parent.verticalCenter
@@ -102,10 +105,13 @@ Item {
                     }
                 }
             }
-            Rectangle {     // the beam
-                readonly property real w: tabs.at ? tabs.at.width * 0.62 : 0
-                visible: !!tabs.at
-                x: tabs.at ? tabs.at.x + (tabs.at.width - w) / 2 : 0
+            Rectangle {     // the beam (fades in place while searching instead of sweeping in from the left on return)
+                readonly property Item shown: tabs.at || tabs.lastAt
+                readonly property real w: shown ? shown.width * 0.62 : 0
+                opacity: tabs.at ? 1 : 0
+                visible: opacity > 0.01 && !!shown
+                Behavior on opacity { NumberAnimation { duration: Tokens.ms(220) } }
+                x: shown ? shown.x + (shown.width - w) / 2 : 0
                 width: w; y: parent.height / 2 + bar.d(22)
                 height: Math.max(2, bar.d(2.4)); radius: height / 2
                 gradient: Gradient { orientation: Gradient.Horizontal

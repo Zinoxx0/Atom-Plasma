@@ -21,7 +21,7 @@ Item {
         return out
     }
     property int cat: 0
-    property double catAt: 0                // when the category changed (the debug log times the apps' arrival)
+    property double catAt: Date.now()       // when the category changed (the debug log times the apps' arrival)
     function catIndex(it) { return it ? page.cats.findIndex(c => c.label === it.label) : -1 }   // (by name: the rings hold copies)
     property var apps: []
     // a category's apps, read through delegates (Kicker's models are lists of rows)
@@ -67,7 +67,7 @@ Item {
         id: atom
         stage: page.stage
         shells: [{ name: "Actions", items: page.actions, radius: 236, size: 52, window: 16 },
-                 { name: page.cats[page.cat] ? page.cats[page.cat].label : "Apps", items: page.apps, radius: 384, size: 62, window: 19 },
+                 { name: page.cats[page.cat] ? page.cats[page.cat].label : "Apps", items: page.apps, radius: 384, size: 62, window: 16 },
                  { name: "Categories", items: page.cats, radius: 540, size: 64, window: 16 }]
         tint: page.tint
         Component.onCompleted: at = 1

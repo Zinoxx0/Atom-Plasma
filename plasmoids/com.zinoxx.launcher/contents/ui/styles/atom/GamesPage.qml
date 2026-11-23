@@ -44,19 +44,27 @@ Item {
         x: page.stage.side + page.stage.capWidth + page.stage.d(56); y: page.stage.d(130)
         width: page.stage.width - x - page.stage.side
         height: page.stage.height - y - page.stage.d(90)
-        Row {
+        Rectangle {
             id: chips
             anchors.right: parent.right
-            spacing: page.stage.d(8)
-            Text { text: "Library"; color: page.stage.look.fg; font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: page.stage.d(16); anchors.verticalCenter: parent.verticalCenter }
-            Repeater {
-                model: page.stores
-                Rectangle { required property string modelData; required property int index
-                    width: ct.implicitWidth + page.stage.d(24); height: page.stage.d(34); radius: height / 2
-                    color: page.store === index ? C.alpha(page.stage.look.fg, 0.14) : "transparent"
-                    Text { id: ct; anchors.centerIn: parent; text: modelData; color: page.store === index ? page.stage.look.fg : page.stage.look.fgDim
-                           font.family: Tokens.font.ui; font.weight: Font.Medium; font.pixelSize: page.stage.d(15) }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: page.setStore(index) } }
+            width: chipsRow.implicitWidth + (page.stage.look.light ? page.stage.d(28) : 0)
+            height: page.stage.d(38)
+            radius: height / 2
+            color: page.stage.look.light ? C.alpha(page.stage.look.surfaceLowest, 0.62) : "transparent"
+            Row {
+                id: chipsRow
+                anchors.centerIn: parent
+                spacing: page.stage.d(8)
+                Text { text: "Library"; color: page.stage.look.fg; font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: page.stage.d(16); anchors.verticalCenter: parent.verticalCenter }
+                Repeater {
+                    model: page.stores
+                    Rectangle { required property string modelData; required property int index
+                        width: ct.implicitWidth + page.stage.d(24); height: page.stage.d(34); radius: height / 2
+                        color: page.store === index ? C.alpha(page.stage.look.fg, 0.14) : "transparent"
+                        Text { id: ct; anchors.centerIn: parent; text: modelData; color: page.store === index ? page.stage.look.fg : page.stage.look.fgDim
+                               font.family: Tokens.font.ui; font.weight: Font.Medium; font.pixelSize: page.stage.d(15) }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: page.setStore(index) } }
+                }
             }
         }
         GridView {          // whole rows only (as many as fit), scrolled a row at a time; a margin inside for the focus's glow

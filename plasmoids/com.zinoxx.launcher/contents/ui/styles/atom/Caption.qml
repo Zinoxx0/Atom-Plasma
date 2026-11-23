@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import Atom.Native
 import Rice
 
@@ -39,16 +40,27 @@ Item {
                 model: cap.content.where || []
                 Text { required property var modelData; required property int index
                        text: String(modelData); color: index === 0 ? cap.rice.fg : cap.rice.fgDim
+                       style: cap.rice.light ? Text.Raised : Text.Normal
+                       styleColor: C.alpha(cap.rice.surfaceLowest, 0.85)
                        font.family: Tokens.font.ui; font.weight: index === 0 ? Font.DemiBold : Font.Medium; font.pixelSize: cap.d(16) }
             }
         }
-        Image {             // a game's own logo
+        Image {             // a game's own logo (soft dark shadow on light themes so white Steam logos stay legible)
             visible: !!cap.content.logo && status === Image.Ready
             source: cap.content.logo || ""
             asynchronous: true
             fillMode: Image.PreserveAspectFit
             sourceSize.width: cap.d(520)
             width: Math.min(cap.d(520), implicitWidth); height: Math.min(cap.d(170), implicitHeight * width / Math.max(1, implicitWidth))
+            layer.enabled: visible && cap.rice.light
+            layer.effect: MultiEffect {
+                shadowEnabled: true
+                shadowColor: Qt.rgba(0, 0, 0, 0.55)
+                shadowBlur: 0.65
+                shadowHorizontalOffset: 0
+                shadowVerticalOffset: cap.d(2)
+                shadowScale: 1.02
+            }
         }
         Item { width: 1; height: cap.content.logo ? cap.d(18) : 0 }
         Text {              // the name: Hubot Sans, as big as two lines allow

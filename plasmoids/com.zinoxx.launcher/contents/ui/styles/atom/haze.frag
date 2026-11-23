@@ -1,12 +1,11 @@
-// The atom's haze (Haze.qml): every ring's soft band of light in one pass, with the gaps round the items cut out.
+// The atom's haze (Haze.qml): every ring's soft band of light in one pass (apps rest right on the arcs).
 // Build (both files are committed; Qt loads the .qsb):
 //   /usr/lib/qt6/bin/qsb --glsl "100 es,120,150" --hlsl 50 --msl 12 -o haze.frag.qsb haze.frag
 // Each ring (up to four: radii/lits/shows .x .y .z .w) is three bands, as the Atom lab drew them with CSS blur: a
 // quiet one (the fg, when the ring isn't the active one), a wide one in the accent and its hot core (the active ring;
 // `lit` hands the light over). A band = an annulus `width` wide blurred by a gaussian of `sigma`, done exactly: the
 // difference of two erf across the radius. Its colour comes from the angle to the lens: c0 at the lens, c1 at a1, c2
-// at a2, c3 opposite (mirrored round the lens). The gaps: `holes` is a texture of hard discs (Haze.qml), blurred
-// here by `soft` px so every gap fades the same on every ring, page and screen.
+// at a2, c3 opposite (mirrored round the lens).
 #version 440
 layout(location = 0) in vec2 qt_TexCoord0;
 layout(location = 0) out vec4 fragColor;
@@ -22,12 +21,10 @@ layout(std140, binding = 0) uniform buf {
     vec4 sigmas;            // and their blur (px)
     vec4 stops;             // quiet/wide a1, a2; hot a1, a2 (radians)
     float lens;             // the lens's angle (radians, clockwise from 3 o'clock)
-    float soft;             // the gaps' blur (px)
     vec4 q0; vec4 q1; vec4 q2; vec4 q3;     // quiet colours
     vec4 w0; vec4 w1; vec4 w2; vec4 w3;     // wide colours
     vec4 h0; vec4 h1; vec4 h2; vec4 h3;     // hot colours
 };
-layout(binding = 1) uniform sampler2D holes;
 
 const float PI = 3.14159265;
 
@@ -58,15 +55,6 @@ vec4 ring(float dist, float t, float r, float lit, float show) {
     return over(h, over(w, q)) * show;
 }
 
-// the mask, blurred: 12 taps on a disc of `soft` px (unrolled: NVIDIA's GLSL rejects constant arrays)
-float tap(vec2 uv, vec2 px, vec2 o) { return texture(holes, uv + o * px).a; }
-float maskAt(vec2 uv, vec2 px) {
-    return (tap(uv, px, vec2(0.0, 0.0)) + tap(uv, px, vec2(0.527, -0.085)) + tap(uv, px, vec2(-0.040, 0.536))
-          + tap(uv, px, vec2(-0.670, -0.179)) + tap(uv, px, vec2(-0.419, -0.616)) + tap(uv, px, vec2(0.440, -0.639))
-          + tap(uv, px, vec2(-0.757, 0.349)) + tap(uv, px, vec2(0.574, 0.685)) + tap(uv, px, vec2(0.976, 0.122))
-          + tap(uv, px, vec2(-0.135, -0.992)) + tap(uv, px, vec2(-0.958, -0.214)) + tap(uv, px, vec2(0.130, 0.955))) / 12.0;
-}
-
 void main() {
     vec2 p = qt_TexCoord0 * boxSize;
     vec2 v = p - centre;
@@ -78,5 +66,5 @@ void main() {
     c = over(ring(dist, t, radii.z, lits.z, shows.z), c);
     c = over(ring(dist, t, radii.w, lits.w, shows.w), c);
     if (c.a < 0.002) { fragColor = vec4(0.0); return; }
-    fragColor = c * (1.0 - maskAt(qt_TexCoord0, soft / boxSize)) * qt_Opacity;
+    fragColor = c * qt_Opacity;
 }

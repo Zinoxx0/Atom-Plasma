@@ -7,7 +7,7 @@ import Rice
 // One item on a ring (Orbit), by what it carries: art (a round picture: a game, a theme, a backdrop's preview), a glyph
 // (a node: a category, an action, a section), sw / swc (a colour swatch: one colour, or colours round a disc), dot (a
 // wallpaper on the colour wheel: its accent), mark (a gauge's value), else an icon. A label under it if it has one; a
-// ring round it when it's the one in use (`now`). It cuts its own gap in the atom's haze (a disc in Haze's mask).
+// ring round it when it's the one in use (`now`). Items rest directly on the ring's haze.
 // On a docked ring (Home) the ring places it and sizes it (the dock); elsewhere the focus grows a little.
 Item {
     id: node
@@ -121,16 +121,6 @@ Item {
         text: node.it ? node.it.label || "" : ""
         color: node.focused ? node.pal.fg : node.pal.fgDim
         font.family: Tokens.font.ui; font.weight: Font.Medium; font.pixelSize: node.orbit.d(node.kind === "mark" ? 13 : 14)
-    }
-    Rectangle {             // its gap in the haze: a disc in the haze's mask (made here, gone with it), its shown edge + the gap
-        parent: node.orbit.view.holes
-        readonly property real rad: node.visible && !node.orbit.gauge ? node.width / 2 * look.scale + node.orbit.view.holeGap : 0
-        visible: rad > 0
-        x: node.x + node.width / 2 - node.orbit.view.holesX - rad
-        y: node.y + node.height / 2 - node.orbit.view.holesY - rad
-        width: 2 * rad; height: width; radius: rad
-        color: "black"
-        opacity: node.opacity
     }
     MouseArea {
         anchors.fill: parent

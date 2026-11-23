@@ -105,23 +105,32 @@ Item {
                 GradientStop { position: 1; color: "transparent" }
             }
         }
-        // the veil that keeps text readable over it (lighter over a sharp game's art: it's meant to be seen)
+        readonly property real level: Math.max(s0.level, s1.level)
+        // the veil that keeps text readable over it (lighter over a sharp game's art: it's meant to be seen;
+        // on a light theme a white veil washes the art and hides white logos, so sharp art stays unwashed and
+        // softened art gets only a gentle lift)
         Rectangle {
             anchors.fill: parent
-            color: C.alpha(scene.stage.look.surfaceLowest, art.wall ? 0.12 : art.soft ? 0.4 : 0.24)
-            opacity: Math.max(s0.level, s1.level)
-            visible: opacity > 0.004
+            readonly property real alpha: art.wall ? 0.12
+                : scene.stage.look.light ? (art.soft ? 0.14 : 0)
+                : (art.soft ? 0.4 : 0.24)
+            color: C.alpha(scene.stage.look.surfaceLowest, alpha)
+            opacity: art.level
+            visible: opacity > 0.004 && alpha > 0
         }
     }
 
     // a gradient from the top edge (the top bar's ground) and a shade on the left (the caption's)
+    // (on a light theme with game art, the flat veil above is off so the hero stays vivid; keep the top band strong
+    // enough for the top bar and date, and ease the left shade slightly so the art breathes)
+    readonly property real lightGame: scene.stage.look.light && !art.wall ? art.level : 0
     Rectangle {
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
         height: scene.stage.d(250)
         opacity: scene.stage.topO * (scene.stage.finder ? 0 : 1)
         gradient: Gradient {
-            GradientStop { position: 0; color: C.alpha(scene.stage.look.surfaceLowest, 0.78) }
-            GradientStop { position: 0.45; color: C.alpha(scene.stage.look.surfaceLowest, 0.38) }
+            GradientStop { position: 0; color: C.alpha(scene.stage.look.surfaceLowest, M.lerp(0.78, 0.84, scene.lightGame)) }
+            GradientStop { position: 0.45; color: C.alpha(scene.stage.look.surfaceLowest, M.lerp(0.38, 0.48, scene.lightGame)) }
             GradientStop { position: 1; color: C.alpha(scene.stage.look.surfaceLowest, 0) }
         }
     }
@@ -131,7 +140,7 @@ Item {
         opacity: scene.stage.bgO
         gradient: Gradient {
             orientation: Gradient.Horizontal
-            GradientStop { position: 0; color: C.alpha(scene.stage.look.surfaceLowest, 0.55) }
+            GradientStop { position: 0; color: C.alpha(scene.stage.look.surfaceLowest, M.lerp(0.55, 0.46, scene.lightGame)) }
             GradientStop { position: 1; color: C.alpha(scene.stage.look.surfaceLowest, 0) }
         }
     }

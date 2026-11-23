@@ -54,15 +54,9 @@ Item {
     readonly property real lensAngle: lensA.value
     Spring { id: lensRS; to: av.ring ? av.ring.restR : 0; stiffness: 15; epsilon: 0.1 }
     readonly property real lensRA: lensRS.value
-    // where the lens is, for the rings' haze (its gap)
+    // where the lens sits
     readonly property real lensX: cx + lensRA * Math.cos(lensAngle * Math.PI / 180)
     readonly property real lensY: cy + lensRA * Math.sin(lensAngle * Math.PI / 180)
-    readonly property real lensHole: lens.opacity > 0.01 ? lens.dia / 2 + d(7) * k : 0
-    // the haze's mask: each Node draws its gap there (its shown edge + holeGap)
-    readonly property Item holes: haze.gaps
-    readonly property real holesX: haze.x
-    readonly property real holesY: haze.y
-    readonly property real holeGap: haze.gap
 
     // the pointer: only real moves count, never right after a turn; a fling waits until it slows
     property double lastMove: 0
@@ -303,19 +297,25 @@ Item {
             readonly property var sh: av.shells[index] || ({})
             readonly property bool tight: av.shells.some((o, j) => j !== index && Math.abs((o.radius || 300) - (sh.radius || 300)) < 110)
             readonly property bool below: tight && index % 2 === 1 && !((sh.items || [])[0] && sh.items[0].label)
-            // a docked ring: clear of whatever is under it now (the slot's item, or a neighbour the dock moved there
-            // round a pointer's pick; the lens round the focus), not only the slot's item (it sat on an icon)
+            // clear of whatever is under the label (the slot's item, a neighbour the dock moved there, and the lens +
+            // its orbiting electron so the dot never clips the ring's name at 12 o'clock)
             readonly property real clear: {
                 if (!r) return 0
-                if (!r.docked) return big * 0.58 * av.d(1) * av.k + av.d(30) * av.k
                 const lx = av.cx - r.r, half = width / 2 + av.d(6) * av.k
+                const lensReach = lens.dia / 2 + av.d(10) * av.k
+                if (!r.docked) {
+                    let reach = big * 0.58 * av.d(1) * av.k + av.d(14) * av.k
+                    if (av.at === index && lens.opacity > 0.01 && Math.abs(av.lensX - lx) < half + lensReach && av.lensY - lensReach < av.cy)
+                        reach = Math.max(reach, av.cy - (av.lensY - lensReach))
+                    return reach + av.d(10) * av.k
+                }
                 let reach = 0
                 const take = (x, y, h) => { if (Math.abs(x - lx) < half + h && y - h < av.cy) reach = Math.max(reach, av.cy - (y - h)) }
                 for (let i = 0; i < r.count; i++) {
                     const a = r.angleAt(i) * Math.PI / 180, it = r.items[i] || {}
                     take(av.cx + r.r * Math.cos(a), av.cy + r.r * Math.sin(a), r.d(it.big || r.size) * r.scaleAt(i) / 2)
                 }
-                if (av.at === index && lens.opacity > 0.01) take(av.lensX, av.lensY, lens.dia / 2)
+                if (av.at === index && lens.opacity > 0.01) take(av.lensX, av.lensY, lensReach)
                 return reach + av.d(10) * av.k
             }
             x: av.cx - (r ? r.r : 0) - width / 2
@@ -323,6 +323,8 @@ Item {
                      : av.cy - clear - height
             text: r ? r.name : ""
             color: av.at === index ? av.rice.fg : av.rice.fgDim
+            style: Text.Raised
+            styleColor: C.alpha(av.rice.surfaceLowest, 0.72)
             font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: av.d(14.5); font.letterSpacing: av.d(0.6)
             opacity: M.clamp((av.stage.atomT - 0.75) * 4)
             Behavior on color { ColorAnimation { duration: Tokens.ms(300) } }
