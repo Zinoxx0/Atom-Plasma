@@ -85,6 +85,15 @@ Item {
         }
     }
     Timer { id: aimTimer; interval: 40; onTriggered: av.aimCheck() }
+    // every opening starts with no pointer history (the last session's places made the first one look like a move)
+    Connections {
+        target: av.stage
+        function onPhaseChanged() {
+            if (av.stage.phase !== "opening") return
+            av.trail = [null, null, null, null, null, null, null, null]; av.trailAt = 0
+            av.aim = null; aimTimer.stop(); av.lastMove = 0
+        }
+    }
     function speed() {          // over the last 80 ms (the newest place to the oldest one that recent)
         const now = Date.now(), n = trail.length, last = trail[trailAt]
         if (!last) return 0

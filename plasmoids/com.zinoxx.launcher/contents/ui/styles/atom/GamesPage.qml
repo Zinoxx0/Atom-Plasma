@@ -125,6 +125,7 @@ Item {
     property double lastMove: 0
     property double quietUntil: 0
     property point pointerLast: Qt.point(-1, -1)        // (its first place, as the page appears under it, isn't a move)
+    Connections { target: page.stage; function onPhaseChanged() { if (page.stage.phase === "opening") { page.pointerLast = Qt.point(-1, -1); page.lastMove = 0 } } }
     HoverHandler {
         onPointChanged: {
             const p = point.position, was = page.pointerLast
