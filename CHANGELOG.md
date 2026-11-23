@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+**Launcher, polished** (both styles where it applies)
+- Atom's rings are drawn in one pass on the GPU, with the same soft gap round every icon on every page and screen;
+  turning them and sweeping the pointer draws every frame at 144 Hz again (plasmashell's CPU for the same moves:
+  4.2 s -> 2.6 s). The highlight glides on springs straight to its item; the pointer picks at once.
+- The launcher's jewel (and the rings' gaps) no longer go blank after it has rested (a Qt Shape bug, worked round in
+  WindowRest).
+- Hints only for what you're using: the pad's buttons, the keys, or nothing for the pointer; it opens in the look of
+  what opened it. Atom's top bar (search, Theme, power, the pages) is reachable with F10, the pad's Menu, or Up.
+- Pages in the order Home, Apps, Games; moving to another screen keeps the page, its focus and the search.
+- Games: as many columns and rows as fit, sized by the launcher's size. A game's art is shown whole (never zoomed
+  or cropped), fading in and out; sharp on the Games page.
+
 **Theme page, redesigned** (the same page in both launcher styles; designed in the Atom lab)
 - Everything on one screen, nothing folded away. On the left, two panels of one kind: the screen you're
   editing (your desk to scale, the one you edit framed in the accent, "All screens" beside it) with its
