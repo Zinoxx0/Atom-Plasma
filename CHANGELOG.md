@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.0 (2026-11-23)
+
 **Atom Manager** (the launcher's settings page, the same in both styles)
 - A gear at the launcher's bottom right (or F1, or a pad's View) opens it: who it is (the version, whether it's up
   to date) and four sections. Updates: Check now asks GitHub (read-only: nothing on your desktop changes), what's
