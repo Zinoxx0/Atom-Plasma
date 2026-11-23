@@ -13,7 +13,7 @@ QtObject {
     id: pad
 
     property bool oskShown: false
-    property string oskScreen: ""           // the screen it shows on: the focused window's, when it came up
+    property string oskScreen: ""           // the screen it shows on: the focused one, when it came up
     property string layer: "letters"        // letters | accents
     property int shift: 0                   // 0 off, 1 the next key, 2 locked (letters)
     property bool altgr: false              // the next key at its AltGr level
@@ -32,8 +32,11 @@ QtObject {
         call("Shell", [Shell.kind])
         call("Osk", [JSON.stringify({ shown: oskShown, screen: oskScreen })])
     }
+    // where it comes up: an open shell surface's screen (the launcher minimizes the windows on its own, so the
+    // active window is elsewhere), else KWin's active screen as the daemon heard it (the pointer's), else the
+    // active window's
     function show(scr) {
-        oskScreen = scr || Windows.activeScreen || Shell.home("")
+        oskScreen = (Shell.busy && Shell.screen) || scr || Windows.activeScreen || Shell.home("")
         shift = 0
         altgr = false
         oskShown = true
@@ -61,9 +64,9 @@ QtObject {
         if (d.action === "power") { Shell.toggle("power", Windows.activeScreen || Shell.home(""), null); return }
         if (d.input === "pad") { Shell.padOpened = Date.now(); return }       // (the launcher opens next: in the pad's look)
         switch (d.osk) {
-        case "show": show(); break
+        case "show": show(d.screen); break
         case "hide": hide(); break
-        case "toggle": oskShown ? hide() : show(); break
+        case "toggle": oskShown ? hide() : show(d.screen); break
         case "move": move(d.dx || 0, d.dy || 0); break
         case "press": press(); break
         case "shift": shift = (shift + 1) % 3; break

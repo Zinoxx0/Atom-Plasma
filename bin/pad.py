@@ -219,6 +219,18 @@ workspace.windowActivated.connect(w => { hook(w); report(); });
 workspace.windowRemoved.connect(w => { delete seen[w.internalId]; });
 hook(workspace.activeWindow);
 report();
+// and KWin's active screen (the pointer's, or the focused window's): where the on-screen keyboard comes up
+let screen = "";
+function where() {
+    const o = workspace.activeScreen;
+    const name = o ? String(o.name || "") : "";
+    if (name === screen) return;
+    screen = name;
+    callDBus("org.zinoxx.AtomPad", "/Pad", "org.zinoxx.AtomPad", "Screen", name);
+}
+workspace.cursorPosChanged.connect(where);
+workspace.windowActivated.connect(where);
+where();
 """
 SCRIPT_NAME = "atom-pad-focus"
 
@@ -321,6 +333,7 @@ def run():
             self.osk = False            # the on-screen keyboard shows
             self.osk_auto = False       # ...because a text field took the focus (it goes with it)
             self.focus = {}
+            self.screen = ""            # KWin's active screen (the pointer's / the focused window's): the keyboard's
             self.game = False           # a game has the focus
             self.forced = None          # None (auto) | "desktop" | "game"
             self.last = "keys"          # the input used last: "keys" (the D-pad) or "pointer" (the stick)
@@ -785,7 +798,7 @@ def run():
 
         # ---- the on-screen keyboard
         def show_keyboard(self, on, auto=False):
-            post({"osk": "show" if on else "hide"})
+            post({"osk": "show", "screen": self.screen} if on else {"osk": "hide"})
             self.osk_auto = auto and on
 
         def text_input(self, active):
@@ -925,6 +938,10 @@ def run():
                     d.forced = None
                 log("focus", d.focus.get("cls"), "(a game)" if game else "")
             d.apply_mode()
+
+        @dbus.service.method(IFACE, in_signature="s")
+        def Screen(self, name):         # KWin's active screen changed (the KWin script)
+            d.screen = str(name)
 
         @dbus.service.method(IFACE, in_signature="s")
         def Key(self, key):             # {"code": evdev code, "mods": 1 shift | 2 AltGr | 4 Ctrl}
