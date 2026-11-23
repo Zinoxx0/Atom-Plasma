@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.1 (2026-11-23)
+
 **Launcher**
 - Atom's rings are continuous across every page (Home, Apps and Search): apps rest directly on the arcs without
   cutout gaps, and the Apps ring uses 16 slots with clear ring-label spacing above the lens and its orbiting dot.
