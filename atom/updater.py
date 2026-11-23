@@ -34,6 +34,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -393,7 +394,8 @@ def sh(*cmd, timeout=3600, cwd=None):
     if r.stderr.strip():
         log(r.stderr.strip()[-4000:])
     if r.returncode:
-        raise UpdateError(f"{Path(str(cmd[0])).name} failed ({r.returncode}): {(r.stderr or r.stdout).strip().splitlines()[-1:] or ['']}"[:300])
+        tail = ((r.stderr.strip() or r.stdout.strip()).splitlines() or [""])[-1]
+        raise UpdateError(f"{Path(str(cmd[0])).name} failed ({r.returncode}): {tail}"[:300])
     return r
 
 
@@ -424,11 +426,14 @@ def backup(p, cur):
     git("branch", "-f", name, head, check=True)
     changes = ""
     if out("status", "--porcelain"):
+        before = out("rev-parse", "--verify", "--quiet", "stash@{0}")
         ident = ["-c", "user.name=Atom Manager", "-c", "user.email=atom-manager@localhost"]
         git(*ident, "stash", "push", "--include-untracked", "-m", f"Atom Manager backup {stamp}", check=True)
-        changes = out("rev-parse", "stash@{0}")
-        if changes:
-            git("branch", "-f", name + "-changes", changes)
+        after = out("rev-parse", "--verify", "--quiet", "stash@{0}")
+        if after and after != before:
+            changes = after
+            git("branch", "-f", name + "-changes", changes, check=True)
+            git("stash", "drop", "stash@{0}")        # (anchored on the backup branch: keep the user's stash stack clean)
     b = {"branch": name, "head": head, "was": was, "changes": changes, "version": str(cur or ""), "at": int(time.time())}
     util.save_json(BACKUP_FILE, b)
     p.say(f"your build is kept as {name}" + (f" (your changes: {name}-changes)" if changes else ""))
@@ -455,7 +460,9 @@ def install_packages(p, need, family):
             raise UpdateError("needs an AUR helper (paru or yay) for " + ", ".join(aur))
         p.say("building " + ", ".join(aur) + " from the AUR in a terminal")
         term = shutil.which("konsole")
-        script = f"{helper} -S --needed {' '.join(aur)}; echo; echo 'Atom Manager: done here, press Enter'; read x"
+        cmd = shlex.join([helper, "-S", "--needed", *aur])
+        script = (f"if {cmd}; then echo; echo 'Atom Manager: done here, press Enter'; "
+                  "else rc=$?; echo; echo \"Atom Manager: failed ($rc), press Enter\"; fi; read _")
         if term:
             sh(term, "--nofork", "-e", "sh", "-c", script, timeout=7200)
         else:
@@ -486,6 +493,24 @@ def plugins_stale(reqs):
     return stale
 
 
+def built_packages(name, d, listed=None):
+    """Pick the built package file(s) from makepkg --packagelist (handles custom PKGDEST/PKGEXT, skips -debug and .sig)."""
+    if listed is None:
+        listed = []
+        try:
+            r = subprocess.run(["makepkg", "--packagelist"], cwd=d, capture_output=True, text=True, timeout=30)
+            if r.returncode == 0:
+                listed = [Path(line.strip()) for line in r.stdout.splitlines() if line.strip()]
+        except (OSError, subprocess.SubprocessError):
+            pass
+    found = [Path(p) for p in listed if Path(p).is_file() and not Path(p).name.endswith(".sig")]
+    if not found:
+        found = sorted((f for f in Path(d).glob(f"{name}-*.pkg.tar*") if not f.name.endswith(".sig")),
+                       key=lambda f: f.stat().st_mtime)
+    main = [f for f in found if not f.name.startswith(f"{name}-debug-")]
+    return main or found
+
+
 def build_plugins(p, reqs):
     stale = plugins_stale(reqs)
     if not stale:
@@ -499,7 +524,7 @@ def build_plugins(p, reqs):
         d = ROOT / pl["dir"]
         p.say(f"building {pl['name']}")
         sh("makepkg", "-f", "--noconfirm", "--cleanbuild", cwd=d, timeout=3600)
-        pkgs = sorted(d.glob(f"{pl['name']}-*.pkg.tar.zst"), key=lambda f: f.stat().st_mtime)
+        pkgs = built_packages(pl["name"], d)
         if not pkgs:
             raise UpdateError(f"makepkg made no package for {pl['name']}")
         p.say(f"installing {pl['name']} (asks for your password)")
@@ -588,23 +613,24 @@ def apply(tag, force=False):
             raise UpdateError(bad)
         p.end("done", f"Atom Plasma {target} is in place")
         notify("Atom Plasma updated", f"You're on {target}." + (f" Your old build is kept as {b['branch']}." if b and b.get("changes") else ""))
-    except UpdateError as e:
-        log(f"failed: {e}")
+    except Exception as e:
+        msg = str(e) if isinstance(e, UpdateError) else f"{type(e).__name__}: {e}"
+        log(f"failed: {msg}")
         if moved and b:
-            p.say(f"{e}: going back")
+            p.say(f"{msg}: going back")
             try:
                 restore(b)
-                p.end("rolledback", f"{e}. Your build is back as it was.")
-                notify("Atom Plasma update undone", f"{e}. Everything is back as it was before.", critical=True, icon="dialog-warning")
-            except UpdateError as e2:
-                p.end("failed", f"{e}; going back failed too: {e2}. Your build is in {b['branch']}.")
+                p.end("rolledback", f"{msg}. Your build is back as it was.")
+                notify("Atom Plasma update undone", f"{msg}. Everything is back as it was before.", critical=True, icon="dialog-warning")
+            except Exception as e2:
+                p.end("failed", f"{msg}; going back failed too: {e2}. Your build is in {b['branch']}.")
                 notify("Atom Plasma update failed", f"Your build is kept in {b['branch']}: see {LOG}", critical=True, icon="dialog-error")
         else:
-            p.end("failed", str(e))
+            p.end("failed", msg)
             if b:
                 restore_changes(b)
             if not DRY:
-                notify("Atom Plasma didn't update", str(e), icon="dialog-warning")
+                notify("Atom Plasma didn't update", msg, icon="dialog-warning")
     finally:
         try:
             check(do_fetch=False)
@@ -614,11 +640,11 @@ def apply(tag, force=False):
 
 
 def restore_changes(b):
-    """Put stashed changes back on top (after a failure before the code moved)."""
+    """Put stashed changes back on top (applying the backup's own commit so an unrelated user stash is never popped)."""
     if b.get("changes"):
-        r = git("stash", "pop")
+        r = git("stash", "apply", b["changes"])
         if r.returncode:
-            git("stash", "apply", b["changes"])
+            log(f"stash apply {b['changes']}: {(r.stderr or r.stdout).strip()[-200:]}")
 
 
 def restore(b):
@@ -649,7 +675,8 @@ def fresh():
     packages, then rice.py install. Talks to a terminal."""
     print("Atom Plasma: checking this system")
     rels = releases()
-    chan = os.environ.get("ATOM_CHANNEL") or channel()
+    env_chan = (os.environ.get("ATOM_CHANNEL") or "").strip().lower()
+    chan = env_chan if env_chan in CHANNELS else channel()
     has = [r for r in rels if git("cat-file", "-e", f"{r['tag']}:atom/updater.py").returncode == 0]
     ok = [r for r in has if allowed(r["version"], chan)]
     pick = ok[-1] if ok else None
@@ -677,15 +704,18 @@ def fresh():
         def say(self, m): print("  " + m); log(m)
 
     install_packages(Say(), need, sysc["family"])
+    if env_chan in CHANNELS:
+        set_channel(env_chan)
     if pick:
         git("checkout", "-f", "-B", BRANCH, pick["tag"], check=True)
         print(f"  Atom Plasma {pick['version']}")
     else:
         print("  no release yet: installing the newest code (a developer copy)")
     build_plugins(Say(), reqs)
-    r = subprocess.run([sys.executable, str(ROOT / "rice.py"), "install"])
-    if r.returncode:
-        return r.returncode
+    if not DRY:
+        r = subprocess.run([sys.executable, str(ROOT / "rice.py"), "install"])
+        if r.returncode:
+            return r.returncode
     check(do_fetch=False)
     print("\nDone. Log out and back in, then:\n  ~/.config/plasma-rice/rice.py setup    (window chrome, once)\n"
           "  ~/.config/plasma-rice/rice.py random   (a wallpaper: everything themes from it)")

@@ -118,14 +118,20 @@ class Updater(unittest.TestCase):
         self.assertTrue((self.client / "README.md").read_text().endswith("mine\n"))     # (untouched)
         r = self.run_upd("apply", "v1.1.1", "--force")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(git(self.client, "stash", "list"), "")        # (anchored on backup/*-changes: stash stack stays clean)
         backup = json.loads((self.home / ".local/state/rice/update-backup.json").read_text())
         self.assertTrue(backup["changes"])
         self.assertIn("mine", git(self.client, "show", backup["branch"] + "-changes:README.md"))
-        # rollback: the old build and its change come back
+        # an unrelated user stash made after the update must survive rollback untouched
+        (self.client / "CHANGELOG.md").write_text((self.client / "CHANGELOG.md").read_text() + "\nuser-stash\n")
+        git(self.client, "stash", "push", "-m", "user work")
+        # rollback: the old build and its change come back without popping the user's stash
         r = self.run_upd("rollback")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertTrue((self.client / "README.md").read_text().endswith("mine\n"))
         self.assertEqual(git(self.client, "rev-parse", "HEAD"), git(self.client, "rev-parse", "v1.1.0^{commit}"))
+        self.assertIn("user work", git(self.client, "stash", "list"))
+        git(self.client, "stash", "drop")
         git(self.client, "checkout", "-q", "--", "README.md")
 
     def test_3_failure_rolls_back(self):
@@ -148,6 +154,49 @@ class Updater(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("developer", self.progress()["message"])
         git(self.client, "checkout", "-q", "-f", "atom-release")
+
+    def test_5_fresh_persists_channel(self):
+        fresh_client = self.tmp / "fresh-client"
+        fresh_home = self.tmp / "fresh-home"
+        fresh_home.mkdir()
+        subprocess.run(["git", "clone", "-q", str(self.tmp / "origin.git"), str(fresh_client)], check=True)
+        env = dict(os.environ, HOME=str(fresh_home), ATOM_UPDATE_DRY="1", ATOM_CHANNEL="beta",
+                   PATH=f"{self.bin}:{os.environ.get('PATH', '')}")
+        r = subprocess.run(["python3", str(fresh_client / "rice.py"), "update", "fresh"], env=env,
+                           capture_output=True, text=True, timeout=120)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(git(fresh_client, "describe", "--tags", "--exact-match"), "v1.2.0-beta.1")
+        cfg = json.loads((fresh_home / ".config/atom-plasma/settings.json").read_text())
+        self.assertEqual(cfg["updates"]["channel"], "beta")
+
+    def test_6_built_packages_and_error_format(self):
+        from atom import updater
+        pkgdest = self.tmp / "pkgdest"
+        pkgdest.mkdir()
+        main_pkg = pkgdest / "foo-1.0-1-x86_64.pkg.tar.xz"
+        dbg_pkg = pkgdest / "foo-debug-1.0-1-x86_64.pkg.tar.xz"
+        sig_pkg = pkgdest / "foo-1.0-1-x86_64.pkg.tar.xz.sig"
+        main_pkg.write_text("main")
+        dbg_pkg.write_text("dbg")
+        sig_pkg.write_text("sig")
+        # exercise the real `makepkg --packagelist` subprocess path (listed=None) with a stub makepkg on PATH
+        stub = self.bin / "makepkg"
+        stub.write_text(f"#!/bin/sh\nprintf '%s\\n%s\\n%s\\n' '{dbg_pkg}' '{main_pkg}' '{sig_pkg}'\n")
+        stub.chmod(0o755)
+        old_path = os.environ.get("PATH", "")
+        try:
+            os.environ["PATH"] = f"{self.bin}:{old_path}"
+            picked = updater.built_packages("foo", self.tmp)
+        finally:
+            os.environ["PATH"] = old_path
+            stub.unlink(missing_ok=True)
+        self.assertEqual(picked, [main_pkg])
+        # fallback glob also skips -debug and .sig
+        self.assertEqual(updater.built_packages("foo", pkgdest, listed=[]), [main_pkg])
+        with self.assertRaises(updater.UpdateError) as ctx:
+            updater.sh("sh", "-c", "echo '   ' >&2; echo boom; exit 2")
+        self.assertIn("boom", str(ctx.exception))
+        self.assertNotIn("['boom']", str(ctx.exception))
 
 
 if __name__ == "__main__":

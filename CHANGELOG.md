@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+**Launcher**
+- Atom's rings are continuous across every page (Home, Apps and Search): apps rest directly on the arcs without
+  cutout gaps, and the Apps ring uses 16 slots with clear ring-label spacing above the lens and its orbiting dot.
+- Light themes keep game art vivid instead of washing it white, with a soft dark shadow on game logos and readable
+  top-bar / Library chips over dark artwork.
+- Input hints now stay strictly matched to the input in use across the shared Theme page and Atom Manager (no pad
+  glyphs or hardcoded "A" / "X" text on keyboard or pointer; hints fade out for the pointer; `F10` is hidden during
+  search; the top bar clears its active tab highlight while searching).
+- Atom Manager no longer shows a placeholder "up to date" subtitle while its initial status is still loading.
+- Fixed an intermittent focus race when opening the launcher with `Meta` where Plasma's collapsing applet popup
+  could drop keyboard focus, and fixed the power overlay's ripple origin on monitors offset from `(0, 0)`.
+
+**Updater and Atom Manager**
+- Fresh installs with `ATOM_CHANNEL=beta` or `alpha` now persist the chosen channel in settings.
+- Backups drop their temporary stash after anchoring it on the `backup/*-changes` branch and rollback applies that
+  commit directly, leaving the user's own git stashes untouched.
+- Plugin builds query `makepkg --packagelist` (supporting custom `PKGDEST` / `PKGEXT`) and skip `-debug` packages;
+  AUR installs properly quote package names and report failures cleanly; command error messages format as plain text.
+
 ## 1.1.0 (2026-11-23)
 
 **Atom Manager** (the launcher's settings page, the same in both styles)
