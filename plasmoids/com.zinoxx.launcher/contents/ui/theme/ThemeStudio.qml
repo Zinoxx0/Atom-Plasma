@@ -32,6 +32,11 @@ Item {
     required property real unit
     property real topInset: d(140)
     property bool active: true              // the keys are here (not on the host's top bar)
+    property string inputMode: Gamepad.inUse ? "pad" : "keys"   // pointer | keys | pad (hints show only the input in use)
+    property bool padHints: inputMode === "pad"                 // frozen while pointer fades hints out (no glyph flash)
+    onInputModeChanged: if (inputMode !== "pointer") padHints = inputMode === "pad"
+    readonly property string actKey: inputMode === "pad" ? "A" : inputMode === "keys" ? "Enter" : ""
+    readonly property string moreKey: inputMode === "pad" ? "X" : inputMode === "keys" ? "Menu" : ""
     property real veil: 0.5                 // the uniform shade over the backdrop (the text's contrast)
     property point origin: Qt.point(0, 0)   // the window's place on the desktop (the tests' logged positions)
     property string wideFamily: wideFont.status === FontLoader.Ready ? wideFont.name : Tokens.font.display
@@ -577,7 +582,7 @@ Item {
         height: ts.d(40)
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            width: parent.width - hintsRow.width - ts.d(40)
+            width: parent.width - (hintsRow.visible ? hintsRow.width + ts.d(40) : 0)
             elide: Text.ElideRight
             text: ts.focused ? ts.focused.desc : ""
             textFormat: Text.StyledText
@@ -588,6 +593,9 @@ Item {
             id: hintsRow
             anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
             spacing: ts.d(26)
+            opacity: ts.inputMode === "pointer" ? 0 : 1
+            visible: opacity > 0.01
+            Behavior on opacity { NumberAnimation { duration: Tokens.ms(260) } }
             Repeater {
                 model: ts.hints
                 Row {
@@ -612,7 +620,7 @@ Item {
         }
     }
     readonly property var hints: {
-        const f = focused, a = f ? f.act : "Choose", pad = Gamepad.inUse, walls = section === "walls"
+        const f = focused, a = f ? f.act : "Choose", pad = padHints, walls = section === "walls"
         const out = []
         if (f && f.slider) out.push([pad ? ["◀", "▶"] : ["←", "→"], "Adjust"])
         out.push([pad ? ["A"] : ["Enter"], a])

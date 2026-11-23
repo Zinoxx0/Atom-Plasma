@@ -61,7 +61,7 @@ Focusable {
             font.family: Tokens.font.ui; font.weight: Font.Medium; font.pixelSize: chip.studio.d(14)
         }
         Rectangle {
-            visible: chip.pad !== ""
+            visible: chip.pad !== "" && chip.studio.inputMode === "pad"
             anchors.verticalCenter: parent.verticalCenter
             width: chip.studio.d(26); height: width; radius: width / 2
             color: "transparent"

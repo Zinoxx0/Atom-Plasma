@@ -65,6 +65,7 @@ PlasmoidItem {
     onExpandedChanged: {
         if (Shell.debug) console.warn("ATOM launcher expanded", root.expanded, Date.now() % 100000)
         if (root.expanded) Qt.callLater(() => { root.expanded = false })
+        else if (Shell.kind === "launcher") Shell.refocus()
     }
     Connections {
         target: Plasmoid

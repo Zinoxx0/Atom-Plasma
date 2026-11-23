@@ -40,7 +40,7 @@ Item {
         act: "Set on " + wv.studio.targetLabel
         badgesOf: function (w) { return wv.studio.screensOn(w.file) }
         dotOf: function (w) { return w.accent || "" }
-        descOf: function (w) { return "<b>" + w.name + "</b> " + (w.mood ? w.mood + " mood · " : "") + "A sets it on " + wv.studio.targetLabel }
+        descOf: function (w) { return "<b>" + w.name + "</b>" + (w.mood ? " " + w.mood + " mood" : "") + (wv.studio.actKey ? " · " + wv.studio.actKey + " sets it on " + wv.studio.targetLabel : "") }
         onMoved: i => wv.studio.setWallIndex(i)
         onActivated: w => wv.studio.applyWall(w)
     }

@@ -31,7 +31,7 @@ Column {
                 name: modelData.name
                 note: (modelData.layout || []).length + " screens"
                 current: !!modelData.current
-                desc: "<b>" + modelData.name + "</b> Every screen's wallpaper and colours, in one step. X for more."
+                desc: "<b>" + modelData.name + "</b> Every screen's wallpaper and colours, in one step." + (lc.studio.moreKey ? " " + lc.studio.moreKey + " for more." : "")
                 act: "Load"
                 property var look: modelData
                 onActivated: lc.studio.model.apply(modelData)

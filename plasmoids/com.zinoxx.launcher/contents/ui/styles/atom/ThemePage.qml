@@ -24,6 +24,8 @@ Item {
         unit: page.stage.unit
         topInset: page.stage.d(140)
         wideFamily: page.stage.wideFamily
+        active: page.stage.zone !== "top"
+        inputMode: page.stage.input
         veil: 0.42
         opacity: page.stage.capO
         origin: Qt.point(page.stage.screenObj ? page.stage.screenObj.virtualX : 0, (page.stage.screenObj ? page.stage.screenObj.virtualY : 0) + page.stage.topGap)

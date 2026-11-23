@@ -141,11 +141,24 @@ def contributors():
         for n in names:
             if not n:
                 continue
-            n = "Claude" if n.startswith("Claude") else n
+            if n.startswith("Claude"):
+                n = "Claude"
+            elif n.startswith(("Gemini", "Antigravity")):
+                n = "Gemini"
             count[n] = count.get(n, 0) + 1
     people = sorted(count.items(), key=lambda kv: -kv[1])
-    return [{"name": n, "commits": c, "role": "AI pair programmer (Anthropic)" if n == "Claude" else "Author" if i == 0 else "Contributor"}
-            for i, (n, c) in enumerate(people)]
+    ai = {"Claude": "AI pair programmer (Anthropic)", "Gemini": "AI pair programmer (Google)"}
+    author_done = False
+    out = []
+    for n, c in people:
+        if n in ai:
+            role = ai[n]
+        elif not author_done:
+            role, author_done = "Author", True
+        else:
+            role = "Contributor"
+        out.append({"name": n, "commits": c, "role": role})
+    return out
 
 
 def credits():

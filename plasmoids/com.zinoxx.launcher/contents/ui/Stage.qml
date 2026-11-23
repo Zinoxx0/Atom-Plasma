@@ -181,7 +181,15 @@ Window {
         const took = Date.now() - shownAt          // (a slow first frame is worth knowing about)
         if (Shell.debug || took >= 50) console.warn("ATOM stage first frame", screenName, took, "ms", coldOpen ? "(rested)" : "")
         if (launcher.clearDesk && !finder) Windows.clear(screenName)
+        if (!powerOver) { requestActivate(); keys.forceActiveFocus() }
         startOpen()
+    }
+    Connections {
+        target: Shell
+        enabled: stage.wanted && !stage.powerOver && stage.phase !== "closed"
+        function onRefocus() {
+            Qt.callLater(() => { if (stage.wanted && !stage.powerOver && stage.phase !== "closed") { stage.requestActivate(); keys.forceActiveFocus() } })
+        }
     }
 
 
@@ -468,8 +476,8 @@ Window {
         else if (id === "power") openPowerHere()
     }
     function openPowerHere() {
-        const p = topBar.powerButton.mapToGlobal(0, 0)
-        launcher.openPower({ x: p.x, y: p.y, width: topBar.powerButton.width, height: topBar.powerButton.height })
+        const b = topBar.powerButton, q = b.mapToItem(null, 0, 0)
+        launcher.openPower({ x: (screenObj ? screenObj.virtualX : 0) + q.x, y: (screenObj ? screenObj.virtualY : 0) + topGap + q.y, width: b.width, height: b.height })
     }
     function toggleTheme() { managing = false; setTab(theming ? tabBefore : themeTab) }
     // Atom Manager (the gear at the bottom right, F1, the pad's View): over the page, the keys in it
@@ -823,6 +831,7 @@ Window {
                     unit: stage.unit
                     topInset: stage.u(92) + stage.unit * 46 / 0.836
                     active: (stage.focusRev, stage.states[stage.themeTab].line !== "top")
+                    inputMode: stage.pointerMode ? "pointer" : Gamepad.inUse ? "pad" : "keys"
                     veil: 0.34
                     origin: Qt.point(stage.screenObj ? stage.screenObj.virtualX : 0, (stage.screenObj ? stage.screenObj.virtualY : 0) + stage.topGap)
                     onPreview: (values, image, thumb) => stage.studioPreview(values, image, thumb)
@@ -1012,6 +1021,7 @@ Window {
                     screenName: stage.screenName
                     unit: stage.unit
                     topInset: stage.u(60)
+                    inputMode: stage.pointerMode ? "pointer" : Gamepad.inUse ? "pad" : "keys"
                     veil: 0.42
                     opacity: stage.topO * stage.manageP
                     origin: Qt.point(stage.screenObj ? stage.screenObj.virtualX : 0, (stage.screenObj ? stage.screenObj.virtualY : 0) + stage.topGap)

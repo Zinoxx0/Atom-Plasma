@@ -181,7 +181,15 @@ Window {
         const took = Date.now() - shownAt
         if (Shell.debug || took >= 50) console.warn("ATOM atom stage first frame", screenName, took, "ms", coldOpen ? "(rested)" : "")
         if (launcher.clearDesk && !finder) Windows.clear(screenName)
+        if (!powerOver) { requestActivate(); keys.forceActiveFocus() }
         startOpen()
+    }
+    Connections {
+        target: Shell
+        enabled: stage.wanted && !stage.powerOver && stage.phase !== "closed"
+        function onRefocus() {
+            Qt.callLater(() => { if (stage.wanted && !stage.powerOver && stage.phase !== "closed") { stage.requestActivate(); keys.forceActiveFocus() } })
+        }
     }
 
     // ------------------------------------------------------------------ the choreography (one clock per move)
@@ -309,8 +317,8 @@ Window {
         }
     }
     function openPowerHere() {          // (the shell keeps the launcher under the power page opened from it)
-        const b = topBar.powerButton, p = b.mapToGlobal(0, 0)
-        launcher.openPower({ x: p.x, y: p.y, width: b.width, height: b.height })
+        const b = topBar.powerButton, q = b.mapToItem(null, 0, 0)
+        launcher.openPower({ x: (screenObj ? screenObj.virtualX : 0) + q.x, y: (screenObj ? screenObj.virtualY : 0) + topGap + q.y, width: b.width, height: b.height })
     }
     property date now: new Date()
     Timer { interval: 1000 * (60 - new Date().getSeconds()); running: stage.phase !== "closed"; repeat: true; onTriggered: { stage.now = new Date(); interval = 60000 } }
@@ -446,6 +454,7 @@ Window {
             wideFamily: stage.wideFamily
             veil: 0.42
             active: stage.zone !== "top"
+            inputMode: stage.input
             opacity: stage.capO
             origin: Qt.point(stage.screenObj ? stage.screenObj.virtualX : 0, (stage.screenObj ? stage.screenObj.virtualY : 0) + stage.topGap)
             onLeave: stage.enterTop()

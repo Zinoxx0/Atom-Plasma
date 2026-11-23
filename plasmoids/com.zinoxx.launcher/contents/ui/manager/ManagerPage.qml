@@ -27,6 +27,10 @@ Item {
     required property real unit
     property real topInset: d(140)
     property bool active: true              // the keys are here (not on the host's top bar)
+    property string inputMode: Gamepad.inUse ? "pad" : "keys"   // pointer | keys | pad (hints show only the input in use)
+    property bool padHints: inputMode === "pad"                 // frozen while pointer fades hints out (no glyph flash)
+    onInputModeChanged: if (inputMode !== "pointer") padHints = inputMode === "pad"
+    readonly property string actKey: inputMode === "pad" ? "A" : inputMode === "keys" ? "Enter" : ""
     property real veil: 0.5
     property point origin: Qt.point(0, 0)
     property string wideFamily: wideFont.status === FontLoader.Ready ? wideFont.name : Tokens.font.display
@@ -221,7 +225,7 @@ Item {
         return best ? best.f.fkey : "sec:" + section
     }
     readonly property var head: {
-        if (section === "updates") return { title: "Updates", sub: "Atom Plasma " + version + " · the " + channel + " channel" + (repo.url ? " · from " + repo.url.replace(/^https:\/\//, "") : "") }
+        if (section === "updates") return { title: "Updates", sub: "Atom Plasma" + (version ? " " + version : "") + " · the " + channel + " channel" + (repo.url ? " · from " + repo.url.replace(/^https:\/\//, "") : "") }
         if (section === "health") return { title: "Health", sub: "Is every piece in place? The same checks as rice.py doctor" + (health ? " · run " + ago(health.now) : "") }
         if (section === "credits") return { title: "Credits", sub: "The people who made it and the projects it stands on" }
         return { title: "This machine", sub: "What a bug report needs · made for Plasma " + (sys.supportedPlasma || "") + " on Wayland" }
@@ -577,7 +581,8 @@ Item {
                         Text {
                             width: parent.width; wrapMode: Text.WordWrap
                             visible: text !== ""
-                            text: mp.updating ? (mp.prog.message || "")
+                            text: !mp.info ? ""
+                                : mp.updating ? (mp.prog.message || "")
                                 : mp.developer ? "You're working on " + (mp.upd.branch || "a branch") + ": the updater leaves your copy alone."
                                   + (mp.upd.latest ? " The newest " + mp.channel + " release is " + mp.upd.latest + "." : "")
                                 : mp.blockers.length ? mp.blockers.join(". ") + "."
@@ -601,7 +606,7 @@ Item {
                             color: mp.look.bad; font.family: Tokens.font.ui; font.pixelSize: mp.d(14.5)
                         }
                         Text {
-                            visible: !mp.updating
+                            visible: !!mp.info && !mp.updating
                             text: ["Checked " + mp.ago(mp.upd.checked), mp.repo.commit ? "commit " + mp.repo.commit : "", mp.developer && mp.upd.devBehind ? "main has " + mp.upd.devBehind + " new commits" : "",
                                    mp.checkError ? "couldn't reach GitHub" : ""].filter(Boolean).join(" · ")
                             color: mp.look.fgDim; font.family: Tokens.font.ui; font.pixelSize: mp.d(14.5)
@@ -811,7 +816,7 @@ Item {
                         spacing: mp.d(8)
                         Text { text: mp.busy === "doctor" ? "Checking every piece…" : !mp.health ? "Not checked yet" : mp.health.bad ? (mp.health.bad === 1 ? "One thing to fix" : mp.health.bad + " things to fix") : "Everything's in place"
                                color: mp.look.fg; font.family: mp.wideFamily; font.variableAxes: mp.wideAxes(112, 600); font.pixelSize: mp.d(28) }
-                        Text { text: mp.health ? mp.health.checks.length + " checks · run " + mp.ago(mp.health.now) + " · A runs them again" : "A runs them"
+                        Text { text: mp.health ? mp.health.checks.length + " checks · run " + mp.ago(mp.health.now) + (mp.actKey ? " · " + mp.actKey + " runs them again" : "") : mp.actKey ? mp.actKey + " runs them" : "Run the checks"
                                color: mp.look.fgDim; font.family: Tokens.font.ui; font.pixelSize: mp.d(15) }
                     }
                 }
@@ -893,7 +898,8 @@ Item {
                         required property var modelData
                         required property int index
                         readonly property string link: modelData.name === "Claude" ? "https://claude.com/claude-code"
-                                                       : index === 0 && mp.repo.url ? mp.repo.url.replace(/\/[^\/]+$/, "") : ""
+                                                       : modelData.name === "Gemini" ? "https://gemini.google.com"
+                                                       : modelData.role === "Author" && mp.repo.url ? mp.repo.url.replace(/\/[^\/]+$/, "") : ""
                         studio: mp
                         width: cr.cardW
                         fkey: "who:" + index
@@ -999,7 +1005,7 @@ Item {
                 width: Math.min(parent.width, mp.d(940))
                 fkey: "sys:facts"
                 act: "Copy"
-                desc: "<b>This machine</b> A copies it all for a bug report."
+                desc: "<b>This machine</b>" + (mp.actKey ? " " + mp.actKey + " copies it all for a bug report." : " Version, hardware and environment.")
                 onActivated: mp.copy(mp.bugReport(), "The report")
                 readonly property var rows: [
                     ["Atom Plasma", mp.version + (mp.repo.commit ? "  ·  " + mp.repo.commit + (mp.repo.dirty ? ", local changes" : "") : ""), ""],
@@ -1089,7 +1095,7 @@ Item {
         height: mp.d(40)
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            width: parent.width - hintsRow.width - mp.d(40)
+            width: parent.width - (hintsRow.visible ? hintsRow.width + mp.d(40) : 0)
             elide: Text.ElideRight
             text: mp.focused ? mp.focused.desc : ""
             textFormat: Text.StyledText
@@ -1100,9 +1106,12 @@ Item {
             id: hintsRow
             anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
             spacing: mp.d(26)
+            opacity: mp.inputMode === "pointer" ? 0 : 1
+            visible: opacity > 0.01
+            Behavior on opacity { NumberAnimation { duration: Tokens.ms(260) } }
             Repeater {
                 model: {
-                    const f = mp.focused, pad = Gamepad.inUse
+                    const f = mp.focused, pad = mp.padHints
                     return [[pad ? ["A"] : ["Enter"], f ? f.act : "Choose"], [pad ? ["LB", "RB"] : ["Tab"], "Section"], [pad ? ["B"] : ["Esc"], f && !f.inSide ? "Back" : "Close"]]
                 }
                 Row {

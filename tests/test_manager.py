@@ -27,8 +27,10 @@ class Manager(unittest.TestCase):
                     self.assertTrue(it.get(k), f"{it.get('name')}: {k}")
 
     def test_contributors_have_no_addresses(self):
-        for c in manager.contributors():
+        people = manager.contributors()
+        for c in people:
             self.assertNotIn("@", c["name"])
+        self.assertTrue(any(c["role"] == "Author" for c in people))
 
 
 if __name__ == "__main__":

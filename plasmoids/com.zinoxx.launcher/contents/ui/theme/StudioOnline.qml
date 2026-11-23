@@ -121,8 +121,8 @@ Item {
         stateOf: function (it) { const s = on.studio.adding[it.id]; return !s ? "" : s === "busy" ? "busy" : "done" }
         tagOf: function (it) { return (it.res || "") + (it.fav ? "  ·  ♥ " + it.fav : "") }
         descOf: function (it) {
-            return on.studio.added(it) ? "<b>In your wallpapers</b> A sets it on " + on.studio.targetLabel + "."
-                 : "<b>From wallhaven</b> " + (it.res || "") + (it.fav ? ", liked " + it.fav + " times" : "") + ". A adds it to your wallpapers."
+            return on.studio.added(it) ? "<b>In your wallpapers</b>" + (on.studio.actKey ? " " + on.studio.actKey + " sets it on " + on.studio.targetLabel + "." : "")
+                 : "<b>From wallhaven</b> " + (it.res || "") + (it.fav ? ", liked " + it.fav + " times" : "") + (on.studio.actKey ? ". " + on.studio.actKey + " adds it to your wallpapers." : "")
         }
         onMoved: i => on.studio.onlineIndex = i
         onActivated: it => on.studio.onlinePick(it)

@@ -36,6 +36,7 @@ QtObject {
     property double padOpened: 0            // when the pad's Guide last asked for the launcher (bin/pad.py says so just before)
     property bool debug: false              // tests: log every transition (console.warn "ATOM")
     property string styleOverride: ""       // tests: the nested session's launcher style (its config's atom-test-style)
+    signal refocus()                        // launcher applet popup collapsed after Meta: re-claim Stage's keyboard focus
 
     // The bar's islands live on ONE screen at a time; KWin's rice_islands script picks it and fades the bars
     // (kwin/rice_islands), and says so over D-Bus (Atom.Native Bus, topic "bar"): `screen` holds the islands
