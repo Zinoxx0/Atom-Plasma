@@ -1,17 +1,13 @@
 import QtQuick
 import QtQuick.Shapes
-import QtQuick.Effects
-import org.kde.kirigami as Kirigami
 import Rice
 
 // One ring of the atom: its items on a circle round the core, the slot at 9 o'clock holding the current item (the next
 // one below it). The pointer picks an item where it is (`picked`; the ring doesn't turn under it).
-// Its line is a HAZE (the Atom lab's round 7, 2026-11-22, the user's pick): no hard line, a soft band of light that
-// breaks round every item and round the lens (so it never runs behind an icon), brighter on the lens's side. The
-// active ring's band is wider, in the accent and hottest at the lens, with a soft hot core; on light themes it is white
-// light (dark haze read as smoke). The light hands over between rings gently (`lit`). Each band is a hidden annulus
-// (HazeBand) drawn through a MultiEffect: blurred, the gaps (HazeHole discs in `holes`: one from every Node, one round
-// the lens) masked out.
+// Its line is the atom's HAZE (Haze.qml draws every ring in one pass from `r`, `lit` and `reveal`; each Node cuts its
+// own gap). The light hands over between rings gently (`lit`).
+// Its motion runs on springs (Rice Spring): a turn, the dock's centre, the lift and the light keep their speed when a
+// key repeats or the target moves mid-way (Behaviors restarted their curve and stuttered).
 // Items are laid out one of three ways:
 //  - a PathView (Apps, Search): even steps; a long ring shows `window` items at a time, the rest come round through a
 //    gap on the far side (they fade there);
@@ -38,11 +34,13 @@ Item {
     property bool gauge: false
     readonly property bool docked: view.dock && !placed && !gauge
     // handed over between rings: the light, and on a docked ring the dock and the lift
-    property real lit: active ? 1 : 0
-    Behavior on lit { NumberAnimation { duration: Tokens.ms(480); easing.type: Easing.OutCubic } }
-    property real docking: docked && active ? 1 : 0
-    Behavior on docking { NumberAnimation { duration: Tokens.ms(560); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
+    Spring { id: litS; to: ring.active ? 1 : 0; stiffness: 9; epsilon: 0.002 }
+    readonly property real lit: litS.value
+    Spring { id: dockS; to: ring.docked && ring.active ? 1 : 0; stiffness: 11; epsilon: 0.002 }
+    readonly property real docking: dockS.value
     readonly property real r: view.d(radius + (docked ? view.dockLift * docking : 0)) * view.k * reveal
+    // where it will rest (the lens heads there, not to a radius still moving)
+    readonly property real restR: view.d(radius + (docked && active ? view.dockLift : 0)) * view.k * reveal
     readonly property real spin: -150 * (1 - reveal)
     property int placedCur: 0
     property alias turned: pv.currentIndex
@@ -73,13 +71,13 @@ Item {
 
     // ------------------------------------------------------------------ docked: the ring lays its items out itself
     property int turnTo: 0                  // unbounded: the slot's item is turnTo mod count
-    property real turnPos: turnTo
-    Behavior on turnPos { enabled: ring.docked; NumberAnimation { duration: Tokens.ms(560); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
+    Spring { id: turnS; to: ring.turnTo; stiffness: 12; enabled: ring.docked; epsilon: 0.002 }
+    readonly property real turnPos: turnS.value
     onTurnToChanged: if (docked && count) current = mod(turnTo, count)
     // the dock's centre: the focus (the slot's item, or the pointer's pick where it is), counted near the turn
     readonly property real dockTarget: picked >= 0 && count ? turnTo + wrapC(picked - mod(turnTo, count), count) : turnTo
-    property real dockAt: dockTarget
-    Behavior on dockAt { enabled: ring.docked; NumberAnimation { duration: Tokens.ms(560); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
+    Spring { id: dockAtS; to: ring.dockTarget; stiffness: 12; enabled: ring.docked; epsilon: 0.002 }
+    readonly property real dockAt: dockAtS.value
     readonly property int span: lengthy ? window : count        // the items a whole turn holds
     function erf(x) {       // Abramowitz-Stegun 7.1.26 (|error| < 1.5e-7)
         const s = x < 0 ? -1 : 1, a = Math.abs(x), t = 1 / (1 + 0.3275911 * a)
@@ -87,12 +85,16 @@ Item {
     }
     // degrees round the ring from the dock's centre to `o` items away: the integral of the items' relative sizes (1 +
     // f * a gaussian), scaled so a whole turn is 360 (so the bigger ones near the focus get more room)
-    function along(o) {
-        const s = view.dockSigma, f = (view.dockFocus - 1) * docking * (span > 2 ? 1 : 0), A = f * s * Math.sqrt(Math.PI) / 2
+    function along(o, dk) {
+        const s = view.dockSigma, f = (view.dockFocus - 1) * (dk === undefined ? docking : dk) * (span > 2 ? 1 : 0), A = f * s * Math.sqrt(Math.PI) / 2
         return 360 * (o + A * erf(o / s)) / (span + 2 * A * erf(span / 2 / s))
     }
     function angleAt(i) {   // where item i is this frame (deg, clockwise from 3 o'clock)
         return 180 - (dockAt - turnPos) * 360 / span - along(wrapC(i - dockAt, count)) + spin
+    }
+    function restAngle(i) { // where item i will be once the dock settles (the lens's target)
+        const dk = docked && active ? 1 : 0
+        return 180 - (dockTarget - turnTo) * 360 / span - along(wrapC(i - dockTarget, count), dk) + spin
     }
     function scaleAt(i) {   // its shown size over its own (the dock's: the focus most; at rest a little smaller)
         const o = wrapC(i - dockAt, count), it = items[i] || {}
@@ -104,74 +106,6 @@ Item {
     function fadeAt(i) { return lengthy ? M.clamp(span / 2 - Math.abs(wrapC(i - turnPos, count))) : 1 }
     // the slot item's shown size (design px * k): the ring's name sits over it
     readonly property real slotShown: { const it = items[slotIndex] || {}; return d(it.big || size) * (docked ? scaleAt(slotIndex) : 1) }
-
-    // ------------------------------------------------------------------ the haze
-    readonly property real boxR: view.d(radius + view.dockLift + 44) * view.k   // its box: the ring at its widest + the blur
-    readonly property real hazeX: view.cx - boxR
-    readonly property real hazeY: view.cy - boxR
-    property alias holes: holes
-    function blurPx(sigma) { return Math.max(2, Math.round(d(sigma * 2.5))) }  // a blur's reach for the lab's CSS sigma
-    Item {
-        id: haze
-        x: ring.hazeX; y: ring.hazeY
-        width: 2 * ring.boxR; height: width
-        visible: !ring.gauge && ring.r > 1
-        opacity: ring.reveal
-        readonly property color fg: ring.view.rice.fg
-        readonly property color pri: ring.view.rice.primary
-        readonly property bool light: !!ring.view.rice.light
-        readonly property color band: light ? "#ffffff" : pri           // light themes: white light, not smoke
-        readonly property color far: light ? "#ffffff" : fg
-        readonly property color hot: light ? pri : C.mix(pri, "#ffffff", 0.45)
-        HazeBand {          // a quiet ring
-            id: quietBand
-            anchors.fill: parent
-            r: ring.r; w: ring.d(7); lens: ring.view.lensAngle
-            c0: C.alpha(haze.fg, 0.30); a1: 90; c1: C.alpha(haze.fg, 0.13); a2: 135; c2: C.alpha(haze.fg, 0.11); c3: C.alpha(haze.fg, 0.09)
-        }
-        HazeBand {          // the active one: wide, in the accent
-            id: wideBand
-            anchors.fill: parent
-            r: ring.r; w: ring.d(16); lens: ring.view.lensAngle
-            c0: C.alpha(haze.band, 1)
-            a1: 90; c1: C.alpha(C.mix(haze.band, haze.far, 0.5), haze.light ? 0.7 : 0.5)
-            a2: 135; c2: C.alpha(C.mix(haze.band, haze.far, 0.75), haze.light ? 0.58 : 0.37)
-            c3: C.alpha(haze.far, haze.light ? 0.45 : 0.24)
-        }
-        HazeBand {          // ... and its hot core at the lens
-            id: hotBand
-            anchors.fill: parent
-            r: ring.r; w: ring.d(3); lens: ring.view.lensAngle
-            c0: C.alpha(haze.hot, 1); a1: 35; c1: C.alpha(haze.pri, 0.8); a2: 90; c2: C.alpha(haze.pri, 0.15); c3: C.alpha(haze.pri, 0)
-        }
-        MultiEffect {
-            anchors.fill: parent; source: quietBand; autoPaddingEnabled: false
-            opacity: 1 - ring.lit; visible: opacity > 0.01
-            blurEnabled: true; blur: 1; blurMax: ring.blurPx(4)
-            maskEnabled: true; maskSource: holes; maskInverted: true
-        }
-        MultiEffect {
-            anchors.fill: parent; source: wideBand; autoPaddingEnabled: false
-            opacity: ring.lit; visible: opacity > 0.01
-            blurEnabled: true; blur: 1; blurMax: ring.blurPx(7)
-            maskEnabled: true; maskSource: holes; maskInverted: true
-        }
-        MultiEffect {
-            anchors.fill: parent; source: hotBand; autoPaddingEnabled: false
-            opacity: ring.lit; visible: opacity > 0.01
-            blurEnabled: true; blur: 1; blurMax: ring.blurPx(1.6)
-            maskEnabled: true; maskSource: holes; maskInverted: true
-        }
-        Item {              // the gaps: a soft disc round every item (Node puts its own here) and round the lens
-            id: holes
-            anchors.fill: parent
-            visible: false; layer.enabled: true
-            HazeHole {
-                cx: ring.view.lensX - ring.hazeX; cy: ring.view.lensY - ring.hazeY
-                rad: ring.view.lensHole; soft: ring.d(4)
-            }
-        }
-    }
 
     // a gauge: a 270 deg track from bottom-left round the top to bottom-right, lit up to the value in focus
     Shape {
@@ -200,7 +134,7 @@ Item {
         preferredHighlightBegin: 0.5
         preferredHighlightEnd: 0.5
         highlightRangeMode: PathView.StrictlyEnforceRange
-        highlightMoveDuration: Tokens.ms(560)
+        highlightMoveDuration: Tokens.ms(380)
         // from the far side (3 o'clock) round the top to the slot (9 o'clock, halfway) and on below it: the next item is
         // under the slot. A long ring fades its items out over the first and last step: its gap
         readonly property real e: ring.lengthy ? 360 / ring.window : 0.001
@@ -260,7 +194,7 @@ Item {
         if (lengthy && Math.abs(o) > (span - 1) / 2) return -1
         return mod((docked ? turnTo : pv.currentIndex) + o, count)
     }
-    readonly property bool moving: docked ? Math.abs(turnPos - turnTo) > 0.002 : pv.moving
+    readonly property bool moving: docked ? turnS.moving : pv.moving
     // where an item is, in the view (its centre)
     function centreOf(i) {
         if (placed) { const a = angleOf(i) * Math.PI / 180; return Qt.point(view.cx + r * Math.cos(a), view.cy + r * Math.sin(a)) }

@@ -26,6 +26,7 @@ AppGlow AppGlow.qml
 BarFit BarFit.qml
 PortalHost PortalHost.qml
 ImagePalette ImagePalette.qml
+Spring Spring.qml
 # the JavaScript helpers, as the importers name them: C.alpha(...), M.lerp(...), Session.pick(...)
 C 1.0 Color.js
 M 1.0 Motion.js

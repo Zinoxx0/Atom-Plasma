@@ -4,10 +4,10 @@ import Rice
 
 // The atom: rings round a core, a lens on the focus, each ring's name above its slot.
 // Focus: the keys and a pad turn the ring you're on (the focus stays at the slot, 9 o'clock) and step between rings.
-// The pointer picks an item where it is (mode "pointer": the lens travels to it along the ring, nothing turns) by
-// INTENT, like the simplified launcher (the Atom lab's round 5): only once it rests or slows under 0.35 px/ms over the
-// last 150 ms, and only after a real move (not items sliding under a still pointer, nor the moment after a turn), so a
-// sweep across the atom changes nothing on the way; items take the pointer 16 px round themselves. The wheel turns the
+// The pointer picks an item where it is (mode "pointer": the lens travels to it along the ring, nothing turns) AT ONCE
+// (the user, 2026-11-23: "it should be snappy"), unless it's flung across the atom (faster than 1.6 px/ms over the
+// last 80 ms: then the item it slows down on), and only on a real move (not items sliding under a still pointer, nor
+// right after a turn); items take the pointer 16 px round themselves. The wheel turns the
 // ring UNDER the pointer, and the item that lands under it takes the focus. The first key after the pointer turns its
 // pick to the slot. The lens's angle lights every ring from its side; a dot orbits the lens slowly, breathing.
 // `dock` (Home; the lab's round 6): the rings lay their items out as a dock (Orbit), the active ring lifts out, and a
@@ -35,44 +35,59 @@ Item {
     property int at: 0
     property string mode: "slot"
     readonly property Item ring: (rep.count, rep.itemAt(at))
+    readonly property int ringCount: rep.count
     readonly property var focusItem: ring ? ring.focusItem : null
     signal launched(var item)
     signal options(var item, Item delegate)
 
-    // the lens: an angle (deg, clockwise from 3 o'clock) and a radius, so it glides along the rings
+    // the lens: an angle (deg, clockwise from 3 o'clock) and a radius, so it glides along the rings; on springs, heading
+    // where its item WILL be (a docked ring's rest angle), so a moving dock never drags it behind
     readonly property real lensTarget: {
         if (!ring) return 180
         if (ring.placed) return ring.angleOf(ring.focusIndex)        // a placed ring: the lens goes to the item
         if (mode !== "pointer" || ring.picked < 0) return 180
+        if (ring.docked) return ring.restAngle(ring.picked)
         const p = ring.centreOf(ring.picked)
         return Math.atan2(p.y - cy, p.x - cx) * 180 / Math.PI
     }
-    property real lensAngle: 180
-    onLensTargetChanged: lensAngle = lensTarget + 360 * Math.round((lensAngle - lensTarget) / 360)    // the short way round
-    Behavior on lensAngle { NumberAnimation { duration: Tokens.ms(520); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
-    readonly property real lensR: ring ? ring.r : 0
-    property real lensRA: lensR
-    Behavior on lensRA { NumberAnimation { duration: Tokens.ms(420); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
-    onLensRChanged: lensRA = lensR
+    Spring { id: lensA; to: av.lensTarget; angle: true; stiffness: 15 }
+    readonly property real lensAngle: lensA.value
+    Spring { id: lensRS; to: av.ring ? av.ring.restR : 0; stiffness: 15; epsilon: 0.1 }
+    readonly property real lensRA: lensRS.value
     // where the lens is, for the rings' haze (its gap)
     readonly property real lensX: cx + lensRA * Math.cos(lensAngle * Math.PI / 180)
     readonly property real lensY: cy + lensRA * Math.sin(lensAngle * Math.PI / 180)
     readonly property real lensHole: lens.opacity > 0.01 ? lens.dia / 2 + d(7) * k : 0
+    // the haze's mask: each Node draws its gap there (its shown edge + holeGap)
+    readonly property Item holes: haze.gaps
+    readonly property real holesX: haze.x
+    readonly property real holesY: haze.y
+    readonly property real holeGap: haze.gap
 
-    // the pointer: only real moves count, never while a ring turns; a pick waits for the pointer's intent
+    // the pointer: only real moves count, never right after a turn; a fling waits until it slows
     property double lastMove: 0
     property double quietUntil: 0
-    property var trail: []                  // its recent places: [{ x, y, t }]
-    property var aim: null                  // { ri, i }: the item under it, waiting to be meant
+    readonly property real flingSpeed: 1.6          // px/ms
+    property var trail: [null, null, null, null, null, null, null, null]   // its recent places, a ring: { x, y, t }
+    property int trailAt: 0
+    property var aim: null                  // { ri, i }: the item under a flung pointer, picked once it slows
     HoverHandler {
         onPointChanged: {
             const now = Date.now(), p = point.position
             av.lastMove = now
-            av.trail = av.trail.filter(q => now - q.t < 150).concat([{ x: p.x, y: p.y, t: now }])
+            av.trailAt = (av.trailAt + 1) % av.trail.length
+            av.trail[av.trailAt] = { x: p.x, y: p.y, t: now }
             if (av.aim) av.aimCheck()
         }
     }
-    Timer { id: aimTimer; interval: 60; onTriggered: av.aimCheck() }
+    Timer { id: aimTimer; interval: 40; onTriggered: av.aimCheck() }
+    function speed() {          // over the last 80 ms (the newest place to the oldest one that recent)
+        const now = Date.now(), n = trail.length, last = trail[trailAt]
+        if (!last) return 0
+        let old = last
+        for (let j = 1; j < n; j++) { const q = trail[(trailAt - j + n) % n]; if (!q || now - q.t > 80) break; old = q }
+        return old === last ? 0 : Math.hypot(last.x - old.x, last.y - old.y) / Math.max(16, now - old.t)
+    }
     function pointed(ri, i) {
         if (Date.now() - lastMove > 120) return         // items sliding under a still pointer: not a pick
         aim = { ri: ri, i: i }
@@ -81,13 +96,8 @@ Item {
     function unpointed(ri, i) { if (aim && aim.ri === ri && aim.i === i) { aim = null; aimTimer.stop() } }
     function aimCheck() {
         if (!aim) return
-        const now = Date.now(), tr = trail.filter(q => now - q.t < 150)
-        // its speed from the oldest place kept to now (a pointer that stops slows to nothing); one place alone, just
-        // seen, says nothing yet
-        let v = 0
-        if (tr.length >= 2) v = Math.hypot(tr[tr.length - 1].x - tr[0].x, tr[tr.length - 1].y - tr[0].y) / Math.max(16, now - tr[0].t)
-        else if (tr.length === 1 && now - tr[0].t < 60) v = Infinity
-        if (v < 0.35 && now >= quietUntil) { const a = aim; aim = null; pick(a.ri, a.i) }
+        const now = Date.now()
+        if (now >= quietUntil && (now - lastMove > 40 || speed() < flingSpeed)) { const a = aim; aim = null; aimTimer.stop(); pick(a.ri, a.i) }
         else aimTimer.restart()
     }
     function pick(ri, i) {
@@ -98,7 +108,7 @@ Item {
     }
     function turn(dd) {
         if (!ring) return
-        quietUntil = Date.now() + 650
+        quietUntil = Date.now() + 250
         aim = null
         if (mode === "pointer" && ring.picked >= 0) { ring.bring(); mode = "slot"; return }
         mode = "slot"
@@ -126,7 +136,7 @@ Item {
         if (Shell.debug) console.warn("ATOM atom wheel ring", hit, "by", dd, "at", Math.round(p.x), Math.round(p.y), "lands", j)
         if (j >= 0) { r.picked = j; mode = "pointer" } else mode = "slot"
         aim = null; aimTimer.stop()
-        quietUntil = Date.now() + 420
+        quietUntil = Date.now() + 300
     }
     function hop(dd) {
         const t = Math.max(0, Math.min(rep.count - 1, at + dd))
@@ -145,7 +155,7 @@ Item {
         }
         at = t; mode = "slot"
         aim = null
-        quietUntil = Date.now() + 400
+        quietUntil = Date.now() + 250
     }
     function ringAt(i) { rep.count; return rep.itemAt(i) }
     function launch() { if (focusItem) launched(focusItem) }
@@ -183,6 +193,8 @@ Item {
         }
     }
 
+    Haze { id: haze; view: av }
+
     Repeater {
         id: rep
         model: av.shells.length
@@ -210,11 +222,11 @@ Item {
     Item {
         id: lens
         readonly property Item target: av.ring ? av.ring.focusDelegate : null
-        property real dia: (target ? target.lensSize : av.d(66) * av.k * 1.16) + av.d(26) * av.k
+        Spring { id: diaS; to: (lens.target ? lens.target.lensSize : av.d(66) * av.k * 1.16) + av.d(26) * av.k; stiffness: 15; epsilon: 0.1 }
+        readonly property real dia: diaS.value
         width: dia; height: dia
         x: av.lensX - width / 2
         y: av.lensY - height / 2
-        Behavior on dia { NumberAnimation { duration: Tokens.ms(420); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
         opacity: M.clamp((av.stage.atomT - 0.75) * 4) * (av.focusItem ? 1 : 0)
         z: 5
         Rectangle {
