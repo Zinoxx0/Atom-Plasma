@@ -294,8 +294,21 @@ Item {
             readonly property var sh: av.shells[index] || ({})
             readonly property bool tight: av.shells.some((o, j) => j !== index && Math.abs((o.radius || 300) - (sh.radius || 300)) < 110)
             readonly property bool below: tight && index % 2 === 1 && !((sh.items || [])[0] && sh.items[0].label)
-            readonly property real clear: !r ? 0 : r.docked ? (av.at === index ? r.slotShown * 0.58 + av.d(25) * av.k : r.slotShown / 2 + av.d(12) * av.k) + av.d(4) * av.k
-                                                            : big * 0.58 * av.d(1) * av.k + av.d(30) * av.k
+            // a docked ring: clear of whatever is under it now (the slot's item, or a neighbour the dock moved there
+            // round a pointer's pick; the lens round the focus), not only the slot's item (it sat on an icon)
+            readonly property real clear: {
+                if (!r) return 0
+                if (!r.docked) return big * 0.58 * av.d(1) * av.k + av.d(30) * av.k
+                const lx = av.cx - r.r, half = width / 2 + av.d(6) * av.k
+                let reach = 0
+                const take = (x, y, h) => { if (Math.abs(x - lx) < half + h && y - h < av.cy) reach = Math.max(reach, av.cy - (y - h)) }
+                for (let i = 0; i < r.count; i++) {
+                    const a = r.angleAt(i) * Math.PI / 180, it = r.items[i] || {}
+                    take(av.cx + r.r * Math.cos(a), av.cy + r.r * Math.sin(a), r.d(it.big || r.size) * r.scaleAt(i) / 2)
+                }
+                if (av.at === index && lens.opacity > 0.01) take(av.lensX, av.lensY, lens.dia / 2)
+                return reach + av.d(10) * av.k
+            }
             x: av.cx - (r ? r.r : 0) - width / 2
             y: below ? av.cy + big * 0.58 * av.d(1) * av.k + av.d(14) * av.k
                      : av.cy - clear - height
