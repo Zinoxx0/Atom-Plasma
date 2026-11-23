@@ -4,10 +4,15 @@
 // it's hidden; the next show rebuilds them (its first frame uploads everything again). Not resting: kept,
 // Qt's default. (QML can call releaseResources() but not set the two flags, and with them on it frees only
 // caches.)
+// Qt 6.12 trap: a Shape drawn by the CurveRenderer comes back EMPTY after its scene graph was released (its new node
+// gets no geometry until a path changes; the geometry renderer is fine): the first show after a rest re-syncs every
+// Shape in the window (its renderer type set away and back = a full rebuild). It was the Atom launcher's blank jewel
+// and its missing haze gaps (2026-11-23).
 //
 //   WindowRest { window: stage; resting: stage.idle && stage.phase === "closed" }
 #include <QObject>
 #include <QPointer>
+#include <QQuickItem>
 #include <QQuickWindow>
 #include <QtQml/qqmlregistration.h>
 
@@ -30,7 +35,20 @@ public:
         if (m_window == window) {
             return;
         }
+        if (m_window) {
+            disconnect(m_window, nullptr, this, nullptr);
+        }
         m_window = window;
+        if (m_window) {
+            connect(m_window, &QWindow::visibleChanged, this, [this](bool shown) {
+                if (!shown && m_resting) {
+                    m_released = true;      // hidden while resting: the scene graph goes
+                } else if (shown && m_released) {
+                    m_released = false;
+                    resyncShapes(m_window->contentItem());
+                }
+            });
+        }
         apply();
         Q_EMIT windowChanged();
     }
@@ -59,9 +77,28 @@ private:
         m_window->setPersistentSceneGraph(!m_resting);
         if (m_resting && !m_window->isVisible()) {
             m_window->releaseResources();
+            m_released = true;
+        }
+    }
+    static void resyncShapes(QQuickItem *item)
+    {
+        if (!item) {
+            return;
+        }
+        if (item->inherits("QQuickShape")) {
+            const QVariant type = item->property("preferredRendererType");
+            if (type.toInt() == 4) {        // CurveRenderer
+                item->setProperty("preferredRendererType", 1);
+                item->setProperty("preferredRendererType", type);
+            }
+        }
+        const auto kids = item->childItems();
+        for (QQuickItem *child : kids) {
+            resyncShapes(child);
         }
     }
 
     QPointer<QQuickWindow> m_window;
     bool m_resting = false;
+    bool m_released = false;
 };
