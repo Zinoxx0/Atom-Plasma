@@ -43,6 +43,12 @@
     rice.py manager [check|doctor]
                              JSON for Atom Manager (the launcher's settings page): version, updates, the
                              machine, features, credits; check asks the repo's home first (atom/manager.py)
+    rice.py update check|start|channel|rollback ...
+                             the updater: releases on your channel (stable, beta, alpha), updating in the
+                             background with a backup and a rollback (atom/updater.py has the whole story)
+    rice.py release VERSION [--critical SUMMARY]
+                             for maintainers: set the version, date the changelog, commit, tag vVERSION
+                             (annotated; --critical marks it a security fix); pushing is yours
     rice.py ui show          JSON: the UI size settings and every screen's size (standard and effective)
     rice.py ui set [--auto true|false] [--size F] [--screen X --own F|--own auto]
                              the UI size: automatic (each screen's standard size x the overall size) or one
@@ -259,6 +265,12 @@ def main(args):
     elif arg == "manager":
         from atom import manager
         manager.main(args[1:])
+    elif arg == "update":
+        from atom import updater
+        updater.main(args[1:])
+    elif arg == "release":
+        from atom import release
+        release.main(args[1:])
     elif arg in ("version", "--version"):
         import atom
         print(f"Atom Plasma {atom.__version__}")

@@ -220,6 +220,8 @@ def install(dry=False):
                   "--key", "_launch", keys)
 
     want = ["atom-plasma-displayd.service"]
+    if (ROOT / ".git").exists():
+        want.append("atom-plasma-updater.timer")              # Atom Manager's daily look for releases
     if caps.feature("keyboard_lights", cfg):
         want.append("atom-plasma-rgb-watch.service")
     if caps.feature("gamepad", cfg):

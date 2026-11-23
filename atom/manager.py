@@ -2,14 +2,12 @@
 
     rice.py manager            the version, whether it's up to date (as of the last check), the machine,
                                the features, the credits, what's new; quick and offline
-    rice.py manager check      the same after asking the repo's home for news (git fetch, read-only for your
-                               files: it only moves origin/main)
+    rice.py manager check      the same after asking GitHub for releases (atom/updater.py check: it moves tags
+                               and origin/main only, never your files)
     rice.py manager doctor     `rice.py doctor`'s checks as JSON (slower: it loads the shell offscreen)
 
-Update state: the updater (to come) writes ~/.local/state/rice/update.json {checked, latest, behind,
-critical, summary}; until then the state comes from git: how far origin/main (as last fetched) is ahead of
-this checkout. `critical` (a security fix) is only ever set by that file; the launcher shows a banner by its
-settings button while it's true. Each run leaves that button's state in ~/.cache/rice/manager-status.json."""
+The update state is the updater's (~/.local/state/rice/update.json, atom/updater.py), with a running
+update's progress beside it."""
 import json
 import os
 import re
@@ -18,12 +16,9 @@ import time
 from pathlib import Path
 
 from . import caps, util
-from .util import CACHE, ROOT, STATE
+from .util import ROOT
 
-UPDATE_STATE = STATE / "update.json"
-STATUS = CACHE / "manager-status.json"     # what the launcher's settings button shows (a dot, the critical banner)
 CREDITS = ROOT / "atom/data/credits.json"
-SUPPORTED_PLASMA = "6.8"                # the minor version the shell is built and tested on
 
 
 def _git(*args, timeout=20):
@@ -76,37 +71,6 @@ def repo():
     return out
 
 
-def fetch():
-    """Ask the repo's home what's new: moves origin/main only (your files and branch stay as they are). Over
-    https, so it needs no key and never prompts."""
-    remote = _git("remote", "get-url", "origin")
-    if not remote:
-        return "no remote"
-    env_url = https_url(remote)
-    r = util.run("git", "-C", str(ROOT), "-c", "credential.helper=", "fetch", "--quiet", "--no-tags",
-                 env_url + ".git", "+refs/heads/main:refs/remotes/origin/main", quiet=True, timeout=40)
-    if r.returncode == 0:
-        util.run("git", "-C", str(ROOT), "fetch", "--quiet", "--tags", env_url + ".git", quiet=True, timeout=40)
-        return ""
-    return (r.stderr or r.stdout).strip().splitlines()[-1:][0] if (r.stderr or r.stdout).strip() else "couldn't reach it"
-
-
-def update_state(rp):
-    """What the page and the banner show. The updater's file wins when it's newer than the last fetch."""
-    st = util.load_json(UPDATE_STATE, {}) or {}
-    mine, fetched = int(st.get("checked", 0) or 0), int(rp.get("fetched", 0) or 0)
-    behind = int(st.get("behind", 0) or 0) if st and mine >= fetched else int(rp.get("behind", 0) or 0)
-    checked = max(mine, fetched)
-    return {
-        "checked": checked,
-        "behind": behind,
-        "available": behind > 0,
-        "critical": bool(st.get("critical")) and behind > 0,
-        "summary": st.get("summary", ""),
-        "latest": st.get("latest") or rp.get("latestTag", ""),
-    }
-
-
 def system():
     """The machine, as a bug report would want it (kinfo when it's there)."""
     info = {}
@@ -129,6 +93,13 @@ def system():
         r = util.run("plasmashell", "--version", quiet=True, timeout=10)
         plasma = r.stdout.strip().split()[-1] if r.stdout.strip() else ""
     gpus = [v for k, v in sorted(info.items()) if k.startswith("Graphics Processor")]
+    rng = (util.load_json(ROOT / "atom/data/requirements.json", {}) or {}).get("plasma") or {}
+    lo, hi = rng.get("min", ""), rng.get("max", "")
+    span = lo if lo == hi else f"{lo} to {hi}"
+    m = re.match(r"(\d+)\.(\d+)", plasma)
+    have = (int(m[1]), int(m[2])) if m else None
+    as_t = lambda v: tuple(int(x) for x in v.split(".")[:2]) if v else None
+    supported = bool(have) and (not lo or have >= as_t(lo)) and (not hi or have <= as_t(hi))
     return {
         "os": osr.get("PRETTY_NAME") or info.get("Operating System", ""),
         "plasma": plasma,
@@ -139,8 +110,8 @@ def system():
         "cpu": info.get("Processors", ""),
         "memory": info.get("Memory", ""),
         "gpus": gpus,
-        "supportedPlasma": SUPPORTED_PLASMA,
-        "supported": plasma == SUPPORTED_PLASMA or plasma.startswith(SUPPORTED_PLASMA + "."),
+        "supportedPlasma": span,
+        "supported": supported,
     }
 
 
@@ -197,9 +168,9 @@ def credits():
     return data["groups"]
 
 
-def changelog(upstream=False, sections=2):
-    """CHANGELOG.md's newest sections: [{version, groups: [{title, items}]}] (origin/main's when it's ahead)."""
-    text = _git("show", "origin/main:CHANGELOG.md") if upstream else ""
+def changelog(ref=None, sections=2):
+    """CHANGELOG.md's newest sections: [{version, groups: [{title, items}]}] (the waiting release's, given its tag)."""
+    text = _git("show", f"{ref}:CHANGELOG.md") if ref else ""
     if not text:
         try:
             text = (ROOT / "CHANGELOG.md").read_text()
@@ -234,10 +205,12 @@ def changelog(upstream=False, sections=2):
 
 
 def info(cfg=None):
+    from . import updater
     rp = repo()
-    up = update_state(rp)
-    util.save_json(STATUS, {"version": rp["version"], "available": up["available"], "behind": up["behind"],
-                            "critical": up["critical"], "checked": up["checked"]})
+    up = updater.state()
+    if not up or up.get("current") != rp["version"]:          # (never checked, or the build changed since)
+        up = updater.check(do_fetch=False)
+    up["progress"] = util.load_json(updater.PROGRESS, {}) or {}
     return {
         "repo": rp,
         "update": up,
@@ -245,7 +218,7 @@ def info(cfg=None):
         "features": features(cfg),
         "contributors": contributors() if rp.get("git") else [],
         "credits": credits(),
-        "changelog": changelog(upstream=up["available"]),
+        "changelog": changelog(ref=up.get("latestTag") if up.get("newer") else None),
         "license": "GPL-3.0-or-later",
         "now": int(time.time()),
     }
@@ -260,10 +233,9 @@ def doctor():
 def main(args):
     sub = args[0] if args else "info"
     if sub == "check":
-        err = fetch()
-        out = info()
-        out["checkError"] = err
-        print(json.dumps(out))
+        from . import updater
+        updater.check(do_fetch=True)
+        print(json.dumps(info()))
     elif sub == "doctor":
         print(json.dumps(doctor()))
     elif sub == "info":

@@ -1,0 +1,30 @@
+{
+  "_about": "What this version of Atom Plasma needs. The updater reads the TARGET version's copy (git show <tag>:atom/data/requirements.json) before it updates: a system outside these stays on the version it has. plasma: the oldest and newest Plasma minor versions it runs on. Packages per distro family (arch: Arch, CachyOS, EndeavourOS, Manjaro...): required always; build to compile its parts; features[name] only while that feature is set to on; recommended on a fresh install. aur: true = from the AUR (an AUR helper, paru or yay, in a terminal you watch).",
+  "plasma": {"min": "6.8", "max": "6.8"},
+  "session": "wayland",
+  "families": {
+    "arch": {
+      "required": [
+        {"pkg": "python"}, {"pkg": "python-pillow"}, {"pkg": "python-numpy"}, {"pkg": "python-dbus"}, {"pkg": "python-gobject"},
+        {"pkg": "imagemagick"}, {"pkg": "libnotify"}, {"pkg": "kinfocenter"},
+        {"pkg": "layer-shell-qt"}, {"pkg": "qt6-declarative"}, {"pkg": "libdbusmenu-lxqt"},
+        {"pkg": "inter-font"}, {"pkg": "ttf-material-symbols-variable"}, {"pkg": "ttf-jetbrains-mono-nerd"},
+        {"pkg": "plasma6-applets-panel-colorizer", "aur": true}
+      ],
+      "build": [
+        {"pkg": "base-devel"}, {"pkg": "git"}, {"pkg": "cmake"}, {"pkg": "ninja"}, {"pkg": "extra-cmake-modules"}, {"pkg": "vulkan-headers"}
+      ],
+      "features": {
+        "gamepad": [{"pkg": "python-evdev"}],
+        "claude": [{"pkg": "jq"}]
+      },
+      "recommended": [
+        {"pkg": "klassy", "aur": true}, {"pkg": "darkly", "aur": true}, {"pkg": "kwin-effects-better-blur-dx", "aur": true},
+        {"pkg": "python-icalendar"}, {"pkg": "python-recurring-ical-events"}
+      ]
+    }
+  },
+  "plugins": [
+    {"name": "kwin-effect-rounded-corners-rice", "dir": "pkg/kwin-effect-rounded-corners-rice", "follows": "kwin"}
+  ]
+}

@@ -59,7 +59,7 @@ def checks():
             continue
         linked = _linked(UNITS / f.name, f)
         wanted = f.name not in ("atom-plasma-rgb.service", "atom-plasma-update-check.service",
-                                "atom-plasma-update-tidy.service",       # started by udev / their timers
+                                "atom-plasma-update-tidy.service", "atom-plasma-updater.service",   # started by udev / their timers
                                 "atom-plasma-claude-usage.service")
         active = True
         if wanted:

@@ -9,7 +9,20 @@
   people in the history and every project the rice stands on, with the version you have (A opens its page). This
   machine: what a bug report needs, the features on here, Copy for a bug report, Report an issue.
 - A dot on the gear while an update waits; a "Critical update!" banner beside it while a security fix waits.
-- `rice.py manager [check|doctor]` gives it all as JSON (atom/manager.py). The updater itself is the next step.
+- `rice.py manager [check|doctor]` gives it all as JSON (atom/manager.py).
+
+**Updates and install** (`atom/updater.py`, `install.sh`)
+- Releases are git tags on three channels: stable (`1.2.0`, fixes `1.2.1`), beta (`1.3.0-beta.1`), alpha
+  (`1.3.0-alpha.4`); pick one in Atom Manager. A tag marked `Critical: yes` puts up the banner and a
+  notification that stays until it's answered.
+- Atom Manager looks once a day and says so in a notification. Update: your build is kept as a backup branch,
+  the new version's needs are checked first (its Plasma range, Wayland), missing packages are installed (one
+  password prompt; AUR ones in a terminal), compiled parts are rebuilt, the shell restarts, and if it doesn't
+  come back everything goes back as it was. Progress shows live in Atom Manager.
+- A build with changes of its own asks first ("Your Atom build seems custom..."); a developer copy (any branch
+  but `atom-release`) is never touched unless you switch it to releases.
+- `install.sh`: a one-line install for a new machine (checks the system, installs what's missing, the newest
+  release on your channel). `rice.py release VERSION [--critical SUMMARY]` cuts a release for maintainers.
 
 **Launcher, polished** (both styles where it applies)
 - Atom's rings are drawn in one pass on the GPU, with the same soft gap round every icon on every page and screen;

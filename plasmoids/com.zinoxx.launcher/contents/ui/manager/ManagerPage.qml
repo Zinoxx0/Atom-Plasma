@@ -9,7 +9,9 @@ import "../theme"       // the Theme page's parts: Focusable (the lens walks the
 // Atom Manager: the launcher's settings page (the gear at the bottom right; F1, a pad's View), the same in every
 // launcher style, built like the Theme page: on the left who it is (the emblem, the version, whether it's up to
 // date) and its sections, each with its value now; on the right the section, whole.
-//   Updates   the version, whether origin has news (Check now: rice.py manager check), Update, what's new
+//   Updates   the version, the channel (stable, beta, alpha), whether a release waits (Check now: rice.py manager
+//             check), Update (rice.py update start: a custom build asks first; the progress shows live from
+//             update-progress.json), what's new (atom/updater.py is the engine)
 //   Health    rice.py doctor's checks: what to fix (A copies the fix), then everything in place
 //   Credits   the people (git history) and the projects it stands on (atom/data/credits.json: A opens one)
 //   System    the machine as a bug report wants it, the features on here, copy it, report an issue
@@ -46,6 +48,18 @@ Item {
     readonly property var sys: info ? info.system : ({})
     readonly property bool available: !!upd.available
     readonly property bool critical: !!upd.critical
+    readonly property bool developer: upd.mode === "developer"
+    readonly property var blockers: upd.blockers || []
+    readonly property var custom: upd.custom || []
+    readonly property string channel: upd.channel || "stable"
+    // a running update (its own unit writes this as it goes; it outlives the launcher)
+    readonly property string home: String(StandardPaths.writableLocation(StandardPaths.HomeLocation)).replace(/^file:\/\//, "")
+    WatchedJson { id: progW; path: mp.home + "/.local/state/rice/update-progress.json" }
+    readonly property var prog: progW.value || ({})
+    readonly property bool updating: prog.state === "running" && Date.now() / 1000 - (prog.started || 0) < 3 * 3600
+    readonly property bool lastFailed: (prog.state === "failed" || prog.state === "rolledback") && Date.now() / 1000 - (prog.finished || 0) < 86400
+    property bool confirming: false         // the custom build's warning is up
+    onUpdatingChanged: if (!updating) load()
     readonly property string version: repo.version || ""
     function load() { busy = "info"; sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" manager #minfo') }
     function check() {
@@ -65,15 +79,26 @@ Item {
             const kind = (source.match(/#(\w+)(?: \d+)?$/) || [])[1], out = data["stdout"] ?? ""
             disconnectSource(source)
             if (kind === "copy" || kind === "open") return
-            if (mp.busy === kind.slice(1) || (kind === "minfo" && mp.busy === "info")) mp.busy = ""
+            if (kind === "mstart") {
+                let r = null
+                try { r = JSON.parse(out) } catch (e) { r = null }
+                mp.say(r && r.started ? "Updating: your desktop restarts at the end" : (r && r.message) || "The update didn't start")
+                return
+            }
+            if (kind === "mchan") { mp.busy = ""; mp.load(); return }
+            if (mp.busy === kind.slice(1)) mp.busy = ""
             let v = null
             try { v = JSON.parse(out) } catch (e) { v = null }
             if (!v) { if (kind !== "minfo") mp.say("That didn't work"); return }
             if (kind === "mdoctor") { mp.health = v; mp.relensSoon(); return }
+            const first = !mp.info
             mp.info = v
+            mp.checkError = (v.update && v.update.error) || ""
+            if (first && (!mp.focused || !mp.focused.inSide)) { mp.lastKey = ({}); mp.enterTimer.restart() }
             if (kind === "mcheck") {
-                mp.checkError = v.checkError || ""
-                mp.say(mp.checkError ? "Couldn't reach GitHub" : v.update.available ? v.update.behind + (v.update.behind === 1 ? " update" : " updates") + " waiting" : "You're up to date")
+                mp.checkError = v.update.error || ""
+                mp.say(mp.checkError ? "Couldn't reach GitHub" : v.update.available ? "Atom Plasma " + v.update.latest + " is out"
+                       : v.update.mode === "developer" ? "Checked: your developer copy stays as it is" : "You're up to date")
             }
             mp.relensSoon()
             if (!mp.focused) mp.refocusTimer.restart()
@@ -90,9 +115,12 @@ Item {
     }
     readonly property var status: {
         if (!info) return { icon: "progress_activity", text: "Looking…", tone: "dim" }
+        if (updating) return { icon: "progress_activity", text: "Updating to " + (prog.target || "…"), tone: "accent" }
         if (busy === "check") return { icon: "progress_activity", text: "Checking…", tone: "dim" }
+        if (developer) return { icon: "code", text: "Developer copy", tone: "dim" }
+        if (blockers.length) return { icon: "block", text: "Not supported here", tone: "bad" }
         if (critical) return { icon: "gpp_maybe", text: "Critical update", tone: "bad" }
-        if (available) return { icon: "system_update", text: upd.behind + (upd.behind === 1 ? " update waiting" : " updates waiting"), tone: "accent" }
+        if (available) return { icon: "system_update", text: upd.latest + " is out", tone: "accent" }
         if (!upd.checked) return { icon: "help", text: "Not checked yet", tone: "dim" }
         return { icon: "check_circle", text: "Up to date", tone: "ok" }
     }
@@ -111,14 +139,35 @@ Item {
         sh.exec("copy", ["wl-copy", "--", text])
         say(what + " copied")
     }
+    // Update (or a developer copy's Switch to releases): a custom build asks first (confirming), then the update
+    // runs in its own unit: rice.py update start [--force]
     function update() {
-        if (Shell.debug) { console.warn("ATOM manager run update"); return }
-        // (the updater comes next: until then, what it would do)
-        say("The updater isn't built yet: git pull in ~/.config/plasma-rice")
+        if ((custom.length || developer) && !confirming) {
+            confirming = true
+            Qt.callLater(() => mp.focusKey("up:cancel", "key"))
+            return
+        }
+        const force = confirming
+        confirming = false
+        if (Shell.debug) { console.warn("ATOM manager run update", force ? "--force" : ""); say("Updating (dry run)"); return }
+        say("Starting the update…")
+        sh.exec("mstart", ["python3", sh.home + "/.config/plasma-rice/rice.py", "update", "start"].concat(force ? ["--force"] : []))
     }
+    function cancelUpdate() { confirming = false; Qt.callLater(() => mp.focusKey(mp.entryKey(), "key")) }
+    function setChannel(c) {
+        if (c === channel) return
+        if (Shell.debug) { console.warn("ATOM manager run channel", c); return }
+        busy = "chan"
+        sh.exec("mchan", ["python3", sh.home + "/.config/plasma-rice/rice.py", "update", "channel", c])
+    }
+    readonly property var channels: [
+        { id: "stable", name: "Stable", icon: "verified", what: "Finished releases and their fixes. The calm choice." },
+        { id: "beta", name: "Beta", icon: "science", what: "The next features a little early, nearly ready." },
+        { id: "alpha", name: "Alpha", icon: "bolt", what: "The newest work as it lands. Things may break." },
+    ]
     function bugReport() {
         const s = sys, r = repo
-        const lines = ["Atom Plasma " + version + (r.commit ? " (" + r.commit + (r.dirty ? ", local changes" : "") + ")" : ""),
+        const lines = ["Atom Plasma " + version + (r.commit ? " (" + r.commit + (r.dirty ? ", local changes" : "") + (upd.mode === "developer" ? ", developer copy" : "") + ")" : ""),
                        "OS: " + s.os, "Plasma: " + s.plasma + (s.supported ? "" : " (not the supported " + s.supportedPlasma + ")"),
                        "Frameworks: " + s.frameworks, "Qt: " + s.qt, "Kernel: " + s.kernel, "Session: " + s.session]
             .concat((s.gpus || []).map((g, i) => "GPU " + (i + 1) + ": " + g))
@@ -138,13 +187,14 @@ Item {
     property var lastKey: ({})
     function summary(id) {
         if (!info) return "…"
-        if (id === "updates") return status.text + " · checked " + ago(upd.checked)
+        if (id === "updates") return status.text + " · " + channel + " · checked " + ago(upd.checked)
         if (id === "health") return !health ? (busy === "doctor" ? "Checking…" : "Not run yet") : health.bad ? health.bad + (health.bad === 1 ? " thing" : " things") + " to fix" : "All " + health.checks.length + " checks pass"
         if (id === "credits") { const n = (info.credits || []).reduce((a, g) => a + g.items.length, 0); return (info.contributors || []).length + " people · " + n + " projects" }
         if (id === "system") return [sys.os, "Plasma " + sys.plasma].filter(Boolean).join(" · ")
         return ""
     }
     function setSection(id, enter) {
+        if (id !== "updates") confirming = false
         if (id !== section) {
             section = id
             flick.contentY = 0
@@ -155,7 +205,7 @@ Item {
         relensSoon()
     }
     function openSection(id) { setSection(id || "updates", true) }
-    Timer { id: enterTimer; interval: 0; onTriggered: mp.focusKey(mp.entryKey(), "key") }
+    readonly property Timer enterTimer: Timer { interval: 0; onTriggered: mp.focusKey(mp.entryKey(), "key") }
     function stepSection(dir) {
         const i = sections.findIndex(s => s.id === section), n = sections[(i + dir + sections.length) % sections.length]
         const inSide = !!(focused && focused.inSide)
@@ -165,13 +215,13 @@ Item {
     function entryKey() {
         const l = lastKey[section]
         if (l && findKey(l)) return l
-        if (section === "updates") return available ? "up:update" : "up:check"
+        if (section === "updates") return confirming ? "up:cancel" : developer ? "up:switch" : available && !blockers.length ? "up:update" : "up:check"
         let best = null
         for (const f of regs) if (!f.inSide && f.visible) { const p = f.mapToItem(mp, 0, 0); if (!best || p.y < best.y - 1 || (Math.abs(p.y - best.y) <= 1 && p.x < best.x)) best = { f: f, x: p.x, y: p.y } }
         return best ? best.f.fkey : "sec:" + section
     }
     readonly property var head: {
-        if (section === "updates") return { title: "Updates", sub: "Atom Plasma " + version + (repo.url ? " · from " + repo.url.replace(/^https:\/\//, "") : "") }
+        if (section === "updates") return { title: "Updates", sub: "Atom Plasma " + version + " · the " + channel + " channel" + (repo.url ? " · from " + repo.url.replace(/^https:\/\//, "") : "") }
         if (section === "health") return { title: "Health", sub: "Is every piece in place? The same checks as rice.py doctor" + (health ? " · run " + ago(health.now) : "") }
         if (section === "credits") return { title: "Credits", sub: "The people who made it and the projects it stands on" }
         return { title: "This machine", sub: "What a bug report needs · made for Plasma " + (sys.supportedPlasma || "") + " on Wayland" }
@@ -286,7 +336,8 @@ Item {
         else if (k === Qt.Key_Down) move(0, 1)
         else if (k === Qt.Key_Return || k === Qt.Key_Enter || k === Qt.Key_Space) activate()
         else if (k === Qt.Key_Escape) {
-            if (focused && !focused.inSide) focusKey("sec:" + section, "key")
+            if (confirming) cancelUpdate()
+            else if (focused && !focused.inSide) focusKey("sec:" + section, "key")
             else return false
         }
         else if (k === Qt.Key_Tab) stepSection(1)
@@ -366,13 +417,8 @@ Item {
                         id: stRow
                         anchors.centerIn: parent
                         spacing: mp.d(8)
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: mp.status.icon; color: mp.status.tone === "dim" ? mp.look.fgDim : mp.toneColor(mp.status.tone)
-                            font.family: Tokens.font.icons; font.pixelSize: mp.d(21)
-                            RotationAnimator on rotation { running: mp.status.icon === "progress_activity"; from: 0; to: 360; duration: 1100; loops: Animation.Infinite }
-                            onTextChanged: if (text !== "progress_activity") rotation = 0
-                        }
+                        Glyph { anchors.verticalCenter: parent.verticalCenter; icon: mp.status.icon; size: mp.d(21)
+                                color: mp.status.tone === "dim" ? mp.look.fgDim : mp.toneColor(mp.status.tone) }
                         Text { anchors.verticalCenter: parent.verticalCenter; text: mp.status.text; color: mp.look.fg; font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: mp.d(15.5) }
                     }
                 }
@@ -417,6 +463,7 @@ Item {
             contentHeight: bodyLoader.item ? bodyLoader.item.height + mp.d(40) : 0
             boundsBehavior: Flickable.StopAtBounds
             onContentYChanged: if (!scrollAnim.running) mp.relensSoon()
+            onContentHeightChanged: mp.relensSoon()         // (the layout moved under the focus: text came in)
             Loader {
                 id: bodyLoader
                 x: mp.d(20); y: mp.d(14)
@@ -471,6 +518,19 @@ Item {
         }
         Item { id: inner; x: cd.pad; y: cd.pad; width: cd.width - 2 * cd.pad; height: childrenRect.height }
     }
+    // an icon that spins while it's "progress_activity" (a separate glyph: a stopped animator leaves its angle)
+    component Glyph: Item {
+        id: gl
+        property string icon: ""
+        property color color: "white"
+        property real size: 20
+        implicitWidth: size; implicitHeight: size
+        Text { anchors.centerIn: parent; visible: gl.icon !== "progress_activity"; text: gl.icon; color: gl.color; font.family: Tokens.font.icons; font.pixelSize: gl.size }
+        Text {
+            anchors.centerIn: parent; visible: gl.icon === "progress_activity"; text: "progress_activity"; color: gl.color; font.family: Tokens.font.icons; font.pixelSize: gl.size
+            RotationAnimator on rotation { running: gl.icon === "progress_activity" && gl.visible; from: 0; to: 360; duration: 1100; loops: Animation.Infinite }
+        }
+    }
     component Heading: Text {
         property Item studio
         color: studio.look.fg; font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: studio.d(13); font.letterSpacing: studio.d(1.3)
@@ -484,12 +544,14 @@ Item {
             width: bodyLoader.width
             spacing: mp.d(18)
             Item {          // where it stands, and what to do about it
+                id: upCard
                 width: Math.min(parent.width, mp.d(940))
                 height: upRow.height + mp.d(56)
+                readonly property string tone: mp.status.tone
                 Rectangle {
                     anchors.fill: parent; radius: mp.d(26)
-                    color: C.alpha(C.mix(mp.look.surfaceLowest, mp.toneColor(mp.status.tone), mp.status.tone === "dim" ? 0.05 : 0.14), 0.7)
-                    border.width: mp.d(1.5); border.color: C.alpha(mp.toneColor(mp.status.tone), mp.status.tone === "dim" ? 0.18 : 0.42)
+                    color: C.alpha(C.mix(mp.look.surfaceLowest, mp.toneColor(upCard.tone), upCard.tone === "dim" ? 0.05 : 0.14), 0.7)
+                    border.width: mp.d(1.5); border.color: C.alpha(mp.toneColor(upCard.tone), upCard.tone === "dim" ? 0.18 : 0.42)
                     Behavior on color { ColorAnimation { duration: Tokens.ms(400) } }
                 }
                 Row {
@@ -498,65 +560,189 @@ Item {
                     spacing: mp.d(26)
                     Rectangle {
                         width: mp.d(84); height: width; radius: width / 2
-                        color: C.alpha(mp.toneColor(mp.status.tone), 0.18)
-                        Text { anchors.centerIn: parent; text: mp.status.icon; color: mp.status.tone === "dim" ? mp.look.fg : mp.toneColor(mp.status.tone); font.family: Tokens.font.icons; font.pixelSize: mp.d(44)
-                               RotationAnimator on rotation { running: mp.status.icon === "progress_activity"; from: 0; to: 360; duration: 1100; loops: Animation.Infinite }
-                               onTextChanged: if (text !== "progress_activity") rotation = 0 }
+                        color: C.alpha(mp.toneColor(upCard.tone), 0.18)
+                        Glyph { anchors.centerIn: parent; icon: mp.status.icon; size: mp.d(44); color: upCard.tone === "dim" ? mp.look.fg : mp.toneColor(upCard.tone) }
                     }
                     Column {
+                        id: upText
                         spacing: mp.d(10)
-                        width: Math.min(parent.parent.width, mp.d(940)) - mp.d(84) - mp.d(26) - 2 * mp.d(30)
+                        width: upCard.width - mp.d(84) - mp.d(26) - 2 * mp.d(30)
                         Text {
-                            text: !mp.info ? "Looking…" : mp.busy === "check" ? "Asking GitHub for news…" : mp.critical ? "A critical update is waiting" : mp.available ? (mp.upd.behind === 1 ? "An update is waiting" : mp.upd.behind + " updates are waiting") : "You're up to date"
+                            width: parent.width; wrapMode: Text.WordWrap
+                            text: !mp.info ? "Looking…" : mp.updating ? "Updating to " + mp.prog.target + "…" : mp.busy === "check" ? "Asking GitHub for news…"
+                                : mp.developer ? "Developer copy" : mp.blockers.length ? "This system isn't supported"
+                                : mp.critical ? "A critical update is waiting" : mp.available ? "Atom Plasma " + mp.upd.latest + " is out" : "You're up to date"
                             color: mp.look.fg; font.family: mp.wideFamily; font.variableAxes: mp.wideAxes(112, 600); font.pixelSize: mp.d(30)
                         }
                         Text {
                             width: parent.width; wrapMode: Text.WordWrap
-                            text: mp.critical ? (mp.upd.summary || "It fixes a security problem: update as soon as you can.")
-                                : mp.available ? (mp.upd.summary || "New changes are waiting on GitHub" + (mp.upd.latest ? " (latest release " + mp.upd.latest + ")" : "") + ".")
-                                : "Atom Plasma " + mp.version + " is the newest there is."
+                            visible: text !== ""
+                            text: mp.updating ? (mp.prog.message || "")
+                                : mp.developer ? "You're working on " + (mp.upd.branch || "a branch") + ": the updater leaves your copy alone."
+                                  + (mp.upd.latest ? " The newest " + mp.channel + " release is " + mp.upd.latest + "." : "")
+                                : mp.blockers.length ? mp.blockers.join(". ") + "."
+                                : mp.critical ? (mp.upd.summary || "It fixes a security problem: update as soon as you can.")
+                                : mp.available ? (mp.upd.summary || "A new " + mp.channel + " release is ready.")
+                                : "Atom Plasma " + mp.version + " is the newest on the " + mp.channel + " channel."
                             color: mp.look.fg; opacity: 0.86; font.family: Tokens.font.ui; font.pixelSize: mp.d(16.5)
                         }
-                        Text {
-                            text: ["Checked " + mp.ago(mp.upd.checked), mp.repo.commit ? "commit " + mp.repo.commit + " of " + mp.repo.date : "", mp.repo.dirty ? "your copy has local changes" : "",
-                                   mp.repo.ahead ? mp.repo.ahead + " commits of yours not on GitHub" : "", mp.checkError ? "couldn't reach GitHub" : ""].filter(Boolean).join(" · ")
+                        Text {      // what else the update does
+                            width: parent.width; wrapMode: Text.WordWrap
+                            readonly property var inst: mp.upd.install || ({})
+                            readonly property var all: (inst.repo || []).concat((inst.aur || []).map(x => x + " (AUR)"))
+                            visible: mp.available && !mp.updating && !mp.blockers.length && all.length > 0
+                            text: "It also installs " + all.join(", ") + "."
                             color: mp.look.fgDim; font.family: Tokens.font.ui; font.pixelSize: mp.d(14.5)
                         }
-                        Row {
+                        Text {
+                            width: parent.width; wrapMode: Text.WordWrap
+                            visible: mp.lastFailed && !mp.updating
+                            text: (mp.prog.state === "rolledback" ? "The last update was undone: " : "The last update didn't finish: ") + (mp.prog.message || "") + " (details in " + String(mp.prog.log || "").replace(mp.home, "~") + ")"
+                            color: mp.look.bad; font.family: Tokens.font.ui; font.pixelSize: mp.d(14.5)
+                        }
+                        Text {
+                            visible: !mp.updating
+                            text: ["Checked " + mp.ago(mp.upd.checked), mp.repo.commit ? "commit " + mp.repo.commit : "", mp.developer && mp.upd.devBehind ? "main has " + mp.upd.devBehind + " new commits" : "",
+                                   mp.checkError ? "couldn't reach GitHub" : ""].filter(Boolean).join(" · ")
+                            color: mp.look.fgDim; font.family: Tokens.font.ui; font.pixelSize: mp.d(14.5)
+                        }
+                        Column {    // the update's steps as it goes: a slim bar of segments, then where it is
+                            visible: mp.updating
+                            width: parent.width
+                            spacing: mp.d(10)
+                            topPadding: mp.d(4)
+                            readonly property var steps: mp.prog.steps || []
+                            readonly property int at: Math.max(0, steps.indexOf(mp.prog.step))
+                            Row {
+                                spacing: mp.d(6)
+                                Repeater {
+                                    model: parent.parent.steps
+                                    Rectangle {
+                                        required property string modelData
+                                        required property int index
+                                        readonly property bool done: (mp.prog.done || []).indexOf(modelData) >= 0
+                                        readonly property bool now: mp.prog.step === modelData
+                                        width: (upText.width - mp.d(6) * (parent.parent.steps.length - 1)) / Math.max(1, parent.parent.steps.length)
+                                        height: mp.d(6); radius: height / 2
+                                        color: done ? mp.look.primary : now ? C.alpha(mp.look.primary, 0.55) : C.alpha(mp.look.fg, 0.14)
+                                        Behavior on color { ColorAnimation { duration: Tokens.ms(400) } }
+                                        SequentialAnimation on opacity {     // the step under way breathes, slowly
+                                            running: now && mp.updating; loops: Animation.Infinite
+                                            NumberAnimation { to: 0.45; duration: 900; easing.type: Easing.InOutSine }
+                                            NumberAnimation { to: 1; duration: 900; easing.type: Easing.InOutSine }
+                                        }
+                                        onNowChanged: if (!now) opacity = 1
+                                    }
+                                }
+                            }
+                            Text {
+                                readonly property string name: mp.prog.step || ""
+                                text: "Step " + (parent.at + 1) + " of " + parent.steps.length + " · " + name.charAt(0).toUpperCase() + name.slice(1)
+                                color: mp.look.fgDim; font.family: Tokens.font.ui; font.weight: Font.Medium; font.pixelSize: mp.d(14.5)
+                            }
+                        }
+                        Row {       // what to do
+                            visible: !mp.updating && !mp.confirming
                             topPadding: mp.d(8)
                             spacing: mp.d(12)
                             StudioChip {
                                 studio: mp
                                 fkey: "up:update"
-                                visible: mp.available
+                                visible: mp.available && !mp.blockers.length && !mp.confirming
                                 chosen: true
                                 icon: "download"
-                                text: mp.critical ? "Update now" : "Update"
+                                text: mp.critical ? "Update now" : "Update to " + mp.upd.latest
                                 act: "Update"
-                                desc: "<b>Update</b> Bring Atom Plasma up to date (the updater is the next step: for now it says what to run)."
+                                desc: "<b>Update</b> Atom Plasma " + mp.upd.latest + ": your build is kept as a backup first, the desktop restarts at the end, and it goes back by itself if anything breaks."
+                                onActivated: mp.update()
+                            }
+                            StudioChip {
+                                studio: mp
+                                fkey: "up:switch"
+                                visible: mp.developer && !!mp.upd.latestTag && !mp.blockers.length && !mp.confirming
+                                icon: "swap_horiz"
+                                text: "Switch to releases"
+                                act: "Switch"
+                                desc: "<b>Switch to releases</b> Make this copy follow the " + mp.channel + " releases (" + mp.upd.latest + "). Your work is kept as a backup branch."
                                 onActivated: mp.update()
                             }
                             StudioChip {
                                 studio: mp
                                 fkey: "up:check"
+                                visible: !mp.confirming
                                 icon: "refresh"
                                 text: mp.busy === "check" ? "Checking…" : "Check now"
                                 act: "Check"
-                                desc: "<b>Check now</b> Ask GitHub whether there's anything new. Nothing changes on your desktop."
+                                desc: "<b>Check now</b> Ask GitHub for releases on the " + mp.channel + " channel. Nothing changes on your desktop."
                                 onActivated: mp.check()
+                            }
+                        }
+                        Rectangle {     // the custom build's warning (the user's words, 2026-11-23)
+                            visible: mp.confirming
+                            width: parent.width
+                            height: warnCol.height + mp.d(36)
+                            radius: mp.d(18)
+                            color: C.alpha(mp.look.bad, 0.12)
+                            border.width: mp.d(1.5); border.color: C.alpha(mp.look.bad, 0.5)
+                            Column {
+                                id: warnCol
+                                x: mp.d(20); y: mp.d(18)
+                                width: parent.width - 2 * mp.d(20)
+                                spacing: mp.d(12)
+                                Row {
+                                    spacing: mp.d(10)
+                                    Text { text: "warning"; color: mp.look.bad; font.family: Tokens.font.icons; font.pixelSize: mp.d(24) }
+                                    Text { width: warnCol.width - mp.d(34); wrapMode: Text.WordWrap
+                                           text: "Your Atom build seems custom, updating it will rewrite your personal code, proceed anyways?"
+                                           color: mp.look.fg; font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: mp.d(17) }
+                                }
+                                Text { width: parent.width; wrapMode: Text.WordWrap
+                                       text: "Found: " + mp.custom.join(", ") + ". Your code is saved as a backup branch first (git branch --list 'backup/*'), so nothing is lost for good."
+                                       color: mp.look.fgDim; font.family: Tokens.font.ui; font.pixelSize: mp.d(14.5) }
+                                Row {
+                                    spacing: mp.d(12)
+                                    StudioChip { studio: mp; fkey: "up:cancel"; visible: mp.confirming; icon: "close"; text: "Cancel"; act: "Cancel"
+                                                 desc: "<b>Cancel</b> Keep your build as it is."; onActivated: mp.cancelUpdate() }
+                                    StudioChip { studio: mp; fkey: "up:force"; visible: mp.confirming; icon: "download"; text: "Update anyway"; act: "Update"
+                                                 desc: "<b>Update anyway</b> Back up your build, then replace it with " + mp.upd.latest + "."; onActivated: mp.update() }
+                                }
                             }
                         }
                     }
                 }
             }
-            // what's new: CHANGELOG.md (GitHub's when an update waits), a card per part, A opens it whole
-            Heading { studio: mp; text: mp.available ? "WHAT THE UPDATE BRINGS" : "WHAT'S NEW"; visible: changes.count > 0 }
+            // the channel: which releases come
+            Heading { studio: mp; text: "CHANNEL" }
+            Row {
+                spacing: mp.d(12)
+                Repeater {
+                    model: mp.channels
+                    StudioChip {
+                        required property var modelData
+                        studio: mp
+                        fkey: "chan:" + modelData.id
+                        icon: modelData.icon
+                        text: modelData.name
+                        chosen: mp.channel === modelData.id
+                        act: chosen ? "Choose" : "Switch to " + modelData.name
+                        desc: "<b>" + modelData.name + "</b> " + modelData.what
+                        onActivated: mp.setChannel(modelData.id)
+                    }
+                }
+            }
+            Text {
+                width: Math.min(parent.width, mp.d(940)); wrapMode: Text.WordWrap
+                text: (mp.channels.find(c => c.id === mp.channel) || mp.channels[0]).what + " A channel takes its own releases and every steadier one."
+                color: mp.look.fgDim; font.family: Tokens.font.ui; font.pixelSize: mp.d(14.5)
+            }
+            // what's new: CHANGELOG.md (the waiting release's), a card per part, A opens it whole
+            Heading { studio: mp; text: mp.upd.newer ? "WHAT " + mp.upd.latest + " BRINGS" : "WHAT'S NEW"; visible: changes.count > 0 }
             Repeater {
                 id: changes
                 model: {
                     const out = []
                     const log = (mp.info && mp.info.changelog) || []
-                    for (const s of log.slice(0, mp.available ? 1 : 2))
+                    for (const s of log.slice(0, mp.upd.newer ? 1 : 2))
                         for (const g of s.groups) out.push({ version: s.version, title: g.title || s.version, note: g.note, items: g.items })
                     return out
                 }
@@ -617,10 +803,8 @@ Item {
                     Rectangle {
                         width: mp.d(72); height: width; radius: width / 2
                         color: C.alpha(!mp.health ? mp.look.fg : mp.health.bad ? mp.look.bad : mp.look.ok, 0.16)
-                        Text { anchors.centerIn: parent; text: mp.busy === "doctor" ? "progress_activity" : !mp.health ? "health_and_safety" : mp.health.bad ? "build" : "verified"
-                               color: !mp.health ? mp.look.fg : mp.health.bad ? mp.look.bad : mp.look.ok; font.family: Tokens.font.icons; font.pixelSize: mp.d(38)
-                               RotationAnimator on rotation { running: mp.busy === "doctor"; from: 0; to: 360; duration: 1100; loops: Animation.Infinite }
-                               onTextChanged: if (text !== "progress_activity") rotation = 0 }
+                        Glyph { anchors.centerIn: parent; icon: mp.busy === "doctor" ? "progress_activity" : !mp.health ? "health_and_safety" : mp.health.bad ? "build" : "verified"
+                                size: mp.d(38); color: !mp.health ? mp.look.fg : mp.health.bad ? mp.look.bad : mp.look.ok }
                     }
                     Column {
                         anchors.verticalCenter: parent.verticalCenter

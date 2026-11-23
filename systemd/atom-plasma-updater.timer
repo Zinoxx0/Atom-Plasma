@@ -1,0 +1,12 @@
+# Atom Plasma: Atom Manager looks for releases once a day (and after a missed day, a while after login).
+[Unit]
+Description=Atom Manager: look for Atom Plasma releases daily
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=2h
+OnStartupSec=10min
+
+[Install]
+WantedBy=timers.target

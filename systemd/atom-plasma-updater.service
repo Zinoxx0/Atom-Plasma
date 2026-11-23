@@ -1,0 +1,12 @@
+# Atom Plasma: Atom Manager's daily look for releases on your channel (atom/updater.py check --notify).
+# A notification from "Atom Manager" when one waits (a critical one stays until it's answered); its
+# Update button starts the update in its own unit (atom-plasma-updating). A developer copy is only looked at.
+[Unit]
+Description=Atom Manager: look for Atom Plasma releases
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.config/plasma-rice/rice.py update check --notify
+Nice=10
+TimeoutStartSec=7h

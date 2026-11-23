@@ -8,19 +8,25 @@ seven monitors, a portrait 4K next to an 8K and an 800×800 panel.
 ## Install
 
 ```sh
-git clone https://github.com/Zinoxx0/Atom-Plasma ~/.config/plasma-rice   # or anywhere: install links it there
-cd ~/.config/plasma-rice
-./rice.py install --dry-run      # what it would do
-./rice.py install                # links, user units, plasmashell's environment, shortcuts
-# log out and back in once, then:
-./rice.py setup                  # window chrome, effects, Dolphin, Darkly (once)
-./rice.py random                 # pick a wallpaper: everything themes from it
-./rice.py doctor                 # is everything in place?
+curl -fsSL https://raw.githubusercontent.com/Zinoxx0/Atom-Plasma/main/install.sh | sh
 ```
 
-`install` is safe to re-run and never overwrites files it didn't create. It links the widgets, the
-look-and-feel and the KWin effects into this repo, so `git pull` is the update. Anything that needs root
-(the login-screen copier, the Razer udev rule, boot theming) is printed for you to run yourself.
+It checks the system first (KDE Plasma on Wayland, a Plasma version this release supports), installs what's
+missing (one password prompt; AUR packages build in a terminal you can watch; on non-Arch distros it lists them
+for you), takes the newest release on your channel and puts every piece in place. Then log out and back in, run
+`~/.config/plasma-rice/rice.py setup` once and `rice.py random` for a first wallpaper. `ATOM_CHANNEL=beta` (or
+`alpha`) before `sh` starts you on newer builds.
+
+**Updates** come through Atom Manager (the gear at the launcher's bottom right). Releases are stable (`1.2.0`,
+fixes `1.2.1`), beta (`1.3.0-beta.1`) or alpha (`1.3.0-alpha.4`); a channel takes its own and every steadier one.
+An update keeps your build as a backup branch, installs what the new version needs, rebuilds what's compiled,
+restarts the shell, and goes back by itself if the desktop doesn't come back. A build with changes of your own
+asks first. A clone on any branch but `atom-release` is a developer copy: the updater reports releases but
+never touches it (`rice.py update` has the commands).
+
+By hand (developers): clone anywhere, then `./rice.py install --dry-run`, `./rice.py install`, relog,
+`./rice.py setup`, `./rice.py random`, `./rice.py doctor`. `install` is safe to re-run and never overwrites files
+it didn't create; anything needing root is printed for you to run.
 
 **Needs:** Plasma 6.8 on Wayland, Python 3 with Pillow, numpy, dbus-python and PyGObject, plus ImageMagick
 and Panel Colorizer; to build the shell's native module, CMake, Ninja, a C++20 compiler, `qt6-declarative`
