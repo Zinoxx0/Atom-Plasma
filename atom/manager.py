@@ -179,6 +179,8 @@ def changelog(ref=None, sections=2):
     out, cur, grp, item = [], None, None, None
     for line in text.splitlines():
         if line.startswith("## "):
+            if out and not out[-1]["groups"]:
+                out.pop()           # (an empty section, like "Unreleased" right after a release)
             if len(out) >= sections:
                 break
             cur = {"version": line[3:].strip(), "groups": []}
@@ -198,6 +200,7 @@ def changelog(ref=None, sections=2):
             grp["items"].append(item)
         elif line.startswith("  ") and grp is not None and grp["items"] and line.strip():
             grp["items"][-1] += " " + line.strip()
+    out = [sec for sec in out if sec["groups"]]
     for sec in out:
         for g in sec["groups"]:
             g["items"] = [re.sub(r"`([^`]*)`", r"\1", i) for i in g["items"]]

@@ -60,13 +60,19 @@ class Updater(unittest.TestCase):
         git(cls.client, "checkout", "-q", "-B", "atom-release", "v1.1.0")
         cls.home = cls.tmp / "home"
         cls.home.mkdir()
+        # a stand-in plasmashell: CI's container has no Plasma, and the updater rightly refuses a system without it
+        cls.bin = cls.tmp / "bin"
+        cls.bin.mkdir()
+        (cls.bin / "plasmashell").write_text("#!/bin/sh\nexit 0\n")
+        (cls.bin / "plasmashell").chmod(0o755)
 
     @classmethod
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
     def run_upd(self, *args, fail=""):
-        env = dict(os.environ, HOME=str(self.home), ATOM_UPDATE_DRY="1", ATOM_UPDATE_FAIL=fail)
+        env = dict(os.environ, HOME=str(self.home), ATOM_UPDATE_DRY="1", ATOM_UPDATE_FAIL=fail,
+                   PATH=f"{self.bin}:{os.environ.get('PATH', '')}")
         return subprocess.run(["python3", str(self.client / "rice.py"), "update", *args], env=env,
                               capture_output=True, text=True, timeout=120)
 
