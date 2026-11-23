@@ -11,7 +11,7 @@ import QtCore
 //   ClaudeAsk { id: checkIn }      checkIn.asking, checkIn.msg; checkIn.done() marks it done
 //
 // Other notices of the same shape use it too, with their own `file` and `ackCommand`: the important
-// update the update check found (update-check.py, update.json).
+// update the update check found (update-check.py, cachy-update.json).
 Item {
     id: ca
     visible: false

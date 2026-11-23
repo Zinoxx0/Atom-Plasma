@@ -26,7 +26,7 @@ notice), decides. The report adds the lookups Claude really made (read from its 
 must-check item it gave no source for, and every waiting update. A notice never repeats for the same
 upstream versions.
 
-The notice is ~/.local/state/rice/update.json (the desk widget watches it with ClaudeAsk.qml, like
+The notice is ~/.local/state/rice/cachy-update.json (the desk widget watches it with ClaudeAsk.qml, like
 ask.sh's check-ins); ~/.local/state/rice/update-check/ holds report.md, state.json, prompt.txt (what
 Claude was given) and last-output.jsonl (its whole run).
 settings.json "update_check": {"model": "sonnet", "holds": {name: {"skip", "why"}}}.
@@ -49,7 +49,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # (bin/..: the
 from atom import util  # noqa: E402
 
 STATE = util.STATE
-NOTICE = STATE / "update.json"
+NOTICE = STATE / "cachy-update.json"            # (update.json is the Atom updater's)
 DIR = STATE / "update-check"
 REPORT = DIR / "report.md"
 STATE_FILE = DIR / "state.json"

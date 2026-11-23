@@ -52,7 +52,7 @@ PlasmoidItem {
     ClaudeAsk {
         id: cachy
         active: root.live
-        file: "update.json"
+        file: "cachy-update.json"
         ackCommand: 'python3 "$HOME/.config/plasma-rice/bin/update-check.py" --ack'
     }
     readonly property bool updating: cachy.asking
