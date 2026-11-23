@@ -15,7 +15,7 @@ Item {
     function d(px) { return cap.stage.d(px) }
     x: cap.stage.side
     y: cap.stage.atomAt.y - col.height / 2
-    width: cap.d(780)
+    width: cap.stage.capWidth
     height: col.height
     function chip(padKey) {
         const i = cap.stage.input

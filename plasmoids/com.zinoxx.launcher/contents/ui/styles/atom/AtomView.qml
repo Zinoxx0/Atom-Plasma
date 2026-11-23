@@ -73,7 +73,11 @@ Item {
     property var aim: null                  // { ri, i }: the item under a flung pointer, picked once it slows
     HoverHandler {
         onPointChanged: {
-            const now = Date.now(), p = point.position
+            const now = Date.now(), p = point.position, was = av.trail[av.trailAt]
+            if (!was || Math.abs(p.x - was.x) + Math.abs(p.y - was.y) <= 1) {      // (its first place: the page appeared under it)
+                av.trail[av.trailAt] = { x: p.x, y: p.y, t: was ? was.t : 0 }
+                return
+            }
             av.lastMove = now
             av.trailAt = (av.trailAt + 1) % av.trail.length
             av.trail[av.trailAt] = { x: p.x, y: p.y, t: now }

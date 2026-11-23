@@ -29,24 +29,89 @@ Item {
         }
     }
 
-    // a game's art while a game has the focus (cross-faded; softened like the scene)
+    // a game's art while a game has the focus, the Steam way (the user, 2026-11-23: Yakuza 0's was zoomed until its
+    // characters were cut): the whole picture at its own proportions across the width, from the top, fading into the
+    // scene at its bottom; in and out with a calm fade. Sharp on the Games page; elsewhere softened when the backdrop
+    // is (matte, clear: the same softness everywhere), sharp with a sharp one (noise, none). A wallpaper previewed on
+    // the Theme page fills the screen instead (`sharp`). Two slots: a new picture loads into the hidden one and fades
+    // in once it's ready; a slot still fading out is never given a new picture (it'd pop): the newest waits for it.
+    // Each slot's look (mask, blur) is a layer made once per picture, not every frame.
     Item {
         id: art
         anchors.fill: parent
-        readonly property string want: scene.stage.focusItem && scene.stage.focusItem.hero ? scene.stage.focusItem.hero : ""
-        readonly property bool sharp: !!(scene.stage.focusItem && scene.stage.focusItem.sharp)     // a wallpaper previewed: as it is
-        property int shownSlot: 0
-        onWantChanged: { const next = 1 - shownSlot; (next ? b : a).source = want; shownSlot = next }
         opacity: scene.stage.bgO
-        Image { id: a; anchors.fill: parent; fillMode: Image.PreserveAspectCrop; asynchronous: true; cache: true; visible: opacity > 0.01
-                opacity: art.shownSlot === 0 && source != "" && status === Image.Ready ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: Tokens.ms(500); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
-                layer.enabled: visible && !art.sharp; layer.effect: MultiEffect { blurEnabled: true; blur: 0.7; blurMax: 48; saturation: 0.1 } }
-        Image { id: b; anchors.fill: parent; fillMode: Image.PreserveAspectCrop; asynchronous: true; cache: true; visible: opacity > 0.01
-                opacity: art.shownSlot === 1 && source != "" && status === Image.Ready ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: Tokens.ms(500); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
-                layer.enabled: visible && !art.sharp; layer.effect: MultiEffect { blurEnabled: true; blur: 0.7; blurMax: 48; saturation: 0.1 } }
-        Rectangle { anchors.fill: parent; color: C.alpha(scene.stage.look.surfaceLowest, art.sharp ? 0.12 : 0.4); visible: a.visible || b.visible; opacity: Math.max(a.opacity, b.opacity) }
+        readonly property string want: scene.stage.focusItem && scene.stage.focusItem.hero ? scene.stage.focusItem.hero : ""
+        readonly property bool wall: !!(scene.stage.focusItem && scene.stage.focusItem.sharp)       // a wallpaper previewed: fills
+        readonly property bool soft: !wall && scene.stage.page !== "games" && (bd.matte || bd.glass)
+        property int shown: -1              // the slot in view (-1: none)
+        property string waiting: ""         // a picture for a slot still fading out
+        readonly property real dpr: scene.stage.devicePixelRatio || 1
+        function slotItem(i) { return i === 0 ? s0 : s1 }
+        function retarget() {
+            const w = want
+            if (!w) { shown = -1; waiting = ""; return }
+            if (shown >= 0 && String(slotItem(shown).source) === w) { waiting = ""; return }
+            const k = shown === 0 ? 1 : 0, other = slotItem(k)
+            if (String(other.source) === w) { shown = k; waiting = ""; return }       // (back to the one fading out)
+            if (other.level > 0.004 && shown >= 0) { waiting = w; return }      // it must go first (the shown one stays meanwhile)
+            other.source = w; shown = k; waiting = ""
+        }
+        onWantChanged: retarget()
+        function settled(i) {               // slot i has faded out: a waiting picture can go in it
+            if (!waiting || slotItem(i).level > 0.004) return
+            const w = waiting; waiting = ""
+            if (w !== want) return
+            slotItem(i).source = w; shown = i
+        }
+        component Slot: Image {
+            id: im
+            required property int slot
+            readonly property bool on: art.shown === slot && status === Image.Ready
+            property real level: on ? 1 : 0
+            Behavior on level { NumberAnimation { duration: Tokens.ms(460); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
+            onLevelChanged: if (level <= 0.004) art.settled(slot)
+            opacity: level
+            visible: level > 0.004
+            x: 0; y: 0
+            width: parent.width
+            // its own proportions across the width (a wallpaper: the whole screen, cropped as a wallpaper is)
+            height: art.wall ? parent.height : implicitWidth > 0 ? Math.round(width * implicitHeight / implicitWidth) : 0
+            fillMode: art.wall ? Image.PreserveAspectCrop : Image.Stretch
+            asynchronous: true
+            cache: true
+            smooth: true
+            sourceSize.width: Math.round(parent.width * art.dpr)
+            layer.enabled: source != "" && !art.wall
+            layer.effect: MultiEffect {
+                maskEnabled: true
+                maskSource: fadeMask
+                maskThresholdMin: 0.5
+                maskSpreadAtMin: 1.0
+                blurEnabled: art.soft
+                blur: 0.7; blurMax: 48
+                saturation: art.soft ? 0.1 : 0
+            }
+        }
+        Slot { id: s0; slot: 0 }
+        Slot { id: s1; slot: 1 }
+        // where the art fades into the scene: solid down to 55% of its height, gone at its bottom
+        Rectangle {
+            id: fadeMask
+            width: 8; height: 256          // (stretched over each picture: only its rows matter)
+            visible: false; layer.enabled: true
+            gradient: Gradient {
+                GradientStop { position: 0; color: "white" }
+                GradientStop { position: 0.55; color: "white" }
+                GradientStop { position: 1; color: "transparent" }
+            }
+        }
+        // the veil that keeps text readable over it (lighter over a sharp game's art: it's meant to be seen)
+        Rectangle {
+            anchors.fill: parent
+            color: C.alpha(scene.stage.look.surfaceLowest, art.wall ? 0.12 : art.soft ? 0.4 : 0.24)
+            opacity: Math.max(s0.level, s1.level)
+            visible: opacity > 0.004
+        }
     }
 
     // a gradient from the top edge (the top bar's ground) and a shade on the left (the caption's)

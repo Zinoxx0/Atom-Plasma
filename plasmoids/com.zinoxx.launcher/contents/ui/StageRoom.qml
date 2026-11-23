@@ -5,7 +5,7 @@ import Atom
 import Rice
 
 // The room behind the launcher's content (Stage): what the focus is about fills it. A game: its own art,
-// drifting in, fading into the room at the bottom. An app: the wallpaper coloured with the app's own colour
+// whole across the width, fading into the room at the bottom. An app: the wallpaper coloured with the app's own colour
 // and its icon large and blurred on the right (two slots, cross-faded as the focus moves). The Theme page:
 // the wallpaper being looked at (a stack: each new one fades in OVER the one before, which stays until it's
 // covered, so nothing between them shows through; an item with the same picture changes nothing). Then the
@@ -63,7 +63,8 @@ Item {
                     }
                 }
             }
-            // a game fills it with its own art, drifting a little as it arrives
+            // a game's own art across the width at its own proportions, from the top (no crop, no zoom: the user,
+            // 2026-11-23, Yakuza 0's characters were cut), fading into the room at its bottom
             Repeater {
                 model: 2
                 Image {
@@ -71,23 +72,19 @@ Item {
                     required property int index
                     x: 0; y: 0
                     width: parent.width
-                    height: parent.height * 0.78
-                    fillMode: Image.PreserveAspectCrop
-                    verticalAlignment: Image.AlignTop
+                    height: implicitWidth > 0 ? Math.round(width * implicitHeight / implicitWidth) : 0
                     asynchronous: true
+                    sourceSize.width: Math.round(width * (room.stage.devicePixelRatio || 1))
                     source: room.items[index] && room.items[index].art ? room.items[index].art.hero : ""
                     opacity: room.slot === index ? room.artLevel[index] : 0
                     visible: opacity > 0.001
-                    transformOrigin: Item.Top
-                    layer.enabled: visible
+                    layer.enabled: source != ""          // (made once per picture, not each time it shows)
                     layer.effect: MultiEffect {     // fades into the room at the bottom
                         maskEnabled: true
                         maskSource: artMask
                         maskThresholdMin: 0.5       // with the spread: smoothstep over the mask's whole 0..1 alpha
                         maskSpreadAtMin: 1.0        // (the defaults let every pixel through: a hard cut where the art ends)
                     }
-                    NumberAnimation on scale { id: drift; running: false; from: 1.07; to: 1; duration: Tokens.ms(9000); easing.type: Easing.BezierSpline; easing.bezierCurve: [0.22, 0.6, 0.3, 1, 1, 1] }
-                    onSourceChanged: if (source != "" && !room.stage.launcher.unplugged && !room.stage.launcher.saverOn) drift.restart(); else { drift.stop(); scale = 1 }
                 }
             }
             // the Theme page's wallpapers: three layers, the newest on top (z), each fading in once its picture
@@ -200,8 +197,7 @@ Item {
     }
     Rectangle {     // the game art's fade into the room
         id: artMask
-        width: room.stage.width
-        height: room.stage.height * 0.78
+        width: 8; height: 256           // (stretched over the art: only its rows matter)
         visible: false
         layer.enabled: true
         gradient: Gradient {

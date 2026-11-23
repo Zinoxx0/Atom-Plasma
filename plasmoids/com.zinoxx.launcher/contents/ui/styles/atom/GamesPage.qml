@@ -2,7 +2,8 @@ import QtQuick
 import org.kde.kirigami as Kirigami
 import Rice
 
-// Atom's Games (the user, 2026-11-16: banners like the Epic launcher, 2-3 rows, more when the launcher is small): the
+// Atom's Games (the user, 2026-11-16: banners like the Epic launcher, more when the launcher is small; 2026-11-23:
+// columns and rows by the room there is, the banners' size by the launcher's size, on every screen): the
 // focused game's art fills the scene; the caption (its logo, play time, last session, Play / Options and the library's
 // tools: Scan for games, Add a game, Open Steam); the library as a grid of banners on the right (Steam's library header;
 // a game without one gets a card in its icon's colour), as many columns as fit, scrolling by rows; store chips (LT/RT).
@@ -29,13 +30,18 @@ Item {
     readonly property var game: games[Math.min(cur, games.length - 1)] || null
     readonly property var tools: [["refresh", "Scan for games"], ["add", "Add a game"], ["open_in_new", "Open Steam"]]
 
-    // the grid
-    readonly property real cw: page.stage.d(440) * page.stage.launcher.homeSize / 1.1
-    readonly property real ch: cw * 215 / 460
+    // the grid: right of the caption, banners d(360) wide (the unit carries the launcher's size), as many columns as
+    // fit (2 at least: narrower banners, down to d(260), before one column; 5 at most) and as many whole rows
     readonly property real gap: page.stage.d(22)
+    readonly property real room: page.stage.width - lib.x - page.stage.side
+    readonly property real cwBase: page.stage.d(360)
+    readonly property int fits: Math.floor((room + gap) / (cwBase + gap))
+    readonly property real cw: fits >= 2 ? cwBase : Math.max(page.stage.d(260), (room - gap) / 2)
+    readonly property int cols: Math.max(1, Math.min(5, Math.floor((room + gap) / (cw + gap) + 0.001)))   // (2 narrowed banners fit exactly)
+    readonly property real ch: cw * 215 / 460
     Item {
         id: lib
-        x: page.stage.d(900); y: page.stage.d(130)
+        x: page.stage.side + page.stage.capWidth + page.stage.d(56); y: page.stage.d(130)
         width: page.stage.width - x - page.stage.side
         height: page.stage.height - y - page.stage.d(90)
         Row {
@@ -57,9 +63,9 @@ Item {
             id: grid
             readonly property real pad: page.stage.d(16)
             anchors.top: chips.bottom; anchors.topMargin: page.stage.d(18) - pad
-            readonly property int cols: Math.max(1, Math.floor((lib.width + page.gap) / (page.cw + page.gap)))
+            readonly property int cols: page.cols
             readonly property int rows: Math.max(1, Math.floor((lib.height - chips.height - page.stage.d(18) + page.gap) / (page.ch + page.gap)))
-            width: cols * cellWidth + 2 * pad
+            width: cols * cellWidth + 2 * pad + 1          // (+1: GridView floors its own columns: 3 x w / w = 2.999)
             height: rows * cellHeight + 2 * pad - page.gap
             anchors.right: parent.right; anchors.rightMargin: -page.gap - pad
             leftMargin: pad; rightMargin: pad; topMargin: pad; bottomMargin: pad
@@ -118,7 +124,14 @@ Item {
     // the pointer: only real moves count, not cards sliding under a still pointer
     property double lastMove: 0
     property double quietUntil: 0
-    HoverHandler { onPointChanged: page.lastMove = Date.now() }
+    property point pointerLast: Qt.point(-1, -1)        // (its first place, as the page appears under it, isn't a move)
+    HoverHandler {
+        onPointChanged: {
+            const p = point.position, was = page.pointerLast
+            if (was.x >= 0 && Math.abs(p.x - was.x) + Math.abs(p.y - was.y) > 1) page.lastMove = Date.now()
+            page.pointerLast = p
+        }
+    }
     function pointerMoved() { return Date.now() - lastMove < 120 && Date.now() > quietUntil }
 
     function setStore(i) { store = (i + stores.length) % stores.length; cur = 0 }

@@ -62,6 +62,8 @@ Window {
     function d(px) { return px * unit / 0.836 }
     readonly property real side: d(72)
     readonly property real atomK: Math.min(1, (height / 2 - d(60)) / d(590))
+    // the caption's width (left): narrower on Games, so the library gets the room (its banners: as many as fit)
+    readonly property real capWidth: page === "games" && !searching ? d(560) : d(780)
     readonly property point atomAt: Qt.point(width * 0.642, height * 0.53)
     FontLoader { id: wide; source: "../../../fonts/HubotSans.ttf" }     // Hubot Sans (OFL): names, numbers, tabs, the time
     readonly property string wideFamily: wide.status === FontLoader.Ready ? wide.name : Tokens.font.display
