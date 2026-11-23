@@ -7,6 +7,7 @@ import Atom
 import Atom.Native
 import Rice
 import "../.."          // the launcher's look-free parts, shared by every style: HomeModel, ThemeModel
+import "../../manager"  // Atom Manager (the settings page) and its gear, the same in every style
 
 // Atom's launcher (settings launcher.style "atom"; designed in the Atom lab, 2026-11-16): the apps as an atom.
 // Home's shells are rings around a core that shows what has the focus: Pinned inside, Play (games with their art,
@@ -266,7 +267,7 @@ Window {
     // ------------------------------------------------------------------ the data
     HomeModel { id: hm; launcher: stage.launcher }
     readonly property alias home: hm
-    property string page: "home"                // home | games | apps | theme
+    property string page: "home"                // home | games | apps | theme | manager (Atom Manager)
     readonly property var tabs: ["home", "apps", "games"]
     property string pageBefore: "home"
     // a page (or the search) comes in as the launcher does: its rings spiral out of the core (one short clock)
@@ -278,16 +279,25 @@ Window {
     function setPage(p) {
         if (p === page) return
         pageIn()
-        if (p === "theme") pageBefore = page === "theme" ? pageBefore : page
+        if (p === "theme" || p === "manager") pageBefore = page === "theme" || page === "manager" ? pageBefore : page
         page = p
         if (Shell.debug) console.warn("ATOM atom page", p)
     }
     function stepPage(dd) {
-        if (page === "theme") { setPage(pageBefore); return }
+        if (page === "theme" || page === "manager") { setPage(pageBefore); return }
         const i = tabs.indexOf(page)
         setPage(tabs[(i + dd + tabs.length) % tabs.length])
     }
     function toggleTheme() { setPage(page === "theme" ? pageBefore : "theme") }
+    // Atom Manager (the gear at the bottom right, F1, the pad's View): at a section ("updates" from the banner)
+    property string managerAt: ""
+    function toggleManager(sec) {
+        if (page === "manager") { if (sec && pageApi && pageApi.openSection) pageApi.openSection(sec); else setPage(pageBefore); return }
+        if (searching) closeSearch()
+        managerAt = sec || ""
+        zone = "page"
+        setPage("manager")
+    }
     function takeKeys() { keys.forceActiveFocus() }         // (an editor on the Theme page closed)
     // Meta+Shift+W: the Theme page, at a section (walls, colours or lights)
     Connections {
@@ -381,13 +391,14 @@ Window {
         Loader { anchors.fill: parent; active: stage.page === "apps" && !stage.searching; sourceComponent: appsPage; onLoaded: stage.pageLoaded("apps") }
         Loader { anchors.fill: parent; active: stage.page === "games" && !stage.searching; sourceComponent: gamesPage; onLoaded: stage.pageLoaded("games") }
         Loader { anchors.fill: parent; active: stage.page === "theme" && !stage.searching; sourceComponent: themePage; onLoaded: stage.pageLoaded("theme") }
+        Loader { anchors.fill: parent; active: stage.page === "manager" && !stage.searching; sourceComponent: managerPage; onLoaded: stage.pageLoaded("manager") }
         // the wheel, over the page (the simplified's wheelLayer): a layer that takes only the wheel. Under the page, the
         // bare MouseArea above missed it more often than not (nested, 2026-11-22). Not on the Theme page: its grids
         // scroll themselves first (the bare MouseArea still hands it the rest)
         Item {
             anchors.fill: parent
             z: 50
-            enabled: stage.page !== "theme"
+            enabled: stage.page !== "theme" && stage.page !== "manager"
             WheelHandler {
                 id: wheelAll
                 acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
@@ -401,9 +412,19 @@ Window {
             font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: stage.d(16)
         }
         TopBar { id: topBar; stage: atomStage }
-        // (the Theme page has its own header and footer: the shared page, ThemeStudio)
-        Caption { id: cap; stage: atomStage; content: stage.caption; opacity: stage.capO; visible: stage.page !== "theme" }
-        Hints { stage: atomStage; visible: stage.page !== "theme" }
+        // (the Theme page and Atom Manager have their own header and footer: the shared pages)
+        Caption { id: cap; stage: atomStage; content: stage.caption; opacity: stage.capO; visible: stage.page !== "theme" && stage.page !== "manager" }
+        Hints { stage: atomStage; visible: stage.page !== "theme" && stage.page !== "manager" }
+        ManagerButton {     // Atom Manager's gear, bottom right (the shared pages have their hints there)
+            look: stage.look
+            unit: stage.unit
+            x: stage.width - stage.side - width
+            y: stage.height - height - stage.d(28)
+            visible: stage.page !== "theme" && stage.page !== "manager"
+            opacity: stage.topO
+            glyph: !stage.keysShown ? "" : stage.input === "pad" ? "⧉" : "F1"
+            onOpen: sec => stage.toggleManager(sec)
+        }
     }
 
     Component { id: homePage; HomePage { stage: atomStage } }
@@ -411,6 +432,36 @@ Window {
     Component { id: appsPage; AppsPage { stage: atomStage } }
     Component { id: gamesPage; GamesPage { stage: atomStage } }
     Component { id: themePage; ThemePage { stage: atomStage } }
+    Component {
+        id: managerPage
+        ManagerPage {
+            id: mgr
+            anchors.fill: parent
+            launcher: stage.launcher
+            rice: stage.rice
+            look: stage.look
+            screenName: stage.screenName
+            unit: stage.unit
+            topInset: stage.d(140)
+            wideFamily: stage.wideFamily
+            veil: 0.42
+            active: stage.zone !== "top"
+            opacity: stage.capO
+            origin: Qt.point(stage.screenObj ? stage.screenObj.virtualX : 0, (stage.screenObj ? stage.screenObj.virtualY : 0) + stage.topGap)
+            onLeave: stage.enterTop()
+            onGiveKeys: stage.takeKeys()
+            Component.onCompleted: {
+                stage.pageApi = { key: e => mgr.key(e), wheel: dy => mgr.wheel(dy), openSection: s => mgr.openSection(s),
+                                  save: () => ({ section: mgr.section }), restore: f => { if (f.section) mgr.setSection(f.section, true) },
+                                  enter: () => mgr.setSection(mgr.section, true) }
+                stage.hints = { pad: [], keys: [] }
+                stage.caption = { where: [], name: "" }
+                const sec = stage.managerAt
+                stage.managerAt = ""
+                Qt.callLater(() => mgr.openSection(sec || "updates"))
+            }
+        }
+    }
 
     // ------------------------------------------------------------------ the input in use: its hints only
     // "pointer" (nothing shown: the user, 2026-11-23), "keys" or "pad". A real pointer move makes it the pointer
@@ -448,7 +499,7 @@ Window {
     }
     function leaveTop() {
         zone = "page"
-        if (page === "theme" && pageApi && pageApi.enter) pageApi.enter()
+        if ((page === "theme" || page === "manager") && pageApi && pageApi.enter) pageApi.enter()
         if (Shell.debug) console.warn("ATOM atom top left")
     }
     function topKey(k) {
@@ -480,13 +531,14 @@ Window {
         input = Gamepad.sending ? "pad" : "keys"
         const k = event.key
         if (k === Qt.Key_F10 && !searching) { zone === "top" ? leaveTop() : enterTop(); event.accepted = true; return }
+        if (k === Qt.Key_F1) { toggleManager(""); event.accepted = true; return }
         if (zone === "top") {
             if (k === Qt.Key_Tab || k === Qt.Key_Backtab) { stepPage(k === Qt.Key_Tab ? 1 : -1); enterTop(); event.accepted = true; return }
             if (topKey(k)) { event.accepted = true; return }
         }
         // the Theme page first (it walks its own parts; B/Esc it doesn't take leaves it)
-        if (page === "theme" && !searching && pageApi && pageApi.key && pageApi.key(event)) { event.accepted = true; return }
-        if (k === Qt.Key_Escape) { if (searching) closeSearch(); else if (page === "theme") setPage(pageBefore); else launcher.close(); event.accepted = true; return }
+        if ((page === "theme" || page === "manager") && !searching && pageApi && pageApi.key && pageApi.key(event)) { event.accepted = true; return }
+        if (k === Qt.Key_Escape) { if (searching) closeSearch(); else if (page === "theme" || page === "manager") setPage(pageBefore); else launcher.close(); event.accepted = true; return }
         if (searching) {        // the query takes letters, spaces and Backspace; the arrows and Enter go to the results
             if (k === Qt.Key_Backspace) { launcher.query = launcher.query.slice(0, -1); event.accepted = true; return }
             if (event.text && event.text.length && event.text >= " " && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) {
@@ -508,6 +560,7 @@ Window {
         function onButton(name) {
             stage.input = "pad"
             if (name === "start" && !stage.powerOver) { stage.zone === "top" ? stage.leaveTop() : stage.enterTop(); return }
+            if (name === "select" && !stage.powerOver) { stage.toggleManager(""); return }        // (View: Atom Manager)
             if (name !== "north" || stage.searching) return
             if (stage.page === "theme" && stage.pageApi && stage.pageApi.north && stage.pageApi.north()) return     // (the Theme page's Y: shuffle)
             stage.toggleTheme()

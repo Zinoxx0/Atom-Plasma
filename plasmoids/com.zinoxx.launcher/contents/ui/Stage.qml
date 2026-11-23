@@ -10,6 +10,7 @@ import Atom
 import Atom.Native
 import Rice
 import "theme"         // ThemeStudio: the Theme page, the same in every launcher style
+import "manager"       // Atom Manager (the settings page) and its gear, the same in every style
 
 // The launcher as a home screen for the computer ("Atom Home"), on the bare desktop of its screen. One
 // focus at a time drives everything: the hero (the focused item large, with its actions) and the backdrop
@@ -470,7 +471,21 @@ Window {
         const p = topBar.powerButton.mapToGlobal(0, 0)
         launcher.openPower({ x: p.x, y: p.y, width: topBar.powerButton.width, height: topBar.powerButton.height })
     }
-    function toggleTheme() { setTab(theming ? tabBefore : themeTab) }
+    function toggleTheme() { managing = false; setTab(theming ? tabBefore : themeTab) }
+    // Atom Manager (the gear at the bottom right, F1, the pad's View): over the page, the keys in it
+    property bool managing: false
+    property string managerAt: ""
+    function toggleManager(sec) {
+        if (managing) { if (sec && managerLoader.item) managerLoader.item.openSection(sec); else managing = false; return }
+        if (searchOpen) closeSearch()
+        managerAt = sec || ""
+        managing = true
+        if (Shell.debug) console.warn("ATOM home manager", managerAt || "updates")
+    }
+    onManagingChanged: if (!managing) Qt.callLater(() => keys.forceActiveFocus())
+    // the page under it goes while it's open (only the backdrop stays), as it does for the search
+    property real manageP: managing ? 1 : 0
+    Behavior on manageP { NumberAnimation { duration: Tokens.ms(320); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
     function setLine(line, ri, extra) {
         const st = pageState()
         st.line = line
@@ -570,6 +585,7 @@ Window {
 
     // fresh every time it opens: Home, the first pin, no query
     onOpened: {
+        managing = false
         const carry = Shell.args && Shell.args.carry && !finder ? Shell.args.carry : null
         if (carry && Shell.debug) console.warn("ATOM stage carried page", carry.tab)
         tab = carry ? carry.tab : 0
@@ -743,7 +759,7 @@ Window {
             id: plane
             anchors.fill: parent
             // the search takes the whole room: the page under it goes (only the frosted backdrop stays)
-            opacity: stage.planeO * (stage.searchOpen ? 1 - stage.searchP : 1) * (1 - stage.coverP)
+            opacity: stage.planeO * (stage.searchOpen ? 1 - stage.searchP : 1) * (1 - stage.coverP) * (1 - stage.manageP)
             visible: opacity > 0.01
             scale: stage.planeS * M.lerp(1, 0.965, stage.coverP)
             Behavior on opacity { enabled: stage.phase === "open" && !coverAnim.running; NumberAnimation { duration: Tokens.base } }
@@ -944,7 +960,7 @@ Window {
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: stage.u(26)
                 spacing: stage.u(24)
-                opacity: stage.topO * (stage.pointerMode || stage.theming ? 0 : 1)       // the pointer in use: they'd only be in the way (the Theme page has its own)
+                opacity: stage.topO * (stage.pointerMode || stage.theming ? 0 : 1) * (1 - stage.manageP)       // the pointer in use: they'd only be in the way (the Theme page has its own)
                 Behavior on opacity { enabled: stage.phase === "open"; NumberAnimation { duration: Tokens.ms(300) } }
                 Repeater {
                     model: Gamepad.inUse ? [["✥", "Move"], ["A", "Open"], ["X", "Options"], ["LB  RB", "Switch"], ["Y", "Theme"], ["B", "Close"]]
@@ -966,6 +982,44 @@ Window {
                         Text { anchors.verticalCenter: parent.verticalCenter; text: modelData[1]; color: stage.rice.muted; font.family: Tokens.font.ui; font.weight: Font.Medium; font.pixelSize: stage.u(14.5) }
                     }
                 }
+            }
+        }
+
+        // ---- Atom Manager's gear (bottom right), and the page itself over everything (the clicks stay in it)
+        ManagerButton {
+            look: stage.rice
+            unit: stage.unit
+            x: stage.width - stage.side - width
+            y: stage.height - stage.u(39) - height / 2
+            visible: !stage.theming && !stage.managing && !stage.finder
+            opacity: stage.topO
+            glyph: stage.pointerMode ? "" : Gamepad.inUse ? "⧉" : "F1"
+            onOpen: sec => stage.toggleManager(sec)
+        }
+        Loader {
+            id: managerLoader
+            anchors.fill: parent
+            z: 40
+            active: stage.managing
+            sourceComponent: Item {
+                MouseArea { anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; onClicked: m => { if (m.button === Qt.RightButton) stage.managing = false } }
+                ManagerPage {
+                    id: mgr
+                    anchors.fill: parent
+                    launcher: stage.launcher
+                    rice: stage.rice
+                    look: lookPal
+                    screenName: stage.screenName
+                    unit: stage.unit
+                    topInset: stage.u(60)
+                    veil: 0.42
+                    opacity: stage.topO * stage.manageP
+                    origin: Qt.point(stage.screenObj ? stage.screenObj.virtualX : 0, (stage.screenObj ? stage.screenObj.virtualY : 0) + stage.topGap)
+                    onGiveKeys: keys.forceActiveFocus()
+                    Component.onCompleted: { const sec = stage.managerAt; stage.managerAt = ""; Qt.callLater(() => mgr.openSection(sec || "updates")) }
+                }
+                function key(e) { return mgr.key(e) }
+                function openSection(s) { mgr.openSection(s) }
             }
         }
 
@@ -1079,6 +1133,12 @@ Window {
         pointerMode = false                                 // the keys (or a pad) in use: the pointer's hover goes
         if (!Gamepad.sending) Gamepad.inUse = false         // the keyboard again: its keys in the hints
         const k = event.key
+        if (k === Qt.Key_F1 && !searchOpen) { toggleManager(""); event.accepted = true; return }
+        if (managing) {         // (Atom Manager has the keys: B/Esc out of its sections closes it)
+            if (!(managerLoader.item && managerLoader.item.key(event)) && k === Qt.Key_Escape) managing = false
+            event.accepted = true
+            return
+        }
         if (theming && !searchOpen && pageState().line !== "top" && studio && studio.key(event)) { event.accepted = true; return }
         if (k === Qt.Key_Escape) { if (searchOpen) closeSearch(); else if (theming) setTab(tabBefore); else launcher.close(); event.accepted = true; return }
         if (k === Qt.Key_Tab) { setTab(theming ? tabBefore : tab + 1); event.accepted = true; return }
@@ -1101,6 +1161,7 @@ Window {
         target: Gamepad
         enabled: stage.wanted && stage.phase === "open"
         function onButton(name) {
+            if (name === "select" && !stage.powerOver) { stage.toggleManager(""); return }     // (View: Atom Manager)
             if (name !== "north" || stage.searchOpen) return
             if (stage.theming && stage.studio && stage.studio.north()) return       // (the Theme page's Y: shuffle)
             stage.toggleTheme()

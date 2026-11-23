@@ -111,6 +111,9 @@ island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on ev
   a glass core: up/down turn a ring, left/right step between rings; the pointer picks in place, the wheel turns),
   and games as a grid of banners; the Theme page is the same as Simplified's. `rice.py launcher
   style simplified|atom`, or Theme page → Launcher → Style.
+- **Atom Manager** (the gear at the launcher's bottom right, F1, or a pad's View): the version and whether it's
+  up to date, the health checks (`rice.py doctor`) with their fixes, the credits (people and projects) and this
+  machine's details for a bug report. A banner by the gear says when a critical update waits.
 - **Power** (the power island, or the launcher's power button): a ripple of blur spreads over every screen
   and the session's actions come up big on yours.
 - **Out of the way**: while the launcher or the power page is open the windows are minimized (the launcher's

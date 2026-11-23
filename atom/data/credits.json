@@ -1,0 +1,58 @@
+{
+  "groups": [
+    {
+      "name": "Plasma and Qt",
+      "items": [
+        {"name": "KDE Plasma", "pkg": "plasma-workspace", "what": "the desktop the rice lives in", "license": "LGPL-2.0-or-later", "url": "https://kde.org/plasma-desktop/"},
+        {"name": "KWin", "pkg": "kwin", "what": "the compositor: effects, scripts, blur", "license": "GPL-2.0-or-later", "url": "https://invent.kde.org/plasma/kwin"},
+        {"name": "Qt Quick", "pkg": "qt6-declarative", "what": "every part of the shell is drawn with it", "license": "LGPL-3.0-only", "url": "https://www.qt.io"},
+        {"name": "Kirigami", "pkg": "kirigami", "what": "icons and shared pieces", "license": "LGPL-2.0-only", "url": "https://develop.kde.org/frameworks/kirigami/"},
+        {"name": "Layer Shell Qt", "pkg": "layer-shell-qt", "what": "the launcher, sheets and desk windows", "license": "LGPL-2.0-or-later", "url": "https://invent.kde.org/plasma/layer-shell-qt"}
+      ]
+    },
+    {
+      "name": "Desktop parts",
+      "items": [
+        {"name": "Panel Colorizer", "pkg": "plasma6-applets-panel-colorizer", "what": "the bar's glass islands", "license": "GPL-3.0-or-later", "url": "https://github.com/luisbocanegra/plasma-panel-colorizer", "by": "Luis Bocanegra"},
+        {"name": "KDE Rounded Corners", "pkg": "kwin-effect-rounded-corners-rice", "what": "window corners and borders (patched per screen)", "license": "GPL-3.0-only", "url": "https://github.com/matinlotfali/KDE-Rounded-Corners", "by": "Matin Lotfaliei"},
+        {"name": "Darkly", "pkg": "darkly", "what": "the application style", "license": "GPL-2.0-or-later", "url": "https://github.com/Bali10050/darkly", "optional": true},
+        {"name": "Klassy", "pkg": "klassy", "what": "window titlebars and shadows", "license": "GPL-2.0-only", "url": "https://github.com/paulmcauley/klassy", "by": "Paul McAuley", "optional": true},
+        {"name": "Better Blur DX", "pkg": "kwin-effects-better-blur-dx", "what": "blur behind the glass", "license": "GPL-3.0-or-later", "url": "https://github.com/xarblu/kwin-effects-better-blur-dx", "optional": true},
+        {"name": "Krohnkite", "path": "~/.local/share/kwin/scripts/krohnkite", "what": "auto-tiling, per screen", "license": "MIT", "url": "https://github.com/anametologin/krohnkite", "optional": true},
+        {"name": "Scale and Fading popups", "what": "the window and popup effects started from these KWin effects", "license": "GPL-2.0-or-later", "url": "https://invent.kde.org/plasma/kwin", "by": "Vlad Zahorodnii"}
+      ]
+    },
+    {
+      "name": "The engine",
+      "items": [
+        {"name": "Pillow", "pkg": "python-pillow", "what": "reads the wallpapers", "license": "MIT-CMU", "url": "https://python-pillow.github.io"},
+        {"name": "NumPy", "pkg": "python-numpy", "what": "the palette's colour maths", "license": "BSD-3-Clause", "url": "https://numpy.org"},
+        {"name": "dbus-python", "pkg": "python-dbus", "what": "talks to Plasma and KWin", "license": "MIT", "url": "https://dbus.freedesktop.org/doc/dbus-python/"},
+        {"name": "PyGObject", "pkg": "python-gobject", "what": "the background services' loops", "license": "LGPL-2.1-or-later", "url": "https://pygobject.gnome.org"},
+        {"name": "python-evdev", "pkg": "python-evdev", "what": "the game controller", "license": "BSD-3-Clause", "url": "https://python-evdev.readthedocs.io", "optional": true},
+        {"name": "ImageMagick", "pkg": "imagemagick", "what": "thumbnails and the bar's grain", "license": "ImageMagick", "url": "https://imagemagick.org"},
+        {"name": "libdbusmenu-lxqt", "pkg": "libdbusmenu-lxqt", "what": "the tray apps' menus", "license": "LGPL-2.0-or-later", "url": "https://github.com/lxqt/libdbusmenu-lxqt"},
+        {"name": "icalendar", "pkg": "python-icalendar", "what": "your calendar on the clock", "license": "BSD-2-Clause", "url": "https://github.com/collective/icalendar", "optional": true},
+        {"name": "recurring-ical-events", "pkg": "python-recurring-ical-events", "what": "repeating events", "license": "LGPL-3.0-or-later", "url": "https://github.com/niccokunzmann/python-recurring-ical-events", "optional": true},
+        {"name": "jq", "pkg": "jq", "what": "Clawd's feed from Claude Code", "license": "MIT", "url": "https://jqlang.github.io/jq/", "optional": true}
+      ]
+    },
+    {
+      "name": "Type and icons",
+      "items": [
+        {"name": "Inter", "pkg": "inter-font", "what": "the interface's type", "license": "OFL-1.1", "url": "https://rsms.me/inter/", "by": "Rasmus Andersson"},
+        {"name": "Hubot Sans", "what": "names, numbers and the time (comes with the rice)", "license": "OFL-1.1", "url": "https://github.com/github/hubot-sans", "by": "GitHub"},
+        {"name": "Material Symbols", "pkg": "ttf-material-symbols-variable", "what": "every icon", "license": "Apache-2.0", "url": "https://fonts.google.com/icons", "by": "Google"},
+        {"name": "JetBrains Mono Nerd Font", "pkg": "ttf-jetbrains-mono-nerd", "what": "terminals and numbers", "license": "OFL-1.1", "url": "https://www.nerdfonts.com"}
+      ]
+    },
+    {
+      "name": "Services",
+      "items": [
+        {"name": "wallhaven", "what": "Find more online on the Theme page", "license": "service", "url": "https://wallhaven.cc"},
+        {"name": "Open-Meteo", "what": "the desk's weather, no key needed", "license": "CC BY 4.0 data", "url": "https://open-meteo.com"},
+        {"name": "Steam", "what": "your games' art on the Games page", "license": "service", "url": "https://store.steampowered.com"}
+      ]
+    }
+  ]
+}

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+**Atom Manager** (the launcher's settings page, the same in both styles)
+- A gear at the launcher's bottom right (or F1, or a pad's View) opens it: who it is (the version, whether it's up
+  to date) and four sections. Updates: Check now asks GitHub (read-only: nothing on your desktop changes), what's
+  new from the changelog. Health: `rice.py doctor`'s checks, what to fix first (A copies the fix). Credits: the
+  people in the history and every project the rice stands on, with the version you have (A opens its page). This
+  machine: what a bug report needs, the features on here, Copy for a bug report, Report an issue.
+- A dot on the gear while an update waits; a "Critical update!" banner beside it while a security fix waits.
+- `rice.py manager [check|doctor]` gives it all as JSON (atom/manager.py). The updater itself is the next step.
+
 **Launcher, polished** (both styles where it applies)
 - Atom's rings are drawn in one pass on the GPU, with the same soft gap round every icon on every page and screen;
   turning them and sweeping the pointer draws every frame at 144 Hz again (plasmashell's CPU for the same moves:
