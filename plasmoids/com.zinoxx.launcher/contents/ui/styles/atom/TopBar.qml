@@ -68,7 +68,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 Repeater {
                     id: rep
-                    model: ["Home", "Games", "Apps"]
+                    model: ["Home", "Apps", "Games"]
                     delegate: Item {
                         id: tab
                         required property string modelData

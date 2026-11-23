@@ -158,6 +158,21 @@ Item {
         quietUntil = Date.now() + 250
     }
     function ringAt(i) { rep.count; return rep.itemAt(i) }
+    // the focus, to carry to another screen's launcher: the ring you're on and each ring's item
+    function save() {
+        const idx = []
+        for (let i = 0; i < rep.count; i++) { const r = rep.itemAt(i); idx.push(r ? r.focusIndex : 0) }
+        return { at: at, idx: idx }
+    }
+    function restore(f) {
+        if (!f || !f.idx) return
+        for (let i = 0; i < rep.count && i < f.idx.length; i++) {
+            const r = rep.itemAt(i)
+            if (r && r.count && !r.placed) { r.picked = -1; r.current = Math.min(f.idx[i], r.count - 1) }
+        }
+        at = Math.max(0, Math.min(rep.count - 1, f.at))
+        mode = "slot"
+    }
     function launch() { if (focusItem) launched(focusItem) }
     function openOptions() { if (ring && focusItem) options(focusItem, ring.focusDelegate) }
 

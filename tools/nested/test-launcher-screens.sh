@@ -65,6 +65,7 @@ done
 cat > "$t/inner.sh" <<I
 #!/bin/bash
 source "\$ATOM_NESTED/env.sh"
+printf '%s\n' "${ATOM_STYLE:-simplified}" > "\$N/config/atom-test-style"     # the style under test (ATOM_STYLE=atom for Atom's)
 start_plasma 8
 # the desktops show the wallpaper the rice palette names, so the bar's cover can be checked against it
 qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "desktops().forEach(d => { d.currentConfigGroup = ['Wallpaper', 'org.kde.image', 'General']; d.writeConfig('Image', 'file://$wall') })" >/dev/null
@@ -90,6 +91,9 @@ step "esc leaves search";  \$F key 1 wait 600
 step "esc closes";         \$F key 1 wait 1200; shot s-closed
 step "type z (A?)";        \$F type "z" wait 300
 step "jewel again";        \$F move \$J0 click wait 2200
+step "next page";          \$F key 15 wait 900
+step "carry right";        \$F move 2400 450 wait 400 move 2410 460 wait 1800
+step "carry back";         \$F move 800 450 wait 400 move 810 460 wait 1800
 step "top edge";           \$F move 700 30 wait 300 move 700 0 wait 900; shot s-band
 python3 -c "import sys; sys.path.insert(0, '\$REPO'); from atom import kwinscript; print('stacking', kwinscript.run('answer(workspace.stackingOrder.map(w => [w.resourceClass, w.caption, w.layer, w.output ? w.output.name : \\"?\\", Math.round(w.y), Math.round(w.height)].join(\\":\\")).join(\\" | \\"))', answer=True))" >> "\$N/out/app.log" 2>&1
 step "click band space";   \$F move 700 12 wait 300 click wait 800; shot s-band-space
@@ -102,11 +106,14 @@ N=$(ATOM_NESTED_OUTPUTS=2 "$here/run.sh" --plasma "$t/appletsrc" "$t/inner.sh" 1
 L="$N/out/plasmashell.log"
 fail=0
 check() { if grep -q -- "$2" "$3"; then echo "ok   $1"; else echo "FAIL $1"; fail=1; fi; }
+after() { sed -n "/ATOM ## $2/,\$p" "$L" | grep -qE -- "$3" && echo "ok   $1" || { echo "FAIL $1"; fail=1; }; }
 check "opening cleared only the left screen"   'windows cleared Virtual-0 1' "$L"
 check "the launcher followed the pointer right" 'pointer moved from Virtual-0 to Virtual-1 (following)' "$L"
 check "the left screen got its window back"     'windows restored Virtual-0 1' "$L"
 check "the right screen was cleared on arrival" 'windows cleared Virtual-1 1' "$L"
 check "and followed it back"                    'pointer moved from Virtual-1 to Virtual-0 (following)' "$L"
+after "the page went along to the right"  "carry right" 'ATOM stage carried page (1|apps)'
+after "...and back to the left"         "carry back" 'ATOM stage carried page (1|apps)'
 check "Esc gave the keyboard back to app A"     'appA typed "az"' "$N/out/app.log"
 if grep -q 'appB typed' "$N/out/app.log" || grep -q 'appA typed "af' "$N/out/app.log"; then echo "FAIL typing after the move reached an app"; fail=1
 else echo "ok   typing after the move went to the launcher"; fi

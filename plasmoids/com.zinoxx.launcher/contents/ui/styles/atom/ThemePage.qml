@@ -34,7 +34,8 @@ Item {
         onGiveKeys: page.stage.takeKeys()
     }
     Component.onCompleted: {
-        page.stage.pageApi = { key: e => studio.key(e), wheel: dy => studio.wheel(dy), north: () => studio.north(), openSection: r => studio.openSection(r) }
+        page.stage.pageApi = { key: e => studio.key(e), wheel: dy => studio.wheel(dy), north: () => studio.north(), openSection: r => studio.openSection(r),
+                                save: () => ({ section: studio.section }), restore: f => { if (f.section) studio.setSection(f.section, true) } }
         page.stage.hints = { pad: [], keys: [] }
         page.stage.caption = { where: [], name: "" }
         if (page.stage.launcher.themeRow) Qt.callLater(() => studio.openSection(page.stage.launcher.themeRow))

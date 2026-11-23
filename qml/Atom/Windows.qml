@@ -147,8 +147,9 @@ QtObject {
             }
         }
         // the one used most recently gets the keyboard back (it had it before): a window brought back after
-        // the shell's surface is gone isn't activated by KWin on its own
-        if (last) tasks.requestActivate(last)
+        // the shell's surface is gone isn't activated by KWin on its own. Not while the launcher or the power page is
+        // still open elsewhere (it moved to another screen with the pointer): it would take their keyboard
+        if (last && Shell.kind !== "launcher" && Shell.kind !== "power") tasks.requestActivate(last)
     }
     // ------------------------------------------------------------------ an app's window, from its tray icon
     // A tray icon knows its app's process; the app's window has the same one (else it goes by app id).

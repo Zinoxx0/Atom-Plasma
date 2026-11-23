@@ -13,7 +13,7 @@ Item {
     anchors.fill: parent
     readonly property var all: {
         page.stage.home.rev
-        const rows = ((page.stage.home.pages[1] || {}).rows) || []
+        const rows = ((page.stage.home.pages.find(p => p.id === "games") || {}).rows) || []
         const out = []
         for (const r of rows) for (const a of r.items) if (!out.some(x => x.key === a.key)) out.push(a)
         return out.map(a => ({ key: a.key, name: a.name, desc: a.desc, icon: a.icon, model: a.model, row: a.row, roles: a.roles,
@@ -153,6 +153,8 @@ Item {
     onBtnChanged: publish()
     Component.onCompleted: {
         page.stage.pageApi = { act: i => i === 0 ? page.play() : page.options(null), tool: i => page.tool(i),
+                               save: () => ({ cur: page.cur, store: page.store }),
+                               restore: f => { page.store = f.store || 0; page.cur = Math.min(f.cur || 0, Math.max(0, page.games.length - 1)) },
                                wheel: dy => { page.zone = "grid"; page.cur = Math.max(0, Math.min(page.games.length - 1, page.cur + (dy > 0 ? -grid.cols : grid.cols))); page.quietUntil = Date.now() + 300 } }
         page.stage.hints = { pad: [["✥", "Move"], ["A", "Play"], ["X", "Options"], ["LT RT", "Store"], ["LB RB", "Pages"], ["Y", "Theme"], ["B", "Close"]],
                              keys: [["← ↑ ↓ →", "Move"], ["Enter", "Play"], ["Menu", "Options"], ["PgUp PgDn", "Store"], ["Tab", "Pages"], ["Esc", "Close"]] }

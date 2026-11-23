@@ -124,7 +124,8 @@ Item {
     onTintChanged: publish()
     Component.onCompleted: {
         if (!page.stage) return
-        page.stage.pageApi = { act: i => i === 0 ? atom.launch() : atom.openOptions(), wheel: (dy, at) => atom.wheelAt(dy > 0 ? -1 : 1, at) }
+        page.stage.pageApi = { act: i => i === 0 ? atom.launch() : atom.openOptions(), wheel: (dy, at) => atom.wheelAt(dy > 0 ? -1 : 1, at),
+                               save: () => atom.save(), restore: f => atom.restore(f) }
         page.stage.hints = { pad: [["↕", "Turn"], ["↔", "Ring"], ["LT RT", "Letter"], ["A", "Open"], ["X", "Options"], ["LB RB", "Pages"], ["B", "Close"]],
                              keys: [["↑ ↓", "Turn"], ["← →", "Ring"], ["PgUp PgDn", "Letter"], ["Enter", "Open"], ["Tab", "Pages"], ["Esc", "Close"]] }
         publish()

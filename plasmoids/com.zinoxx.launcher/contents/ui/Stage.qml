@@ -281,10 +281,19 @@ Window {
         const before = pointerAt
         pointerAt = name
         if (!before || name === before || name === screenName) return
+        // just arrived: the screen it left gives its windows back and may still read as active for a moment (KWin's
+        // activeOutputName follows the active window: it bounced the launcher between screens, nested 2026-11-23)
+        if (Date.now() - shownAt < 400) { pointerAt = before; return }
         const there = Shell.island("launcher", name)
         if (Shell.debug) console.warn("ATOM stage pointer moved from", before, "to", name, there ? "(following)" : "(no launcher there)")
         if (!there) return
-        Shell.open("launcher", name, there, { query: launcher.query, searchOnly: finder })
+        Shell.open("launcher", name, there, { query: launcher.query, searchOnly: finder, carry: carryState() })
+    }
+    // what follows the launcher to another screen (the user, 2026-11-23: moving to another monitor brought it back to
+    // Home): the page, each page's focus, the Theme page's section, the search
+    function carryState() {
+        return { tab: tab, tabBefore: tabBefore, states: JSON.parse(JSON.stringify(states)), search: searchOpen,
+                 section: theming && studio ? studio.section : "" }
     }
 
     // The upper bar (Glimpse's strip, the top band) is never covered, moved or resized: the stage starts
@@ -298,7 +307,7 @@ Window {
     HomeModel { id: hm; launcher: stage.launcher }
     ThemeModel { id: tm; launcher: stage.launcher; rice: stage.rice; screenName: stage.screenName }
     readonly property int themeTab: 3
-    property int tab: 0                         // 0 Home, 1 Games, 2 Apps, 3 the Theme page (no tab: the palette)
+    property int tab: 0                         // 0 Home, 1 Apps, 2 Games (HomeModel's order), 3 the Theme page (no tab: the palette)
     property int tabBefore: 0                   // where the Theme page goes back to
     // the Theme page is ThemeStudio (theme/): the same page in every launcher style (the user, 2026-11-21), with its
     // own focus; this stage gives it the keys (onKey), the wheel, the pad's Y, and wears what it previews
@@ -555,8 +564,13 @@ Window {
 
     // fresh every time it opens: Home, the first pin, no query
     onOpened: {
-        tab = 0
-        states = freshStates()
+        const carry = Shell.args && Shell.args.carry && !finder ? Shell.args.carry : null
+        if (carry && Shell.debug) console.warn("ATOM stage carried page", carry.tab)
+        tab = carry ? carry.tab : 0
+        tabBefore = carry ? carry.tabBefore : 0
+        states = carry ? carry.states : freshStates()
+        themeSection = carry ? carry.section || "" : ""
+        if (themeSection && studio) { const sec = themeSection; themeSection = ""; Qt.callLater(() => studio.setSection(sec, true)) }
         focusRev++
         launcher.query = ""
         launcher.category = 0
@@ -580,8 +594,9 @@ Window {
             sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" launcher-data #data')
             tm.reload()     // the Theme page's data, ready before it's asked for (rebuilt only if it changed)
         }
-        if (finder || (Shell.args && Shell.args.query)) Qt.callLater(() => stage.openSearch(Shell.args.query || ""))
+        if (finder || (Shell.args && Shell.args.query) || (carry && carry.search)) Qt.callLater(() => stage.openSearch(Shell.args.query || ""))
     }
+    property string themeSection: ""            // a section carried from another screen, for the Theme page once made
     RiceShell { id: sh; onNewData: (source, data) => disconnectSource(source) }
 
     // ------------------------------------------------------------------ the backdrop
@@ -773,7 +788,10 @@ Window {
                 active: stage.theming
                 opacity: rowsBox.opacity
                 transform: Translate { x: rowsSlide.x }
-                onLoaded: if (stage.themeAt) { const r = stage.themeAt; stage.themeAt = ""; Qt.callLater(() => item.openSection(r)) }
+                onLoaded: {
+                    if (stage.themeAt) { const r = stage.themeAt; stage.themeAt = ""; Qt.callLater(() => item.openSection(r)) }
+                    else if (stage.themeSection) { const sec = stage.themeSection; stage.themeSection = ""; Qt.callLater(() => item.setSection(sec, true)) }
+                }
                 sourceComponent: ThemeStudio {
                     launcher: stage.launcher
                     model: tm

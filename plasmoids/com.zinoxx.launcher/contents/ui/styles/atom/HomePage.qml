@@ -18,7 +18,7 @@ Item {
     }
     readonly property var shells: {
         page.stage.home.rev
-        const rows = ((page.stage.home.pages[0] || {}).rows) || []
+        const rows = ((page.stage.home.pages.find(p => p.id === "home") || {}).rows) || []
         const byId = id => rows.find(r => r.id === id)
         const jump = byId("jump"), games = byId("games"), tools = byId("tools"), most = byId("most")
         const cut = jump ? (jump.divider >= 0 ? jump.divider : jump.items.length) : 0
@@ -78,6 +78,7 @@ Item {
     function install() {
         if (!page.stage) return
         page.stage.pageApi = {
+            save: () => atom.save(), restore: f => atom.restore(f),
             act: i => i === 0 ? atom.launch() : atom.openOptions(),
             wheel: (dy, at) => atom.wheelAt(dy > 0 ? -1 : 1, at),
         }

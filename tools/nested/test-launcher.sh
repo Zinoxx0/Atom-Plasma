@@ -55,7 +55,7 @@ step "focus app";       $F move 800 450 click wait 300 type "a" wait 300
 step "click jewel";     $F move $J click wait 120; shot l-grow-1; $F wait 250; shot l-grow-2; $F wait 1500; shot l-open
 step "down";            $F key 108 wait 900; shot l-down
 step "right";           $F key 106 wait 600
-step "tab";             $F key 15 wait 1100; shot l-games
+step "tab";             $F key 15 wait 1100; shot l-apps
 step "type";            $F type "fire" wait 1500; shot l-search
 step "esc clears";      $F key 1 wait 500
 step "esc leaves search"; $F key 1 wait 600
@@ -105,7 +105,7 @@ check "keyboard back to the app after Esc"  'app typed "ax"' "$N/out/app.log"
 check "Meta closed it and the keyboard came back" 'app typed "axy"' "$N/out/app.log"
 check "opening cleared the desk (the app was minimized)" 'ATOM windows cleared Virtual-0 [1-9]' "$L"
 check "down moved the focus a row"  'ATOM home tab 0 row 1' "$L"
-check "tab switched to Games"       'ATOM home tab 1' "$L"
+check "tab switched to Apps"        'ATOM home tab 1' "$L"
 check "typing opened the search"    'ATOM home search "f"' "$L"
 check "the palette opened the Theme page" 'ATOM home tab 3 row 0' "$L"
 check "...on the wallpaper in use, in the grid" 'ATOM theme focus walls:grid (jump)' "$L"

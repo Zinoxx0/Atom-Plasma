@@ -8,8 +8,9 @@ import Rice
 //   Home    your pins (their own order: muscle memory) then what you used lately · Games (the covers) ·
 //           Launchers & tools (games without art: Steam, Lutris, Heroic...) · Most used. Each app once on Home:
 //           a row skips what a row above it already shows (the Games covers stay whole: they're the library)
-//   Games   the library's covers · launchers and tools
 //   Apps    a row per category
+//   Games   the library's covers · launchers and tools
+// (in that order, the user's: Home, Apps, Games; readers find a page by its id, never by its place)
 // An item: { key, id, name, desc, icon, favId, url, art: {portrait, hero, logo}, game, last, score,
 //            model, row, roles } (model/row launch it; roles carry favoriteId and actionList for the menu)
 // A row: { id, title, shape: "square" | "portrait" | "poster", items, divider, labeled, count }
@@ -112,12 +113,12 @@ Item {
                 row("tools", "Launchers & tools", "square", homeTools, { labeled: true }),
                 row("most", "Most used", "square", most, { labeled: true }),
             ]},
+            { id: "apps", label: "Apps", rows: C.filter(c => !skip.has(c.label)).map(c =>
+                row("cat-" + c.label, c.label, "square", byLabel[c.label] || [], { labeled: true, count: true })) },
             { id: "games", label: "Games", rows: [
                 row("library", "Library", "poster", covers.length ? covers : tools, { count: true }),
                 row("tools", "Launchers & tools", "square", covers.length ? tools : [], { labeled: true, count: true }),
-            ]},
-            { id: "apps", label: "Apps", rows: C.filter(c => !skip.has(c.label)).map(c =>
-                row("cat-" + c.label, c.label, "square", byLabel[c.label] || [], { labeled: true, count: true })) },
+            ]}
         ]
         for (const p of pages) p.rows = p.rows.filter(r => r.items.length)
         hm.pages = pages

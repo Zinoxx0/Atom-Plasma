@@ -208,9 +208,19 @@ Window {
         const before = pointerAt
         pointerAt = name
         if (!before || name === before || name === screenName) return
+        // just arrived: the screen it left gives its windows back and may still read as active for a moment (KWin's
+        // activeOutputName follows the active window: it bounced the launcher between screens, nested 2026-11-23)
+        if (Date.now() - shownAt < 400) { pointerAt = before; return }
         const there = Shell.island("launcher", name)
+        if (Shell.debug) console.warn("ATOM stage pointer moved from", before, "to", name, there ? "(following)" : "(no launcher there)")
         if (!there) return
-        Shell.open("launcher", name, there, { query: launcher.query, searchOnly: finder })
+        Shell.open("launcher", name, there, { query: launcher.query, searchOnly: finder, carry: carryState() })
+    }
+    // what follows the launcher to another screen (the user, 2026-11-23: moving to another monitor brought it back to
+    // Home): the page, the one the Theme page returns to, the search, the page's own focus (pageApi.save/restore)
+    function carryState() {
+        return { page: page, pageBefore: pageBefore, searching: searching,
+                 focus: pageApi && pageApi.save ? pageApi.save() : null }
     }
     // Glimpse's strip (the top band) is never covered: the stage starts under it
     readonly property var strip: Shell.island("strip", screenName)
@@ -220,7 +230,7 @@ Window {
     HomeModel { id: hm; launcher: stage.launcher }
     readonly property alias home: hm
     property string page: "home"                // home | games | apps | theme
-    readonly property var tabs: ["home", "games", "apps"]
+    readonly property var tabs: ["home", "apps", "games"]
     property string pageBefore: "home"
     // a page (or the search) comes in as the launcher does: its rings spiral out of the core (one short clock)
     property double pageAsked: 0
@@ -286,16 +296,20 @@ Window {
         launcher.query = ""
     }
 
-    // fresh every time it opens: Home, nothing searched
+    // fresh every time it opens (Home, nothing searched), unless it follows the pointer from another screen
     onOpened: {
         pageAsked = Date.now()
-        page = "home"
+        const carry = Shell.args && Shell.args.carry && !finder ? Shell.args.carry : null
+        if (carry && Shell.debug) console.warn("ATOM stage carried page", carry.page)
         searching = false
-        launcher.query = ""
+        page = carry ? carry.page || "home" : "home"
+        pageBefore = carry ? carry.pageBefore || "home" : "home"
+        if (carry && carry.focus) { const f = carry.focus; Qt.callLater(() => { if (stage.pageApi && stage.pageApi.restore) stage.pageApi.restore(f) }) }
+        if (!carry || !carry.searching) launcher.query = ""
         now = new Date()
         Qt.callLater(() => keys.forceActiveFocus())
         if (!finder) sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" launcher-data #data')
-        if (finder || (Shell.args && Shell.args.query)) Qt.callLater(() => stage.openSearch(Shell.args.query || ""))
+        if (finder || (Shell.args && Shell.args.query) || (carry && carry.searching)) Qt.callLater(() => stage.openSearch(Shell.args.query || ""))
     }
     RiceShell { id: sh; onNewData: (source, data) => { disconnectSource(source); if (source.indexOf("#scan") >= 0) stage.say("Library up to date") } }
     function shell(cmd) { sh.connectSource(cmd) }          // (fixed commands only: each one is its own source name)
