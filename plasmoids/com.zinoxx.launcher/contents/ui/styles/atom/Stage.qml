@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Window
+import QtCore
 import org.kde.layershell as LayerShell
 import org.kde.plasma.workspace.dbus as DBus
 import Atom
@@ -137,6 +138,9 @@ Window {
             const at = b => { const q = b.mapToItem(null, b.width / 2, b.height / 2); return Math.round(screenObj.virtualX + q.x) + " " + Math.round(screenObj.virtualY + topGap + q.y) }
             console.warn("ATOM home tabs at 0 0 search at", at(topBar.searchButton), "theme at", at(topBar.themeButton), "power at", at(topBar.powerButton))
         }
+        if (phase === "open") { perfReport("opening"); if (dataWanted) { dataWanted = false; sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" launcher-data #data') } }
+        if (phase === "closed") perfReport("closing")
+        if (phase === "opening" || phase === "closing") { perfT = []; perfG = [] }
         if (phase === "opening") { shownAt = Date.now(); coldOpen = idle || gameUp }
         if (phase === "closed") restTimer.restart()
         else { restTimer.stop(); idle = false }
@@ -149,7 +153,29 @@ Window {
     property bool coldOpen: false
     property double shownAt: 0
     property bool waitFrame: false
-    onFrameSwapped: if (waitFrame) {
+    // a probe for the choreography's smoothness: with ~/.cache/rice/perf present (or under Shell.debug), each opening
+    // and closing logs its frames: "ATOM perf opening: N frames, mean, worst, over 10 ms"
+    property bool perfOn: false
+    property var perfT: []
+    property var perfG: []                  // the GUI thread's heartbeat (2 ms timer): its gaps are stalls
+    Timer { interval: 2; repeat: true; running: (stage.perfOn || Shell.debug) && (stage.phase === "opening" || stage.phase === "closing"); onTriggered: stage.perfG.push(Date.now()) }
+    Component.onCompleted: {
+        const x = new XMLHttpRequest()
+        try { x.open("GET", StandardPaths.writableLocation(StandardPaths.GenericCacheLocation) + "/rice/perf", false); x.send(); perfOn = x.responseText.length > 0 } catch (e) { perfOn = false }
+    }
+    function perfReport(what) {
+        const t = perfT; perfT = []
+        const g = perfG; perfG = []
+        const stalls = g.slice(1).map((v, i) => v - g[i]).filter(v => v > 8)
+        if (!(perfOn || Shell.debug) || t.length < 3) return
+        const d = t.slice(1).map((v, i) => v - t[i]), worst = Math.max(...d)
+        console.warn("ATOM perf", what, screenName + ":", d.length, "frames, mean", (d.reduce((a, b) => a + b, 0) / d.length).toFixed(1), "ms, worst", worst, "ms, over 10 ms:", d.filter(v => v > 10).length, "| GUI stalls > 8 ms:", stalls.join(" "), "|", d.join(" "))
+    }
+    onFrameSwapped: {
+        if ((perfOn || Shell.debug) && (phase === "opening" || phase === "closing")) perfT.push(Date.now())
+        if (waitFrame) frameOne()
+    }
+    function frameOne() {
         waitFrame = false
         const took = Date.now() - shownAt
         if (Shell.debug || took >= 50) console.warn("ATOM atom stage first frame", screenName, took, "ms", coldOpen ? "(rested)" : "")
@@ -319,9 +345,10 @@ Window {
         if (!carry || !carry.searching) launcher.query = ""
         now = new Date()
         Qt.callLater(() => keys.forceActiveFocus())
-        if (!finder) sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" launcher-data #data')
+        dataWanted = !finder       // (fetched once it has opened: forking plasmashell mid-animation stalled its frames)
         if (finder || (Shell.args && Shell.args.query) || (carry && carry.searching)) Qt.callLater(() => stage.openSearch(Shell.args.query || ""))
     }
+    property bool dataWanted: false
     RiceShell { id: sh; onNewData: (source, data) => { disconnectSource(source); if (source.indexOf("#scan") >= 0) stage.say("Library up to date") } }
     function shell(cmd) { sh.connectSource(cmd) }          // (fixed commands only: each one is its own source name)
     // a short line of news over the hints (scan done, ...)
