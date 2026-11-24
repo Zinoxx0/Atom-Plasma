@@ -383,6 +383,58 @@ PRESETS = Path(os.environ["ATOM_NESTED"]) / "state/colorizer" if os.environ.get(
     else util.STATE / "colorizer"
 
 
+_STATES = ("normal", "busy", "hovered", "needsAttention", "expanded")
+_FONT_CFG = {"enabled": False, "font": {"familyOverride": False, "family": "", "weightOverride": False,
+                                      "weight": 400, "italicOverride": False, "italic": True,
+                                      "underlineOverride": False, "underline": True, "pointSizeOverride": False,
+                                      "pointSize": 10}}
+
+
+def _disabled_state(template, extras):
+    """Turn a Colorizer state dict into a disabled state entry matching Globals.defaultConfig."""
+    s = copy.deepcopy(template)
+    s["enabled"] = False
+    s["blurBehind"] = False
+    for key in ("backgroundColor", "foregroundColor", "radius", "margin", "padding", "border", "borderSecondary"):
+        if isinstance(s.get(key), dict):
+            s[key]["enabled"] = False
+    if isinstance(s.get("shadow"), dict):
+        for sub in ("background", "foreground"):
+            if isinstance(s["shadow"].get(sub), dict):
+                s["shadow"][sub]["enabled"] = False
+    for k, v in extras.items():
+        s[k] = copy.deepcopy(v)
+    return s
+
+
+def _complete_global_settings(g):
+    """Fill every Colorizer v8 Globals.defaultConfig key so loading settings.json matches
+    Utils.mergeConfigs(Globals.defaultConfig, ...) without a cfg binding loop or writeConfig()."""
+    base = preset()
+    specs = (
+        ("panel", base["panel"]["normal"], {"backgroundClipping": False, "flattenOnDeFloat": False}),
+        ("widgets", base["widgets"]["normal"], {"backgroundClipping": False, "opacity": 1, "fontConfig": _FONT_CFG}),
+        ("trayWidgets", base["trayWidgets"]["normal"], {"backgroundClipping": False, "opacity": 1}),
+    )
+    for sec_name, tmpl, extras in specs:
+        sec = g.setdefault(sec_name, {})
+        disabled = _disabled_state(tmpl, extras)
+        for st in _STATES:
+            entry = sec.setdefault(st, copy.deepcopy(disabled))
+            if isinstance(entry, dict):
+                for k, v in extras.items():
+                    entry.setdefault(k, copy.deepcopy(v))
+    tw = g["trayWidgets"]
+    tw.setdefault("wideTrayArrow", False)
+    tw.setdefault("customCellSizeEnabled", False)
+    tw.setdefault("customCellSize", 22)
+    np = g.setdefault("nativePanel", {})
+    np.setdefault("fillAreaOnDeFloat", True)
+    np.setdefault("hideWhenNoWidgetsAreVisible", False)
+    np.setdefault("screenEdgeMargin", 0)
+    return g
+
+
 def dock_presets(panel, looks, key):
     """Writes a bar's two looks as Colorizer presets and returns its preset auto-loading settings: the
     free look normally, the docked one while a window touches the bar or one is maximized on its screen.
@@ -393,9 +445,10 @@ def dock_presets(panel, looks, key):
     for state, look in zip(("free", "docked"), looks):
         g = colorizer_settings()
         g.update(copy.deepcopy(look))
+        _complete_global_settings(g)
         d = PRESETS / f"{pid}-{tag}-{state}"
         d.mkdir(parents=True, exist_ok=True)
-        util.write_if_changed(d / "settings.json", json.dumps({"globalSettings": g}, sort_keys=True) + "\n")
+        util.write_if_changed(d / "settings.json", json.dumps({"globalSettings": g}, separators=(",", ":")) + "\n")
         dirs[state] = str(d)
     for old in PRESETS.glob(f"{pid}-*"):
         if str(old) not in dirs.values() and old.is_dir():
@@ -421,7 +474,7 @@ def colorizer_settings():
     # the stock clock has no inner padding, so its text touched the island border;
     # associations (which widget gets it) are filled in per panel by the JS below
     g["configurationOverrides"] = {"overrides": {CLOCK_PAD: clock_padding(w)}, "associations": []}
-    return g
+    return _complete_global_settings(g)
 
 
 CLOCK_PAD = "Clock padding"

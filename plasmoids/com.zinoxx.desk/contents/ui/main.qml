@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
+import Atom
 import Rice
 
 // Rice Desk: the desktop's information layer, one per screen. A clock with the date and a status
@@ -49,19 +50,22 @@ PlasmoidItem {
         }
     }
 
-    // ---- weather (weather.py caches and throttles: three desktops asking cost one fetch)
-    property var weather: null
+    // ---- weather (watched directly from ~/.cache/rice/weather.json so all desks read instantly at 0 ms;
+    // only one desk spawns weather.py after login settles and every 15 minutes via Shell.lastWeatherAt)
+    WatchedJson { id: weatherFile; path: sh.home + "/.cache/rice/weather.json" }
+    readonly property var weather: weatherFile.value
     RiceShell {
         id: sh
-        onNewData: (source, data) => {
-            if (source.indexOf("#weather") >= 0) { try { root.weather = JSON.parse(data["stdout"] ?? "") } catch (e) {} }
-            disconnectSource(source)
-        }
+        onNewData: (source, data) => disconnectSource(source)
     }
-    Timer {
-        interval: 15 * 60 * 1000; running: true; repeat: true; triggeredOnStart: true
-        onTriggered: sh.connectSource('python3 "$HOME/.config/plasma-rice/bin/weather.py" #weather')
+    function refreshWeather() {
+        const nowMs = Date.now()
+        if (nowMs - Shell.lastWeatherAt < 60000) return
+        Shell.lastWeatherAt = nowMs
+        sh.connectSource('python3 "$HOME/.config/plasma-rice/bin/weather.py" >/dev/null #weather')
     }
+    Timer { interval: 2500; running: true; onTriggered: root.refreshWeather() }
+    Timer { interval: 15 * 60 * 1000; running: true; repeat: true; onTriggered: root.refreshWeather() }
 
     // ---- Clawd's situation: the bar's Claude widget's, watched only where Clawd is shown
     ClaudeUsage { id: limits; active: root.desk.clawd === true }
@@ -151,7 +155,7 @@ PlasmoidItem {
         delegate: ClockWindow { d: root }
     }
     Instantiator {
-        model: root.qscreen ? [root.qscreen] : []
+        model: root.qscreen && root.desk.media === true ? [root.qscreen] : []
         delegate: MediaWindow { d: root }
     }
 }

@@ -27,14 +27,24 @@ PlasmoidItem {
 
     // the agenda: fetched by agenda.py, watched here for the "soon" dot
     RiceShell { id: sh; onNewData: (source, data) => disconnectSource(source) }
-    // every bar has a clock, but the islands show on one screen (kwin/rice_islands): only that bar's clock
-    // fetches (all of them until KWin has said which, as before)
+    // every bar has a clock, but the islands show on one screen (kwin/rice_islands): delay the initial
+    // check 2 s off login's critical path and deduplicate across screens via Shell.lastAgendaAt
+    function refreshAgenda() {
+        const nowMs = Date.now()
+        if (nowMs - Shell.lastAgendaAt < 60000) return
+        Shell.lastAgendaAt = nowMs
+        sh.connectSource('python3 "$HOME/.config/plasma-rice/bin/agenda.py" >/dev/null #run')
+    }
+    Timer {
+        interval: 2000
+        running: Shell.barShown(root.Window.window ? Screen.name : "")
+        onTriggered: root.refreshAgenda()
+    }
     Timer {
         interval: 15 * 60 * 1000
         running: Shell.barShown(root.Window.window ? Screen.name : "")
         repeat: true
-        triggeredOnStart: true
-        onTriggered: sh.connectSource('python3 "$HOME/.config/plasma-rice/bin/agenda.py" >/dev/null #run')
+        onTriggered: root.refreshAgenda()
     }
     WatchedJson {
         id: agenda

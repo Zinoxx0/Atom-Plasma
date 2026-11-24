@@ -13,6 +13,7 @@ PLASMOIDS = HOME / ".local/share/plasma/plasmoids"
 LNF = HOME / ".local/share/plasma/look-and-feel"
 UNITS = HOME / ".config/systemd/user"
 DROPIN = UNITS / "plasma-plasmashell.service.d/rice.conf"
+KSPLASH_DROPIN = UNITS / "plasma-ksplash.service.d/rice.conf"
 
 
 def _linked(link, target):
@@ -74,6 +75,10 @@ def checks():
     out.append(("QML_IMPORT_PATH=" in env and "plasma-rice/qml" in env,
                 "plasmashell finds the shell's QML (QML_IMPORT_PATH: qml/Atom, Atom.Native)",
                 "rice.py install && systemctl --user daemon-reload && systemctl --user restart plasma-plasmashell"))
+    ks_env = KSPLASH_DROPIN.read_text() if KSPLASH_DROPIN.exists() else ""
+    out.append(("QML_XHR_ALLOW_FILE_READ=1" in ks_env,
+                "KSplash reads the rice's palette & frost directly (QML_XHR_ALLOW_FILE_READ=1)",
+                "rice.py install && systemctl --user daemon-reload"))
     out.append((shell_loads(), "the shell loads (Atom and Atom.Native import offscreen)",
                 f"{ROOT / 'pkg/atom-native/build.sh'} (after a Qt or Frameworks upgrade: rebuild it)"))
     out.append((not install.native_stale(), "Atom.Native is built from the current sources",

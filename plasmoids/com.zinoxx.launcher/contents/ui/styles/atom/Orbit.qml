@@ -34,9 +34,9 @@ Item {
     property bool gauge: false
     readonly property bool docked: view.dock && !placed && !gauge
     // handed over between rings: the light, and on a docked ring the dock and the lift
-    Spring { id: litS; to: ring.active ? 1 : 0; stiffness: 9; epsilon: 0.002 }
+    Spring { id: litS; to: ring.active ? 1 : 0; stiffness: 13; epsilon: 0.002 }
     readonly property real lit: litS.value
-    Spring { id: dockS; to: ring.docked && ring.active ? 1 : 0; stiffness: 11; epsilon: 0.002 }
+    Spring { id: dockS; to: ring.docked && ring.active ? 1 : 0; stiffness: 14; epsilon: 0.002 }
     readonly property real docking: dockS.value
     readonly property real r: view.d(radius + (docked ? view.dockLift * docking : 0)) * view.k * reveal
     // where it will rest (the lens heads there, not to a radius still moving)
@@ -71,12 +71,12 @@ Item {
 
     // ------------------------------------------------------------------ docked: the ring lays its items out itself
     property int turnTo: 0                  // unbounded: the slot's item is turnTo mod count
-    Spring { id: turnS; to: ring.turnTo; stiffness: 12; enabled: ring.docked; epsilon: 0.002 }
+    Spring { id: turnS; to: ring.turnTo; stiffness: 16; enabled: ring.docked; epsilon: 0.002 }
     readonly property real turnPos: turnS.value
     onTurnToChanged: if (docked && count) current = mod(turnTo, count)
     // the dock's centre: the focus (the slot's item, or the pointer's pick where it is), counted near the turn
     readonly property real dockTarget: picked >= 0 && count ? turnTo + wrapC(picked - mod(turnTo, count), count) : turnTo
-    Spring { id: dockAtS; to: ring.dockTarget; stiffness: 12; enabled: ring.docked; epsilon: 0.002 }
+    Spring { id: dockAtS; to: ring.dockTarget; stiffness: 16; enabled: ring.docked; epsilon: 0.002 }
     readonly property real dockAt: dockAtS.value
     readonly property int span: lengthy ? window : count        // the items a whole turn holds
     function erf(x) {       // Abramowitz-Stegun 7.1.26 (|error| < 1.5e-7)
@@ -134,7 +134,7 @@ Item {
         preferredHighlightBegin: 0.5
         preferredHighlightEnd: 0.5
         highlightRangeMode: PathView.StrictlyEnforceRange
-        highlightMoveDuration: Tokens.ms(380)
+        highlightMoveDuration: Tokens.ms(280)
         // from the far side (3 o'clock) round the top to the slot (9 o'clock, halfway) and on below it: the next item is
         // under the slot. A long ring fades its items out over the first and last step: its gap
         readonly property real e: ring.lengthy ? 360 / ring.window : 0.001

@@ -33,22 +33,32 @@ Rectangle {
         smooth: true
     }
 
-    Item {                                      // this screen's wallpaper, blurred, fading in with progress
+    Item {                                      // this screen's pre-blurred wallpaper (_glassFull), fading in with progress
         anchors.fill: parent
-        opacity: wall.status === Image.Ready ? 0.15 + 0.85 * root.progress : 0
+        readonly property string frost: pal.values && pal.values._glassFull ? "file://" + pal.values._glassFull : ""
+        opacity: (frost ? frostImg.status : wall.status) === Image.Ready ? 0.25 + 0.75 * root.progress : 0
         Behavior on opacity { NumberAnimation { duration: Tokens.slow * 2; easing.type: Tokens.move } }
-        Image {
+        Image {                                 // fast path: already blurred & sized by atom/screens.py (~20 KB JPEG)
+            id: frostImg
+            anchors.fill: parent
+            visible: parent.frost !== ""
+            source: parent.frost
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+        }
+        Image {                                 // fallback only when _glassFull doesn't exist yet
             id: wall
             anchors.fill: parent
-            source: pal.wallpaper ? "file://" + pal.wallpaper : (P.wallpaper ? "file://" + P.wallpaper : "")
+            source: parent.frost === "" ? (pal.wallpaper ? "file://" + pal.wallpaper : (P.wallpaper ? "file://" + P.wallpaper : "")) : ""
             fillMode: Image.PreserveAspectCrop
-            sourceSize.width: 1280                // it's blurred anyway: decode small, start fast
+            sourceSize.width: 640
             asynchronous: true
             visible: false
         }
         MultiEffect {
             anchors.fill: parent
-            source: wall
+            visible: parent.frost === "" && wall.status === Image.Ready
+            source: parent.frost === "" ? wall : null
             blurEnabled: true; blur: 1.0; blurMax: 64
             saturation: 0.15
         }
@@ -58,9 +68,9 @@ Rectangle {
     Item {
         id: content
         anchors.fill: parent
-        opacity: 0
-        transform: Translate { id: rise; y: 8 * root.unit }
-        Component.onCompleted: intro.start()
+        // Visible on frame 1 (no dark-screen fade-in delay from Plymouth's handoff)
+        opacity: 1
+        transform: Translate { id: rise; y: 0 }
 
         // the launcher's Orbit mark, all white (boot.py renders the same one for Plymouth): its
         // satellites swing round now and then while the session loads
@@ -114,22 +124,20 @@ Rectangle {
         }
 
         Text {
+            id: welcome
             anchors.horizontalCenter: parent.horizontalCenter
             y: parent.height / 2 + root.lay.label_y * root.unit
             text: "Welcome back, " + me.displayName
             color: "#e6e8f0"
-            opacity: 0.9
+            opacity: 0
             font.family: Tokens.font.display
             font.weight: Font.DemiBold
             font.pixelSize: Math.round(Tokens.size.heading * root.unit)
+            Component.onCompleted: welcomeFade.start()
         }
+        NumberAnimation { id: welcomeFade; target: welcome; property: "opacity"; from: 0; to: 0.9; duration: Tokens.base; easing.type: Tokens.enter }
     }
 
-    ParallelAnimation {
-        id: intro
-        NumberAnimation { target: content; property: "opacity"; to: 1; duration: Tokens.slow; easing.type: Tokens.enter }
-        NumberAnimation { target: rise; property: "y"; to: 0; duration: Tokens.slow; easing.type: Tokens.enter }
-    }
     ParallelAnimation {
         id: outro
         NumberAnimation { target: content; property: "opacity"; to: 0; duration: Tokens.base; easing.type: Tokens.exit }

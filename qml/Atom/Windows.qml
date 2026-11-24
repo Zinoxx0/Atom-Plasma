@@ -92,12 +92,15 @@ QtObject {
     property var cleared: ({})                  // screen name -> window ids minimized there, most recently used first
     // Who holds a screen cleared (the launcher, the power page: "owner"): its windows come back only when the
     // last one lets go, and a moment later, so one handing the screen to another (the launcher's power button
-    // opens the power page) doesn't bring them back in between.
+    // opens the power page, or restyling switches stages) doesn't bring them back in between.
     property var holders: ({})                  // screen name -> { owner: true }
-    property var pending: ({})                  // screen name -> true: coming back once the grace is over
+    property var pending: ({})                  // screen name -> true: coming back once the handover grace is over
+    property var fastPending: ({})              // screen name -> true: immediate next-turn restore (plain close / move)
+    property var restoring: ({})                // screen name -> { ids, at }: recently unminimized (async re-sweep)
     function hold(scr, owner) {
         const h = Object.assign({}, holders); h[scr] = Object.assign({}, h[scr] || {}); h[scr][owner || "launcher"] = true; holders = h
         if (pending[scr]) { const p = Object.assign({}, pending); delete p[scr]; pending = p }
+        if (fastPending[scr]) { const fp = Object.assign({}, fastPending); delete fp[scr]; fastPending = fp }
     }
     function idsAt(idx) {
         return Array.prototype.slice.call(tasks.data(idx, TaskManager.AbstractTasksModel.WinIdList) || []).map(String)
@@ -120,20 +123,68 @@ QtObject {
         const next = Object.assign({}, cleared)
         next[scr] = (next[scr] || []).concat(out)
         cleared = next
+        if (restoring[scr] && Date.now() - restoring[scr].at < 400) clearRecheck.restart()
         if (Shell.debug) console.warn("ATOM windows cleared", scr, out.length, "for", owner || "launcher")
     }
-    function restore(scr, owner) {
+    function resweep() {
+        const R = TaskManager.AbstractTasksModel
+        const now = Date.now()
+        let changed = false
+        const nextCleared = Object.assign({}, cleared)
+        const nextRestoring = Object.assign({}, restoring)
+        for (const scr in nextRestoring) {
+            const info = nextRestoring[scr]
+            if (!info || now - info.at >= 400 || !holders[scr]) {
+                delete nextRestoring[scr]
+                continue
+            }
+            const out = []
+            const already = new Set(nextCleared[scr] || [])
+            for (let i = 0; i < tasks.count; i++) {
+                const idx = tasks.index(i, 0)
+                if (tasks.data(idx, R.IsWindow) !== true || tasks.data(idx, R.IsMinimized) === true) continue
+                if (tasks.data(idx, R.SkipTaskbar) === true) continue
+                const s = screenAt(tasks.data(idx, R.ScreenGeometry))
+                if (!s || s.name !== scr) continue
+                const ids = idsAt(idx)
+                if (!ids.length || info.ids.indexOf(ids[0]) < 0) continue
+                tasks.requestToggleMinimized(idx)
+                if (!already.has(ids[0])) { out.push(ids[0]); already.add(ids[0]) }
+            }
+            if (out.length) {
+                nextCleared[scr] = (nextCleared[scr] || []).concat(out)
+                changed = true
+                if (Shell.debug) console.warn("ATOM windows reswept", scr, out.length)
+            }
+            delete nextRestoring[scr]
+        }
+        restoring = nextRestoring
+        if (changed) cleared = nextCleared
+    }
+    function restore(scr, owner, immediate) {
         const h = Object.assign({}, holders)
         if (h[scr]) { h[scr] = Object.assign({}, h[scr]); delete h[scr][owner || "launcher"]; if (!Object.keys(h[scr]).length) delete h[scr] }
         holders = h
         if (h[scr]) return                      // another still holds it
-        const p = Object.assign({}, pending); p[scr] = true; pending = p
-        graceTimer.restart()
+        if (immediate) {
+            const fp = Object.assign({}, fastPending); fp[scr] = true; fastPending = fp
+            fastRestore.restart()
+        } else {
+            const p = Object.assign({}, pending); p[scr] = true; pending = p
+            graceTimer.restart()
+        }
     }
     property Timer graceTimer: Timer { interval: 140; onTriggered: { for (const scr in w.pending) w.bringBack(scr); w.pending = ({}) } }
+    property Timer fastRestore: Timer { interval: 0; onTriggered: { for (const scr in w.fastPending) w.bringBack(scr); w.fastPending = ({}) } }
+    property Timer clearRecheck: Timer { interval: 140; onTriggered: w.resweep() }
     function bringBack(scr) {
         const R = TaskManager.AbstractTasksModel
         const ids = (cleared[scr] || []).slice().reverse()   // least recently used first: the most recent ends on top
+        if (ids.length) {
+            const r = Object.assign({}, restoring)
+            r[scr] = { ids: ids.slice(), at: Date.now() }
+            restoring = r
+        }
         const next = Object.assign({}, cleared)
         delete next[scr]
         cleared = next

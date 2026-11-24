@@ -182,7 +182,10 @@ Item {
             recheck.restart()
         }
         function onWindowRemoved(w) { if (root.shellWindow(w)) peekCall.call(); recheck.restart() }
-        function onWindowActivated(w) { recheck.restart() }
+        function onWindowActivated(w) {
+            if (root.shellWindow(w) || root.shellCover.length > 0) peekCall.call()
+            recheck.restart()
+        }
         function onScreensChanged() { root.pointerRect = null; root.pointer = ""; root.locate(); recheck.restart() }
     }
     function watch(w) {
@@ -196,6 +199,7 @@ Item {
         id: recheck
         interval: 50        // activation, layers and fullscreen settle together
         onTriggered: {
+            if (root.shellCover.length > 0) peekCall.call()
             root.covered = root.coveredNow()
             // the pointer on its way to another screen: only a newly covered bar can't wait for it
             if (settleTimer.running && root.target !== "?" && !root.taken(root.target)) { root.post(); return }

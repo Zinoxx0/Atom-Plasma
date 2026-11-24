@@ -63,10 +63,10 @@ Window {
     // (never before its screen is known: a layer surface stays on the output it was mapped on)
     // (and never before the island is measured: islandH comes last, islandW is checked too)
     readonly property bool wanted: !!scr && w.barSeen && !w.screenBusy && w.islandH > 0 && w.islandW > 0
-    onScrChanged: if (visible) { visible = false; Qt.callLater(() => { visible = Qt.binding(() => wanted || shown > 0) }) }
+    onScrChanged: if (visible) { visible = false; Qt.callLater(() => { visible = Qt.binding(() => !w.screenBusy && (wanted || shown > 0)) }) }
     property real shown: wanted ? 1 : 0
-    Behavior on shown { NumberAnimation { duration: Tokens.ms(win.wanted ? 180 : 120); easing.type: Easing.BezierSpline; easing.bezierCurve: win.wanted ? Tokens.calmIn : Tokens.calmOut } }
-    visible: wanted || shown > 0
+    Behavior on shown { enabled: !w.screenBusy; NumberAnimation { duration: Tokens.ms(win.wanted ? 180 : 120); easing.type: Easing.BezierSpline; easing.bezierCurve: win.wanted ? Tokens.calmIn : Tokens.calmOut } }
+    visible: !w.screenBusy && (wanted || shown > 0)
 
     readonly property real dpr: win.devicePixelRatio || 1
     function snap(v) { return Math.round(v * dpr) / dpr }

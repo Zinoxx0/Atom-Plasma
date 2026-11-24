@@ -42,7 +42,15 @@ Window {
     transientParent: null
     color: "transparent"
     flags: Qt.FramelessWindowHint
-    visible: phase !== "closed"
+    // Stay mapped once warmed so subsequent opens & screen switches skip Wayland surface creation +
+    // GPU texture re-upload (~4 ms instead of ~130 ms). Unmaps immediately for games/fullscreen or
+    // 10 min idle so WindowRest frees VRAM and games keep direct scan-out.
+    property bool warmed: false
+    property bool priming: false
+    property bool handingBack: false
+    function handBack() { handingBack = true; Qt.callLater(() => { handingBack = false }) }
+    readonly property bool stayMapped: warmed && !!screenObj && !Windows.isFullscreen(screenName) && !idle && !handingBack
+    visible: phase !== "closed" || stayMapped
 
     LayerShell.Window.scope: "utility"
     LayerShell.Window.layer: LayerShell.Window.LayerTop
@@ -50,9 +58,16 @@ Window {
                              | LayerShell.Window.AnchorLeft | LayerShell.Window.AnchorRight
     LayerShell.Window.margins: ({ left: 0, top: topGap, right: 0, bottom: 0 })
     LayerShell.Window.exclusionZone: -1
-    LayerShell.Window.keyboardInteractivity: powerOver ? LayerShell.Window.KeyboardInteractivityNone : LayerShell.Window.KeyboardInteractivityExclusive
-    LayerShell.Window.activateOnShow: true
+    LayerShell.Window.keyboardInteractivity: (phase === "opening" || phase === "open") && !powerOver
+        ? LayerShell.Window.KeyboardInteractivityExclusive : LayerShell.Window.KeyboardInteractivityNone
+    LayerShell.Window.activateOnShow: phase !== "closed" && !powerOver
     LayerShell.Window.wantsToBeOnActiveScreen: false
+
+    InputMask {
+        window: stage
+        enabled: stage.phase === "closed" || stage.phase === "closing"
+        shapes: []
+    }
 
     // ------------------------------------------------------------------ sizes
     // u(): the launcher's unit (as the simplified style's). d(): the lab's pixels: it was drawn on the 1440p with the
@@ -71,8 +86,14 @@ Window {
     readonly property string wideFamily: wide.status === FontLoader.Ready ? wide.name : Tokens.font.display
     // (with an axis set, font.weight no longer reaches the font's wght: wide(width, weight) sets both)
     function wide(w, wt) { return { "wdth": w, "wght": wt } }
-    readonly property int openMs: Tokens.ms(1100)
-    readonly property int closeMs: Tokens.ms(420)
+    readonly property int openMs: Tokens.ms(520)
+    readonly property int closeMs: Tokens.ms(240)
+    readonly property int transferOpenMs: Tokens.ms(200)
+    readonly property int transferCloseMs: Tokens.ms(180)
+    property bool carried: false
+    property bool transferring: false
+    readonly property int openDur: carried ? transferOpenMs : openMs
+    readonly property int closeDur: transferring ? transferCloseMs : closeMs
 
     // ------------------------------------------------------------------ open / close (as the simplified stage)
     readonly property bool wanted: Shell.screen === screenName
@@ -99,13 +120,22 @@ Window {
     property bool finder: false                 // search only, over the windows (KRunner's shortcut)
     property point rippleOrigin: Qt.point(width / 2, height / 2)
     function begin() {
+        priming = false
+        primeTimer.stop()
         const a = Shell.anchor
         rippleOrigin = a && screenObj && Shell.screen === screenName
             ? Qt.point(a.x - screenObj.virtualX + a.width / 2, a.y - screenObj.virtualY - topGap + a.height / 2)
             : Qt.point(width / 2, height / 2)
         pointerAt = ""
+        pendingScreen = ""
+        pendingBefore = ""
+        followTimer.stop()
         finder = !!(Shell.args && Shell.args.searchOnly)
+        carried = !!(Shell.args && Shell.args.carry && !finder)
+        transferring = false
         zone = "page"
+        if (launcher.clearDesk && !finder) Windows.hold(screenName)
+        prepareOpen()
         // the input it was opened with (its hints show only that one's: the user, 2026-11-23): the pad's Guide, a
         // click on the jewel, else the keys (Meta). A follow from another screen keeps the one in use.
         if (!(Shell.args && Shell.args.carry)) {
@@ -115,22 +145,32 @@ Window {
         }
         pointerKnown = false
         if (phase === "closed") {
+            warmed = true
+            const wasMapped = visible
             phase = "opening"
             waitFrame = true            // the desk clears on the first frame (onFrameSwapped)
             opened()
+            if (wasMapped) requestUpdate()
         } else {
-            if (launcher.clearDesk && !finder) Windows.clear(screenName)
-            phase = "opening"
+            // reversed mid-close (e.g. rapid multi-screen flick back): restore carry state, re-clear desk, re-claim keys
             closeClock.stop()
+            phase = "opening"
+            opened()
+            if (launcher.clearDesk && !finder) Windows.clear(screenName)
+            if (!powerOver) { requestActivate(); keys.forceActiveFocus() }
             startOpen()
         }
     }
     function end() {
+        pendingScreen = ""
+        pendingBefore = ""
+        followTimer.stop()
         if (phase === "closed" || phase === "closing") return
+        transferring = Shell.kind === "launcher" && Shell.screen !== "" && Shell.screen !== screenName
         phase = "closing"
         waitFrame = false
         openClock.stop()
-        Windows.restore(screenName)
+        Windows.restore(screenName, "launcher", true)
         startClose()
     }
     onPhaseChanged: {
@@ -139,18 +179,29 @@ Window {
             const at = b => { const q = b.mapToItem(null, b.width / 2, b.height / 2); return Math.round(screenObj.virtualX + q.x) + " " + Math.round(screenObj.virtualY + topGap + q.y) }
             console.warn("ATOM home tabs at 0 0 search at", at(topBar.searchButton), "theme at", at(topBar.themeButton), "power at", at(topBar.powerButton))
         }
-        if (phase === "open") { perfReport("opening"); if (dataWanted) { dataWanted = false; sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" launcher-data #data') } }
+        if (phase === "open") {
+            perfReport("opening")
+            if (!launcher.runnerModel) launcher.ensureRunner()
+            if (dataWanted) {
+                dataWanted = false
+                const nowMs = Date.now()
+                if (nowMs - Shell.lastLauncherDataAt > 60000) {
+                    Shell.lastLauncherDataAt = nowMs
+                    sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" launcher-data #data')
+                }
+            }
+        }
         if (phase === "closed") perfReport("closing")
         if (phase === "opening" || phase === "closing") { perfT = []; perfG = [] }
-        if (phase === "opening") { shownAt = Date.now(); coldOpen = idle || gameUp }
+        if (phase === "opening") { shownAt = Date.now(); coldOpen = idle || Windows.isFullscreen(screenName) }
         if (phase === "closed") restTimer.restart()
         else { restTimer.stop(); idle = false }
     }
     // its video memory goes back while a fullscreen window is up or after 10 minutes closed (as the simplified's)
     property bool idle: false
+    readonly property bool shouldPrewarm: Shell.bar ? Shell.bar.screen === stage.screenName : stage.launcher.screenIdx === 0
     Timer { id: restTimer; interval: 10 * 60 * 1000; onTriggered: stage.idle = true }
-    WindowRest { window: stage; resting: stage.phase === "closed" && (stage.idle || stage.gameUp) }
-    readonly property bool gameUp: !!(Shell.bar && Shell.bar.covered && Shell.bar.covered.length)
+    WindowRest { window: stage; resting: stage.phase === "closed" && (stage.idle || Windows.isFullscreen(stage.screenName)) }
     property bool coldOpen: false
     property double shownAt: 0
     property bool waitFrame: false
@@ -163,6 +214,30 @@ Window {
     Component.onCompleted: {
         const x = new XMLHttpRequest()
         try { x.open("GET", StandardPaths.writableLocation(StandardPaths.GenericCacheLocation) + "/rice/perf", false); x.send(); perfOn = x.responseText.length > 0 } catch (e) { perfOn = false }
+        if (wanted && phase === "closed") Qt.callLater(begin)
+    }
+    // Silently pre-warm the stay-mapped transparent surface & Home page after login settles so even the
+    // very first open takes ~4 ms (skipped if a game/fullscreen window is active).
+    Timer {
+        id: warmTimer
+        interval: 350
+        running: stage.shouldPrewarm && !stage.warmed && stage.phase === "closed" && !!stage.screenObj && !Windows.isFullscreen(stage.screenName) && !stage.idle
+        onTriggered: {
+            if (stage.phase === "closed" && !Windows.isFullscreen(stage.screenName) && !stage.idle) {
+                stage.pageAsked = Date.now()
+                stage.homeMade = true
+                stage.warmed = true
+                stage.priming = true
+                primeTimer.restart()
+                restTimer.restart()
+                stage.requestUpdate()
+            }
+        }
+    }
+    Timer {
+        id: primeTimer
+        interval: 250
+        onTriggered: { stage.priming = false; if (stage.phase === "closed") stage.requestUpdate() }
     }
     function perfReport(what) {
         const t = perfT; perfT = []
@@ -179,7 +254,7 @@ Window {
     function frameOne() {
         waitFrame = false
         const took = Date.now() - shownAt
-        if (Shell.debug || took >= 50) console.warn("ATOM atom stage first frame", screenName, took, "ms", coldOpen ? "(rested)" : "")
+        if (Shell.debug || perfOn || took >= 50) console.warn("ATOM atom stage first frame", screenName, took, "ms", coldOpen ? "(rested)" : "")
         if (launcher.clearDesk && !finder) Windows.clear(screenName)
         if (!powerOver) { requestActivate(); keys.forceActiveFocus() }
         startOpen()
@@ -205,25 +280,25 @@ Window {
     property real openT: 0
     property real closeT: 0
     property var closeFrom: ({})
-    NumberAnimation { id: openClock; target: stage; property: "openT"; from: 0; to: stage.openMs; duration: stage.openMs
+    NumberAnimation { id: openClock; target: stage; property: "openT"; from: 0; to: stage.openDur; duration: stage.openDur
                       onFinished: { stage.applyOpen(1e9); stage.phase = "open" } }
-    NumberAnimation { id: closeClock; target: stage; property: "closeT"; from: 0; to: stage.closeMs; duration: stage.closeMs; onFinished: stage.closed() }
+    NumberAnimation { id: closeClock; target: stage; property: "closeT"; from: 0; to: stage.closeDur; duration: stage.closeDur; onFinished: stage.closed() }
     onOpenTChanged: if (phase === "opening") applyOpen(openT)
     onCloseTChanged: if (phase === "closing") applyClose(closeT)
     function startOpen() { applyOpen(0); openClock.restart() }
     function applyOpen(t) {
-        const D = openMs, home = 1          // (the finder too: the same scene, over the windows, which stay)
-        bgO = home * M.track(t, 0, D * 0.45, M.enter)
-        pullT = home * M.track(t, 0, D * 0.6, M.enter)
-        planeO = M.track(t, D * 0.04, D * 0.5, M.enter)
+        const D = openDur, home = 1          // (the finder too: the same scene, over the windows, which stay)
+        bgO = home * M.track(t, 0, D * (carried ? 0.55 : 0.42), M.enter)
+        pullT = home * M.track(t, 0, D * (carried ? 0.75 : 0.65), M.enter)
+        planeO = M.track(t, 0, D * (carried ? 0.55 : 0.45), M.enter)
         planeS = 1
-        topO = M.track(t, D * 0.1, D * 0.5, M.enter)
-        capO = M.track(t, D * 0.32, D * 0.55, M.enter)
-        atomT = M.track(t, D * 0.1, D * 0.9, M.enter)
+        topO = M.track(t, D * (carried ? 0 : 0.05), D * (carried ? 0.6 : 0.45), M.enter)
+        capO = M.track(t, D * (carried ? 0.05 : 0.08), D * (carried ? 0.7 : 0.55), M.enter)
+        atomT = carried ? M.lerp(0.45, 1, M.track(t, 0, D, M.enter)) : M.track(t, 0, D, M.enter)
     }
     function startClose() { closeFrom = { plane: planeO, bg: bgO, pull: pullT }; applyClose(0); closeClock.restart() }
     function applyClose(t) {
-        const D = closeMs, f = closeFrom
+        const D = closeDur, f = closeFrom
         planeO = (f.plane ?? 1) * (1 - M.track(t, 0, D * 0.55, M.exit))
         planeS = M.lerp(1, 1.035, M.track(t, 0, D * 0.55, M.exit))
         bgO = (f.bg ?? 1) * (1 - M.track(t, D * 0.12, D * 0.88, M.move))
@@ -231,32 +306,57 @@ Window {
     }
     function closed() {
         phase = "closed"
+        carried = false
+        transferring = false
         coverAnim.stop(); coverP = 0
         searching = false
+        if (!wanted) { page = "home"; pageBefore = "home"; zone = "page"; managerAt = "" }
+        // bare desktop (no restored window took focus): briefly unmap/remap so KWin releases keyboard focus
+        // and notifies rice_islands to bring the bar's islands back
+        if (stage.active && !wanted) handBack()
     }
 
     // ------------------------------------------------------------------ following the pointer (as the simplified's)
+    // Shell.bar.pointer is KWin's live cursor screen (never bounces on window restore), so it skips the
+    // 400 ms bounce guard and uses a 35 ms coalescing timer: rapid sweeps across monitors never drop switches
+    // and never jitter on a 1 px monitor border.
     property string pointerAt: ""
+    property string pendingScreen: ""
+    property string pendingBefore: ""
     readonly property bool following: stage.wanted && !stage.powerOver && (stage.phase === "opening" || stage.phase === "open")
-    onFollowingChanged: if (following && Shell.bar) pointerSeen(Shell.bar.pointer || "")
-    Connections { target: Shell; enabled: stage.following; function onBarChanged() { if (Shell.bar) stage.pointerSeen(Shell.bar.pointer || "") } }
+    onFollowingChanged: if (following && Shell.bar) pointerSeen(Shell.bar.pointer || "", true)
+    Connections { target: Shell; enabled: stage.following; function onBarChanged() { if (Shell.bar) stage.pointerSeen(Shell.bar.pointer || "", true) } }
     Timer { interval: 150; repeat: true; running: stage.following && !Shell.bar; triggeredOnStart: true; onTriggered: stage.askPointer() }
+    Timer { id: followTimer; interval: 35; onTriggered: stage.commitFollow() }
     function askPointer() {
         const reply = DBus.SessionBus.asyncCall({ service: "org.kde.KWin", path: "/KWin", iface: "org.kde.KWin", member: "activeOutputName", arguments: [] })
         reply.finished.connect(() => {
             const v = reply.isError ? "" : reply.value
             reply.destroy()
-            stage.pointerSeen(String((v && typeof v === "object" && "value" in v) ? v.value : (v ?? "")))
+            stage.pointerSeen(String((v && typeof v === "object" && "value" in v) ? v.value : (v ?? "")), false)
         })
     }
-    function pointerSeen(name) {
+    function pointerSeen(name, fromKWin) {
         if (!name || !wanted || phase === "closing") return
         const before = pointerAt
         pointerAt = name
-        if (!before || name === before || name === screenName) return
-        // just arrived: the screen it left gives its windows back and may still read as active for a moment (KWin's
-        // activeOutputName follows the active window: it bounced the launcher between screens, nested 2026-11-23)
-        if (Date.now() - shownAt < 400) { pointerAt = before; return }
+        if (name === screenName) { pendingScreen = ""; pendingBefore = ""; followTimer.stop(); return }
+        if (!before || name === before) return
+        if (!fromKWin) {
+            // fallback only: KWin's activeOutputName follows the active window and can bounce briefly on restore
+            if (Date.now() - shownAt < 400) { pointerAt = before; return }
+            pendingScreen = name; pendingBefore = before
+            commitFollow()
+            return
+        }
+        if (!pendingBefore) pendingBefore = before
+        pendingScreen = name
+        followTimer.restart()
+    }
+    function commitFollow() {
+        const name = pendingScreen, before = pendingBefore
+        pendingScreen = ""; pendingBefore = ""
+        if (!name || name === screenName || !wanted || phase === "closing" || powerOver) return
         const there = Shell.island("launcher", name)
         if (Shell.debug) console.warn("ATOM stage pointer moved from", before, "to", name, there ? "(following)" : "(no launcher there)")
         if (!there) return
@@ -272,17 +372,29 @@ Window {
     readonly property var strip: Shell.island("strip", screenName)
     readonly property real topGap: strip && screenObj ? Math.max(0, Math.round(strip.y + strip.height - screenObj.virtualY)) : 0
 
-    // ------------------------------------------------------------------ the data
-    HomeModel { id: hm; launcher: stage.launcher }
-    readonly property alias home: hm
+    // ------------------------------------------------------------------ the data (shared HomeModel on Shell.launcherHost)
+    readonly property var emptyHome: ({ pages: [], byCat: ({}), rev: 0 })
+    readonly property var home: stage.launcher.homeModel || emptyHome
     property string page: "home"                // home | games | apps | theme | manager (Atom Manager)
     readonly property var tabs: ["home", "apps", "games"]
     property string pageBefore: "home"
     // a page (or the search) comes in as the launcher does: its rings spiral out of the core (one short clock)
     property double pageAsked: 0
-    NumberAnimation { id: pageClock; target: stage; property: "atomT"; from: 0; to: 1; duration: Tokens.ms(820) }
-    function pageIn() { pageAsked = Date.now(); if (phase === "open") pageClock.restart() }
+    property bool homeMade: false
+    property bool appsMade: false
+    property bool gamesMade: false
+    property bool searchMade: false
+    function ensurePageMade(force) {
+        if (!force && phase === "closed") return
+        if (searching) { searchMade = true; return }
+        if (page === "home") homeMade = true
+        else if (page === "apps") appsMade = true
+        else if (page === "games") gamesMade = true
+    }
+    NumberAnimation { id: pageClock; target: stage; property: "atomT"; from: 0; to: 1; duration: Tokens.ms(400); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn }
+    function pageIn() { pageAsked = Date.now(); ensurePageMade(); if (phase === "open") pageClock.restart() }
     onSearchingChanged: pageIn()
+    onPageChanged: ensurePageMade()
     function pageLoaded(name) { if (Shell.debug) console.warn("ATOM atom page made", name, Date.now() - pageAsked, "ms") }
     function setPage(p) {
         if (p === page) return
@@ -352,18 +464,22 @@ Window {
     }
 
     // fresh every time it opens (Home, nothing searched), unless it follows the pointer from another screen
-    onOpened: {
+    function prepareOpen() {
         pageAsked = Date.now()
         const carry = Shell.args && Shell.args.carry && !finder ? Shell.args.carry : null
-        if (carry && Shell.debug) console.warn("ATOM stage carried page", carry.page)
         searching = false
         page = carry ? carry.page || "home" : "home"
         pageBefore = carry ? carry.pageBefore || "home" : "home"
+        ensurePageMade(true)
+    }
+    onOpened: {
+        const carry = Shell.args && Shell.args.carry && !finder ? Shell.args.carry : null
+        if (carry && Shell.debug) console.warn("ATOM stage carried page", carry.page)
         if (carry && carry.focus) { const f = carry.focus; Qt.callLater(() => { if (stage.pageApi && stage.pageApi.restore) stage.pageApi.restore(f) }) }
         if (!carry || !carry.searching) launcher.query = ""
         now = new Date()
         Qt.callLater(() => keys.forceActiveFocus())
-        dataWanted = !finder       // (fetched once it has opened: forking plasmashell mid-animation stalled its frames)
+        dataWanted = !finder && !carry       // (fetched once it has opened, throttled: never fork mid-animation or on screen carry)
         if (finder || (Shell.args && Shell.args.query) || (carry && carry.searching)) Qt.callLater(() => stage.openSearch(Shell.args.query || ""))
     }
     property bool dataWanted: false
@@ -375,14 +491,15 @@ Window {
     Timer { id: newsTimer; interval: 2200; onTriggered: stage.news = "" }
 
     // ------------------------------------------------------------------ the scene
-    Scene { id: scene; anchors.fill: parent; stage: atomStage }
+    Scene { id: scene; anchors.fill: parent; stage: atomStage; visible: stage.phase !== "closed" || stage.priming }
 
     // ------------------------------------------------------------------ the content
     FocusScope {
         id: keys
         anchors.fill: parent
+        visible: stage.phase !== "closed" || stage.priming
         focus: true
-        opacity: stage.planeO * (1 - stage.coverP)
+        opacity: stage.priming && stage.phase === "closed" ? 0.0015 : stage.planeO * (1 - stage.coverP)
         scale: stage.planeS * M.lerp(1, 0.965, stage.coverP)
         Keys.onPressed: event => stage.onKey(event)
 
@@ -393,13 +510,14 @@ Window {
             onClicked: mouse => { if (mouse.button === Qt.RightButton) stage.launcher.close() }
             onWheel: wheel => stage.wheeled(wheel.angleDelta.y || -wheel.pixelDelta.y, Qt.point(wheel.x, wheel.y))
         }
-        // the page in view (only that one exists: a page is made when it's shown)
-        Loader { anchors.fill: parent; active: stage.page === "home" && !stage.searching; sourceComponent: homePage; onLoaded: stage.pageLoaded("home") }
-        Loader { anchors.fill: parent; active: stage.searching; sourceComponent: searchPage; onLoaded: stage.pageLoaded("search") }
-        Loader { anchors.fill: parent; active: stage.page === "apps" && !stage.searching; sourceComponent: appsPage; onLoaded: stage.pageLoaded("apps") }
-        Loader { anchors.fill: parent; active: stage.page === "games" && !stage.searching; sourceComponent: gamesPage; onLoaded: stage.pageLoaded("games") }
-        Loader { anchors.fill: parent; active: stage.page === "theme" && !stage.searching; sourceComponent: themePage; onLoaded: stage.pageLoaded("theme") }
-        Loader { anchors.fill: parent; active: stage.page === "manager" && !stage.searching; sourceComponent: managerPage; onLoaded: stage.pageLoaded("manager") }
+        // Core pages (Home, Apps, Games, Search) are built lazily on first visit and kept warm across tab
+        // switches and closes (zero QML/scene rebuilds). Theme and Manager unload when hidden to free previews.
+        Loader { anchors.fill: parent; active: stage.homeMade; visible: stage.page === "home" && !stage.searching; enabled: visible; sourceComponent: homePage; onLoaded: stage.pageLoaded("home") }
+        Loader { anchors.fill: parent; active: stage.searchMade; visible: stage.searching; enabled: visible; sourceComponent: searchPage; onLoaded: stage.pageLoaded("search") }
+        Loader { anchors.fill: parent; active: stage.appsMade; visible: stage.page === "apps" && !stage.searching; enabled: visible; sourceComponent: appsPage; onLoaded: stage.pageLoaded("apps") }
+        Loader { anchors.fill: parent; active: stage.gamesMade; visible: stage.page === "games" && !stage.searching; enabled: visible; sourceComponent: gamesPage; onLoaded: stage.pageLoaded("games") }
+        Loader { anchors.fill: parent; active: stage.page === "theme" && !stage.searching && stage.phase !== "closed"; sourceComponent: themePage; onLoaded: stage.pageLoaded("theme") }
+        Loader { anchors.fill: parent; active: stage.page === "manager" && !stage.searching && stage.phase !== "closed"; sourceComponent: managerPage; onLoaded: stage.pageLoaded("manager") }
         // the wheel, over the page (the simplified's wheelLayer): a layer that takes only the wheel. Under the page, the
         // bare MouseArea above missed it more often than not (nested, 2026-11-22). Not on the Theme page: its grids
         // scroll themselves first (the bare MouseArea still hands it the rest)
@@ -482,6 +600,7 @@ Window {
     property point pointerLast: Qt.point(0, 0)
     HoverHandler {
         target: null
+        enabled: stage.phase !== "closed"
         onPointChanged: {
             const p = point.position
             if (stage.pointerKnown && Math.abs(p.x - stage.pointerLast.x) + Math.abs(p.y - stage.pointerLast.y) > 1 && stage.phase !== "closed")

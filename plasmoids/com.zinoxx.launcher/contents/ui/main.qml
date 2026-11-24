@@ -82,7 +82,26 @@ PlasmoidItem {
     // with the clipboard) and typing on the desktop open the finder, the launcher's search alone (Stage's
     // search-only mode: no backdrop, no home, the windows stay). Every bar has a launcher: the one on the islands'
     // screen answers.
-    Component.onCompleted: { KRunner.active = true; root.style = root.styleWanted }
+    Component.onCompleted: {
+        KRunner.active = true
+        root.style = root.styleWanted
+        if (!Shell.quitting && !Shell.launcherHost) Shell.launcherHost = root
+    }
+    Component.onDestruction: {
+        hostElect.stop()
+        if (Shell.launcherHost === root) Shell.launcherHost = null
+    }
+    Timer {
+        id: hostElect
+        interval: 80
+        onTriggered: if (!Shell.quitting && !Shell.launcherHost) Shell.launcherHost = root
+    }
+    Connections {
+        target: Shell
+        function onLauncherHostChanged() { if (!Shell.quitting && !Shell.launcherHost) hostElect.restart() }
+    }
+    readonly property bool isHost: Shell.launcherHost === root
+    readonly property var host: Shell.launcherHost || root
     Connections {
         target: KRunner
         function onRequested(action, query) {
@@ -109,13 +128,7 @@ PlasmoidItem {
 
     RiceShell {
         id: sh
-        onNewData: (source, data) => {
-            if (source.indexOf("#mode") >= 0) {      // the note names the Theme page's tab to open on
-                const tab = String(data["stdout"] ?? "").trim()
-                if (["walls", "colours", "lights"].indexOf(tab) >= 0) root.openTheme(tab)
-            }
-            disconnectSource(source)
-        }
+        onNewData: (source, data) => disconnectSource(source)
     }
     function run(cmd) { sh.connectSource(cmd + " #run") }      // a fixed set of commands: fixed names (RiceShell)
 
@@ -123,11 +136,22 @@ PlasmoidItem {
     property int themeAsk: 0
     property string themeRow: ""
     function openTheme(row) { themeRow = row || ""; themeAsk++ }
-    // Meta+Shift+W (~/.local/share/applications/net.local.rice-wallpapers.desktop) leaves a note,
-    // then opens the launcher: read it once per opening
+    // Meta+Shift+W (bin/wallpapers.sh) posts "themeOpen" on Atom.Native Bus before opening the launcher:
+    // read and clear in-process (zero shell fork on normal opens)
     onShownChanged: {
+        if (root.shown && !root.stageReady) root.stageReady = true
         Qt.callLater(root.takeStyle)        // a launcher style chosen while it was open applies once it's closed
-        if (root.shown) sh.connectSource('f="$HOME/.local/state/rice/launcher-open"; cat "$f" 2>/dev/null; rm -f "$f" #mode')
+        if (root.shown) {
+            const note = Bus.get("themeOpen")
+            if (note && note.tab) {
+                Bus.set("themeOpen", null)
+                const age = note.at ? Date.now() / 1000 - Number(note.at) : 0
+                if (age <= 5 && ["walls", "colours", "lights"].indexOf(note.tab) >= 0) {
+                    const tab = note.tab
+                    Qt.callLater(() => root.openTheme(tab))
+                }
+            }
+        }
     }
     // the wheel over the emblem: this screen's next / previous wallpaper
     function stepWallpaper(d) { run('python3 "$HOME/.config/plasma-rice/rice.py" ' + (d > 0 ? "next" : "prev") + " --screen '" + Screen.name + "'") }
@@ -142,29 +166,40 @@ PlasmoidItem {
     toolTipSubText: "Search apps, settings, files and maths · Meta"
     preferredRepresentation: compactRepresentation
 
-    // ------------------------------------------------------------------ models
-    Kicker.RootModel {
-        id: rootModel
-        autoPopulate: false
-        appletInterface: root
-        flat: true
-        sorted: true
-        showSeparators: false
-        showAllApps: true
-        showAllAppsCategorized: false
-        showTopLevelItems: false
-        showRecentApps: true
-        showRecentDocs: false
-        showPowerSession: false
-        highlightNewlyInstalledApps: false
-        onRefreshed: root.collectCategories()
-        onCountChanged: root.collectCategories()
-        Component.onCompleted: {
-            favoritesModel.initForClient("com.zinoxx.launcher")
-            refresh()
+    // ------------------------------------------------------------------ models (shared across bars via Shell.launcherHost)
+    // Only the host bar's launcher applet builds Kicker's RootModel, HomeModel, and (lazily on first
+    // search) RunnerModel; other bars' launcher applets reuse them instead of loading 3x catalogs and
+    // 27 KRunner plugins at login.
+    Instantiator {
+        id: rootModelInst
+        active: root.isHost
+        model: 1
+        onObjectAdded: (index, object) => root.collectCategories(object)
+        delegate: Kicker.RootModel {
+            id: rm
+            autoPopulate: false
+            appletInterface: root
+            flat: true
+            sorted: true
+            showSeparators: false
+            showAllApps: true
+            showAllAppsCategorized: false
+            showTopLevelItems: false
+            showRecentApps: true
+            showRecentDocs: false
+            showPowerSession: false
+            highlightNewlyInstalledApps: false
+            onRefreshed: root.collectCategories(rm)
+            onCountChanged: root.collectCategories(rm)
+            Component.onCompleted: {
+                favoritesModel.initForClient("com.zinoxx.launcher")
+                refresh()
+            }
         }
     }
-    readonly property var favorites: rootModel.favoritesModel
+    readonly property var ownRootModel: rootModelInst.object
+    readonly property var ownFavorites: ownRootModel ? ownRootModel.favoritesModel : null
+    readonly property var favorites: host.ownFavorites
 
     // chips: All, Recent, then the menu's categories
     readonly property var catIcons: ({
@@ -173,10 +208,13 @@ PlasmoidItem {
         "multimedia": "play_circle", "office": "description", "science": "science", "settings": "tune",
         "system": "settings", "utilities": "construction", "help": "help", "lost & found": "inventory_2"
     })
-    property var categories: []
+    property var ownCategories: []
+    readonly property var categories: host.ownCategories
     property int category: 0
-    function collectCategories() {
-        const out = [], R = rootModel
+    function collectCategories(src) {
+        const R = src || ownRootModel
+        if (!R) return
+        const out = []
         let all = null, recent = null
         for (let i = 0; i < R.count; i++) {
             const m = R.modelForRow(i)
@@ -186,28 +224,59 @@ PlasmoidItem {
             else if (i === 0) recent = { label: "Recent", icon: "history", model: m }
             else out.push({ label: label, icon: catIcons[label.toLowerCase()] || "folder", model: m })
         }
-        categories = [all, recent].filter(c => c && c.model.count > 0).concat(out)
-        if (category >= categories.length) category = 0
+        ownCategories = [all, recent].filter(c => c && c.model.count > 0).concat(out)
+        if (category >= ownCategories.length) category = 0
     }
     readonly property var browseModel: categories.length ? categories[category].model : null
 
-    Kicker.RunnerModel {
-        id: runner
-        appletInterface: root
-        favoritesModel: rootModel.favoritesModel
-        mergeResults: false
-        runners: ["krunner_services", "krunner_systemsettings", "calculator", "unitconverter",
-                  "krunner_sessions", "krunner_powerdevil", "locations", "baloosearch", "krunner_webshortcuts"]
+    // One shared HomeModel for every screen's Stage (pages, Steam art, usage, and AppsPage's byCat)
+    Instantiator {
+        id: homeModelInst
+        active: root.isHost && !!root.ownRootModel
+        model: 1
+        delegate: HomeModel { launcher: root }
+    }
+    readonly property var ownHomeModel: homeModelInst.object
+    readonly property var homeModel: host.ownHomeModel
+
+    // Lazy KRunner: zero runner plugins load at login; instantiated once on the host upon first search
+    property bool runnerWanted: false
+    property string hostQuery: ""
+    function ensureRunner() {
+        if (isHost) runnerWanted = true
+        else if (host && host !== root) host.ensureRunner()
+    }
+    Timer {
+        id: runnerWarm
+        interval: 4500
+        running: root.isHost && !root.runnerWanted && !Shell.quitting
+        onTriggered: root.ensureRunner()
+    }
+    Instantiator {
+        id: runnerInst
+        active: root.isHost && root.runnerWanted
+        model: 1
+        delegate: Kicker.RunnerModel {
+            appletInterface: root
+            favoritesModel: root.ownFavorites
+            mergeResults: false
+            query: root.hostQuery
+            runners: ["krunner_services", "krunner_systemsettings", "calculator", "unitconverter",
+                      "krunner_sessions", "krunner_powerdevil", "locations", "baloosearch", "krunner_webshortcuts"]
+        }
     }
     Kicker.DragHelper { id: dragHelper; dragIconSize: Kirigami.Units.iconSizes.medium }
     // for the stage (Stage.qml)
-    readonly property var runnerModel: runner
+    readonly property var ownRunner: runnerInst.object
+    readonly property var runnerModel: host.ownRunner
     readonly property var kickerDrag: dragHelper
     readonly property var menu: ctx
 
     property string query: ""
     onQueryChanged: {
-        runner.query = query; selGroup = 0; selRow = 0; Qt.callLater(fixSelection)
+        if (query !== "") ensureRunner()
+        if (host) host.hostQuery = query
+        selGroup = 0; selRow = 0; Qt.callLater(fixSelection)
         awaiting = query !== ""; awaitCap.restart()
     }
     // KRunner is still working on this query. The model debounces before it starts, so a query
@@ -215,33 +284,37 @@ PlasmoidItem {
     // that never comes): no "nothing found" flash while results are on their way
     property bool awaiting: false
     Timer { id: awaitCap; interval: 4000; onTriggered: root.awaiting = false }
-    readonly property bool searching: query !== "" && (awaiting || runner.querying)
+    readonly property bool searching: query !== "" && (awaiting || !!(runnerModel && runnerModel.querying))
 
     // keyboard selection in the results: (group, row), kept on a row that exists
     property int selGroup: 0
     property int selRow: 0
-    function groupCount(g) { const m = runner.modelForRow(g); return m ? m.count : 0 }
+    function groupCount(g) { const m = runnerModel ? runnerModel.modelForRow(g) : null; return m ? m.count : 0 }
     function fixSelection() {
+        if (!runnerModel) return
         if (groupCount(selGroup) > selRow) return
-        for (let g = 0; g < runner.count; g++)
+        for (let g = 0; g < runnerModel.count; g++)
             if (groupCount(g) > 0) { selGroup = g; selRow = 0; return }
     }
     function moveSelection(d) {
+        if (!runnerModel) return
         fixSelection()
         let g = selGroup, r = selRow + d
-        while (g >= 0 && g < runner.count) {
+        while (g >= 0 && g < runnerModel.count) {
             if (r >= 0 && r < groupCount(g)) { selGroup = g; selRow = r; return }
             g += d
             r = d > 0 ? 0 : groupCount(g) - 1
         }
     }
     function activateSelection() {
+        if (!runnerModel) return
         fixSelection()
-        const m = runner.modelForRow(selGroup)
+        const m = runnerModel.modelForRow(selGroup)
         if (m && selRow < m.count) launch(m, selRow)
     }
     Connections {
-        target: runner
+        target: root.runnerModel
+        enabled: !!root.runnerModel
         function onCountChanged() { Qt.callLater(root.fixSelection) }
         function onQueryFinished() { root.awaiting = false; Qt.callLater(root.fixSelection) }
     }
@@ -250,9 +323,9 @@ PlasmoidItem {
         model.trigger(row, "", null)
         root.close()
     }
-    function isFavorite(id) { return !!id && favorites.isFavorite(id) }
+    function isFavorite(id) { return !!id && !!favorites && favorites.isFavorite(id) }
     function toggleFavorite(id) {
-        if (!id) return
+        if (!id || !favorites) return
         if (favorites.isFavorite(id)) favorites.removeFavorite(id)
         else favorites.addFavorite(id)
     }
@@ -437,9 +510,20 @@ PlasmoidItem {
         onTriggered: if (root.restyling) { Windows.restore(root.restyling.screen, "restyle"); root.restyling = null }
     }
     function styleUrl(name) { return Qt.resolvedUrl(name === "simplified" ? "Stage.qml" : "styles/" + name + "/Stage.qml") }
+    // Defer Stage creation until panels settle (~1.2 s + 250 ms stagger per screen, or immediately if
+    // the launcher is opened first): avoids transient-screen tears at login (QQmlVMEMetaObject errors)
+    // and keeps login off the critical path.
+    property bool stageReady: false
+    readonly property int screenIdx: myScreen ? Math.max(0, screens.indexOf(myScreen)) : 0
+    Timer {
+        id: stageDefer
+        interval: 1200 + root.screenIdx * 250
+        running: !root.stageReady && !!root.myScreen
+        onTriggered: root.stageReady = true
+    }
     Instantiator {
         id: stages
-        model: root.myScreen ? [root.myScreen] : []
+        model: root.stageReady && root.myScreen ? [root.myScreen] : []
         delegate: Loader {
             id: stageLoader
             required property var modelData

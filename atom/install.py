@@ -29,6 +29,7 @@ APPS = HOME / ".local/share/applications"
 SERVICEMENUS = HOME / ".local/share/kio/servicemenus"
 UNITS = HOME / ".config/systemd/user"
 DROPIN = UNITS / "plasma-plasmashell.service.d/rice.conf"
+KSPLASH_DROPIN = UNITS / "plasma-ksplash.service.d/rice.conf"
 CANONICAL = HOME / ".config/plasma-rice"            # where units, shortcuts and widgets find the rice
 
 NEEDS_CMDS = ["python3", "qdbus6", "kscreen-doctor", "kwriteconfig6", "kreadconfig6", "magick", "notify-send",
@@ -55,6 +56,11 @@ DROPIN_TEXT = """# Atom Plasma: the rice widgets read their palette files with Q
 Environment=QML_XHR_ALLOW_FILE_READ=1
 Environment=QML_XHR_ALLOW_FILE_WRITE=1
 Environment=QML_IMPORT_PATH=%h/.config/plasma-rice/qml:%h/.local/lib/qt6/qml
+"""
+KSPLASH_DROPIN_TEXT = """# Atom Plasma: KSplash reads this screen's palette and pre-blurred backdrop (_glassFull) with QML's
+# XMLHttpRequest instead of falling back to cat subprocesses at login.
+[Service]
+Environment=QML_XHR_ALLOW_FILE_READ=1
 """
 NATIVE = HOME / ".local/lib/qt6/qml/Atom/Native"     # pkg/atom-native/build.sh puts it there
 
@@ -203,6 +209,7 @@ def install(dry=False):
     for f in sorted((ROOT / "systemd").glob("*.service")) + sorted((ROOT / "systemd").glob("*.timer")):
         p.link(UNITS / f.name, f)
     p.write(DROPIN, DROPIN_TEXT, ours_marker="Atom Plasma")
+    p.write(KSPLASH_DROPIN, KSPLASH_DROPIN_TEXT, ours_marker="Atom Plasma")
     if native_stale():                  # (missing, or a pull brought new sources)
         p.run(str(ROOT / "pkg/atom-native/build.sh"))
     if caps.feature("gamepad", cfg) and pad_im_stale():     # (also sets it as KWin's input method, if none is)

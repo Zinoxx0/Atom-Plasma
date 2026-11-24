@@ -16,7 +16,7 @@ Item {
     // every group's matches, read through delegates (one list, rebuilt a beat after anything changes)
     Repeater {
         id: groups
-        model: page.runner
+        model: page.visible ? page.runner : null
         delegate: Item {
             required property int index
             readonly property var matches: page.runner ? page.runner.modelForRow(index) : null
@@ -31,14 +31,14 @@ Item {
                     readonly property var icon: model.decoration
                     readonly property string desc: String(model.description || "")
                 }
-                onCountChanged: settle.restart()
+                onCountChanged: if (page.visible) settle.restart()
             }
         }
-        onCountChanged: settle.restart()
+        onCountChanged: if (page.visible) settle.restart()
     }
-    Connections { target: page.runner; function onQueryFinished() { settle.restart() } }
-    onQueryChanged: settle.restart()
-    Timer { id: settle; interval: 60; onTriggered: page.collect() }
+    Connections { target: page.runner; enabled: page.visible; function onQueryFinished() { settle.restart() } }
+    onQueryChanged: if (page.visible) settle.restart()
+    Timer { id: settle; interval: 60; onTriggered: if (page.visible) page.collect() }
     function collect() {
         const out = []
         for (let g = 0; g < groups.count; g++) {
@@ -66,7 +66,7 @@ Item {
         if (it.web) { Qt.openUrlExternally("https://duckduckgo.com/?q=" + encodeURIComponent(page.query)); page.stage.launcher.close(); return }
         page.stage.launcher.launch(it.model, it.row)
     }
-    ImagePalette { id: colours; source: atom.focusItem ? atom.focusItem.icon : "" }
+    ImagePalette { id: colours; source: page.visible && atom.focusItem ? atom.focusItem.icon : "" }
     readonly property color tint: C.appTint(colours, page.stage ? page.stage.look.primary : "#888888")
 
     readonly property var caption: {
@@ -77,7 +77,7 @@ Item {
                  acts: [["A", it.web ? "Search" : "Open"]].concat(it.web ? [] : [["X", "Options"]]) }
     }
     function publish() {
-        if (!page.stage) return
+        if (!page.visible || !page.stage) return
         page.stage.caption = page.caption
         page.stage.focusItem = null
         page.stage.focusTint = page.tint
@@ -85,15 +85,17 @@ Item {
     onCaptionChanged: publish()
     onTintChanged: publish()
     onResultsChanged: if (atom.ring) { atom.ring.current = 0; atom.ring.picked = -1; atom.mode = "slot" }   // the best match in the slot
-    Component.onCompleted: {
+    function install() {
         if (!page.stage) return
         page.stage.pageApi = { act: i => i === 0 ? atom.launch() : atom.openOptions(), wheel: (dy, at) => atom.wheelAt(dy > 0 ? -1 : 1, at) }
         page.stage.hints = { pad: [["↕", "Turn"], ["A", "Open"], ["X", "Options"], ["B", "Back"]],
                              keys: [["↑ ↓", "Turn"], ["Enter", "Open"], ["Esc", "Back"]] }
-        collect(); publish()
     }
+    onVisibleChanged: if (visible) { install(); collect(); publish() }
+    Component.onCompleted: { if (visible) { install(); collect(); publish() } }
     Connections {
         target: page.stage
+        enabled: page.visible
         function onPageKey(event) {
             const k = event.key
             if (k === Qt.Key_Up) atom.turn(-1)

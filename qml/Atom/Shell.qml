@@ -34,7 +34,13 @@ QtObject {
     property var args: ({})
     readonly property bool busy: kind !== ""
     property double padOpened: 0            // when the pad's Guide last asked for the launcher (bin/pad.py says so just before)
+    property double lastLauncherDataAt: 0   // throttle rice.py launcher-data refreshes across screens (60 s)
+    property var launcherHost: null         // first bar's launcher applet owns Kicker RootModel, HomeModel & lazy RunnerModel
+    property double lastWeatherAt: 0        // throttle desk weather.py refreshes across screens
+    property double lastAgendaAt: 0         // throttle clock agenda.py refreshes across screens
     property bool debug: false              // tests: log every transition (console.warn "ATOM")
+    property bool quitting: false
+    property Connections appWatch: Connections { target: Qt.application; function onAboutToQuit() { shell.quitting = true } }
     property string styleOverride: ""       // tests: the nested session's launcher style (its config's atom-test-style)
     signal refocus()                        // launcher applet popup collapsed after Meta: re-claim Stage's keyboard focus
 

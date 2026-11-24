@@ -25,7 +25,7 @@ Item {
     property int swaps: 0
     onContentChanged: { swaps++; slide.restart() }
     property real slideT: 1
-    NumberAnimation { id: slide; target: cap; property: "slideT"; from: 0; to: 1; duration: Tokens.ms(520); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn }
+    NumberAnimation { id: slide; target: cap; property: "slideT"; from: 0; to: 1; duration: Tokens.ms(280); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn }
 
     Column {
         id: col

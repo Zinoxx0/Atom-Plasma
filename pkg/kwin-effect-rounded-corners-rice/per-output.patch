@@ -285,7 +285,8 @@ index ad2d369..ab41500 100644
 +++ b/src/metadata.json
 @@ -15,7 +15,7 @@
          "Description[ru]": "Эффект, который формирует/скругляет углы окон с помощью настроенных контуров и теней.",
-         "EnabledByDefault": true,
+-        "EnabledByDefault": true,
++        "EnabledByDefault": false,
          "License": "GPL",
 -        "Name": "Rounded Corners (formerly ShapeCorners)",
 +        "Name": "Rounded Corners (Rice: per-screen outline colours)",

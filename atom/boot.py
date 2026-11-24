@@ -673,8 +673,14 @@ def apply_login(p):
         install_system(HOME / ".local/share/icons/Papirus-Rice", Path("/usr/share/icons/Papirus-Rice"))
     cfg = GREETER / ".config"
     backup_once(cfg / "kdeglobals")
+    backup_once(cfg / "kwinrc")
     sudo_write(cfg / "kcminputrc", f"[Mouse]\ncursorSize=24\ncursorTheme={cursor}\n",
                owner="plasmalogin", mode="600")
+    # Keep desktop-only KWin effects off in the login greeter compositor so VT handover stays lean
+    for eff in ("kwin4_effect_shapecorners_riceEnabled", "kwin4_effect_shapecornersEnabled"):
+        sudo("kwriteconfig6", "--file", str(cfg / "kwinrc"), "--group", "Plugins", "--key", eff, "false")
+    sudo("chown", "plasmalogin:plasmalogin", str(cfg / "kwinrc"))
+    sudo("chmod", "600", str(cfg / "kwinrc"))
     sudo(str(SYNC))
     print(f"login: follows the theme (atom-plasma-greeter.path), now {Path(p['_wallpaper']).name}; "
           f"{icons_theme}, {cursor}")

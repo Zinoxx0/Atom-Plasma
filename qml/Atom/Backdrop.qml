@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Effects
-import QtQuick.Shapes
 import Atom.Native
 import Rice
 
@@ -55,15 +54,21 @@ Item {
               : [{ x: bd.origin.x - bd.r, y: bd.origin.y - bd.r, width: 2 * bd.r, height: 2 * bd.r, radius: bd.r }]).concat(bd.also || [])
     }
 
-    // the picture: the frost (matte) or the wallpaper itself (no blur), as one full-window texture, laid on
-    // the screen's own frame (so it lines up with the desktop)
+    // the picture: the frost (matte) or the wallpaper itself (no blur, noisy only), laid on the screen's own
+    // frame so it lines up with the desktop. Whole-window backdrops (100% of matte/noise/none launcher opens and
+    // resting power pages) draw directly in the scene graph with ZERO offscreen FBOs and ZERO CurveRenderer
+    // shapes; only an active circular ripple (!bd.whole) loads the single-pass ripple shader.
     readonly property string wallSource: pal && pal.wallpaper ? "file://" + pal.wallpaper : ""
+    readonly property string sharpSource: pal && pal.values && pal.values._wallFit ? "file://" + pal.values._wallFit : wallSource
+    readonly property bool hasWallFit: !!(pal && pal.values && pal.values._wallFit)
+    readonly property color veilColor: C.alpha(bd.pal ? bd.pal.surfaceLowest : "#000000", bd.veil)
+
     Item {
-        id: frost
-        width: bd.width
-        height: bd.height
-        visible: false
-        Image {         // no blur, noisy only: the wallpaper as the desktop shows it (scaled and cropped to the screen)
+        id: picBox
+        anchors.fill: parent
+        clip: bd.offsetY > 0
+        visible: bd.shows && bd.pictured
+        Image {         // no blur, noisy only: screen-fitted JPEG (_wallFit) when cached, else full wallpaper
             readonly property real dpr: bd.window && bd.window.devicePixelRatio ? bd.window.devicePixelRatio : 1
             y: -bd.offsetY
             width: parent.width
@@ -71,8 +76,8 @@ Item {
             visible: bd.sharp
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
-            source: bd.sharp ? bd.wallSource : ""
-            sourceSize: Qt.size(Math.ceil(width * dpr), Math.ceil(height * dpr))
+            source: bd.sharp ? bd.sharpSource : ""
+            sourceSize: bd.hasWallFit ? Qt.size(0, 0) : Qt.size(Math.ceil(width * dpr), Math.ceil(height * dpr))
         }
         Image {
             readonly property bool frosted: !!(bd.pal && bd.pal.values && bd.pal.values._glassFull)
@@ -89,51 +94,78 @@ Item {
             layer.effect: MultiEffect { blurEnabled: true; blur: 1; blurMax: 64; saturation: 0.3 }
         }
     }
-    // the grain, tiled over the whole window (a texture of its own: it goes over the veil)
-    Item {
-        id: grainArt
-        width: bd.width
-        height: bd.height
-        visible: false
-        Image { anchors.fill: parent; source: bd.grainy && bd.grained ? bd.grain : ""; fillMode: Image.Tile; smooth: false }
-    }
-    // (live: it redraws only when the grain changes, i.e. once)
-    ShaderEffectSource { id: grainTex; width: bd.width; height: bd.height; visible: false; sourceItem: grainArt; hideSource: true; live: bd.grainy && bd.grained
-                         smooth: false }     // (sampled sharp: filtered, the grain softened and read weaker)
-    ShaderEffectSource { id: frostTex; width: bd.width; height: bd.height; visible: false; sourceItem: frost; hideSource: true; live: bd.pictured && bd.shows }
-
-    Shape {
+    // whole-window fast path: direct veil and grain, zero FBOs
+    Rectangle {
         anchors.fill: parent
-        visible: bd.shows
-        preferredRendererType: Shape.CurveRenderer
-        ShapePath {         // the picture (matte, no blur), cut to the ripple
-            strokeWidth: -1
-            strokeColor: "transparent"
-            fillColor: "transparent"
-            fillItem: bd.pictured ? frostTex : null
-            PathRectangle { x: bd.whole ? 0 : bd.origin.x - bd.r; y: bd.whole ? 0 : bd.origin.y - bd.r
-                            width: bd.whole ? bd.width : 2 * bd.r; height: bd.whole ? bd.height : 2 * bd.r; radius: bd.whole ? 0 : bd.r }
-        }
-        ShapePath {         // the veil, on the same ripple
-            strokeWidth: -1
-            strokeColor: "transparent"
-            fillColor: C.alpha(bd.pal ? bd.pal.surfaceLowest : "#000000", bd.veil)
-            PathRectangle { x: bd.whole ? 0 : bd.origin.x - bd.r; y: bd.whole ? 0 : bd.origin.y - bd.r
-                            width: bd.whole ? bd.width : 2 * bd.r; height: bd.whole ? bd.height : 2 * bd.r; radius: bd.whole ? 0 : bd.r }
-        }
+        visible: bd.shows && bd.whole && bd.veil > 0.001
+        color: bd.veilColor
     }
-    Shape {             // the grain, on top of everything (its strength: a layer's opacity)
+    Image {
         anchors.fill: parent
-        visible: bd.shows && bd.grainy && bd.grained
+        visible: bd.shows && bd.whole && bd.grainy && bd.grained
+        source: visible ? bd.grain : ""
+        fillMode: Image.Tile
+        smooth: false
         opacity: bd.grainAlpha
-        preferredRendererType: Shape.CurveRenderer
-        ShapePath {
-            strokeWidth: -1
-            strokeColor: "transparent"
-            fillColor: "transparent"
-            fillItem: bd.grainy && bd.grained ? grainTex : null
-            PathRectangle { x: bd.whole ? 0 : bd.origin.x - bd.r; y: bd.whole ? 0 : bd.origin.y - bd.r
-                            width: bd.whole ? bd.width : 2 * bd.r; height: bd.whole ? bd.height : 2 * bd.r; radius: bd.whole ? 0 : bd.r }
+    }
+
+    // clear-blur / plain-veil ripple: simple clipped circle, zero FBOs and zero shaders
+    Item {
+        anchors.fill: parent
+        clip: true
+        visible: bd.shows && !bd.whole && !bd.pictured && !(bd.grainy && bd.grained) && bd.veil > 0.001
+        Rectangle {
+            x: bd.origin.x - bd.r; y: bd.origin.y - bd.r
+            width: 2 * bd.r; height: 2 * bd.r; radius: bd.r
+            color: bd.veilColor
+        }
+    }
+
+    // pictured or grainy ripple (PowerWindow expanding/collapsing): instantiated ONLY during the ~500 ms ripple
+    Loader {
+        anchors.fill: parent
+        active: bd.shows && !bd.whole && (bd.pictured || (bd.grainy && bd.grained))
+        sourceComponent: Item {
+            anchors.fill: parent
+            ShaderEffectSource {
+                id: rPicTex
+                anchors.fill: parent
+                visible: false
+                sourceItem: bd.pictured ? picBox : null
+                hideSource: bd.pictured
+                live: bd.pictured
+            }
+            Image {
+                id: rGrain
+                visible: false
+                smooth: false
+                source: bd.grainy && bd.grained ? bd.grain : ""
+            }
+            ShaderEffectSource {
+                id: rGrainTex
+                width: Math.max(1, rGrain.implicitWidth)
+                height: Math.max(1, rGrain.implicitHeight)
+                visible: false
+                sourceItem: rGrain
+                hideSource: true
+                live: bd.grainy && bd.grained
+                smooth: false
+            }
+            ShaderEffect {
+                anchors.fill: parent
+                fragmentShader: Qt.resolvedUrl("ripple.frag.qsb")
+                readonly property size boxSize: Qt.size(width, height)
+                readonly property point origin: bd.origin
+                readonly property real radius: bd.r
+                readonly property real dpr: bd.window && bd.window.devicePixelRatio ? bd.window.devicePixelRatio : 1
+                readonly property real hasPic: bd.pictured ? 1 : 0
+                readonly property real hasGrain: bd.grainy && bd.grained ? 1 : 0
+                readonly property real grainAlpha: bd.grainAlpha
+                readonly property size grainSize: Qt.size(Math.max(1, rGrain.implicitWidth), Math.max(1, rGrain.implicitHeight))
+                readonly property color veilColor: bd.veilColor
+                readonly property var picTex: bd.pictured ? rPicTex : rGrainTex
+                readonly property var grainTex: rGrainTex
+            }
         }
     }
 }

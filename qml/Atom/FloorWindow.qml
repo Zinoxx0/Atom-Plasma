@@ -52,7 +52,16 @@ Window {
         : null
     readonly property bool docked: !!strip && Windows.occupied(strip)
     readonly property bool here: Shell.barShown(screenName)         // the islands are on this screen
-    readonly property bool covered: Windows.isFullscreen(screenName)
+    readonly property bool screenBusy: Shell.kind === "power"
+        || (Shell.screen === screenName && ((Shell.kind === "launcher" && !(Shell.args && Shell.args.searchOnly))
+                                            || (!!Shell.under && Shell.under.kind === "launcher")))
+    property bool busyHold: false
+    Timer { id: busyRelease; interval: 320; onTriggered: fw.busyHold = false }
+    onScreenBusyChanged: {
+        if (screenBusy) { busyRelease.stop(); busyHold = true }
+        else busyRelease.restart()
+    }
+    readonly property bool covered: Windows.isFullscreen(screenName) || busyHold
     readonly property bool want: docked && !here && !covered && !!fl
 
     property real level: 0

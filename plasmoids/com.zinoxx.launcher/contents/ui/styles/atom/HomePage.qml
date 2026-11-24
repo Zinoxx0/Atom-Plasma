@@ -45,7 +45,7 @@ Item {
     }
 
     // the focus's colour, off its icon (or a game's art)
-    ImagePalette { id: colours; source: atom.focusItem ? (atom.focusItem.art || atom.focusItem.icon) : "" }
+    ImagePalette { id: colours; source: page.visible && atom.focusItem ? (atom.focusItem.art || atom.focusItem.icon) : "" }
     readonly property color tint: C.appTint(colours, page.stage.look.primary)
 
     // what the stage shows for the focus: the caption, the scene's light and art

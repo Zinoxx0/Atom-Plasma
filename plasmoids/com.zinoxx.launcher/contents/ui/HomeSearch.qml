@@ -98,7 +98,7 @@ Item {
             id: group
             required property int index
             required property var model
-            readonly property var matches: hs.runner.modelForRow(index)
+            readonly property var matches: hs.runner ? hs.runner.modelForRow(index) : null
             width: list.width
             visible: rows.count > 0
             height: visible ? implicitHeight : 0

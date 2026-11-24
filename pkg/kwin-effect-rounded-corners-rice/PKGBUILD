@@ -6,7 +6,7 @@
 pkgname=kwin-effect-rounded-corners-rice
 _commit=c1178d94ff2ec0db8d4d9a9782a3eb06aec13ce6
 pkgver=0.10.0.r11.gc1178d9
-pkgrel=1
+pkgrel=2
 pkgdesc="Rounds the corners of your windows, outline colours per screen (plasma-rice patch)"
 url="https://github.com/matinlotfali/KDE-Rounded-Corners"
 license=("GPL-3.0-only")
@@ -16,7 +16,7 @@ makedepends=('cmake' 'extra-cmake-modules' 'git' 'ninja' 'vulkan-headers')
 provides=("kwin-effect-rounded-corners=${pkgver%%.g*}")
 conflicts=('kwin-effect-rounded-corners' 'kwin-effect-rounded-corners-git')
 source=("kde-rounded-corners::git+$url.git#commit=$_commit" "per-output.patch")
-sha256sums=('SKIP' '7f96447f41dbd90d954496a3b4cef803cf1c3ff276758dce9fa689a2921a9e30')
+sha256sums=('SKIP' '039fe22e72b4c28372fe2ca8a488e4f7e31ea0f40baa6a1efd700fc14306608e')
 
 prepare() {
   cd kde-rounded-corners

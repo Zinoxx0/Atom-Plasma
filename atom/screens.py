@@ -82,7 +82,7 @@ def glass(img, s):
                  "-gravity", "north", "-crop", f"{w}x{GLASS_BAND}+0+0", "+repage",
                  "-blur", "0x14", "-modulate", "104,150", "-quality", "90", str(out))
         for old in d.glob(f"{s['name']}-*.jpg"):
-            if old != out:
+            if old != out and old.stem.rsplit("-", 1)[0] == s["name"]:
                 old.unlink(missing_ok=True)
     return str(out) if out.exists() else ""
 
@@ -106,7 +106,29 @@ def glass_full(img, s):
         util.run("magick", str(img) + "[0]", "-resize", f"{sw}x{sh}^", "-gravity", "center", "-extent", f"{sw}x{sh}",
                  "+repage", "-blur", "0x9", "-modulate", "100,135", "-quality", "92", str(out))
         for old in d.glob(f"{s['name']}-*.jpg"):
-            if old != out:
+            if old != out and old.stem.rsplit("-", 1)[0] == s["name"]:
+                old.unlink(missing_ok=True)
+    return str(out) if out.exists() else ""
+
+
+def wall_fit(img, s):
+    """The screen's wallpaper scaled and cropped to exact device pixels (matching Plasma's desktop fit),
+    stripped and saved as a fast-decoding JPEG: sharp backdrops (noise, none) decode this in milliseconds
+    instead of resizing a 10+ MB original every time."""
+    w, h = s.get("w"), s.get("h")
+    if not img or not w or not h:
+        return ""
+    scale = float((s.get("display") or {}).get("scale", 1.0) or 1.0)
+    pw, ph = max(1, round(w * scale)), max(1, round(h * scale))
+    d = CACHE / "wall-fit"
+    key = hashlib.sha1(f"{img}:{img.stat().st_mtime}:{pw}x{ph}".encode()).hexdigest()[:10]
+    out = d / f"{s['name']}-{key}.jpg"
+    if not out.exists():
+        d.mkdir(parents=True, exist_ok=True)
+        util.run("magick", str(img) + "[0]", "-resize", f"{pw}x{ph}^", "-gravity", "center", "-extent", f"{pw}x{ph}",
+                 "+repage", "-strip", "-quality", "92", str(out))
+        for old in d.glob(f"{s['name']}-*.jpg"):
+            if old != out and old.stem.rsplit("-", 1)[0] == s["name"]:
                 old.unlink(missing_ok=True)
     return str(out) if out.exists() else ""
 
@@ -250,7 +272,8 @@ def screen_palette(s, img, cfg, overrides=None, fallback=None, desk=None):
     p = with_meta(palette_for(img, cfg, overrides), img) if img else fallback
     g = glass(img, s)
     gf = glass_full(img, s)
-    return dict(p, _glass=g, _glassBand=GLASS_BAND, _rim=rim(g, p), _glassFull=gf,
+    wf = wall_fit(img, s)
+    return dict(p, _glass=g, _glassBand=GLASS_BAND, _rim=rim(g, p), _glassFull=gf, _wallFit=wf,
                 _backdrop=palette.zone_light(gf) if gf else {},             # how bright the launcher's backdrop gets under its text
                 _backdropSharp=palette.zone_light(img, aspect=s["w"] / s["h"]) if s.get("w") and s.get("h") else {},  # (no blur: the wallpaper itself)
                 _scale=s["ui"],                                             # size of that bar's widgets

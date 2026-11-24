@@ -21,29 +21,15 @@ Item {
         return out
     }
     property int cat: 0
-    property double catAt: Date.now()       // when the category changed (the debug log times the apps' arrival)
     function catIndex(it) { return it ? page.cats.findIndex(c => c.label === it.label) : -1 }   // (by name: the rings hold copies)
-    property var apps: []
-    // a category's apps, read through delegates (Kicker's models are lists of rows)
-    Repeater {
-        id: rows
-        model: page.cats[page.cat] ? page.cats[page.cat].model : null
-        delegate: Item {
-            required property var model
-            required property int index
-            readonly property var entry: ({ key: String(model.favoriteId || model.display || ""), name: String(model.display || ""), desc: String(model.description || ""),
-                                            icon: model.decoration, model: rows.model, row: index, roles: model })
-        }
-        onCountChanged: Qt.callLater(page.collect)     // (once per turn of the event loop, however many rows came)
-    }
-    function collect() {
-        const out = []
-        for (let i = 0; i < rows.count; i++) { const r = rows.itemAt(i); if (r && r.entry.name) out.push(r.entry) }
-        out.sort((a, b) => a.name.localeCompare(b.name))
-        page.apps = out
-        const r1 = atom.ringAt(1)
-        if (r1) { r1.picked = -1; r1.current = 0 }         // a new category: its first app at the slot
-        if (Shell.debug) console.warn("ATOM atom apps", out.length, "for", page.cats[page.cat] ? page.cats[page.cat].label : "-", Date.now() - page.catAt, "ms")
+    readonly property string catLabel: page.cats[page.cat] ? page.cats[page.cat].label : ""
+    // a category's apps, already harvested and sorted by HomeModel (zero hidden QML delegates);
+    // strip HomeModel's `art` object so Node renders every app by its icon
+    readonly property var apps: {
+        page.stage.home.rev
+        const byCat = page.stage.home.byCat
+        const list = (byCat && byCat[page.catLabel]) || []
+        return list.map(a => ({ key: a.key, name: a.name, desc: a.desc, icon: a.icon, model: a.model, row: a.row, roles: a.roles }))
     }
     // the app the actions are for: the one at the apps ring's focus (kept while the focus is on the actions)
     readonly property var app: { const r = atom.ringAt(1); return r ? r.focusItem : null }
@@ -60,8 +46,8 @@ Item {
         if (fav) out.push({ name: pinned ? "Unpin from Home" : "Pin to Home", glyph: "push_pin", label: pinned ? "Unpin" : "Pin", fav: fav })
         return out
     }
-    Timer { id: actSettle; interval: 260; onTriggered: page.actions = page.actionsOf(page.app) }    // the inner ring follows the app, quietly
-    onAppChanged: actSettle.restart()
+    Timer { id: actSettle; interval: 220; onTriggered: if (page.visible) page.actions = page.actionsOf(page.app) }    // the inner ring follows the app, quietly
+    onAppChanged: if (page.visible) actSettle.restart()
 
     AtomView {
         id: atom
@@ -91,9 +77,9 @@ Item {
         else if (it.act) { a.model.trigger(a.row, it.act.actionId, it.act.actionArgument); page.lc.close() }
     }
     // the categories ring: the apps change once it rests on one
-    Connections { target: atom; function onFocusItemChanged() { if (atom.at === 2) catSettle.restart() } }
+    Connections { target: atom; enabled: page.visible; function onFocusItemChanged() { if (atom.at === 2) catSettle.restart() } }
     Timer {     // (the nested tests: where each category's node is, to point at it)
-        running: Shell.debug; interval: 1500
+        running: Shell.debug && page.visible; interval: 1500
         onTriggered: {
             const r = atom.ringAt(2), st = page.stage
             if (!r) return
@@ -103,10 +89,14 @@ Item {
             }
         }
     }
-    Timer { id: catSettle; interval: 240; onTriggered: { if (atom.at !== 2) return; const i = page.catIndex(atom.focusItem); if (i >= 0) page.cat = i } }
-    onCatChanged: { catAt = Date.now(); Qt.callLater(page.collect) }
+    Timer { id: catSettle; interval: 220; onTriggered: { if (!page.visible || atom.at !== 2) return; const i = page.catIndex(atom.focusItem); if (i >= 0) page.cat = i } }
+    onCatChanged: {
+        const r1 = atom.ringAt(1)
+        if (r1) { r1.picked = -1; r1.current = 0 }         // a new category: its first app at the slot
+        if (Shell.debug) console.warn("ATOM atom apps", page.apps.length, "for", page.catLabel || "-", "0 ms")
+    }
 
-    ImagePalette { id: colours; source: atom.focusItem && atom.at === 1 ? atom.focusItem.icon : "" }
+    ImagePalette { id: colours; source: page.visible && atom.focusItem && atom.at === 1 ? atom.focusItem.icon : "" }
     readonly property color tint: C.appTint(colours, page.stage ? page.stage.look.primary : "#888888")
 
     readonly property var caption: {
@@ -119,17 +109,19 @@ Item {
         return { where: [r.name === "All" ? "All apps" : r.name, (r.focusIndex + 1) + " of " + r.items.length].concat(letter), name: it.name, desc: it.desc,
                  acts: [["A", "Open"], ["X", "Options"]] }
     }
-    function publish() { if (!page.stage) return; page.stage.caption = page.caption; page.stage.focusItem = null; page.stage.focusTint = page.tint }
+    function publish() { if (!page.visible || !page.stage) return; page.stage.caption = page.caption; page.stage.focusItem = null; page.stage.focusTint = page.tint }
     onCaptionChanged: publish()
     onTintChanged: publish()
-    Component.onCompleted: {
+    function install() {
         if (!page.stage) return
         page.stage.pageApi = { act: i => i === 0 ? atom.launch() : atom.openOptions(), wheel: (dy, at) => atom.wheelAt(dy > 0 ? -1 : 1, at),
                                save: () => atom.save(), restore: f => atom.restore(f) }
         page.stage.hints = { pad: [["↕", "Turn"], ["↔", "Ring"], ["LT RT", "Letter"], ["A", "Open"], ["X", "Options"], ["LB RB", "Pages"], ["B", "Close"]],
                              keys: [["↑ ↓", "Turn"], ["← →", "Ring"], ["PgUp PgDn", "Letter"], ["Enter", "Open"], ["Tab", "Pages"], ["Esc", "Close"]] }
-        publish()
+        page.actions = page.actionsOf(page.app)
     }
+    onVisibleChanged: if (visible) { install(); publish() }
+    Component.onCompleted: { if (visible) { install(); publish() } }
     function letter(dd) {          // the next (or previous) first letter on the apps ring
         const r = atom.ring
         if (atom.at !== 1 || !r || !r.items.length) return
@@ -141,6 +133,7 @@ Item {
     }
     Connections {
         target: page.stage
+        enabled: page.visible
         function onPageKey(event) {
             const k = event.key
             if (k === Qt.Key_Up) atom.turn(-1)

@@ -19,7 +19,8 @@ Item {
         pal: scene.stage.rice      // (the real frost and wallpaper: the backdrop is the screen's)
         origin: scene.stage.rippleOrigin
         radius: !glass || scene.stage.bgO >= 0.999 ? -1 : reach * scene.stage.bgO
-        opacity: !glass ? scene.stage.bgO : 1
+        opacity: !glass ? (scene.stage.priming && scene.stage.phase === "closed" ? 0.0015 : scene.stage.bgO)
+                        : (scene.stage.priming && scene.stage.phase === "closed" ? 0 : 1)
         veil: glass ? Prefs.glassVeil : 0.34
         offsetY: scene.stage.topGap
         grained: false
@@ -66,7 +67,10 @@ Item {
         component Slot: Image {
             id: im
             required property int slot
-            readonly property bool on: art.shown === slot && status === Image.Ready
+            property bool everReady: false
+            onSourceChanged: everReady = false
+            onStatusChanged: if (status === Image.Ready) everReady = true
+            readonly property bool on: art.shown === slot && (status === Image.Ready || everReady)
             property real level: on ? 1 : 0
             Behavior on level { NumberAnimation { duration: Tokens.ms(460); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmMove } }
             onLevelChanged: if (level <= 0.004) art.settled(slot)
@@ -79,26 +83,35 @@ Item {
             fillMode: art.wall ? Image.PreserveAspectCrop : Image.Stretch
             asynchronous: true
             cache: true
+            retainWhileLoading: true
             smooth: true
-            sourceSize.width: Math.round(parent.width * art.dpr)
+            sourceSize.width: art.soft ? Math.min(960, Math.round(parent.width * art.dpr)) : Math.round(parent.width * art.dpr)
             layer.enabled: source != "" && !art.wall
-            layer.effect: MultiEffect {
+            layer.effect: art.soft ? softEffect : fadeEffect
+        }
+        Component {
+            id: fadeEffect
+            ShaderEffect { fragmentShader: "artfade.frag.qsb" }
+        }
+        Component {
+            id: softEffect
+            MultiEffect {
                 maskEnabled: true
                 maskSource: fadeMask
                 maskThresholdMin: 0.5
                 maskSpreadAtMin: 1.0
-                blurEnabled: art.soft
+                blurEnabled: true
                 blur: 0.7; blurMax: 48
-                saturation: art.soft ? 0.1 : 0
+                saturation: 0.1
             }
         }
         Slot { id: s0; slot: 0 }
         Slot { id: s1; slot: 1 }
-        // where the art fades into the scene: solid down to 55% of its height, gone at its bottom
+        // where softened art fades into the scene: solid down to 55% of its height, gone at its bottom
         Rectangle {
             id: fadeMask
             width: 8; height: 256          // (stretched over each picture: only its rows matter)
-            visible: false; layer.enabled: true
+            visible: false; layer.enabled: art.soft && (s0.visible || s1.visible)
             gradient: Gradient {
                 GradientStop { position: 0; color: "white" }
                 GradientStop { position: 0.55; color: "white" }
@@ -151,6 +164,6 @@ Item {
         source: visible ? bd.grain : ""
         fillMode: Image.Tile
         smooth: false
-        opacity: bd.grainAlpha * scene.stage.bgO
+        opacity: bd.grainAlpha * (scene.stage.priming && scene.stage.phase === "closed" ? 0.0015 : scene.stage.bgO)
     }
 }

@@ -50,9 +50,9 @@ Item {
         const p = ring.centreOf(ring.picked)
         return Math.atan2(p.y - cy, p.x - cx) * 180 / Math.PI
     }
-    Spring { id: lensA; to: av.lensTarget; angle: true; stiffness: 15 }
+    Spring { id: lensA; to: av.lensTarget; angle: true; stiffness: 20 }
     readonly property real lensAngle: lensA.value
-    Spring { id: lensRS; to: av.ring ? av.ring.restR : 0; stiffness: 15; epsilon: 0.1 }
+    Spring { id: lensRS; to: av.ring ? av.ring.restR : 0; stiffness: 20; epsilon: 0.1 }
     readonly property real lensRA: lensRS.value
     // where the lens sits
     readonly property real lensX: cx + lensRA * Math.cos(lensAngle * Math.PI / 180)
@@ -66,6 +66,7 @@ Item {
     property int trailAt: 0
     property var aim: null                  // { ri, i }: the item under a flung pointer, picked once it slows
     HoverHandler {
+        enabled: av.visible && av.stage.phase !== "closed"
         onPointChanged: {
             const now = Date.now(), p = point.position, was = av.trail[av.trailAt]
             if (!was || Math.abs(p.x - was.x) + Math.abs(p.y - was.y) <= 1) {      // (its first place: the page appeared under it)
@@ -191,7 +192,7 @@ Item {
         visible: av.dock && !!av.focusItem && len > 1
         x: av.cx; y: av.cy
         rotation: av.lensAngle
-        opacity: M.clamp((av.stage.atomT - 0.75) * 4)
+        opacity: M.clamp((av.stage.atomT - 0.55) / 0.3)
         readonly property real from: core.dia / 2 + av.d(34) * av.k
         readonly property real len: av.lensRA - from - lens.dia / 2 - av.d(8) * av.k
         readonly property color hot: av.rice.light ? av.rice.primary : C.mix(av.rice.primary, "#ffffff", 0.4)
@@ -244,12 +245,12 @@ Item {
     Item {
         id: lens
         readonly property Item target: av.ring ? av.ring.focusDelegate : null
-        Spring { id: diaS; to: (lens.target ? lens.target.lensSize : av.d(66) * av.k * 1.16) + av.d(26) * av.k; stiffness: 15; epsilon: 0.1 }
+        Spring { id: diaS; to: (lens.target ? lens.target.lensSize : av.d(66) * av.k * 1.16) + av.d(26) * av.k; stiffness: 20; epsilon: 0.1 }
         readonly property real dia: diaS.value
         width: dia; height: dia
         x: av.lensX - width / 2
         y: av.lensY - height / 2
-        opacity: M.clamp((av.stage.atomT - 0.75) * 4) * (av.focusItem ? 1 : 0)
+        opacity: M.clamp((av.stage.atomT - 0.55) / 0.3) * (av.focusItem ? 1 : 0)
         z: 5
         Rectangle {
             anchors.fill: parent; radius: width / 2; color: "transparent"
@@ -265,7 +266,7 @@ Item {
             property real breath: 1
             Timer {
                 interval: 33; repeat: true
-                running: lens.opacity > 0.01 && av.visible && av.stage.visible
+                running: lens.opacity > 0.01 && av.visible && av.stage.phase !== "closed"
                 onTriggered: {
                     const t = Date.now()
                     orbitDot.rotation = (t % 16000) / 16000 * 360                               // a turn every 16 s
@@ -300,7 +301,7 @@ Item {
             // clear of whatever is under the label (the slot's item, a neighbour the dock moved there, and the lens +
             // its orbiting electron so the dot never clips the ring's name at 12 o'clock)
             readonly property real clear: {
-                if (!r) return 0
+                if (!r || !av.visible || opacity <= 0.01) return 0
                 const lx = av.cx - r.r, half = width / 2 + av.d(6) * av.k
                 const lensReach = lens.dia / 2 + av.d(10) * av.k
                 if (!r.docked) {
@@ -326,7 +327,7 @@ Item {
             style: Text.Raised
             styleColor: C.alpha(av.rice.surfaceLowest, 0.72)
             font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: av.d(14.5); font.letterSpacing: av.d(0.6)
-            opacity: M.clamp((av.stage.atomT - 0.75) * 4)
+            opacity: M.clamp((av.stage.atomT - 0.55) / 0.3)
             Behavior on color { ColorAnimation { duration: Tokens.ms(300) } }
         }
     }

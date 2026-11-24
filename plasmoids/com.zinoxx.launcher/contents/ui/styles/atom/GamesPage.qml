@@ -165,7 +165,7 @@ Item {
                  name: g.name, logo: g.logo || "", facts: facts, acts: [["A", "Play"], ["X", "Options"]], tools: page.tools }
     }
     function publish() {
-        if (!page.stage) return
+        if (!page.visible || !page.stage) return
         page.stage.caption = page.caption
         page.stage.focusItem = game ? { hero: game.hero || "" } : null
         page.stage.capFocus = zone === "cap" ? btn : -1
@@ -173,18 +173,24 @@ Item {
     onCaptionChanged: publish()
     onZoneChanged: publish()
     onBtnChanged: publish()
-    Component.onCompleted: {
+    function install() {
+        if (!page.stage) return
         page.stage.pageApi = { act: i => i === 0 ? page.play() : page.options(null), tool: i => page.tool(i),
                                save: () => ({ cur: page.cur, store: page.store }),
                                restore: f => { page.store = f.store || 0; page.cur = Math.min(f.cur || 0, Math.max(0, page.games.length - 1)) },
                                wheel: dy => { page.zone = "grid"; page.cur = Math.max(0, Math.min(page.games.length - 1, page.cur + (dy > 0 ? -grid.cols : grid.cols))); page.quietUntil = Date.now() + 300 } }
         page.stage.hints = { pad: [["✥", "Move"], ["A", "Play"], ["X", "Options"], ["LT RT", "Store"], ["LB RB", "Pages"], ["Y", "Theme"], ["B", "Close"]],
                              keys: [["← ↑ ↓ →", "Move"], ["Enter", "Play"], ["Menu", "Options"], ["PgUp PgDn", "Store"], ["Tab", "Pages"], ["Esc", "Close"]] }
-        publish()
     }
+    onVisibleChanged: {
+        if (visible) { install(); publish() }
+        else if (page.stage) page.stage.capFocus = -1
+    }
+    Component.onCompleted: { if (visible) { install(); publish() } }
     Component.onDestruction: if (page.stage) page.stage.capFocus = -1
     Connections {
         target: page.stage
+        enabled: page.visible
         function onPageKey(event) {
             const k = event.key, n = page.games.length, cols = grid.cols, acts = 2, nt = page.tools.length
             page.quietUntil = Date.now() + 500

@@ -20,6 +20,7 @@ Item {
     visible: false
 
     property var pages: []
+    property var byCat: ({})            // category label -> name-sorted items (shared by Atom AppsPage)
     property int rev: 0                 // bumps whenever the pages are rebuilt
     readonly property string home: String(StandardPaths.writableLocation(StandardPaths.HomeLocation)).replace(/^file:\/\//, "")
     WatchedJson { id: data; path: hm.home + "/.cache/rice/launcher.json"; onChanged: hm.schedule() }
@@ -121,6 +122,9 @@ Item {
             ]}
         ]
         for (const p of pages) p.rows = p.rows.filter(r => r.items.length)
+        const sortedCats = {}
+        for (const k in byLabel) sortedCats[k] = byLabel[k].slice().sort((a, b) => a.name.localeCompare(b.name))
+        hm.byCat = sortedCats
         hm.pages = pages
         hm.rev++
     }
