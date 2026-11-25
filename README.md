@@ -2,23 +2,21 @@
 
 A KDE Plasma 6 rice driven by the wallpaper. Every screen gets its own wallpaper and palette, and the desktop follows them: the colour scheme, Plasma Style, bar islands, optical glass materials, terminals, VS Code, Zen, window borders, the login screen and keyboard lighting. It's built to hold up on whatever is plugged in: one laptop panel, seven monitors, a portrait 4K next to an 8K and an 800×800 panel.
 
-## Showcase (`prof` theme)
+## Showcase
 
-*Captured on KDE Plasma 6 (Wayland, 2560×1440 @ 1.15×) using the **`prof`** preset (`soft` mood · `#617b00` / `#a03333` / `#3a3c3e`) with **Liquid glass** islands & backdrop, **Atom's** launcher, and both **Claude + Clawd** and **Gemini** modules enabled.*
+![Desktop with Liquid Glass islands, desk clock, Clawd, and Gemini](docs/showcase/desktop.jpg)
 
-![Atom Plasma Desktop — prof theme with Liquid Glass islands, desk clock, Clawd, and Gemini](docs/showcase/desktop.jpg)
-
-| Atom's Launcher (orbital rings & glass core) | Morphing Liquid Glass Sheet (Calendar popup) |
+| Atom's Launcher · Liquid glass | Morphing Control Center · Satin islands |
 | :---: | :---: |
-| ![Atom Launcher](docs/showcase/launcher.jpg) | ![Morphing Liquid Glass Calendar Sheet](docs/showcase/popup.jpg) |
+| ![Atom Launcher](docs/showcase/launcher.jpg) | ![Control Center Sheet](docs/showcase/control-center.jpg) |
 
-| Theme Page — Launcher & 7-Material Backdrop Gallery | Theme Page — Desktop & Island Style Gallery |
+| Morphing Calendar · Liquid glass | Theme Page — 7 Backdrop Materials · Sanded glass |
 | :---: | :---: |
-| ![Theme Page Launcher Backdrop Gallery](docs/showcase/theme-launcher.jpg) | ![Theme Page Desktop Island Style Gallery](docs/showcase/theme-desktop.jpg) |
+| ![Morphing Liquid Glass Calendar](docs/showcase/popup.jpg) | ![Theme Page Launcher Backdrops](docs/showcase/theme-launcher.jpg) |
 
-| Theme Page — Modular Misc Modules (Claude + Clawd & Gemini) |
-| :---: |
-| ![Theme Page Misc Modules](docs/showcase/theme-modules.jpg) |
+| Theme Page — Island Styles | Theme Page — Misc Modules · Aurora backdrop |
+| :---: | :---: |
+| ![Theme Page Desktop Islands](docs/showcase/theme-desktop.jpg) | ![Theme Page Misc Modules](docs/showcase/theme-modules.jpg) |
 
 ---
 
