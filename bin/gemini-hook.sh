@@ -12,13 +12,32 @@ ev=${1:-}
 payload=$(cat 2>/dev/null || true)
 tool=""
 model=""
-if [ -n "$payload" ] && command -v jq >/dev/null 2>&1; then
-  { IFS= read -r tool; IFS= read -r model; } < <(
-    printf '%s' "$payload" | jq -r '
-      (.toolCall.name // .tool_name // "" | gsub("[^A-Za-z0-9_.-]"; "")),
-      (.modelName // .model // "" | gsub("[^A-Za-z0-9_.: -]"; ""))
-    ' 2>/dev/null
-  )
+if [ -n "$payload" ]; then
+  if command -v jq >/dev/null 2>&1; then
+    { IFS= read -r tool; IFS= read -r model; } < <(
+      printf '%s' "$payload" | jq -r '
+        (.toolCall.name // .tool_name // "" | gsub("[^A-Za-z0-9_.-]"; "")),
+        (.modelName // .model // "" | gsub("[^A-Za-z0-9_.: -]"; ""))
+      ' 2>/dev/null
+    )
+  elif command -v python3 >/dev/null 2>&1; then
+    { IFS= read -r tool; IFS= read -r model; } < <(
+      printf '%s' "$payload" | python3 -c '
+import json, re, sys
+try:
+    d = json.load(sys.stdin)
+    if not isinstance(d, dict):
+        d = {}
+except Exception:
+    d = {}
+tc = d.get("toolCall") if isinstance(d.get("toolCall"), dict) else {}
+tool = re.sub(r"[^A-Za-z0-9_.-]", "", str(tc.get("name") or d.get("tool_name") or ""))
+model = re.sub(r"[^A-Za-z0-9_.: -]", "", str(d.get("modelName") or d.get("model") or ""))
+print(tool)
+print(model)
+' 2>/dev/null
+    )
+  fi
 fi
 d="$HOME/.cache/gemini"
 mkdir -p "$d" 2>/dev/null

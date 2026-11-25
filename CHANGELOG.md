@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+**Surfaces & Materials**
+- Unified 7-material library across both the launcher / power backdrop and the taskbar islands + morphing popup sheets:
+  Solid, Satin (bead-blasted anodized solid with micro-grain), Aurora (single-pass GPU velvet palette silk mesh with
+  zero banding), Sanded glass (frosted wallpaper with fine grain), Blur (clean live KWin blur), Liquid glass
+  (single-pass GPU Snell's-law refraction, Cauchy chromatic dispersion, curved bevels and Schlick Fresnel highlights at
+  0% idle GPU), and Clear.
+- Redesigned Theme Page Launcher and Desktop material galleries as 4×2 grids with live miniature previews (accurate
+  bottom-flush notch islands and live GPU shader previews).
+
+**Misc Modules (Claude & Gemini)**
+- Added standalone Misc Modules (`Theme → Misc Modules`, `rice.py modules`, `~/.config/atom-plasma/modules/`) so
+  optional widgets can be toggled and configured independently or extended with custom user modules.
+- Factored Claude + Clawd into an independent module with per-feature toggles (roof mascot, desk clock mascot,
+  80% / 95% alerts) and reduced idle popup refresh rate to eliminate 1 Hz bar flicker.
+- Added the Gemini usage module (`com.zinoxx.geminiusage`): horizon usage meter, selectable Gemini gradient or
+  4-colour star, and live event-driven Antigravity gravity waves driven by Gemini CLI hooks (`bin/gemini-hook.sh`, with
+  Python fallback when `jq` is absent) and T3 Code session activity (`bin/t3-activity.py`).
+
+**Performance & Fixes**
+- Faster launcher and login: warmed launcher stage, shared data fetches, and pre-blurred frost splash.
+- Fixed Theme Page focus lens viewport clamping and scroll/drag stability, per-screen palette/bar sync on preset load,
+  and taskbar island docking behavior when occluded by maximized windows.
+- Moved update-check notices to their own cache file (`cachy-update.json`).
+
 ## 1.1.1 (2026-11-23)
 
 **Launcher**

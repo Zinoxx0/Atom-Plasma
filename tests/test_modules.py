@@ -3,6 +3,7 @@ Gemini usage alerts, and dynamic meters-island panel ordering."""
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -141,6 +142,28 @@ class GeminiHooks(unittest.TestCase):
     def test_hook_script_writes_activity_and_outputs_json(self):
         tmp = Path(tempfile.mkdtemp())
         env = dict(os.environ, HOME=str(tmp))
+        payload = json.dumps({"toolCall": {"name": "run_command"}, "modelName": "gemini-4-neon"})
+        res = subprocess.run(
+            ["bash", str(ROOT / "bin/gemini-hook.sh"), "post"],
+            input=payload, text=True, capture_output=True, env=env, check=True,
+        )
+        self.assertEqual(json.loads(res.stdout.strip()), {})
+        act = json.loads((tmp / ".cache/gemini/activity.json").read_text())
+        self.assertEqual(act["event"], "post")
+        self.assertEqual(act["tool"], "run_command")
+        self.assertEqual(act["model"], "gemini-4-neon")
+        self.assertGreater(act["ts"], 0)
+
+    def test_hook_script_works_without_jq(self):
+        tmp = Path(tempfile.mkdtemp())
+        # Build a minimal PATH with bash, python3, cat, mkdir, date, mv — explicitly excluding jq
+        no_jq_bin = tmp / "bin"
+        no_jq_bin.mkdir()
+        for cmd in ("bash", "python3", "cat", "mkdir", "date", "mv"):
+            src = shutil.which(cmd)
+            if src:
+                (no_jq_bin / cmd).symlink_to(src)
+        env = dict(os.environ, HOME=str(tmp), PATH=str(no_jq_bin))
         payload = json.dumps({"toolCall": {"name": "run_command"}, "modelName": "gemini-4-neon"})
         res = subprocess.run(
             ["bash", str(ROOT / "bin/gemini-hook.sh"), "post"],
