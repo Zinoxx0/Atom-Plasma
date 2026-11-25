@@ -6,7 +6,7 @@ import json
 import os
 import subprocess
 
-from . import caps, claude, displays, install, kwin, migrate, panel, util
+from . import caps, claude, displays, gemini, install, kwin, migrate, modules, panel, util
 from .util import HOME, ROOT
 
 PLASMOIDS = HOME / ".local/share/plasma/plasmoids"
@@ -55,6 +55,8 @@ def checks():
         loaded = r is not None and r.stdout.strip() == "true"
         out.append((loaded == on, f"KWin script {name} " + ("running" if loaded else "not running"),
                     "rice.py setup (or: qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.start)"))
+    cfg = util.settings()
+    mod_units = modules.all_module_units()
     for f in sorted((ROOT / "systemd").glob("*")):
         if f.suffix not in (".service", ".timer"):
             continue
@@ -62,6 +64,8 @@ def checks():
         wanted = f.name not in ("atom-plasma-rgb.service", "atom-plasma-update-check.service",
                                 "atom-plasma-update-tidy.service", "atom-plasma-updater.service",   # started by udev / their timers
                                 "atom-plasma-claude-usage.service")
+        if f.name in mod_units and not modules.is_enabled(mod_units[f.name], cfg):
+            wanted = False
         active = True
         if wanted:
             r = util.run("systemctl", "--user", "is-active", f.name, quiet=True)
@@ -100,11 +104,14 @@ def checks():
                 + ("" if masked else " (plasma-krunner.service isn't masked)")
                 + ("" if owner == "plasmashell" else f" (org.kde.krunner is held by {owner or 'nobody'})"),
                 "systemctl --user mask --now plasma-krunner.service && systemctl --user restart plasma-plasmashell"))
-    cfg = util.settings()
-    if caps.feature("claude", cfg):
+    if modules.is_enabled("claude", cfg):
         todo = claude.missing(caps.feature("update_check", cfg))
         out.append((not todo, "Claude Code tells Clawd what it's doing (hooks in ~/.claude/settings.json)"
                     + (f": {'; '.join(todo)}" if todo else ""), "rice.py install, then restart Claude Code"))
+    if modules.is_enabled("gemini", cfg):
+        todo = gemini.missing()
+        out.append((not todo, "Antigravity tells Gemini when it's active (hooks in ~/.gemini/config/hooks.json)"
+                    + (f": {'; '.join(todo)}" if todo else ""), "rice.py install"))
     old = install.old_paths()
     out.append((not old, "nothing calls the scripts at their old place (they're in bin/)"
                 + "".join(f"\n       {f}:{n}: {line}" for f, n, line in old), "point those at ~/.config/plasma-rice/bin/..."))

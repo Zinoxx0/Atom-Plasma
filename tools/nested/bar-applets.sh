@@ -7,7 +7,7 @@ bar_applets() {
     printf '[Containments][%s]\nactivityId=\nformfactor=0\nimmutability=1\nlastScreen=%s\nlocation=0\nplugin=org.kde.plasma.folder\nwallpaperplugin=org.kde.image\n\n' $d $scr
     printf '[Containments][%s][Wallpaper][org.kde.image][General]\nImage=file://%s\n\n' $d "$wall"
     for p in com.zinoxx.launcher S com.zinoxx.glimpse E com.zinoxx.shell luisbocanegra.panel.colorizer S \
-             com.zinoxx.claudeusage com.zinoxx.sysstats S com.zinoxx.status com.zinoxx.tiling com.zinoxx.session S com.zinoxx.clock; do
+             com.zinoxx.claudeusage com.zinoxx.geminiusage com.zinoxx.sysstats S com.zinoxx.status com.zinoxx.tiling com.zinoxx.session S com.zinoxx.clock; do
         case $p in
             S) printf '[Containments][%s][Applets][%s]\nimmutability=1\nplugin=org.kde.plasma.panelspacer\n\n[Containments][%s][Applets][%s][Configuration][General]\nexpanding=false\nlength=4\n\n' $c $n $c $n ;;
             E) printf '[Containments][%s][Applets][%s]\nimmutability=1\nplugin=org.kde.plasma.panelspacer\n\n[Containments][%s][Applets][%s][Configuration][General]\nexpanding=true\n\n' $c $n $c $n ;;

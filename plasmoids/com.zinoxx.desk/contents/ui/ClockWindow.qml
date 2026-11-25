@@ -253,7 +253,7 @@ DeskWindow {
     // Clawd, standing on the minutes (one screen). Outside the shadowed layer: pixel art stays crisp
     Clawd {
         id: clawd
-        visible: cw.d.desk.clawd === true
+        visible: cw.d.clawdOn
         px: Math.max(2, Math.floor(cw.bh * 0.18 / 11))
         x: col.x + timeRow.x + mm.x + mm.width / 2 - width / 2
         y: col.y + timeRow.y + Math.round(cw.timeSize * 0.2) - height

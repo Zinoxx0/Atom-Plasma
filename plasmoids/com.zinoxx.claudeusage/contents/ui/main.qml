@@ -29,13 +29,19 @@ PlasmoidItem {
     readonly property var palValues: pal.values     // Clawd takes the raw palette (it has its own `pal`)
     readonly property real uiScale: pal.uiScale
 
+    // Misc Modules state (Atom.Prefs watches ~/.config/atom-plasma/settings.json live): disabling the
+    // Claude module hides the bar widget, its roof window and pauses every file watcher immediately.
+    readonly property bool moduleOn: Prefs.moduleEnabled("claude", true)
+    readonly property bool roofAllowed: moduleOn && !!Prefs.moduleOpt("claude", "clawd_roof", true)
+    onModuleOnChanged: if (!moduleOn && panelOpen) closePanel()
+
     // ---------- data ----------
     // the limits, watched (no polling); the 80% / 95% notifications come from ~/.claude/statusline.sh and
     // bin/claude-usage.py when the data changes (contents/code/alerts.py)
     // every bar has this widget, the islands show on one (kwin/rice_islands): the others' data rests (each
     // source reads its file again the moment it's live)
-    readonly property bool live: Shell.barShown(myScreenName) || panelOpen
-    ClaudeUsage { id: limits; fast: root.panelOpen; active: root.live }
+    readonly property bool live: moduleOn && (Shell.barShown(myScreenName) || panelOpen)
+    ClaudeUsage { id: limits; fast: root.panelOpen; busy: root.working || (root.activity !== "" && root.activity !== "idle"); active: root.live }
     readonly property var usage: limits.usage
     readonly property real now: limits.now
     RiceShell { id: sh }
@@ -44,8 +50,11 @@ PlasmoidItem {
     ClaudeAsk { id: checkIn; active: root.live }
     readonly property var ask: checkIn.ask
     readonly property bool asking: checkIn.asking
-    // the island turns red for a check-in, or while Claude Code waits on a permission / a question form
-    Plasmoid.status: asking || activity === "attention" ? PlasmaCore.Types.NeedsAttentionStatus : PlasmaCore.Types.ActiveStatus
+    // the island turns red for a check-in, or while Claude Code waits on a permission / a question form;
+    // HiddenStatus collapses it cleanly inside Panel Colorizer when the module is disabled
+    Plasmoid.status: !moduleOn ? PlasmaCore.Types.HiddenStatus
+                   : asking || activity === "attention" ? PlasmaCore.Types.NeedsAttentionStatus
+                   : PlasmaCore.Types.ActiveStatus
     function ackAsk() { checkIn.done() }
     // an important update the update check found (~/.config/plasma-rice/bin/update-check.py): a green badge on
     // Clawd and a card in the popup, until it's marked seen or the update is installed
@@ -182,6 +191,7 @@ PlasmoidItem {
     // ---------- panel ----------
     compactRepresentation: MouseArea {
         id: compact
+        visible: root.moduleOn
         readonly property Item clawd: mini      // (ClawdRoof flies from and to it)
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton | Qt.MiddleButton
@@ -204,14 +214,15 @@ PlasmoidItem {
         readonly property real seatW: mini.implicitWidth + Tokens.space.sm * root.uiScale      // Clawd's seat
         readonly property real bare: padL + seatW + ringW + cdW + padR
         // (BarFit plans with Clawd's seat open: the bar never has to refit when he goes up to the roof)
-        readonly property var fitWidths: [bare, bare, bare]
+        readonly property var fitWidths: root.moduleOn ? [bare, bare, bare] : [0, 0, 0]
         readonly property real shown: bare
         // while Clawd is up on the roof his seat closes, so the rings sit in the middle of their island
         // (the stretch is on the island's left: its right edge, and the rings, stay put)
         // whole pixels: the panel sizes a widget to the floor of a fractional width but keeps the room,
         // and the island's glass then parts at the joint (a hairline of wallpaper)
-        Layout.minimumWidth: Math.ceil(shown - (1 - root.seat) * seatW)
+        Layout.minimumWidth: root.moduleOn ? Math.ceil(shown - (1 - root.seat) * seatW) : 0
         Layout.preferredWidth: Layout.minimumWidth
+        Layout.maximumWidth: root.moduleOn ? -1 : 0
         Layout.fillHeight: true
         onClicked: mouse => {
             if (mouse.button === Qt.MiddleButton) Qt.openUrlExternally("https://claude.ai/settings/usage");
@@ -377,7 +388,7 @@ PlasmoidItem {
     Connections { target: Shell; function onBarChanged() { remeasure.restart() } }
     onMyScreenChanged: remeasure.restart()
 
-    readonly property bool roofFree: barSeen && !screenBusy && !!roofRect && !Windows.occupied(roofRect)
+    readonly property bool roofFree: root.roofAllowed && barSeen && !screenBusy && !!roofRect && !Windows.occupied(roofRect)
     property bool roofOk: false             // roofFree for a moment: a window dragged past doesn't bounce Clawd
     onRoofFreeChanged: { if (!roofFree) { roofSettle.stop(); roofOk = false } else roofSettle.restart() }
     Timer { id: roofSettle; interval: 450; onTriggered: root.roofOk = root.roofFree }

@@ -1,9 +1,26 @@
 # Atom Plasma
 
-A KDE Plasma 6 rice driven by the wallpaper. Every screen gets its own wallpaper and palette, and the
-desktop follows them: the colour scheme, Plasma Style, bar islands, terminals, VS Code, Zen, window borders,
-the login screen and keyboard lighting. It's built to hold up on whatever is plugged in: one laptop panel,
-seven monitors, a portrait 4K next to an 8K and an 800×800 panel.
+A KDE Plasma 6 rice driven by the wallpaper. Every screen gets its own wallpaper and palette, and the desktop follows them: the colour scheme, Plasma Style, bar islands, optical glass materials, terminals, VS Code, Zen, window borders, the login screen and keyboard lighting. It's built to hold up on whatever is plugged in: one laptop panel, seven monitors, a portrait 4K next to an 8K and an 800×800 panel.
+
+## Showcase (`prof` theme)
+
+*Captured on KDE Plasma 6 (Wayland, 2560×1440 @ 1.15×) using the **`prof`** preset (`soft` mood · `#617b00` / `#a03333` / `#3a3c3e`) with **Liquid glass** islands & backdrop, **Atom's** launcher, and both **Claude + Clawd** and **Gemini** modules enabled.*
+
+![Atom Plasma Desktop — prof theme with Liquid Glass islands, desk clock, Clawd, and Gemini](docs/showcase/desktop.jpg)
+
+| Atom's Launcher (orbital rings & glass core) | Morphing Liquid Glass Sheet (Calendar popup) |
+| :---: | :---: |
+| ![Atom Launcher](docs/showcase/launcher.jpg) | ![Morphing Liquid Glass Calendar Sheet](docs/showcase/popup.jpg) |
+
+| Theme Page — Launcher & 7-Material Backdrop Gallery | Theme Page — Desktop & Island Style Gallery |
+| :---: | :---: |
+| ![Theme Page Launcher Backdrop Gallery](docs/showcase/theme-launcher.jpg) | ![Theme Page Desktop Island Style Gallery](docs/showcase/theme-desktop.jpg) |
+
+| Theme Page — Modular Misc Modules (Claude + Clawd & Gemini) |
+| :---: |
+| ![Theme Page Misc Modules](docs/showcase/theme-modules.jpg) |
+
+---
 
 ## Install
 
@@ -11,242 +28,144 @@ seven monitors, a portrait 4K next to an 8K and an 800×800 panel.
 curl -fsSL https://raw.githubusercontent.com/Zinoxx0/Atom-Plasma/main/install.sh | sh
 ```
 
-It checks the system first (KDE Plasma on Wayland, a Plasma version this release supports), installs what's
-missing (one password prompt; AUR packages build in a terminal you can watch; on non-Arch distros it lists them
-for you), takes the newest release on your channel and puts every piece in place. Then log out and back in, run
-`~/.config/plasma-rice/rice.py setup` once and `rice.py random` for a first wallpaper. `ATOM_CHANNEL=beta` (or
-`alpha`) before `sh` starts you on newer builds.
+It checks the system first (KDE Plasma on Wayland, a Plasma version this release supports), installs what's missing (one password prompt; AUR packages build in a terminal you can watch; on non-Arch distros it lists them for you), takes the newest release on your channel and puts every piece in place. Then log out and back in, run `~/.config/plasma-rice/rice.py setup` once and `rice.py random` for a first wallpaper. `ATOM_CHANNEL=beta` (or `alpha`) before `sh` starts you on newer builds.
 
-**Updates** come through Atom Manager (the gear at the launcher's bottom right). Releases are stable (`1.2.0`,
-fixes `1.2.1`), beta (`1.3.0-beta.1`) or alpha (`1.3.0-alpha.4`); a channel takes its own and every steadier one.
-An update keeps your build as a backup branch, installs what the new version needs, rebuilds what's compiled,
-restarts the shell, and goes back by itself if the desktop doesn't come back. A build with changes of your own
-asks first. A clone on any branch but `atom-release` is a developer copy: the updater reports releases but
-never touches it (`rice.py update` has the commands).
+**Updates** come through Atom Manager (the gear at the launcher's bottom right). Releases are stable (`1.2.0`, fixes `1.2.1`), beta (`1.3.0-beta.1`) or alpha (`1.3.0-alpha.4`); a channel takes its own and every steadier one. An update keeps your build as a backup branch, installs what the new version needs, rebuilds what's compiled, restarts the shell, and goes back by itself if the desktop doesn't come back. A build with changes of your own asks first. A clone on any branch but `atom-release` is a developer copy: the updater reports releases but never touches it (`rice.py update` has the commands).
 
-By hand (developers): clone anywhere, then `./rice.py install --dry-run`, `./rice.py install`, relog,
-`./rice.py setup`, `./rice.py random`, `./rice.py doctor`. `install` is safe to re-run and never overwrites files
-it didn't create; anything needing root is printed for you to run.
+By hand (developers): clone anywhere, then `./rice.py install --dry-run`, `./rice.py install`, relog, `./rice.py setup`, `./rice.py random`, `./rice.py doctor`. `install` is safe to re-run and never overwrites files it didn't create; anything needing root is printed for you to run.
 
-**Needs:** Plasma 6.8 on Wayland, Python 3 with Pillow, numpy, dbus-python and PyGObject, plus ImageMagick
-and Panel Colorizer; to build the shell's native module, CMake, Ninja, a C++20 compiler, `qt6-declarative`
-and `libdbusmenu-lxqt`. Optional: Darkly, Klassy, KWin better-blur-dx, Krohnkite (tiling), Claude Code and
-`jq` (Clawd and the usage rings), `python-icalendar` and `python-recurring-ical-events` (Google Calendar),
-Limine and Plymouth (boot theming), Plasma Login Manager (login screen).
+**Needs:** Plasma 6.8 on Wayland, Python 3 with Pillow, numpy, dbus-python and PyGObject, plus ImageMagick and Panel Colorizer; to build the shell's native module, CMake, Ninja, a C++20 compiler, `qt6-declarative` and `libdbusmenu-lxqt`. Optional: Darkly, Klassy, KWin better-blur-dx, Krohnkite (tiling), Claude Code and `jq` (Clawd & Claude usage module), Gemini CLI / T3 Code (Gemini usage & gravity waves module), `python-icalendar` and `python-recurring-ical-events` (Google Calendar), Limine and Plymouth (boot theming), Plasma Login Manager (login screen). *(Pre-compiled `.qsb` GPU shaders ship in the repo; `qt6-shadertools` is only needed if editing `.frag` sources.)*
+
+---
+
+## Surfaces & Materials
+
+Both the **Launcher & Power Page backdrop** (`Theme → Launcher → Backdrop`) and the **Taskbar Islands & Morphing Popup Sheets** (`Theme → Desktop → Island style`) share the same 7 curated materials so you can mix and match freely:
+
+| Material | Key | Description |
+| :--- | :--- | :--- |
+| **Solid** | `solid` | Clean architectural obsidian or sunlit alabaster tonal gradient matched to your screen's palette. Zero distraction. |
+| **Satin** | `satin` | Bead-blasted anodized solid with a soft directional top sheen and fine tactile micro-grain (opaque, zero blur cost). |
+| **Aurora** | `aurora` | Velvety multi-lobe ambient silk mesh woven smoothly from your wallpaper's `primary`, `secondary`, and `tertiary` accents with triangular-PDF dithering (zero 8-bit banding). |
+| **Sanded glass** | `matte` | Softly frosted wallpaper under fine sandblasted grain — warm, architectural, zero banding. |
+| **Blur** | `clear` | Clean real-time KWin blur of whatever sits behind, open windows included, lightly tinted and grain-free. |
+| **Liquid glass** | `liquid` | Single-pass GPU optical glass: real **Snell's-law light refraction**, **Cauchy RGB chromatic dispersion**, curved plano-convex bevels, and **Schlick Fresnel** specular highlights over cached screen textures (**0% idle GPU**; zero extra blur passes). |
+| **Clear** | `none` | Unfiltered sharp wallpaper with an adaptive contrast veil (launcher) or sleek translucent tint (islands). |
+
+Set them live from the Theme page or the CLI:
+
+```sh
+rice.py backdrop solid|satin|aurora|matte|clear|liquid|none
+rice.py bar style solid|satin|aurora|matte|clear|liquid|none
+```
+
+---
 
 ## Screens
 
-- **Every screen gets the whole rice.** When screens are plugged in, unplugged, moved or rescaled,
-  `atom-plasma-displayd` (a user unit that sleeps until KWin or udev reports a change) runs the reconciler.
-  It gives a new screen the main screen's wallpaper, a desk clock, a bar and floating windows.
-- **One set of islands, on the screen you're on.** Every screen has a bar, but the islands show on one at
-  a time: the screen the pointer rests on, unless a fullscreen window (a game, a movie) covers it; then the
-  free screen with the most pixels, the nearest on a tie (none at all when every screen is fullscreen).
-  They follow the pointer at once, with a quick fade (a pointer just sweeping across a screen on the way
-  somewhere else moves nothing; `kwin/rice_islands`, a KWin script; hidden bars keep their place, so no
-  window ever resizes). The islands are notches on the screen's bottom edge, rounded only at the top; the
-  launcher and the clock sit in the screen's corners. Five of them: the launcher, your pins, the meters
-  (Claude's double ring with the time until its session resets, then the CPU/RAM/GPU rings: no numbers on
-  the bar, they're in the popups), the status island (tray apps, the system's state, tiling, power) and
-  the clock.
-- **The bar docks under a window.** When a window is maximized or touches the bar, the islands fuse into
-  one full-width bar that meets the window's edge: the gaps fill with the same glass, corners straighten,
-  outlines and shadows give way to one hairline along the top. When the window lets go they come apart
-  again. Nothing moves, only fills, corners and lines ease (Panel Colorizer's preset auto-loading switches
-  between the two looks and its animations do the morph).
-- **Bars fit their screen.** When a bar needs more room than its screen has (the islands moving from a
-  desk monitor to the laptop panel), the pinned apps that don't fit fold into a folder tile that opens them
-  in a popup, and come back as soon as there's room. It follows the bar's real room live: screens, tray
-  icons, new pins.
-- **Monitors are known by their EDID** (maker, model, serial), not by connector. A monitor keeps its
-  colours, size and place in your themes when it moves to another port. Run `./rice.py displays` to see them.
-- **Odd arrangements get flagged.** Overlapping screens shrink each other's maximize area, and a screen
-  apart from the others can't be reached by the pointer. You get a notification, and a chip on the Theme
-  page, with a one-click fix. Nothing moves until you click.
-- **UI size is standardised.** Each screen gets the size that looks the same from where you sit: the CSS
-  reference pixel worked out from the screen's pixel density and a typical viewing distance for its kind
-  (a laptop panel up close, a desk monitor, a TV across the room). A 1080p laptop panel gets a smaller UI,
-  and an 8K left at scale 1 a much bigger one. The Theme page has a slider for each part, in steps of 0.05:
-  the launcher's size, the top bar's and the taskbar's (Desktop → Taskbar: Automatic or one size everywhere;
-  its popups and the desk's clocks follow it), each on top of that standard size.
+- **Every screen gets the whole rice.** When screens are plugged in, unplugged, moved or rescaled, `atom-plasma-displayd` (a user unit that sleeps until KWin or udev reports a change) runs the reconciler. It gives a new screen the main screen's wallpaper, a desk clock, a bar and floating windows.
+- **One set of islands, on the screen you're on.** Every screen has a bar, but the islands show on one at a time: the screen the pointer rests on, unless a fullscreen window (a game, a movie) covers it; then the free screen with the most pixels, the nearest on a tie (none at all when every screen is fullscreen). They follow the pointer at once, with a quick fade (`kwin/rice_islands`, a KWin script; hidden bars keep their place, so no window ever resizes). The islands are notches on the screen's bottom edge, rounded only at the top; the launcher jewel and the clock sit flush in the screen's corners. Five of them: the launcher, your Glimpse pins, the meters (enabled AI usage modules + CPU/RAM/GPU rings), the status island (tray apps, system state, tiling, power) and the clock.
+- **The bar docks under a window.** When a window is maximized or touches the bar, the islands fuse smoothly over 260 ms into one full-width docked bar that meets the window's edge: gaps fill with the docked floor, corners straighten, and optical glass layers fade gracefully into the floor. When the window lets go, the islands separate again.
+- **Bars fit their screen.** When a bar needs more room than its screen has (e.g. moving from a desk monitor to the laptop panel), pinned apps that don't fit fold into a folder tile that opens them in a popup, and come back as soon as there's room.
+- **Monitors are known by their EDID** (maker, model, serial), not by connector. A monitor keeps its colours, size and place in your themes when it moves to another port (`./rice.py displays`).
+- **Odd arrangements get flagged.** Overlapping or disconnected monitors are flagged with a notification and a one-click fix chip on the Theme page.
+- **UI size is standardised.** Each screen gets the size that looks the same from where you sit (calculated from pixel density and viewing distance). The Theme page provides 0.05× tick sliders for Launcher size, Top bar size, and Taskbar size (Automatic per screen or uniform everywhere).
+
+---
+
+## Misc Modules (Claude, Gemini & Custom Extensions)
+
+Optional AI & desktop integrations are standalone **modules** managed in **Theme → Misc Modules** or via `rice.py modules`. Turn any module on/off independently without affecting others — or drop your own custom module (ChatGPT, Grok, Codex, etc.) into `~/.config/atom-plasma/modules/<id>/` (see [modules/README.md](modules/README.md)).
+
+### Claude + Clawd (`claude`)
+The meters island (and the desk clock on one screen) hosts **Clawd**, Claude Code's pixel-art creature, alongside Claude's double usage ring and session reset timer. Clawd reflects what Claude Code is doing in real time (typing, thinking, running commands, reading, web search, delegating to subagents, compacting), tires as usage fills, and enjoys thirty seasonal/weather-aware hobbies off duty. On the bar, Clawd hops dynamically between the meters island roof (when space above is clear), inside the island (when occluded by a window), and inside the usage popup when open.
+
+Clawd reads activity from Claude Code hooks (`rice.py install` wires `~/.claude/settings.json`) and usage limits from `bin/claude-statusline.sh` + the 5-minute `atom-plasma-claude-usage` timer (`bin/claude-usage.py`). Toggle roof mascot, desk clock mascot, and 80% / 95% alerts individually in **Theme → Misc Modules**.
+
+### Gemini (`gemini`)
+A minimalist Gemini-inspired usage widget sitting right alongside Claude on the meters island (or completely standalone if you don't use Claude):
+- **Gemini 4-point star + horizon usage meter** showing your remaining quota and reset countdown (with a full per-model / Flash / Pro quota breakdown popup).
+- **Selectable star palette:** switch live between **Gemini gradient** (iridescent violet→blue→cyan) and **4-colour star** (classic Google/Gemini four-point hues).
+- **Antigravity gravity waves:** soft organic radial gravitational ripples emit around the star whenever Gemini / Antigravity is actively working — driven event-by-event via Gemini CLI hooks (`bin/gemini-hook.sh`) and live T3 Code session activity (`bin/t3-activity.py` watching T3 Code's SQLite WAL via `FileWatch`, 0% idle polling).
+
+---
+
+## The Shell
+
+The bar's widgets are islands, and their panels all open on one morphing sheet per screen: it grows out of the island you clicked, glides smoothly to another island while you move along the bar, and folds back when it closes (`qml/Atom`, hosted by `com.zinoxx.shell` on every bar).
+
+- **Launcher** (*Atom's* & *Simplified*, opened via the jewel or `Meta`): minimizes the current screen's windows into their pins and opens under the top band. **Atom's** arranges your apps as orbital rings around a glass core (up/down turns a ring, left/right steps rings, wheel turns, games as banners); **Simplified** presents rows of tiles under a hero banner. Typing searches immediately. The shared **Theme page** puts your live desk map, Wallpapers (sorted by accent hue with mood filters + built-in Wallhaven search), Colours, Saved looks, Launcher, Desktop, Lighting, and Misc Modules all on one screen.
+- **Finder** (KRunner replacement): `Alt+Space`, `Alt+F2`, Search key, or typing on the bare desktop opens search on a floating frosted plate over your windows (`Alt+Shift+F2` searches the clipboard).
+- **Atom Manager** (bottom-right gear, `F1`, or controller `View`): version & channel updater, `rice.py doctor` health checks with fixes, credits, and machine diagnostics.
+- **Power** (power button on the status island or launcher): a circular backdrop ripple (with curved optical meniscus in Liquid glass) spreads across every monitor and presents session actions.
+- **Game controller & On-Screen Keyboard** (`bin/pad.py`, `atom-plasma-pad` service): full couch/TV desktop control with D-pad/stick navigation, automatic pause while a game has focus, and a themed on-screen keyboard (`pkg/atom-pad-im` input method supporting full layouts & accents).
+- **Status island, Notifications & Calendar**: replaces Plasma's system tray with stacked quiet icons, notification beads, a unified Control Center (Wi-Fi, Bluetooth, DND, night light, power profile, battery saver, per-app volume, per-screen brightness, media controls, and optional room-lights bridge), toast cards growing out of the status island, Portuguese holidays + Google Calendar (`bin/agenda.py`), and clipboard history on `Meta+V`.
+
+---
 
 ## Features
 
-Each feature is `auto` (on when the machine has what it needs), `on` or `off`. Set them under `features` in
-`~/.config/atom-plasma/settings.json`, and see what's on with `./rice.py doctor`:
+Each feature is `auto` (on when the machine has what it needs), `on` or `off`. Set them under `features` in `~/.config/atom-plasma/settings.json`, and check status with `./rice.py doctor`:
 
 | Feature | Needs |
 | --- | --- |
-| `claude`: Clawd and Claude usage on the bar, desk and popups | Claude Code |
-| `tiling`: per-screen auto-tiling, a bar toggle, Meta+Alt+T | Krohnkite |
+| `claude`: Clawd and Claude usage on the bar, desk and popups (also toggled in Misc Modules) | Claude Code |
+| `tiling`: per-screen auto-tiling, a bar toggle, `Meta+Alt+T` | Krohnkite |
 | `islands`: the bar's glass islands | Panel Colorizer |
-| `keyboard_lights`: keyboard RGB in the screen's accents | an ASUS laptop (asusd) or a Razer keyboard |
+| `keyboard_lights`: keyboard RGB in the screen's accents | an ASUS laptop (`asusd`) or a Razer keyboard |
 | `battery_saver`: the launcher's battery saver card | a battery |
 | `update_check`: a daily check for important updates | Arch/CachyOS and Claude Code |
 | `boot_theme` / `login_theme`: boot menu, splash and login screen | Limine + Plymouth / Plasma Login Manager |
 
-## The shell
-
-The bar's widgets are islands, and their panels all open on one morphing sheet per screen: it grows out of
-the island you clicked, glides to the next one while you point along the bar, and folds back into its
-island when it closes (`qml/Atom`, hosted by the `com.zinoxx.shell` widget on every bar).
-
-- **Launcher** ("Atom Home": the jewel, Meta): that screen's windows fly into their pins and Home fades in
-  on the frosted wallpaper, under the top band (never over it): pages Home, Games and Apps as rows of
-  tiles, the focused row in front, the others behind it, smaller and see-through; a hero for
-  whatever has the focus; typing searches. The pointer focuses what it rests on, not what it sweeps across on
-  its way to the hero. The palette opens the **Theme page**, the same in both launcher styles and all on one
-  screen. On the left, the screen you're editing: your desk as it stands (pick a screen, or all of them; the
-  one you're editing is framed in the accent) with its Wallpapers and Colours. Below it, Everywhere: saved
-  looks, the launcher, the desktop and keyboard lighting, each with its value now. On the right, the section
-  you're on. Wallpapers are a grid sorted by the accent each one gives, filtered by mood. The one in focus
-  previews on the desk map and across the whole page, palette and all; "Find more online" searches wallhaven
-  right there and downloads only what you pick. Every choice is a picture of what it
-  does, and every size a slider of ticks. Its own size sits on the screen's standard size, so a big monitor
-  shows more, not the same bigger. A game controller drives it too (D-pad or stick to move, A to open,
-  B to go back, LB/RB for the pages, X for an item's options, Y for the Theme page and, there, a random
-  wallpaper), as it does the power
-  overlay; the hints at the bottom switch to its buttons once you use it.
-  Other screens keep their windows; move the pointer to one and the launcher follows (your search comes
-  along). Closing, or picking a window in the top band, brings the windows back where they were.
-- **Finder** (KRunner's replacement): Alt+Space, Alt+F2, the Search key, the desktop menu's Run Command and
-  typing on the bare desktop open the launcher's search on its own: the field and its results on one
-  frosted glass plate at the top of the screen, over whatever is there (Alt+Shift+F2 searches the clipboard). The shell
-  holds KRunner's place on the bus and KRunner's own daemon is masked (`rice.py install`).
-- **Launcher styles**: the launcher above is **Simplified**; **Atom's** shows your apps as an atom (rings round
-  a glass core: up/down turn a ring, left/right step between rings; the pointer picks in place, the wheel turns),
-  and games as a grid of banners; the Theme page is the same as Simplified's. `rice.py launcher
-  style simplified|atom`, or Theme page → Launcher → Style.
-- **Atom Manager** (the gear at the launcher's bottom right, F1, or a pad's View): the version and whether it's
-  up to date, the health checks (`rice.py doctor`) with their fixes, the credits (people and projects) and this
-  machine's details for a bug report. A banner by the gear says when a critical update waits.
-- **Power** (the power island, or the launcher's power button): a ripple of blur spreads over every screen
-  and the session's actions come up big on yours.
-- **Out of the way**: while the launcher or the power page is open the windows are minimized (the launcher's
-  screen; every screen for the power page) and come back when it closes, and the bar's islands leave the
-  launcher's screen for another one, as they do for a fullscreen game.
-- **Backdrop style** (Theme page → Launcher): the launcher and the power page always wear the same backdrop:
-  *Noisy matte* (your wallpaper frosted under a fine grain, a still matte finish that hides the windows),
-  *Clear blur* (a live blur of whatever is behind, like glass), *Noisy only* (your wallpaper as it is, sharp,
-  under the same grain) or *No blur* (your wallpaper as it is, with only the dark shade that keeps text
-  readable). `rice.py backdrop matte|clear|noise|none`.
-- **Game controller** (`bin/pad.py`, the `atom-plasma-pad` service; for a TV across the room): a controller
-  drives the whole desktop. The left stick is the pointer (click it for slow and precise), the right stick
-  scrolls, the D-pad is the arrow keys; A clicks, or presses Enter when you last used the D-pad (the input
-  used last wins), X right-clicks (or the Menu key), B is Esc, LB/RB switch tabs, LT/RT go back and forward,
-  View shows every window, Menu switches to the window before, Guide opens the launcher (held: the power
-  page), Share takes a screenshot. Y brings up an **on-screen keyboard** in the theme's colours (your layout's
-  keys and accented letters: the D-pad walks it, A types, X deletes, Y is space, LT shift); it also comes up
-  on its own when the controller puts you in a text field. Drag it out of the way by any bare part of it (its
-  grip, its edges; the controller: the pointer there, hold A), or press View to send it to the top of the
-  screen and back. Any character goes straight into the field through a small input method of its own
-  (`pkg/atom-pad-im`, which KWin starts; `rice.py install` builds it and picks it when no other input method is
-  set), so accents work on any layout. While a game has the focus (Steam, Wine/Proton,
-  Lutris, Heroic, gamescope, Big Picture) the controller is left alone for it; View + Menu held for a second
-  switches that by hand. Idle it costs nothing (it waits on the device); a stick held costs ~1.5% of a core.
-  If Steam is running, turn off its own desktop controller layout so the two don't both move the pointer.
-- **Status island** (replaces Plasma's system tray): your apps' tray icons with menus in the rice's look
-  (a click brings the app's window back; the quiet ones rest on each other in a stack, and an app with news
-  steps out of it), the system's state, and beads for apps with notifications you haven't seen. The stack
-  (or a bead) opens the **Apps** panel: the notification history by app, then the apps in the background.
-  The system's glyphs open the **control center**: Wi-Fi, Bluetooth, Do Not Disturb, night light, power
-  profile, battery saver, volume and microphone, every screen's brightness, what's playing, the apps' own
-  volumes and your room's lights. With a room light setup at home (a lamp bridge on `127.0.0.1:48723`, a strip and
-  wallpaper-sync service on `127.0.0.1:48724`), a light button joins the island and opens the **Room**
-  panel: each light's level, white, colour and moods, and Match wallpaper.
-- **Notifications** grow out of the status island on the screen you're working on, one card per chat.
-- **Clock island**: the calendar, with Portuguese holidays and your Google Calendar
-  (`bin/agenda.py set-url <the calendar's secret iCal address>`; it stays in `~/.config/atom-plasma/secrets.json`).
-- **Clipboard history** on Meta+V.
-
-The shell needs a small native module (`pkg/atom-native`: blur behind the sheet, input masks, the tray host,
-the bus the KWin script talks to, KRunner's place;
-`rice.py install` builds it into `~/.local/lib/qt6/qml`; needs `libdbusmenu-lxqt`) and, for the calendar,
-`python-icalendar` and `python-recurring-ical-events`. After a Qt or Frameworks upgrade, or a `git pull` that
-changed `pkg/atom-native`, rebuild it with `pkg/atom-native/build.sh` (or re-run `rice.py install`, which
-rebuilds it when its sources are newer; `rice.py doctor` says so) and restart plasmashell.
-
-## Clawd
-
-The Claude island (and, on one screen, the desk clock) is home to Clawd, Claude Code's creature, in pixel
-art. It shows what Claude Code is doing (typing, thinking, running commands, reading, on the web, handing
-work to subagents, compacting), what its last answer was about, and how much of your usage limits is left:
-it tires as a window fills up and dozes by an hourglass when one runs out. Off duty it never sleeps: it
-has thirty hobbies, picked by the hour, the season and the weather, a new one every five minutes, each
-with a little project that moves on while you watch (a scarf gets longer, a marshmallow turns golden, a
-snowman gets its hat), and now and then someone drops by (a bird, a falling leaf, a ghost at Halloween).
-Hover it for a hello, stroke it back and forth, click it for one of its acts; a double click opens Claude
-Code in a terminal. Every Clawd on every screen does the same thing at the same moment.
-
-On the bar there is one Clawd at a time, in one of three places: standing on the meters island's roof
-over the middle of Claude's ring, when nothing covers the space above it (his seat in the island closes
-meanwhile); back inside the island, nearly as big, when a window does; in the popup while it's open.
-Between them it jumps.
-
-Clawd learns what Claude Code is doing from its hooks, and the usage rings from its status line.
-`rice.py install` adds the hooks to `~/.claude/settings.json` and, when you have no status line yet, sets
-`bin/claude-statusline.sh`, which keeps the limits in `~/.cache/claude-usage.json`. If you have your own
-status line, have it write that file as well (the script says how). Restart open Claude Code sessions
-afterwards: they read their hooks when they start.
-
-The status line only runs while a Claude Code session does, so the `atom-plasma-claude-usage` timer also
-asks Anthropic for the limits at login and every 5 minutes (`bin/claude-usage.py`, with Claude Code's own
-sign-in, which it only reads): the rings stay right after a reboot and while Claude is used on the web, the
-phone or another computer. When Claude Code hasn't run for about 8 hours its sign-in has expired, and the
-rings wait until Claude Code next starts and renews it.
-
-Each one is a single canvas, repainted only when its picture changes, and it holds still behind a
-fullscreen window (`qml/Rice/Clawd.qml`; the art is in `ClawdArt.js`, the acts and hobbies in
-`ClawdActs.js`). To look at them while changing them, `tools/clawd/sheet.qml` renders contact sheets.
+---
 
 ## Commands
 
 ```
-rice.py next|prev|random|<image> [--screen focused|all|<output>]   a wallpaper, and the theme from it
-rice.py preset save|load|delete <name>                             themes: every screen's look, by monitor
-rice.py theme show|set|reset ...                                   hand-picked colours per screen
-rice.py ui show|set ...                                            UI size (the taskbar's)
-rice.py launcher size F | top size F                               the launcher's and the top bar's own size
-rice.py backdrop matte|clear|noise|none                            the launcher's and the power page's backdrop
-rice.py launcher style simplified|atom                             which launcher opens (the next time it opens)
-rice.py walls-index                                                every wallpaper's mood, hue and palette (Atom's colour wheel)
-bin/pad.py status | mode auto|desktop|game                         the game controller (atom-plasma-pad.service)
+rice.py next|prev|random|<image> [--screen focused|all|<output>]   set wallpaper and re-theme from it
+rice.py preset save|load|delete <name>                             saved looks: every screen's wallpaper & colours
+rice.py theme show|set|reset ...                                   hand-picked colours & mood per screen
+rice.py backdrop solid|satin|aurora|matte|clear|liquid|none        launcher & power page backdrop material
+rice.py bar style solid|satin|aurora|matte|clear|liquid|none       taskbar islands & popup sheets material
+rice.py modules list|enable|disable|set ...                        toggle & configure Misc Modules (claude, gemini, custom)
+rice.py launcher style simplified|atom | launcher size F           launcher style and scale
+rice.py ui show|set ... | top size F                               taskbar and top bar sizing
+rice.py walls-index                                                index wallpapers (mood, hue, palette)
+bin/pad.py status | mode auto|desktop|game                         game controller daemon (atom-plasma-pad.service)
 rice.py tiling toggle|tile|float [--screen ...]                    auto-tiling per screen
 rice.py displays [--fix]                                           monitors, arrangement, sizes
-rice.py install | doctor | setup                                   install, check, one-time settings
+rice.py install | doctor | setup                                   install, verify, one-time system setup
 ```
 
-Shortcuts: Meta opens the launcher; Meta+V the clipboard's history; Meta+Alt+N / B for the next or previous
-wallpaper, Meta+Alt+Shift+N for a random one (rebind in System Settings → Shortcuts); Meta+Shift+W opens the
-Theme page; Meta+Alt+T toggles tiling.
+Shortcuts: `Meta` opens the launcher; `Meta+V` clipboard history; `Meta+Alt+N` / `B` next or previous wallpaper; `Meta+Alt+Shift+N` random wallpaper; `Meta+Shift+W` Theme page; `Meta+Alt+T` auto-tiling toggle.
+
+---
 
 ## Layout of the repo
 
 | Path | What |
 | --- | --- |
-| `atom/` | the Python library: displays, reconcile, palettes (OKLab moods), screens, presets, KDE/KWin/apps theming, panels, tiling, caps, install, doctor |
-| `rice.py` | the command line (below) |
-| `bin/` | the programs units, widgets, shortcuts and Claude Code's hooks run: the display watcher, keyboard lights, weather, the calendar's agenda, the update check, Clawd's hooks and status line, Claude's usage check, wallpapers from wallhaven |
-| `qml/Rice/` | shared QML: design tokens, the per-screen palette, Clawd (its art and its acts), controls |
-| `qml/Atom/` | the shell: its switchboard, the morphing sheet, panels (calendar, control center, clipboard...), notification cards, the power overlay |
-| `plasmoids/` | the launcher, Glimpse (task strip and top band), desk clock, the clock and status islands, system rings, Claude usage, session, tiling toggle, the shell's host |
-| `lnf/` | look-and-feel: splash and logout screen |
-| `plasma-style/`, `kwin/`, `templates/`, `shell/` | Plasma Style generator, KWin effects and the islands script, config templates, shell rice |
-| `systemd/` | user units: display watcher, keyboard lights, update check |
-| `pkg/` | PKGBUILDs for patched dependencies (per-output rounded corners) and the shell's native module |
-| `tests/` | `python3 -m unittest discover -s tests` (golden outputs, 20+ display topologies) |
-| `tools/nested/` | a nested, isolated KWin + plasmashell with fake input, and the shell's tests in it (`test-*.sh`) |
+| `atom/` | Python engine: displays, reconcile, palettes (OKLab moods), screens, presets, KDE/KWin/apps theming, panels (`panel.py`), modular extensions (`modules.py`, `gemini.py`), tiling, caps, install, doctor |
+| `rice.py` | Main CLI entry point |
+| `modules/` | Built-in standalone Misc Modules manifests (`claude/`, `gemini/`) and developer guide (`modules/README.md`) |
+| `bin/` | Units, widgets, shortcuts and hooks: display watcher, keyboard RGB, weather, agenda, updater, Clawd hooks & status line, Gemini CLI hook (`gemini-hook.sh`) & T3 Code activity watcher (`t3-activity.py`), wallhaven |
+| `qml/Rice/` | Shared QML (`import Rice`): design tokens, per-screen `RicePalette`, Clawd, `ClaudeUsage`, `GeminiUsage`, `GeminiActivity`, controls |
+| `qml/Atom/` | Shell QML (`import Atom`): switchboard, morphing sheet (`Glass.qml`, `Sheet.qml`), backdrops & optical shaders (`Backdrop.qml`, `LiquidBar.qml`, `liquid_backdrop.frag.qsb`, `aurora_backdrop.frag.qsb`, `liquid_glass.frag.qsb`), panels, toasts, power overlay, on-screen keyboard |
+| `plasmoids/` | Plasma 6 widgets: launcher, Glimpse, desk clock, clock & status islands, system rings, `com.zinoxx.claudeusage`, `com.zinoxx.geminiusage`, session, tiling toggle, shell host |
+| `lnf/` | Look-and-feel package: splash and logout screens |
+| `plasma-style/`, `kwin/`, `templates/`, `shell/` | Plasma Style generator, KWin effects & `rice_islands` script, config templates, shell rice |
+| `systemd/` | User units: display watcher, keyboard lighting, Claude usage timer, update check, pad daemon |
+| `pkg/` | PKGBUILDs for patched dependencies (per-output rounded corners, BlueZ) and native modules (`atom-native`, `atom-pad-im`) |
+| `docs/` | Architecture notes (`ARCHITECTURE.md`) and showcase screenshots (`docs/showcase/`) |
+| `tests/` | `python3 -m unittest discover -s tests` (golden outputs, 20+ display topologies, modules, material shaders, `qmllint`) |
+| `tools/nested/` | Isolated nested KWin + plasmashell test harness and showcase capture scripts |
 
-Your settings live in `~/.config/atom-plasma/settings.json`, which overrides the repo's
-`settings.default.json`. State lives in `~/.local/state/rice/` and caches in `~/.cache/rice/`.
+User settings live in `~/.config/atom-plasma/settings.json` (overriding `settings.default.json`). State lives in `~/.local/state/rice/` and caches in `~/.cache/rice/`.
 
 ## Contributing
 
-How the parts fit together is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); setting up, trying a change
-safely and the conventions are in [CONTRIBUTING.md](CONTRIBUTING.md). The tests run on every push
-(`.github/workflows/tests.yml`).
+How the parts fit together is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); setting up, testing changes safely, and conventions are in [CONTRIBUTING.md](CONTRIBUTING.md). Tests run on every push (`.github/workflows/tests.yml`).
 
 ## License
 
-GPL-3.0-or-later (see `LICENSE`). The KWin effects in `kwin/` are adapted from KWin's own Scale and Fading
-popups effects (GPL-2.0-or-later), and `pkg/` patches GPL projects (KDE-Rounded-Corners, BlueZ).
+GPL-3.0-or-later (see `LICENSE`). The KWin effects in `kwin/` are adapted from KWin's own Scale and Fading popups effects (GPL-2.0-or-later), and `pkg/` patches GPL projects (KDE-Rounded-Corners, BlueZ).

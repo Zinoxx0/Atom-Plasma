@@ -1,6 +1,4 @@
 import QtQuick
-import QtCore
-import org.kde.plasma.plasma5support as P5Support
 
 // Runs shell commands for the rice widgets, with the API of the executable DataSource it replaces, so
 // a widget only swaps the declaration: connectSource(cmd) runs cmd, newData(cmd, data) answers with
@@ -28,41 +26,15 @@ QtObject {
 
     signal newData(string source, var data)
 
-    readonly property string home: String(StandardPaths.writableLocation(StandardPaths.HomeLocation)).replace(/^file:\/\//, "")
-    readonly property string runtime: String(StandardPaths.writableLocation(StandardPaths.RuntimeLocation)).replace(/^file:\/\//, "")
+    readonly property string home: ShellHost.home
+    readonly property string runtime: ShellHost.runtime
 
     function connectSource(source) {
-        runner.createObject(shell).connectSource(source)
+        ShellHost.run(source, shell)
     }
     function disconnectSource(source) {}
 
-    // a word for the shell, quoted
-    function q(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'" }
-
-    property int slot: 0
     function exec(tag, argv) {
-        const n = slot = (slot + 1) % 8
-        const file = runtime + "/atom-cmd-" + tag + "-" + n + ".json"
-        const named = 'python3 "$HOME/.config/plasma-rice/bin/run-argv.py" ' + q(file) + " #" + tag + " " + n
-        const x = new XMLHttpRequest()
-        x.onreadystatechange = () => { if (x.readyState === XMLHttpRequest.DONE) shell.connectSource(named) }
-        try {
-            x.open("PUT", "file://" + file)
-            x.send(JSON.stringify(argv.map(String)))
-        } catch (e) {       // no QML_XHR_ALLOW_FILE_WRITE (an older session): the command as its own name
-            connectSource(argv.map(q).join(" ") + " #" + tag + " " + n)
-        }
-    }
-
-    readonly property Component runner: Component {
-        P5Support.DataSource {
-            id: ds
-            engine: "executable"
-            onNewData: (source, data) => {
-                shell.newData(source, data)
-                ds.disconnectSource(source)
-                ds.destroy()
-            }
-        }
+        ShellHost.exec(tag, argv, shell)
     }
 }

@@ -20,6 +20,8 @@ Item {
     readonly property var roles: it ? it.roles : null      // (the launcher's menu reads the item's roles off it)
     readonly property var pal: orbit.view.rice
     readonly property real lookScale: orbit.docked ? orbit.scaleAt(index) : focused && kind !== "mark" ? 1.16 : 1
+    Spring { id: scaleS; to: node.lookScale; stiffness: 20; epsilon: 0.002; enabled: node.visible && node.orbit.view.visible }
+    readonly property real shownScale: scaleS.value
     // the lens round it when it has the focus: its shown size at rest (a docked focus: the dock's), x 1.16 (+ the view's margin)
     readonly property real lensSize: width * (orbit.docked ? orbit.focusScale(index) : 1) * 1.16
     width: orbit.d(it && it.big ? it.big : orbit.size)
@@ -33,8 +35,7 @@ Item {
     Loader {
         id: look
         anchors.fill: parent
-        scale: node.lookScale
-        Behavior on scale { enabled: !node.orbit.docked; NumberAnimation { duration: Tokens.ms(300); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
+        scale: node.shownScale
         sourceComponent: node.kind === "icon" ? iconLook : node.kind === "art" ? artLook : node.kind === "glyph" ? glyphLook
                        : node.kind === "swatch" ? (node.it.swc ? wheelLook : swatchLook) : node.kind === "dot" ? dotLook
                        : node.kind === "mark" ? markLook : null
@@ -129,6 +130,7 @@ Item {
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         cursorShape: Qt.PointingHandCursor
         onContainsMouseChanged: containsMouse ? node.orbit.hovered(node.index) : node.orbit.unhovered(node.index)
+        onPositionChanged: if (!node.focused) node.orbit.hovered(node.index)
         onPressed: if (Shell.debug) console.warn("ATOM atom node press", node.orbit.index, node.index)
         onClicked: mouse => mouse.button === Qt.RightButton ? node.orbit.rightClicked(node.index, node) : node.orbit.clicked(node.index)
     }

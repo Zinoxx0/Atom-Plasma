@@ -109,6 +109,7 @@ Item {
     StudioGrid {
         id: grid
         studio: on.studio
+        visible: on.studio.onlineResults.length > 0
         y: ideas.y + ideas.height + on.d(24)
         width: on.width
         height: on.height - y
@@ -124,7 +125,7 @@ Item {
             return on.studio.added(it) ? "<b>In your wallpapers</b>" + (on.studio.actKey ? " " + on.studio.actKey + " sets it on " + on.studio.targetLabel + "." : "")
                  : "<b>From wallhaven</b> " + (it.res || "") + (it.fav ? ", liked " + it.fav + " times" : "") + (on.studio.actKey ? ". " + on.studio.actKey + " adds it to your wallpapers." : "")
         }
-        onMoved: i => on.studio.onlineIndex = i
+        onMoved: i => on.studio.setOnlineIndex(i)
         onActivated: it => on.studio.onlinePick(it)
     }
     function wheel(dy) { grid.wheel(dy) }

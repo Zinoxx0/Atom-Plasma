@@ -103,7 +103,7 @@ Item {
     property string wallFile: ""            // the wallpaper the grid's focus is on
     readonly property int wallIndex: Math.max(0, shownWalls.findIndex(w => w.file === wallFile))
     onAllWallsChanged: if (!wallFile && targetScreen) wallFile = fileName(targetScreen.image)
-    function setWallIndex(i) { const w = shownWalls[i]; if (w && w.file !== wallFile) { wallFile = w.file; relens(); schedulePreview() } }
+    function setWallIndex(i) { const w = shownWalls[i]; if (w && w.file !== wallFile) { wallFile = w.file; const off = lensOffscreen(); relens(off, off); schedulePreview() } }
     function setFilter(m) {
         if (m === filter) return
         filter = m
@@ -124,6 +124,7 @@ Item {
     property string onlineQuery: ""
     property var onlineResults: []          // [{ id, url, thumb (a local copy), res, fav }]
     property int onlineIndex: 0
+    function setOnlineIndex(i) { if (i >= 0 && i < onlineResults.length && i !== onlineIndex) { onlineIndex = i; const off = lensOffscreen(); relens(off, off); schedulePreview() } }
     property string onlineState: ""         // "" | "busy" | "empty" | "error"
     property var adding: ({})               // id -> "busy" | the path it was saved to
     signal onlineFresh()
@@ -185,6 +186,7 @@ Item {
         { id: "launcher", icon: "apps", name: "Launcher", scope: "every" },
         { id: "desk", icon: "desktop_windows", name: "Desktop", scope: "every" },
         { id: "lights", icon: "keyboard", name: "Lighting", scope: "every" },
+        { id: "modules", icon: "extension", name: "Misc Modules", scope: "every" },
     ]
     property string section: "walls"
     property var lastKey: ({})              // per section: where the focus was in it
@@ -199,6 +201,10 @@ Item {
             return [t ? "Top bar " + model.sizeText(t.items[0].v) : "", b ? "taskbar " + model.sizeText(b.items[0].v) : "", curName("bar")].filter(Boolean).join(" · ") }
         if (id === "lights") { const k = (model.lights && model.lights.devices) || []; model.draft
             return k.length ? k.filter(x => x.ready && Object.assign({}, x.settings || {}, model.kbDraft(x.id)).on !== false).length + " of " + k.length + " keyboards on" : "No keyboards" }
+        if (id === "modules") { const m = model.modules || []; model.draft
+            if (!m.length) return "None installed"
+            const on = m.filter(x => { const d = model.modDraft(x.id); return d.enabled !== undefined ? !!d.enabled : !!x.enabled })
+            return on.length + " of " + m.length + " on" + (on.length ? " · " + on.map(x => x.name).join(", ") : "") }
         return ""
     }
     function setSection(id, enter) {
@@ -217,7 +223,7 @@ Item {
         setSection(n.id, !inSide)
         if (inSide) focusKey("sec:" + n.id, "key")
     }
-    function openSection(rowId) { setSection({ walls: "walls", colours: "colours", lights: "lights" }[rowId] || "walls", true) }
+    function openSection(rowId) { setSection({ walls: "walls", colours: "colours", lights: "lights", modules: "modules" }[rowId] || "walls", true) }
     // where the focus lands in a section: where it was, else the wallpaper in use, else its first part
     function entryKey() {
         const l = lastKey[section]
@@ -240,6 +246,9 @@ Item {
                                           sub: "Every screen's wallpaper and colours in one step · the one in focus previews on your desk", tools: [] }
         if (section === "launcher") return { title: "Launcher", count: "", chip: false, sub: "Every screen · the power page wears the same backdrop", tools: [] }
         if (section === "desk") return { title: "Desktop", count: "", chip: false, sub: "Every screen · the bar on top and the taskbar's islands", tools: [] }
+        if (section === "modules") return { title: "Misc Modules", count: String((model.modules || []).length), chip: false,
+                                            sub: "Optional widgets and integrations · toggle each on its own or add custom modules",
+                                            tools: [["folder_open", "Modules folder", "", "modules:folder"]] }
         return { title: "Lighting", count: "", chip: false, sub: "Each keyboard on its own: the screen it follows, its effect, its brightness", tools: [] }
     }
     function toolDo(id) {
@@ -276,9 +285,10 @@ Item {
         const was = focused
         if (typingField && f.fkey !== "on:field") stopTyping()
         focused = f
+        if (was && was !== f) lensFromOutside = true
         if (!f.inSide && f.fkey) { const l = Object.assign({}, lastKey); l[section] = f.fkey; lastKey = l }
         if (from === "key" && f.rail && f.fkey.slice(4) !== section) setSection(f.fkey.slice(4), false)     // walking the sections shows them
-        if (from === "key") quietUntil = Date.now() + 450
+        if (from === "key") quiet(450)
         relens(!was || from === "jump")
         schedulePreview()
         if (Shell.debug && f !== was) { console.warn("ATOM theme focus", f.fkey, "(" + from + ")"); partsLog.restart() }
@@ -290,12 +300,15 @@ Item {
     }
     // the keys and the D-pad: the nearest part that way (a slider takes left and right; a region walks itself first)
     function move(dx, dy) {
+        quiet(450)
         const cur = focused
         if (!cur) { refocus(); return }
         if (cur.slider && dx) { cur.nudged(dx); return }
         if (cur.region && cur.step(dx, dy)) return
         if (dx > 0 && cur.rail) { focusKey(entryKey(), "key"); return }
-        const c = rectOf(cur), ccx = c.x + c.width / 2, ccy = c.y + c.height / 2
+        const c = rectOf(cur)
+        if (!c) { refocus(); return }
+        const ccx = c.x + c.width / 2, ccy = c.y + c.height / 2
         let best = null, bs = 1e9
         for (const el of regs) {
             if (el === cur || !el.visible || el.opacity <= 0) continue
@@ -324,16 +337,22 @@ Item {
     // pointer, or a section changing under it, isn't the pointer)
     property double movedAt: 0
     property double quietUntil: 0
-    function quiet() { quietUntil = Date.now() + 200 }
+    property point lastPointerAt: Qt.point(-999, -999)
+    function quiet(ms) { quietUntil = Math.max(quietUntil, Date.now() + (ms || 200)) }
     HoverHandler { id: pointer }
     readonly property point pointerAt: pointer.point.scenePosition     // (in the window: the page sliding under a still pointer isn't a move)
-    onPointerAtChanged: movedAt = Date.now()
+    function notePointer(pt) {
+        if (Math.hypot(pt.x - lastPointerAt.x, pt.y - lastPointerAt.y) < 3) return
+        lastPointerAt = pt
+        movedAt = Date.now()
+    }
+    onPointerAtChanged: notePointer(pointerAt)
     function pointerFresh() { const t = Date.now(); return t - movedAt < 150 && t > quietUntil }
     function pointed(f) { if (f !== focused && pointerFresh()) focusItem(f, "mouse") }
     // a grid's tile under the pointer: the grid picks it (its owner keeps the index), then the focus is there
     function pointedTile(region, i, click) {
         if (!click && !pointerFresh()) return
-        region.pick(i)
+        region.pick(i, !!click)
         if (focused !== region) focusItem(region, "mouse"); else { relens(); schedulePreview() }
     }
     function clicked(f, focusOnly) {
@@ -344,21 +363,64 @@ Item {
     }
     function wheel(dy) { if (section === "walls" && wallsLoader.item) wallsLoader.item.wheel(dy) }
 
-    // the lens: one ring that glides from part to part (outside it, a gap away), its glow under the content
+    // the lens: one ring that glides from part to part on critically damped springs (keeps velocity under rapid
+    // repeats, never restarts ease-in per frame when a grid scrolls), clipped to a grid's viewport while inside it
     property real lx: 0
     property real ly: 0
     property real lw: 0
     property real lh: 0
     property real lr: 0
-    property bool lensJump: true
-    function relens(jump) {
+    property bool lensValid: false
+    property bool lensFromOutside: false
+    property real lensClipY: 0
+    property real lensClipH: 0
+    readonly property bool lensClipActive: !!(focused && focused.region && !lensFromOutside && lensClipH > 0)
+    property real lensAlpha: 1
+    NumberAnimation { id: lensFadeIn; target: ts; property: "lensAlpha"; from: 0; to: 1; duration: Tokens.ms(160); easing.type: Easing.OutCubic }
+    Spring { id: lxS; to: ts.lx; stiffness: 22; epsilon: 0.25 }
+    Spring { id: lyS; to: ts.ly; stiffness: 22; epsilon: 0.25; onMovingChanged: if (!moving) ts.lensFromOutside = false }
+    Spring { id: lwS; to: ts.lw; stiffness: 22; epsilon: 0.25 }
+    Spring { id: lhS; to: ts.lh; stiffness: 22; epsilon: 0.25 }
+    Spring { id: lrS; to: ts.lr; stiffness: 22; epsilon: 0.25 }
+    function updateLensClip(f) {
+        if (f && f.region && f.lensClipRect) {
+            const cr = f.lensClipRect()
+            if (cr && cr.height > 0) { lensClipY = cr.y; lensClipH = cr.height; return }
+        }
+        lensClipH = 0
+    }
+    function lensOffscreen() {
+        return lensClipActive && (lyS.value + lhS.value <= lensClipY + 4 || lyS.value >= lensClipY + lensClipH - 4)
+    }
+    function relens(jump, fadeIn) {
         const f = focused
-        if (!f) return
+        if (!f) { lensValid = false; lensClipH = 0; return }
+        updateLensClip(f)
         const r = rectOf(f)
-        if (!r) return
-        lensJump = !!jump || lw === 0
-        lx = r.x - f.lensGap; ly = r.y - f.lensGap; lw = r.width + 2 * f.lensGap; lh = r.height + 2 * f.lensGap; lr = f.lensRadius + f.lensGap
-        lensJump = false
+        if (!r || r.width <= 0 || r.height <= 0) { lensValid = false; return }
+        const snap = !!jump || !lensValid || lw <= 0
+        const nx = r.x - f.lensGap, ny = r.y - f.lensGap
+        const nw = r.width + 2 * f.lensGap, nh = r.height + 2 * f.lensGap, nr = f.lensRadius + f.lensGap
+        lx = nx; ly = ny; lw = nw; lh = nh; lr = nr
+        if (snap) {
+            lxS.jump(nx); lyS.jump(ny); lwS.jump(nw); lhS.jump(nh); lrS.jump(nr)
+            lensFromOutside = false
+        }
+        if (fadeIn) { lensFadeIn.restart() } else { lensFadeIn.stop(); lensAlpha = 1 }
+        lensValid = true
+    }
+    // while a focused grid scrolls, carry the lens's vertical spring frame in lockstep with the tiles (no double lag)
+    function followScroll(region) {
+        if (focused !== region) return
+        updateLensClip(region)
+        if (!lensValid || lw <= 0) { relens(true); return }
+        const r = rectOf(region)
+        if (!r || r.width <= 0 || r.height <= 0) { lensValid = false; return }
+        const ny = r.y - region.lensGap
+        const dy = ny - ly
+        if (Math.abs(dy) < 0.01) return
+        if (!lensFromOutside) lyS.value += dy
+        ly = ny
     }
     onWidthChanged: relensSoon()
     onUnitChanged: relensSoon()             // (the launcher's own size changed: everything moved)
@@ -431,15 +493,19 @@ Item {
     // ================================================================ the page
     // uniform: no edge anywhere (stronger for a light palette: a light wallpaper previewed over the room's dark scrims)
     Rectangle { anchors.fill: parent; color: C.alpha(ts.look.surfaceLowest, ts.look.light ? Math.max(ts.veil, 0.62) : ts.veil) }
-    RectangularShadow {         // the lens's glow, under the content
-        visible: ts.active && !!ts.focused && ts.lw > 0
-        x: ts.lx; y: ts.ly; width: ts.lw; height: ts.lh
-        radius: ts.lr; blur: ts.d(30); spread: ts.d(2)
-        color: C.alpha(ts.look.primary, 0.55)
-        Behavior on x { enabled: !ts.lensJump; NumberAnimation { duration: Tokens.ms(300); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
-        Behavior on y { enabled: !ts.lensJump; NumberAnimation { duration: Tokens.ms(300); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
-        Behavior on width { enabled: !ts.lensJump; NumberAnimation { duration: Tokens.ms(300); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
-        Behavior on height { enabled: !ts.lensJump; NumberAnimation { duration: Tokens.ms(300); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
+    Item {                      // the lens's glow, under the content (clipped to the grid when inside one)
+        x: 0
+        y: ts.lensClipActive ? ts.lensClipY : 0
+        width: ts.width
+        height: ts.lensClipActive ? ts.lensClipH : ts.height
+        clip: ts.lensClipActive
+        RectangularShadow {
+            visible: ts.active && !!ts.focused && ts.lensValid && ts.lw > 0
+            opacity: ts.lensAlpha
+            x: lxS.value; y: lyS.value - parent.y; width: lwS.value; height: lhS.value
+            radius: lrS.value; blur: ts.d(30); spread: ts.d(2)
+            color: C.alpha(ts.look.primary, 0.55)
+        }
     }
 
     StudioSide {
@@ -508,7 +574,8 @@ Item {
                         pad: modelData[2]
                         desc: "<b>" + modelData[1] + "</b> " + ({ "walls:random": "A random wallpaper for " + ts.targetLabel + ".", "walls:folder": "Open the wallpapers' folder.",
                                                                   "walls:discover": "Look on wallhaven for more, shaped for this screen.", "online:back": "Back to the wallpapers you have.",
-                                                                  "online:more": "The next ones it found." })[modelData[3]]
+                                                                  "online:more": "The next ones it found.",
+                                                                  "modules:folder": "Open ~/.config/atom-plasma/modules to add standalone modules." })[modelData[3]]
                         act: modelData[1]
                         onActivated: ts.toolDo(modelData[3])
                     }
@@ -532,7 +599,7 @@ Item {
                 id: otherLoader
                 active: ts.section !== "walls"
                 sourceComponent: ts.section === "colours" ? coloursC : ts.section === "looks" ? looksC : ts.section === "launcher" ? launcherC
-                               : ts.section === "desk" ? deskC : lightsC
+                               : ts.section === "desk" ? deskC : ts.section === "modules" ? modulesC : lightsC
                 transformOrigin: Item.TopLeft
                 scale: item ? Math.min(1, body.height / Math.max(1, item.implicitHeight), body.width / Math.max(1, item.implicitWidth)) : 1
                 onLoaded: ts.relensSoon()
@@ -549,25 +616,30 @@ Item {
     Component { id: launcherC; StudioLauncher { studio: ts } }
     Component { id: deskC; StudioDesktop { studio: ts } }
     Component { id: lightsC; StudioLights { studio: ts } }
+    Component { id: modulesC; StudioModules { studio: ts } }
 
-    // the lens's ring (over everything), and a wallpaper's name in it
-    Rectangle {
-        visible: ts.active && !!ts.focused && ts.lw > 0
-        x: ts.lx; y: ts.ly; width: ts.lw; height: ts.lh
-        radius: ts.lr
-        color: "transparent"
-        border.width: ts.d(2.5)
-        border.color: ts.look.fg
-        Behavior on x { enabled: !ts.lensJump; NumberAnimation { duration: Tokens.ms(300); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
-        Behavior on y { enabled: !ts.lensJump; NumberAnimation { duration: Tokens.ms(300); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
-        Behavior on width { enabled: !ts.lensJump; NumberAnimation { duration: Tokens.ms(300); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
-        Behavior on height { enabled: !ts.lensJump; NumberAnimation { duration: Tokens.ms(300); easing.type: Easing.BezierSpline; easing.bezierCurve: Tokens.calmIn } }
+    // the lens's ring (over everything, clipped to the grid's viewport while inside one), and a wallpaper's name in it
+    Item {
+        x: 0
+        y: ts.lensClipActive ? ts.lensClipY : 0
+        width: ts.width
+        height: ts.lensClipActive ? ts.lensClipH : ts.height
+        clip: ts.lensClipActive
         Rectangle {
-            visible: !!(ts.focused && ts.focused.tag)
-            x: ts.d(12) + (ts.focused ? ts.focused.lensGap : 0); y: parent.height - height - ts.d(12) - (ts.focused ? ts.focused.lensGap : 0)
-            width: tagT.width + ts.d(22); height: ts.d(28); radius: ts.d(9)
-            color: C.alpha(ts.look.surfaceLowest, 0.82)
-            Text { id: tagT; anchors.centerIn: parent; text: ts.focused ? ts.focused.tag : ""; color: ts.look.fg; font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: ts.d(14) }
+            visible: ts.active && !!ts.focused && ts.lensValid && ts.lw > 0
+            opacity: ts.lensAlpha
+            x: lxS.value; y: lyS.value - parent.y; width: lwS.value; height: lhS.value
+            radius: lrS.value
+            color: "transparent"
+            border.width: ts.d(2.5)
+            border.color: ts.look.fg
+            Rectangle {
+                visible: !!(ts.focused && ts.focused.tag)
+                x: ts.d(12) + (ts.focused ? ts.focused.lensGap : 0); y: parent.height - height - ts.d(12) - (ts.focused ? ts.focused.lensGap : 0)
+                width: tagT.width + ts.d(22); height: ts.d(28); radius: ts.d(9)
+                color: C.alpha(ts.look.surfaceLowest, 0.82)
+                Text { id: tagT; anchors.centerIn: parent; text: ts.focused ? ts.focused.tag : ""; color: ts.look.fg; font.family: Tokens.font.ui; font.weight: Font.DemiBold; font.pixelSize: ts.d(14) }
+            }
         }
     }
 
@@ -680,6 +752,7 @@ Item {
             for (const f of ts.regs) {
                 if (!f.visible || !f.fkey) continue
                 const r = ts.rectOf(f)
+                if (!r) continue
                 console.warn("ATOM theme part", f.fkey, "at", Math.round(ts.origin.x + r.x + r.width / 2), Math.round(ts.origin.y + r.y + r.height / 2))
             }
         }
@@ -713,6 +786,7 @@ Item {
         }
     }
     Component.onCompleted: {
+        quiet(250)
         model.reload()
         sh.connectSource('python3 "$HOME/.config/plasma-rice/rice.py" walls-index #windex')     // (only new or changed files)
         if (targetScreen) wallFile = fileName(targetScreen.image)

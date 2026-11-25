@@ -21,8 +21,10 @@ Item {
         radius: !glass || scene.stage.bgO >= 0.999 ? -1 : reach * scene.stage.bgO
         opacity: !glass ? (scene.stage.priming && scene.stage.phase === "closed" ? 0.0015 : scene.stage.bgO)
                         : (scene.stage.priming && scene.stage.phase === "closed" ? 0 : 1)
-        veil: glass ? Prefs.glassVeil : 0.34
+        veil: glass ? Prefs.glassVeil : (solid || aurora) ? 0.08 : liquid ? 0.24 : 0.34
         offsetY: scene.stage.topGap
+        lensCenter: scene.stage.atomAt
+        lensRadius: scene.stage.page === "home" ? scene.stage.d(145) * scene.stage.atomK : 0
         grained: false
         transform: Scale {
             origin.x: scene.stage.atomAt.x; origin.y: scene.stage.atomAt.y
@@ -43,32 +45,45 @@ Item {
         opacity: scene.stage.bgO
         readonly property string want: scene.stage.focusItem && scene.stage.focusItem.hero ? scene.stage.focusItem.hero : ""
         readonly property bool wall: !!(scene.stage.focusItem && scene.stage.focusItem.sharp)       // a wallpaper previewed: fills
-        readonly property bool soft: !wall && scene.stage.page !== "games" && (bd.matte || bd.glass)
+        readonly property bool soft: !wall && scene.stage.page !== "games" && !bd.sharp
         property int shown: -1              // the slot in view (-1: none)
         property string waiting: ""         // a picture for a slot still fading out
+        property bool waitingWall: false
         readonly property real dpr: scene.stage.devicePixelRatio || 1
         function slotItem(i) { return i === 0 ? s0 : s1 }
         function retarget() {
-            const w = want
+            const w = want, isWall = wall
             if (!w) { shown = -1; waiting = ""; return }
-            if (shown >= 0 && String(slotItem(shown).source) === w) { waiting = ""; return }
-            const k = shown === 0 ? 1 : 0, other = slotItem(k)
-            if (String(other.source) === w) { shown = k; waiting = ""; return }       // (back to the one fading out)
-            if (other.level > 0.004 && shown >= 0) { waiting = w; return }      // it must go first (the shown one stays meanwhile)
-            other.source = w; shown = k; waiting = ""
+            for (let i = 0; i < 2; i++) {
+                const s = slotItem(i)
+                if (String(s.source) === w && s.wall === isWall) { s.soft = soft; shown = i; waiting = ""; return }
+            }
+            const k = shown === 0 ? 1 : shown === 1 ? 0 : (s0.level <= s1.level ? 0 : 1), other = slotItem(k)
+            if (other.level > 0.004) { waiting = w; waitingWall = isWall; return }      // it must go first (the shown one stays meanwhile)
+            other.assign(w, isWall, soft); shown = k; waiting = ""
         }
         onWantChanged: retarget()
+        onWallChanged: retarget()
+        onSoftChanged: if (shown >= 0) slotItem(shown).soft = soft
         function settled(i) {               // slot i has faded out: a waiting picture can go in it
             if (!waiting || slotItem(i).level > 0.004) return
-            const w = waiting; waiting = ""
-            if (w !== want) return
-            slotItem(i).source = w; shown = i
+            const w = waiting, isWall = waitingWall; waiting = ""
+            if (w !== want || isWall !== wall) return
+            slotItem(i).assign(w, isWall, soft); shown = i
         }
         component Slot: Image {
             id: im
             required property int slot
+            property bool wall: false
+            property bool soft: false
             property bool everReady: false
-            onSourceChanged: everReady = false
+            function assign(url, isWall, isSoft) {
+                wall = isWall
+                soft = isSoft
+                everReady = false
+                source = url
+                if (status === Image.Ready) everReady = true
+            }
             onStatusChanged: if (status === Image.Ready) everReady = true
             readonly property bool on: art.shown === slot && (status === Image.Ready || everReady)
             property real level: on ? 1 : 0
@@ -79,15 +94,15 @@ Item {
             x: 0; y: 0
             width: parent.width
             // its own proportions across the width (a wallpaper: the whole screen, cropped as a wallpaper is)
-            height: art.wall ? parent.height : implicitWidth > 0 ? Math.round(width * implicitHeight / implicitWidth) : 0
-            fillMode: art.wall ? Image.PreserveAspectCrop : Image.Stretch
+            height: wall ? parent.height : implicitWidth > 0 ? Math.round(width * implicitHeight / implicitWidth) : 0
+            fillMode: wall ? Image.PreserveAspectCrop : Image.Stretch
             asynchronous: true
             cache: true
             retainWhileLoading: true
             smooth: true
-            sourceSize.width: art.soft ? Math.min(960, Math.round(parent.width * art.dpr)) : Math.round(parent.width * art.dpr)
-            layer.enabled: source != "" && !art.wall
-            layer.effect: art.soft ? softEffect : fadeEffect
+            sourceSize.width: soft ? Math.min(960, Math.round(parent.width * art.dpr)) : Math.round(parent.width * art.dpr)
+            layer.enabled: visible && source != "" && !wall
+            layer.effect: soft ? softEffect : fadeEffect
         }
         Component {
             id: fadeEffect
@@ -96,6 +111,10 @@ Item {
         Component {
             id: softEffect
             MultiEffect {
+                // Keep the blur flush with the screen edges (default autoPaddingEnabled pads layer.sourceRect
+                // by blurMax on all sides, leaving transparent edge bleed on Home and a persistent 48 px inset
+                // rectangle when the slot later swaps to fadeEffect on Games).
+                autoPaddingEnabled: false
                 maskEnabled: true
                 maskSource: fadeMask
                 maskThresholdMin: 0.5
@@ -108,10 +127,11 @@ Item {
         Slot { id: s0; slot: 0 }
         Slot { id: s1; slot: 1 }
         // where softened art fades into the scene: solid down to 55% of its height, gone at its bottom
+        // (keep layer.enabled always on: 8x256 is 8 KB, and MultiEffect misses a mask layered after it starts)
         Rectangle {
             id: fadeMask
             width: 8; height: 256          // (stretched over each picture: only its rows matter)
-            visible: false; layer.enabled: art.soft && (s0.visible || s1.visible)
+            visible: false; layer.enabled: true
             gradient: Gradient {
                 GradientStop { position: 0; color: "white" }
                 GradientStop { position: 0.55; color: "white" }

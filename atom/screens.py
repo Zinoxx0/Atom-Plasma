@@ -287,14 +287,16 @@ def screen_palette(s, img, cfg, overrides=None, fallback=None, desk=None):
 
 def apply_screens(ss, cfg, fallback):
     """Each screen's palette (with its overrides), for the widgets on its bar, and its bar's island colours."""
+    from . import modules
     pals = {}
     ovs = presets.overrides()
     music = media_screen(ss, cfg)
     theme_name = presets.current_theme(ss, ovs)
+    clawd_on = modules.is_enabled("claude", cfg) and bool(modules.module_config("claude", cfg).get("clawd_desk", True))
     for s in ss:
         img = Path(s["image"]) if s["image"] else None
         p = screen_palette(s, img, cfg, ovs.get(s["id"]), fallback,
-                           {"media": s["name"] == music, "clawd": s["name"] == music, "theme": theme_name})
+                           {"media": s["name"] == music, "clawd": (s["name"] == music) and clawd_on, "theme": theme_name})
         util.write_if_changed(STATE / f"palette-{s['name']}.json", json.dumps(p, indent=2) + "\n")
         pals[s["screen"]] = p
     try:

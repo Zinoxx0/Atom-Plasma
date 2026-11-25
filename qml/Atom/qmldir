@@ -9,6 +9,7 @@ Island 1.0 Island.qml
 Frost 1.0 Frost.qml
 PowerWindow 1.0 PowerWindow.qml
 Backdrop 1.0 Backdrop.qml
+LiquidBar 1.0 LiquidBar.qml
 FloorWindow 1.0 FloorWindow.qml
 singleton RoomLight 1.0 RoomLight.qml
 singleton Notify 1.0 Notify.qml

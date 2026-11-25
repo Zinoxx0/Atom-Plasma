@@ -182,10 +182,25 @@ def argb(c, alpha):
     return "#%02x%s" % (round(alpha * 255), c.lstrip("#"))
 
 
-# The islands' glass (settings bar.style, the Theme page's Taskbar group): how much of its fill they keep and
-# whether KWin blurs behind them. matte = the launcher's noisy matte: a tile of the island's colour with the
-# launcher's grain in it (Colorizer image source, tiled), over the blur.
-BAR_STYLES = {"solid": (1.0, True), "matte": (0.8, True), "clear": (0.42, True), "none": (0.6, False)}
+# The islands' material (settings bar.style, the Theme page's Desktop -> Island style): how much of its fill
+# Colorizer keeps and whether KWin blurs behind it.
+#   solid  : classic obsidian / white-frost glass
+#   satin  : bead-blasted anodized solid (opaque micro-grain tile, crisp metallic sheen, zero blur overhead)
+#   aurora : silky translucent palette mesh (Atom.LiquidBar mode 1 over KWin live blur)
+#   matte  : Sanded glass (frosted grain tile over KWin live blur)
+#   clear  : Blur (clean live KWin blur, lightly tinted)
+#   liquid : Liquid glass (Atom.LiquidBar mode 0: Snell refraction + chromatic dispersion + Fresnel bevel)
+#   none   : Clear (clean tint over the sharp wallpaper, no blur)
+BAR_STYLES = {
+    "solid": (1.0, True),
+    "satin": (0.96, False),
+    "aurora": (0.06, True),
+    "matte": (0.8, True),
+    "clear": (0.42, True),
+    "liquid": (0.06, True),
+    "none": (0.6, False),
+}
+SHADER_BAR_STYLES = ("liquid", "aurora")
 GRAIN = util.STATE / "bar-grain"
 
 
@@ -249,10 +264,11 @@ def island_style(p, acc, states=True, fg=False, docked=False, style=None):
         if docked or style == "solid":
             o["blurBehind"] = True
             o["backgroundColor"].update(color(body, fill))
-        elif style == "matte":
-            o["blurBehind"] = True
+        elif style in ("matte", "satin"):
+            o["blurBehind"] = blur
+            tile_alpha = min(1.0, fill * keep if style == "matte" else max(0.92, fill * 1.22))
             o["backgroundColor"].update(enabled=True, sourceType=6, custom=body, alpha=1,
-                                        image={"source": "file://" + grain_tile(body, fill * keep), "fillMode": 3})
+                                        image={"source": "file://" + grain_tile(body, tile_alpha), "fillMode": 3})
         else:
             o["blurBehind"] = blur
             o["backgroundColor"].update(color(body, fill * keep))
@@ -285,6 +301,23 @@ def island_style(p, acc, states=True, fg=False, docked=False, style=None):
             out["expanded"] = look(0.08, 0.7, 0, 0, shade=0)
             out["needsAttention"] = look(0.04, 0.5, (red, 0.75), 0, shade=0)
         return out
+    if style in SHADER_BAR_STYLES:
+        # Normal state stays clear & borderless so Atom.LiquidBar's curved optical glass shines cleanly over
+        # KWin's live blur + drop shadow; hover/expanded/attention lift & glow cleanly on top.
+        out = {"normal": look(0, 0.76, 0.0, 0.0, shade=0.22 if light else 0.42)}
+        if states:
+            out["hovered"] = look(0.03, 2.2, 0.55, 0.0, shade=0.24 if light else 0.44)
+            out["expanded"] = look(0.05, 3.2, 0.85, 0.0, glow=(acc, 14, 3, 0.26))
+            out["needsAttention"] = look(0.03, 2.6, (red, 0.78), 0.0, glow=(red, 12, 3, 0.22))
+        return out
+    if style == "satin":
+        # Anodized matte solid: crisp tactile micro-grain tile + brighter brushed top edge sheen
+        out = {"normal": look(0.015, 0.82, 0.30, 0.14)}
+        if states:
+            out["hovered"] = look(0.04, 0.84, 0.58, 0.18)
+            out["expanded"] = look(0.06, 0.86, 0.85, 0.20, glow=(acc, 14, 3, 0.24))
+            out["needsAttention"] = look(0.03, 0.84, (red, 0.75), 0.16, glow=(red, 12, 3, 0.2))
+        return out
     out = {"normal": look(0, 0.76, 0.26, 0.07)}
     if states:
         out["hovered"] = look(0.025, 0.8, 0.55, 0.10)
@@ -293,7 +326,7 @@ def island_style(p, acc, states=True, fg=False, docked=False, style=None):
     return out
 
 
-def launcher_style(p, docked=False):
+def launcher_style(p, docked=False, style=None):
     """The launcher's island is the bar's one jewel: filled with the screen's accent (primary to
     tertiary, left to right) instead of neutral glass, a bright sheen along the top, a brighter
     outline and a soft glow of its own colour. Hover lights it up; an open launcher glows fully.
@@ -331,6 +364,9 @@ def launcher_style(p, docked=False):
         o["shadow"]["foreground"]["enabled"] = False
         return o
 
+    if not docked and style in SHADER_BAR_STYLES:
+        return {"normal": look(0.04, 0.0, 0.35, 0.32), "hovered": look(0.22, 0.65, 0.45, 0.48),
+                "expanded": look(0.36, 0.90, 0.5, 0.60), "needsAttention": look(0.24, 0.85, 0.45, 0.48)}
     return {"normal": look(0.86, 0.6, 0.35, 0.30), "hovered": look(0.94, 0.85, 0.45, 0.45),
             "expanded": look(0.98, 0.95, 0.5, 0.58), "needsAttention": look(0.94, 0.9, 0.45, 0.45)}
 
@@ -347,6 +383,7 @@ def island_overrides(p, panel, docked=False):
     isl = islands(panel)
     seen = [n for n, g in enumerate(isl) if any(w != SHELL for _, w in g)]
     sides = {seen[0]: "left", seen[-1]: "right"} if seen else {}
+    st = bar_style()
     for n, group in enumerate(isl):
         if n not in seen:                                   # the shell's host alone: nothing to draw
             continue
@@ -357,9 +394,9 @@ def island_overrides(p, panel, docked=False):
         name = f"Island {n}"
         stock = all(not w.startswith("com.zinoxx.") for w in real)
         if "com.zinoxx.launcher" in real:
-            overrides[name] = launcher_style(p, docked)
+            overrides[name] = launcher_style(p, docked, style=st)
         else:
-            overrides[name] = island_style(p, acc, states=len(real) == 1, fg=stock, docked=docked)
+            overrides[name] = island_style(p, acc, states=len(real) == 1, fg=stock, docked=docked, style=st)
         if pad:
             for o in overrides[name].values():
                 o["margin"] = {"enabled": True, "side": dict(o["margin"]["side"], left=pad, right=pad)}
@@ -556,17 +593,29 @@ def _pos(bar, wid):
     return order.index(wid) if wid in order else len(order)
 
 
-def order_for(ids, others=()):
+def meter_plasmoids(cfg=None, include_disabled=True):
+    """Meters-island module plasmoids in display order (ahead of com.zinoxx.sysstats).
+    When include_disabled=True, includes all discovered modules whose plasmoid is installed so toggling
+    them in Misc Modules hides/shows them live without rebuilding the panel."""
+    from . import modules
+    mods = [m for m in modules.discover() if m["bar_slot"] == "meters" and m["plasmoid"]]
+    if include_disabled:
+        return [m["plasmoid"] for m in mods if m["plasmoid_path"] or (HOME / ".local/share/plasma/plasmoids" / m["plasmoid"]).exists()]
+    return [m["plasmoid"] for m in mods if modules.is_enabled(m["id"], cfg)]
+
+
+def order_for(ids, others=(), meters=None):
     """A bar's AppletOrder: the template's widgets in place; widgets the template doesn't know (added by the
     user) each get an island right after the stretch. Spare spacers go in the stretch too (one at either end
     of the bar would keep the corner islands off the screen's edge)."""
     s = list(ids["small"])
     k = lambda name: ids.get(name)
-    # (meters: Claude and the system rings share one island; status: the tray, the system's state, tiling
-    # and power share another)
+    meter_plugins = list(meters) if meters is not None else meter_plasmoids(include_disabled=True)
+    # (meters: enabled/installed misc modules + system rings share one island; status: the tray, the
+    # system's state, tiling and power share another)
     seq = [k(LAUNCHER), s[0],
            k(TASKS), ids["expanding"], k(SHELL), k(COLORIZER), s[1],
-           k("com.zinoxx.claudeusage"), k("com.zinoxx.sysstats"), s[2],
+           *(k(p) for p in meter_plugins), k("com.zinoxx.sysstats"), s[2],
            k(STATUS), k(TILING), k("com.zinoxx.session"), s[3],
            k(CLOCK)]
     extra = s[4:]
@@ -598,16 +647,49 @@ def free_clipboard_key():
                     "setForeignShortcutKeys", "asa(ai)", "4", *action, "0"], capture_output=True)
 
 
-def configure():
+def configure(cfg=None):
     """Every bar's widgets and their settings (adds what's missing, at the end); returns {panel id: ids}.
-    Feature widgets (Claude, tiling) only where those features are on (atom/caps.py)."""
+    Meters-island modules (Claude, Gemini, custom user modules) are installed in the meters island and
+    hide/show live via Atom.Prefs."""
     from . import caps
+    cfg = util.settings() if cfg is None else cfg
     free_clipboard_key()
     return json.loads(shell(util.script(
         "bars-configure", settings=colorizer_settings(), spacer=SPACER, spacer_px=SPACER_PX, colorizer=COLORIZER,
         clockpad=CLOCK_PAD,
         tasks=TASKS, legacy=LEGACY_TASKS, launcher=LAUNCHER, tiling=TILING, shell=SHELL, clock=CLOCK, status=STATUS,
-        with_tiling=caps.feature("tiling"), with_claude=caps.feature("claude"))))
+        with_tiling=caps.feature("tiling", cfg), meters=meter_plasmoids(cfg, include_disabled=True))))
+
+
+def missing_meter_plasmoids(cfg=None):
+    """Enabled meters-slot module plasmoids that aren't mounted on every running bar yet."""
+    want = set(meter_plasmoids(cfg, include_disabled=False))
+    if not want:
+        return []
+    try:
+        bars = panels()
+    except (subprocess.CalledProcessError, ValueError):
+        return []
+    if not bars:
+        return []
+    missing = set()
+    for b in bars:
+        have = {w["type"] for w in b.get("widgets", [])}
+        missing |= (want - have)
+    return sorted(missing)
+
+
+def sync_meter_modules(cfg=None):
+    """Restyle bars if all enabled meter modules are already mounted; returns list of plasmoids still needing
+    a panel rebuild (`python3 panel/build.py`) to take their slot in AppletOrder."""
+    missing = missing_meter_plasmoids(cfg)
+    if not missing:
+        try:
+            from . import screens
+            screens.restyle_bars()
+        except Exception:
+            pass
+    return missing
 
 
 # a new bar's widgets in order ("|" = a small spacer, "~" = the expanding one): added in this order, a new
@@ -615,8 +697,8 @@ def configure():
 # Every screen's bar holds the same islands: they show on one screen at a time (kwin/rice_islands).
 # The launcher and the clock are the corner notches, so nothing sits outside them: the shell's host (no width,
 # but Colorizer would still draw its island's end) and spare spacers go in the stretch.
-TEMPLATE = [LAUNCHER, "|", TASKS, "~", SHELL, COLORIZER, "|", "com.zinoxx.claudeusage", "com.zinoxx.sysstats",
-            "|", STATUS, TILING, "com.zinoxx.session", "|", CLOCK]
+TEMPLATE = [LAUNCHER, "|", TASKS, "~", SHELL, COLORIZER, "|", "com.zinoxx.claudeusage", "com.zinoxx.geminiusage",
+            "com.zinoxx.sysstats", "|", STATUS, TILING, "com.zinoxx.session", "|", CLOCK]
 SPACER_PX = 4      # a small spacer's length: with Colorizer's 6 px spacing either side, 16 px between islands
 BAR_PX = 49        # a bar's thickness at UI size 1 (logical px): 56 on the desk monitors at today's size
 
@@ -648,17 +730,19 @@ def bar_thickness(s):
 
 
 def ensure_bars(ss, cfg):
-    """One rice bar on every screen: a screen without a panel gets one from TEMPLATE, and every bar's
-    thickness follows its screen's UI size. Returns the new panels' ids."""
+    """One rice bar on every screen: a screen without a panel gets one from the module-aware template, and
+    every bar's thickness follows its screen's UI size. Returns the new panels' ids."""
     from . import caps
-    off = {w for f, w in (("claude", "com.zinoxx.claudeusage"), ("tiling", TILING)) if not caps.feature(f, cfg)}
+    meters = meter_plasmoids(cfg, include_disabled=True)
+    t = [LAUNCHER, "|", TASKS, "~", SHELL, COLORIZER, "|", *meters, "com.zinoxx.sysstats",
+         "|", STATUS, TILING, "com.zinoxx.session", "|", CLOCK]
+    off = {TILING} if not caps.feature("tiling", cfg) else set()
 
-    t = TEMPLATE            # without the widgets of features that are off (and the spacer after each)
     widgets = [w for i, w in enumerate(t) if w not in off and not (w == "|" and i and t[i - 1] in off)]
     want = [{"screen": s["screen"], "height": bar_thickness(s), "widgets": widgets} for s in ss]
     made = json.loads(shell(util.script("bars-new", want=want, spacer=SPACER)) or "[]")
     if made:
-        configure()         # the new bars' widget settings (Colorizer, clock), as for the rest
+        configure(cfg)      # the new bars' widget settings (Colorizer, clock), as for the rest
     return made
 
 

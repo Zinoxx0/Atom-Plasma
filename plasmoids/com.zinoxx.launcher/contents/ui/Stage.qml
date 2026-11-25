@@ -738,7 +738,7 @@ Window {
         radius: !glass || stage.bgO >= 0.999 ? -1 : reach * stage.bgO
         opacity: !glass ? (stage.priming && stage.phase === "closed" ? 0.0015 : stage.bgO)
                         : (stage.priming && stage.phase === "closed" ? 0 : 1)
-        veil: glass ? Prefs.glassVeil : 0       // (clear: the power page's glass, exactly)
+        veil: glass ? Prefs.glassVeil : liquid ? 0.18 : 0       // (blur: the power page's glass; liquid glass: smoked crystal depth)
         offsetY: stage.topGap                   // (the window starts under the top band: the wallpaper lines up)
         grained: false                  // (the grain goes over the scrims: the launcher draws it, last)
         also: stage.finderShapes        // (the finder's plate: one blur region per window)
@@ -785,7 +785,10 @@ Window {
         // wallpaper's measure if it's brighter, under the backdrop's veil)
         const v = backdropStyle.veil, g = y => Math.pow(Math.max(0, y), 1 / 2.2), Ys = C.luminance(rice.surfaceLowest)
         const veiled = y => v > 0 ? Math.pow(v * g(Ys) + (1 - v) * g(Math.max(y, 0.35)), 2.2) : y
-        const base = { top: veiled(w.top ?? 0.35), hero: veiled(w.hero ?? 0.35), rows: veiled(w.rows ?? 0.35) }
+        const cleanY = Math.min(0.95, Math.max(Ys, backdropStyle.aurora ? (rice.light ? 0.85 : 0.08) : (rice.light ? 0.88 : 0.04)))
+        const base = (backdropStyle.solid || backdropStyle.aurora)
+            ? { top: cleanY, hero: cleanY, rows: cleanY }
+            : { top: veiled(w.top ?? 0.35), hero: veiled(w.hero ?? 0.35), rows: veiled(w.rows ?? 0.35) }
         const it = room.shown
         const careful = { top: 0.6, hero: 0.6, rows: 0.6 }
         if (theming) return careful

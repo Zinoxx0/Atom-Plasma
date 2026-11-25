@@ -32,6 +32,9 @@ Item {
     property var draft: ({})                // values shown while they're on their way: { "accent:primary": "#hex", intensity, "kb:<id>:<key>" }
 
     readonly property var screens: page ? page.screens : []
+    readonly property var modules: page && page.modules ? page.modules : []
+    readonly property string modulesDir: page && page.modulesDir ? page.modulesDir : ""
+    readonly property var missingBarModules: page && page.missingBarModules ? page.missingBarModules : []
     readonly property var targets: target === "all" ? screens : screens.filter(s => s.name === target)
     readonly property string targetLabel: target === "all" ? "every screen" : "the " + ((screens.find(s => s.name === target) || {}).label || target)
 
@@ -130,6 +133,21 @@ Item {
         setDraft("kb:" + id + ":on", on)
         run("live:kbon:" + id, ["python3", sh.home + "/.config/plasma-rice/bin/rgb.py", "set", id, "--on", String(on)])
     }
+    // Misc Modules: enable/disable and per-module config options
+    function setModuleEnabled(id, on) {
+        setDraft("mod:" + id + ":enabled", !!on)
+        run("live:mod:" + id, riceCmd(["modules", on ? "enable" : "disable", id]))
+    }
+    function setModuleOption(id, key, val) {
+        setDraft("mod:" + id + ":opt:" + key, val)
+        run("live:mod:" + id + ":" + key, riceCmd(["modules", "set", id, key, String(val)]))
+    }
+    function modDraft(id) {
+        const prefix = "mod:" + id + ":opt:"
+        const cfg = {}
+        for (const k in draft) if (k.startsWith(prefix)) cfg[k.slice(prefix.length)] = draft[k]
+        return { enabled: draft["mod:" + id + ":enabled"], config: cfg }
+    }
     function resetAccent(role) {
         if (role.startsWith("kb:")) {       // "Automatic": back to following its screen
             const id = role.slice(3)
@@ -157,6 +175,10 @@ Item {
     function tool(id) {
         if (id === "walls:random") run(id, riceCmd(["random", "--screen", target]))
         else if (id === "walls:folder") { if (page && page.dir) Qt.openUrlExternally("file://" + page.dir) }
+        else if (id === "modules:folder") {
+            const dir = modulesDir || (sh.home + "/.config/atom-plasma/modules")
+            sh.connectSource('mkdir -p "' + dir + '" && xdg-open "' + dir + '" #moddir')
+        }
         else if (id === "ui:auto") {        // the taskbar's size on each screen's standard size, or the same everywhere
             const ui = page && page.ui || {}
             const on = !(draft["ui:auto"] ?? !!ui.auto)
@@ -177,8 +199,18 @@ Item {
         for (const k of ["on", "mode", "style", "effect", "follow", "brightness", "colour"]) if (draft["kb:" + id + ":" + k] !== undefined) o[k] = draft["kb:" + id + ":" + k]
         return o
     }
-    function barStyleName() { return ({ solid: "Solid", matte: "Noisy matte", clear: "Clear blur", none: "No blur" })[Prefs.barStyle] || "Solid" }
-    readonly property var backdropNames: ({ matte: "Noisy matte", clear: "Clear blur", noise: "Noisy only", none: "No blur" })
+    readonly property var materialNames: ({
+        solid: "Solid",
+        satin: "Satin",
+        aurora: "Aurora",
+        matte: "Sanded glass",
+        clear: "Blur",
+        liquid: "Liquid glass",
+        none: "Clear",
+        noise: "Grain",
+    })
+    function barStyleName() { return materialNames[Prefs.barStyle] || "Solid" }
+    readonly property var backdropNames: materialNames
     // ------------------------------------------------------------------ the rows
     function fileName(p) { return p ? String(p).split("/").pop() : "" }
     function build() {
@@ -240,11 +272,14 @@ Item {
         const bd = Prefs.backdropStyle
         const D = (style, desc) => ({ kind: "backdrop", key: "backdrop:" + style, style: style, name: backdropNames[style], current: bd === style,
                                       meta: [bd === style ? "Now" : "The launcher and the power page"], desc: desc })
-        out.push({ id: "backdrop", title: "Backdrop style", items: [
-            D("matte", "Your wallpaper, frosted, under a fine grain: a still, matte finish. The windows behind it are hidden."),
-            D("clear", "A live blur of whatever is behind, windows too, like glass."),
-            D("noise", "Your wallpaper as it is, sharp, under the same fine grain: its texture without the blur. The windows behind it are hidden."),
-            D("none", "Your wallpaper as it is, sharp, with no blur or filter: only the dark shade that keeps the text readable."),
+        out.push({ id: "backdrop", title: "Backdrop", items: [
+            D("solid", "Clean obsidian or sunlit alabaster tonal gradient matched to your screen's palette. Zero distraction."),
+            D("satin", "Bead-blasted anodized solid with a soft directional sheen and fine tactile micro-grain."),
+            D("aurora", "Velvety ambient silk mesh woven smoothly from your wallpaper's three palette accents."),
+            D("matte", "Softly frosted wallpaper under fine sandblasted grain: warm, architectural, zero banding."),
+            D("clear", "Clean real-time KWin blur of whatever sits behind, open windows included."),
+            D("liquid", "Optical liquid glass with Snell's-law refraction, chromatic dispersion, and curved Fresnel highlights."),
+            D("none", "Your sharp wallpaper as it is, with no blur or texture — just an adaptive readability veil."),
         ] })
         // the top bar (Glimpse's band): its own size
         const tnow = draft["slider:top"] ?? ((page.top || {}).size || 1.05)
@@ -267,10 +302,13 @@ Item {
         const B = (style, name, desc) => ({ kind: "barstyle", key: "bar:" + style, style: style, name: name, current: bs === style,
                                             meta: [bs === style ? "Now" : "Every bar"], desc: desc })
         out.push({ id: "bar", title: "Island style", items: [
-            B("solid", "Solid", "Dark glass you can't see through: the islands as they've always been."),
-            B("matte", "Noisy matte", "Frosted, with the launcher's fine grain: the wallpaper softly through it."),
-            B("clear", "Clear blur", "Glass: a clear blur of what's behind, lightly tinted."),
-            B("none", "No blur", "A tint over the wallpaper as it is, sharp, with no blur."),
+            B("solid", "Solid", "Deep obsidian or alabaster glass notches with a subtle top sheen: clean and high contrast."),
+            B("satin", "Satin", "Bead-blasted anodized solid islands with tactile micro-grain and crisp top edge highlight."),
+            B("aurora", "Aurora", "Silky translucent palette mesh islands & popups tinted smoothly across your screen's accents."),
+            B("matte", "Sanded glass", "Frosted wallpaper softly through fine sandblasted grain over live blur."),
+            B("clear", "Blur", "Clean real-time blur of what's behind, lightly tinted, with no grain."),
+            B("liquid", "Liquid glass", "Curved optical bevel islands & popups with real Snell's-law refraction and Fresnel rims."),
+            B("none", "Clear", "A sleek translucent tint straight over the sharp wallpaper with no blur."),
         ] })
         // keyboard lighting: one row per keyboard, each its own: which screen it follows (its colours come from that
         // screen's palette), how it shows them (styles), or its own effect and colour (manual), its brightness, on/off

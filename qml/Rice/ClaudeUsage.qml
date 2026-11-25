@@ -18,6 +18,7 @@ Item {
 
     property bool active: true
     property bool fast: false
+    property bool busy: false
     readonly property string cacheDir: String(StandardPaths.writableLocation(StandardPaths.GenericCacheLocation)).replace(/^file:\/\//, "")
     readonly property real lineAt: Number(file.value?.updated ?? 0)
     readonly property real polledAt: Number(polled.value?.checked ?? 0)
@@ -36,7 +37,9 @@ Item {
         active: cu.active
         onChanged: cu.now = Date.now() / 1000
     }
-    Timer { interval: cu.fast ? 1000 : 30000; running: cu.active; repeat: true; onTriggered: cu.now = Date.now() / 1000 }
+    // WatchedJson updates immediately when a usage cache changes; this timer only advances `now`
+    // for minute countdowns and pace dots (5 s while popup is open & active, 15 s when idle, 30 s closed).
+    Timer { interval: cu.fast ? (cu.busy ? 5000 : 15000) : 30000; running: cu.active; repeat: true; onTriggered: cu.now = Date.now() / 1000 }
     // waking (the islands came to this bar): the clock stopped when it went to rest, maybe hours ago; an
     // unchanged file says nothing, so without this the countdown showed the old time for up to 30 s
     onActiveChanged: if (active) now = Date.now() / 1000

@@ -15,11 +15,14 @@ Pill Pill.qml
 PopupHeader PopupHeader.qml
 Aurora Aurora.qml
 RiceShell RiceShell.qml
+singleton ShellHost ShellHost.qml
 ClaudeActivity ClaudeActivity.qml
+GeminiActivity GeminiActivity.qml
 Emblem Emblem.qml
 ClaudeAsk ClaudeAsk.qml
 WatchedJson WatchedJson.qml
 ClaudeUsage ClaudeUsage.qml
+GeminiUsage GeminiUsage.qml
 NowPlaying NowPlaying.qml
 TagField TagField.qml
 AppGlow AppGlow.qml

@@ -19,10 +19,11 @@ What needs root (login screen copier, the Razer udev rule, boot theming) is prin
 `rice.py doctor` checks the result.
 """
 import importlib.util
+from pathlib import Path
 import shutil
 import subprocess
 
-from . import caps, claude, kde, kwin, util
+from . import caps, claude, gemini, kde, kwin, modules, util
 from .util import HOME, ROOT
 
 APPS = HOME / ".local/share/applications"
@@ -170,7 +171,7 @@ def servicemenu():
 
 def cfg_claude(p, cfg):
     """Claude Code's settings: Clawd's hooks, the status line (atom/claude.py). True when they changed."""
-    if not caps.feature("claude", cfg):
+    if not modules.is_enabled("claude", cfg):
         return False
     path = claude.SETTINGS.resolve()           # (a dotfiles symlink stays one)
     try:
@@ -188,6 +189,26 @@ def cfg_claude(p, cfg):
     return True
 
 
+def cfg_gemini(p, cfg):
+    """Antigravity / Gemini lifecycle hooks across ~/.gemini/config/ and T3 Code provider configs (atom/gemini.py)."""
+    if not modules.is_enabled("gemini", cfg):
+        return False
+    changed = False
+    for path in gemini.hook_files():
+        try:
+            new, what = gemini.plan(path.read_text() if path.exists() else "", enabled=True)
+        except (OSError, ValueError):
+            p.blocked.append(f"{path} isn't a JSON object: Gemini hooks weren't added")
+            continue
+        if not new:
+            continue
+        p.done += [f"Antigravity ({path}): {w}" for w in what]
+        if not p.dry:
+            util.write_if_changed(path, new)
+        changed = True
+    return changed
+
+
 def missing():
     cmds = [c for c in NEEDS_CMDS if not shutil.which(c)]
     mods = [m for m in NEEDS_PY if importlib.util.find_spec(m) is None]
@@ -202,6 +223,13 @@ def install(dry=False):
         p.link(CANONICAL, ROOT)
     for d in sorted(x for x in (ROOT / "plasmoids").iterdir() if x.is_dir()):
         p.link(HOME / ".local/share/plasma/plasmoids" / d.name, d)
+    # standalone / user drop-in modules (~/.config/atom-plasma/modules/<id>/)
+    for m in modules.discover():
+        if m["plasmoid"] and m["plasmoid_path"] and not m["builtin"]:
+            p.link(HOME / ".local/share/plasma/plasmoids" / m["plasmoid"], Path(m["plasmoid_path"]))
+        for u in m["systemd_paths"]:
+            up = Path(u)
+            p.link(UNITS / up.name, up)
     for d in sorted(x for x in (ROOT / "lnf").iterdir() if x.is_dir()):
         p.link(HOME / ".local/share/plasma/look-and-feel" / d.name, d)
     for src, link in kwin.packages():         # effects and scripts, each where KWin looks for it
@@ -218,6 +246,7 @@ def install(dry=False):
         p.write(APPS / f"{i}.desktop", launcher(name, icon, cmd), ours_marker="X-AtomPlasma")
     p.write(SERVICEMENUS / "rice.desktop", servicemenu(), ours_marker="X-AtomPlasma")
     hooks_changed = cfg_claude(p, cfg)
+    cfg_gemini(p, cfg)
 
     # keys, only where none is bound (kglobalaccel reads them at the next login)
     have = kde.kde_read(HOME / ".config/kglobalshortcutsrc")
@@ -233,8 +262,9 @@ def install(dry=False):
         want.append("atom-plasma-rgb-watch.service")
     if caps.feature("gamepad", cfg):
         want.append("atom-plasma-pad.service")
-    if caps.feature("claude", cfg):
-        want.append("atom-plasma-claude-usage.timer")       # (the rings stay right with no session here)
+    for u in modules.module_units(cfg):
+        if u not in want:
+            want.append(u)
     if caps.feature("update_check", cfg):
         want += ["atom-plasma-update-check.timer", "atom-plasma-update-tidy.timer"]
     # KRunner is replaced by the launcher's search (Atom.Native's KRunner holds its place on the bus, so its

@@ -1,0 +1,37 @@
+{
+  "id": "claude",
+  "name": "Claude + Clawd",
+  "subtitle": "Session & weekly rings, Clawd roof & desk mascot, hooks",
+  "icon": "smart_toy",
+  "accent": "#d97757",
+  "bar_slot": "meters",
+  "order": 10,
+  "plasmoid": "com.zinoxx.claudeusage",
+  "portal_kind": "claude",
+  "desk": true,
+  "capabilities": ["claude"],
+  "systemd": ["atom-plasma-claude-usage.timer"],
+  "config": [
+    {
+      "key": "clawd_roof",
+      "label": "Clawd on bar roof",
+      "type": "bool",
+      "default": true,
+      "desc": "Let Clawd hop up onto the island's roof when the space above the bar is clear."
+    },
+    {
+      "key": "clawd_desk",
+      "label": "Clawd on desktop clock",
+      "type": "bool",
+      "default": true,
+      "desc": "Show Clawd standing on top of the desktop clock on your main desk screen."
+    },
+    {
+      "key": "alerts",
+      "label": "80% / 95% alerts",
+      "type": "bool",
+      "default": true,
+      "desc": "Send a desktop notification once per window when Claude usage crosses 80% or 95%."
+    }
+  ]
+}

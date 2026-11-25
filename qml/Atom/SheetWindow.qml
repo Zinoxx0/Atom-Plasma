@@ -79,6 +79,8 @@ Window {
         fillAlpha: pal.light ? 0.86 : 0.8
         rimA: pal.primary
         rimB: pal.tertiary
+        pal: pal
+        glassStyle: Prefs.barShadered ? Prefs.barStyle : ""
         props: ({ ricePalette: pal, screenName: win.screenName, ui: win.ui })
         onPhaseChanged: {
             if (phase === "opening") { win.wantsKeys = true; win.activatePending = true }

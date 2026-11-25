@@ -12,16 +12,19 @@ import Atom.Native
 QtObject {
     id: shell
 
-    // what the sheet can show: kind -> the panel's QML (each takes ricePalette, screenName, ui, kind, args)
-    readonly property var panels: ({
+    // what the sheet can show: kind -> the panel's QML (each takes ricePalette, screenName, ui, kind, args).
+    // Any bar widget using Rice.PortalHost auto-registers its kind to portalUrl on demand.
+    readonly property url portalUrl: Qt.resolvedUrl("panels/Portal.qml")
+    property var panels: ({
         calendar: Qt.resolvedUrl("panels/Calendar.qml"),
         control: Qt.resolvedUrl("panels/Control.qml"),
         traymenu: Qt.resolvedUrl("panels/TrayMenu.qml"),
         clipboard: Qt.resolvedUrl("panels/Clipboard.qml"),
         room: Qt.resolvedUrl("panels/Room.qml"),
-        stats: Qt.resolvedUrl("panels/Portal.qml"),
-        claude: Qt.resolvedUrl("panels/Portal.qml"),
-        apps: Qt.resolvedUrl("panels/Portal.qml"),        // the status island's stack of quiet apps
+        stats: portalUrl,
+        claude: portalUrl,
+        gemini: portalUrl,
+        apps: portalUrl,        // the status island's stack of quiet apps
         demo: Qt.resolvedUrl("panels/Demo.qml"),
         demo2: Qt.resolvedUrl("panels/Demo.qml"),
     })
@@ -174,6 +177,11 @@ QtObject {
     property var portals: ({})
     function portal(scr, k, component) {
         if (!scr || !k) return
+        if (!(k in panels)) {
+            const p = Object.assign({}, panels)
+            p[k] = portalUrl
+            panels = p
+        }
         const next = Object.assign({}, portals)
         next[scr + "/" + k] = component
         portals = next

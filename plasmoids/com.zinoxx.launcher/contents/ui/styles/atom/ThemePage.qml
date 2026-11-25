@@ -37,7 +37,7 @@ Item {
         onLeave: page.stage.enterTop("theme")           // (up past its top: the top bar)
     }
     Component.onCompleted: {
-        page.stage.pageApi = { key: e => studio.key(e), wheel: dy => studio.wheel(dy), north: () => studio.north(), openSection: r => studio.openSection(r),
+        page.stage.pageApi = { key: e => studio.key(e), wheel: dy => studio.wheel(dy / 120 * studio.d(320)), north: () => studio.north(), openSection: r => studio.openSection(r),
                                 save: () => ({ section: studio.section }), restore: f => { if (f.section) studio.setSection(f.section, true) },
                                 enter: () => studio.setSection(studio.section, true) }
         page.stage.hints = { pad: [], keys: [] }

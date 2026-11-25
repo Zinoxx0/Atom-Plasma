@@ -25,10 +25,11 @@ Item {
     // instant: jump to the value (the panel: a sweep per update would keep it redrawing)
     property bool instant: false
     Behavior on shown { enabled: !root.instant && Tokens.speed > 0; NumberAnimation { duration: Tokens.ms(1100); easing.type: Tokens.enter } }
+    property real lastPaintedPace: -999
     onShownChanged: canvas.requestPaint()
     onFromChanged: canvas.requestPaint()
     onToChanged: canvas.requestPaint()
-    onPaceChanged: canvas.requestPaint()
+    onPaceChanged: if (Math.abs(pace - lastPaintedPace) >= 0.25 || (pace < 0) !== (lastPaintedPace < 0)) canvas.requestPaint()
 
     property bool active: true
     onActiveChanged: if (active) sweep()
@@ -41,6 +42,7 @@ Item {
         anchors.fill: parent
         renderStrategy: Canvas.Cooperative
         onPaint: {
+            root.lastPaintedPace = root.pace;
             const ctx = getContext("2d");
             ctx.reset();
             const cx = width / 2, cy = height / 2;

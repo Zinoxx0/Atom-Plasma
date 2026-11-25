@@ -11,14 +11,13 @@
                              Darkly): run once, and again only to put them back
     rice.py thumbs           (re)build picker thumbnails
     rice.py walls            the picker's list: wallpaper file names, one per line (thumbnails built)
-    rice.py bar style solid|matte|clear|none
-                             the bar's islands: solid dark glass, noisy matte (the launcher's grain), clear
-                             blur or no blur (a tint over the sharp wallpaper); settings bar.style
-    rice.py backdrop matte|clear|noise|none
-                             the backdrop of the launcher and the power page: noisy matte (the frosted
-                             wallpaper under a fine grain), clear blur (KWin's live blur), noisy only (the
-                             wallpaper itself under the grain) or none (the wallpaper itself, only the dark
-                             shade); settings backdrop.style (`rice.py blur` still works)
+    rice.py bar style solid|satin|aurora|matte|clear|liquid|none
+                             the bar's islands: Solid, Satin (textured solid), Aurora (palette mesh), Sanded
+                             glass (matte), Blur (clear), Liquid glass or Clear (none)
+    rice.py backdrop solid|satin|aurora|matte|clear|liquid|none
+                             the backdrop of the launcher and the power page: Solid, Satin, Aurora, Sanded
+                             glass (matte), Blur (clear), Liquid glass or Clear (none)
+                             (legacy `noise` and `rice.py blur` still work); settings backdrop.style
     rice.py launcher size F  the launcher's own size, apart from the taskbar's (ui): 1 = each screen's standard
                              size (how big a pixel looks from where you sit); settings launcher.size
     rice.py launcher style NAME   which launcher opens: simplified (rows under a hero) or atom (the apps as an
@@ -152,8 +151,9 @@ def main(args):
         from atom import home
         print(home.write())
     elif arg in ("backdrop", "blur"):     # the launcher's and the power page's backdrop (Atom Prefs reads it live)
-        if len(args) < 2 or args[1] not in ("matte", "clear", "noise", "none"):
-            sys.exit("rice.py backdrop matte|clear|noise|none")
+        valid_bd = ("solid", "satin", "aurora", "matte", "clear", "liquid", "noise", "none")
+        if len(args) < 2 or args[1] not in valid_bd:
+            sys.exit("rice.py backdrop " + "|".join(valid_bd))
         cfg = util.user_settings()
         cfg.pop("blur", None)       # (its name before 1.1)
         cfg.setdefault("backdrop", {})["style"] = args[1]
@@ -265,6 +265,9 @@ def main(args):
     elif arg == "manager":
         from atom import manager
         manager.main(args[1:])
+    elif arg == "modules":
+        from atom import modules
+        modules.main(args[1:])
     elif arg == "update":
         from atom import updater
         updater.main(args[1:])

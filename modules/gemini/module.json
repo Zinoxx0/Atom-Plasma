@@ -1,0 +1,56 @@
+{
+  "id": "gemini",
+  "name": "Gemini",
+  "subtitle": "Horizon usage meter & Antigravity gravity waves",
+  "icon": "auto_awesome",
+  "accent": "#9b72cb",
+  "bar_slot": "meters",
+  "order": 20,
+  "plasmoid": "com.zinoxx.geminiusage",
+  "portal_kind": "gemini",
+  "desk": false,
+  "capabilities": ["gemini"],
+  "systemd": [],
+  "config": [
+    {
+      "key": "star_style",
+      "label": "Star colours",
+      "type": "choice",
+      "default": "iridescent",
+      "desc": "Choose Gemini's iridescent gradient or the 4-colour Google star.",
+      "options": [
+        {
+          "value": "iridescent",
+          "label": "Gemini gradient",
+          "dots": ["#4ecdc4", "#4285f4", "#9b72cb", "#d96570"]
+        },
+        {
+          "value": "google4",
+          "label": "4-colour star",
+          "dots": ["#ea4335", "#fbbc04", "#34a853", "#4285f4"]
+        }
+      ]
+    },
+    {
+      "key": "ripples",
+      "label": "Gravity waves",
+      "type": "bool",
+      "default": true,
+      "desc": "Emit soft spacetime gravity waves around the Gemini star while Antigravity is working."
+    },
+    {
+      "key": "alerts",
+      "label": "80% / 95% alerts",
+      "type": "bool",
+      "default": true,
+      "desc": "Send a desktop notification once per window when Gemini usage crosses 80% or 95%."
+    },
+    {
+      "key": "show_3p",
+      "label": "Shared Claude/GPT pool",
+      "type": "bool",
+      "default": false,
+      "desc": "Also show Antigravity's shared Claude & GPT quota buckets inside the Gemini popup."
+    }
+  ]
+}

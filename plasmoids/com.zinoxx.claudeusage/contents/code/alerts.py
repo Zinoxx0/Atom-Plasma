@@ -17,7 +17,19 @@ HOME = Path.home()
 CACHES = (HOME / ".cache/claude-usage.json",          # the status line's (a session here): "updated"
           HOME / ".cache/claude-usage-poll.json")     # bin/claude-usage.py's (from Anthropic): "checked"
 ALERTS = HOME / ".local/state/rice/claude-alerts.json"
+SETTINGS = HOME / ".config/atom-plasma/settings.json"
 IMAGES = Path(__file__).resolve().parent.parent / "images"
+
+
+def _alerts_enabled():
+    try:
+        cfg = json.loads(SETTINGS.read_text())
+    except (OSError, ValueError):
+        return True
+    mod = (cfg.get("modules") or {}).get("claude") or {}
+    if mod.get("enabled") is False:
+        return False
+    return bool((mod.get("config") or {}).get("alerts", True))
 
 
 def until(ts, now):
@@ -47,6 +59,8 @@ def newest():
 
 
 def main():
+    if not _alerts_enabled():
+        return
     now = time.time()
     data = newest()
     if data is None:

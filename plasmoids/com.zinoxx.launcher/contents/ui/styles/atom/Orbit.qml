@@ -11,10 +11,10 @@ import Rice
 // Items are laid out one of three ways:
 //  - a PathView (Apps, Search): even steps; a long ring shows `window` items at a time, the rest come round through a
 //    gap on the far side (they fade there);
-//  - docked (the view's `dock`: Home; the lab's round 6): the ring places them itself (angleAt), so the active ring is a
-//    dock: the focus biggest, its neighbours less (a gaussian over their distance in items) and they make room (the
-//    steps grow with the sizes, still a whole turn); the other rings rest a little smaller, the active one lifts out.
-//    The dock centres on the focus where it is (a pointer's pick grows in place, its neighbours step aside);
+//  - docked (the view's `dock`: Home; the lab's round 6): the ring lays its items out evenly round itself (angleAt);
+//    the active ring lifts out radially and the focused item magnifies smoothly in place (nothing shifts tangentially
+//    round the ring on hover, so moving the pointer across icons — including across 3 o'clock — stays rock-solid);
+//    the other rings rest a little smaller;
 //  - placed: the items at their own angles (it.ang: degrees clockwise from 3 o'clock; the colour wheel, gauges) and the
 //    focus moves between them, nothing turns. A gauge is a placed ring of values drawn as an arc filled to the focus.
 Item {
@@ -69,43 +69,27 @@ Item {
     signal rightClicked(int i, Item tile)
     anchors.fill: parent
 
-    // ------------------------------------------------------------------ docked: the ring lays its items out itself
+    // ------------------------------------------------------------------ docked: evenly spaced round the ring
+    // Items keep fixed angular slots when hovered (only turning the ring moves them round it); the active ring lifts
+    // out radially (`dockS`) and the focused item grows smoothly in place on its own Spring (Node).
     property int turnTo: 0                  // unbounded: the slot's item is turnTo mod count
     Spring { id: turnS; to: ring.turnTo; stiffness: 16; enabled: ring.docked; epsilon: 0.002 }
     readonly property real turnPos: turnS.value
     onTurnToChanged: if (docked && count) current = mod(turnTo, count)
-    // the dock's centre: the focus (the slot's item, or the pointer's pick where it is), counted near the turn
-    readonly property real dockTarget: picked >= 0 && count ? turnTo + wrapC(picked - mod(turnTo, count), count) : turnTo
-    Spring { id: dockAtS; to: ring.dockTarget; stiffness: 16; enabled: ring.docked; epsilon: 0.002 }
-    readonly property real dockAt: dockAtS.value
     readonly property int span: lengthy ? window : count        // the items a whole turn holds
-    function erf(x) {       // Abramowitz-Stegun 7.1.26 (|error| < 1.5e-7)
-        const s = x < 0 ? -1 : 1, a = Math.abs(x), t = 1 / (1 + 0.3275911 * a)
-        return s * (1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-a * a))
-    }
-    // degrees round the ring from the dock's centre to `o` items away: the integral of the items' relative sizes (1 +
-    // f * a gaussian), scaled so a whole turn is 360 (so the bigger ones near the focus get more room)
-    function along(o, dk) {
-        const s = view.dockSigma, f = (view.dockFocus - 1) * (dk === undefined ? docking : dk) * (span > 2 ? 1 : 0), A = f * s * Math.sqrt(Math.PI) / 2
-        return 360 * (o + A * erf(o / s)) / (span + 2 * A * erf(span / 2 / s))
-    }
     function angleAt(i) {   // where item i is this frame (deg, clockwise from 3 o'clock)
-        return 180 - (dockAt - turnPos) * 360 / span - along(wrapC(i - dockAt, count)) + spin
+        return count && span ? 180 - wrapC(i - turnPos, count) * 360 / span + spin : 180
     }
-    function restAngle(i) { // where item i will be once the dock settles (the lens's target)
-        const dk = docked && active ? 1 : 0
-        return 180 - (dockTarget - turnTo) * 360 / span - along(wrapC(i - dockTarget, count), dk) + spin
-    }
-    function scaleAt(i) {   // its shown size over its own (the dock's: the focus most; at rest a little smaller)
-        const o = wrapC(i - dockAt, count), it = items[i] || {}
-        const g = 1 + (view.dockFocus - 1) * Math.exp(-Math.pow(o / view.dockSigma, 2))
-        const m = Math.min(g, Math.max(1, view.dockMax / (it.big || size)))
-        return view.dockRest + (m - view.dockRest) * docking
+    function restAngle(i) { // where item i will rest once the turn settles (the lens's target)
+        return count && span ? 180 - wrapC(i - turnTo, count) * 360 / span + spin : 180
     }
     function focusScale(i) { const it = items[i] || {}; return Math.min(view.dockFocus, Math.max(1, view.dockMax / (it.big || size))) }
+    function scaleAt(i) {   // target scale on a docked ring: focused grows, active ring full, inactive rests smaller
+        if (!active) return view.dockRest
+        return i === focusIndex ? focusScale(i) : 1
+    }
+    function shownScale(i) { const dl = dockRep.itemAt(i); return dl ? dl.shownScale : scaleAt(i) }
     function fadeAt(i) { return lengthy ? M.clamp(span / 2 - Math.abs(wrapC(i - turnPos, count))) : 1 }
-    // the slot item's shown size (design px * k): the ring's name sits over it
-    readonly property real slotShown: { const it = items[slotIndex] || {}; return d(it.big || size) * (docked ? scaleAt(slotIndex) : 1) }
 
     // a gauge: a 270 deg track from bottom-left round the top to bottom-right, lit up to the value in focus
     Shape {

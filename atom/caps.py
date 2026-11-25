@@ -36,6 +36,10 @@ def found():
         "colorizer": Path("/usr/share/plasma/plasmoids/luisbocanegra.panel.colorizer").is_dir()
                      or (HOME / ".local/share/plasma/plasmoids/luisbocanegra.panel.colorizer").is_dir(),
         "claude": bool(shutil.which("claude")) or (HOME / ".claude").is_dir(),
+        "gemini": (HOME / ".t3/caches/antigravity.json").exists()
+                  or (HOME / ".gemini").is_dir()
+                  or bool(shutil.which("agy"))
+                  or bool(shutil.which("gemini")),
         "nvidia": bool(shutil.which("nvidia-smi")),
         "arch": bool(shutil.which("pacman")) and bool(shutil.which("checkupdates")),
         "aur_helper": bool(shutil.which("paru") or shutil.which("yay")),
@@ -51,6 +55,7 @@ def found():
 # feature -> (what it needs: all of these capabilities, what it does)
 FEATURES = {
     "claude": (["claude"], "Clawd and Claude usage on the bar, desk and popups (Claude Code)"),
+    "gemini": (["gemini"], "Gemini horizon usage meter and Antigravity gravity waves on the bar and popup"),
     "tiling": (["krohnkite"], "per-screen auto-tiling (Krohnkite), its bar toggle and Meta+Alt+T"),
     "islands": (["colorizer"], "the bar's glass islands (Panel Colorizer)"),
     "keyboard_lights": ([], "keyboard RGB in the screen's accents (ASUS laptops through asusd, Razer keyboards)"),
@@ -63,8 +68,11 @@ FEATURES = {
 
 
 def feature(name, cfg=None):
-    """Is this feature on? settings features.<name>: on | off | auto (default: on when its needs are met)."""
+    """Is this feature on? settings modules.<name>.enabled (if set), else features.<name>: on | off | auto."""
     cfg = util.settings() if cfg is None else cfg
+    mod = (cfg.get("modules") or {}).get(name)
+    if isinstance(mod, dict) and isinstance(mod.get("enabled"), bool):
+        return mod["enabled"]
     want = str(((cfg.get("features") or {}).get(name, "auto"))).lower()
     if want in ("on", "true", "1"):
         return True

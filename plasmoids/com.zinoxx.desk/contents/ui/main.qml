@@ -67,8 +67,12 @@ PlasmoidItem {
     Timer { interval: 2500; running: true; onTriggered: root.refreshWeather() }
     Timer { interval: 15 * 60 * 1000; running: true; repeat: true; onTriggered: root.refreshWeather() }
 
-    // ---- Clawd's situation: the bar's Claude widget's, watched only where Clawd is shown
-    ClaudeUsage { id: limits; active: root.desk.clawd === true }
+    // ---- Clawd's situation: the bar's Claude widget's, watched only where Clawd is shown (and the
+    // Claude module + its desktop mascot option are enabled in Misc Modules)
+    readonly property bool clawdOn: root.desk.clawd === true
+                                 && Prefs.moduleEnabled("claude", true)
+                                 && !!Prefs.moduleOpt("claude", "clawd_desk", true)
+    ClaudeUsage { id: limits; active: root.clawdOn }
     readonly property real peak: limits.peak
     // how full the usage is shows as how tired Clawd looks (Clawd.usage), not as a mood
     readonly property string mood: limits.mood
@@ -77,10 +81,10 @@ PlasmoidItem {
     readonly property bool warm: limits.warm
     readonly property real sand: limits.sand
     // what Claude Code is doing (its hooks), watched only where Clawd is shown
-    ClaudeActivity { id: claude; active: root.desk.clawd === true }
+    ClaudeActivity { id: claude; active: root.clawdOn }
     // a check-in from Claude (ask.sh): the "!" over the desktop Clawd and its message under the clock,
     // until it's marked done (a click on Clawd, or the bar's popup) or Claude clears it
-    ClaudeAsk { id: checkIn; active: root.desk.clawd === true }
+    ClaudeAsk { id: checkIn; active: root.clawdOn }
     readonly property bool asking: checkIn.asking
     readonly property string askMsg: checkIn.msg
     function askDone() { checkIn.done() }
@@ -88,7 +92,7 @@ PlasmoidItem {
     // message sits under the clock, until a click on the bubble or the update is installed
     ClaudeAsk {
         id: cachy
-        active: root.desk.clawd === true
+        active: root.clawdOn
         file: "cachy-update.json"
         ackCommand: 'python3 "$HOME/.config/plasma-rice/bin/update-check.py" --ack'
     }

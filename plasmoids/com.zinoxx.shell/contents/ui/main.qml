@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Window
 import org.kde.plasma.plasmoid
 import Atom
+import Rice
 
 // The shell's host: one per bar, takes no space on it. It draws its screen's panels (calendar, control
 // center...) on one morphing sheet (Atom.SheetWindow), its part of the power overlay (Atom.PowerWindow) and
@@ -48,7 +49,42 @@ PlasmoidItem {
             }
         }
     }
-    Component.onCompleted: Qt.callLater(findColorizer)
+    readonly property var panelElement: {
+        let c = root.parent
+        while (c) {
+            if (c.hasOwnProperty("touchingWindow")) return c
+            c = c.parent
+        }
+        return null
+    }
+    readonly property bool docked: !!(panelElement && panelElement.touchingWindow)
+    RicePalette { id: barPal; output: root.myScreen ? root.myScreen.name : "" }
+
+    // Mount Atom LiquidBar behind panelLayout ONLY for GPU shader bar styles (liquid, aurora)
+    property Item liquidBar: null
+    readonly property bool wantLiquidBar: Prefs.barShadered && !!root.panelLayout && !!root.panelLayout.parent && !!root.myScreen
+    Component {
+        id: liquidBarComp
+        LiquidBar {
+            panelLayout: root.panelLayout
+            screenObj: root.myScreen
+            pal: barPal
+            style: Prefs.barStyle
+            docked: root.docked
+        }
+    }
+    function syncLiquidBar() {
+        if (wantLiquidBar) {
+            if (!liquidBar) liquidBar = liquidBarComp.createObject(root.panelLayout.parent)
+            else if (liquidBar.parent !== root.panelLayout.parent) liquidBar.parent = root.panelLayout.parent
+        } else if (liquidBar) {
+            liquidBar.destroy()
+            liquidBar = null
+        }
+    }
+    onWantLiquidBarChanged: Qt.callLater(syncLiquidBar)
+    Component.onCompleted: { Qt.callLater(findColorizer); Qt.callLater(syncLiquidBar) }
+    Component.onDestruction: if (liquidBar) { liquidBar.destroy(); liquidBar = null }
     Connections {
         target: root.panelLayout
         function onChildrenChanged() { root.findColorizer() }
@@ -69,12 +105,28 @@ PlasmoidItem {
             unfreezeColorizer.restart()
         }
     }
+    // Keep the Binding active once Colorizer is found: in Qt 6, Binding with RestoreBindingOrValue does
+    // not restore a JS expression binding on a `property var`, leaving Colorizer's presetAutoloading stuck
+    // at { enabled: false } forever after the first launcher open.
+    readonly property var colorizerCfg: root.colorizer && root.colorizer.plasmoid ? root.colorizer.plasmoid.configuration : null
+    property int colorizerCfgRev: 0
+    Connections {
+        target: root.colorizerCfg
+        function onValueChanged(key) { if (key === "presetAutoloading") root.colorizerCfgRev++ }     // qmllint disable signal-handler-parameters
+    }
+    readonly property var liveAutoloading: {
+        colorizerCfgRev
+        const raw = root.colorizerCfg ? root.colorizerCfg.presetAutoloading : ""
+        if (!raw) return null
+        try { return JSON.parse(String(raw)) } catch (e) { return null }
+    }
     Binding {
         target: root.colorizer
         property: "presetAutoloading"
-        value: ({ enabled: false, filterByScreen: true, filterByActive: false, trackLastActive: false })
-        when: root.freezeColorizer && !!root.colorizer
-        restoreMode: Binding.RestoreBindingOrValue
+        value: root.freezeColorizer
+            ? Object.assign({}, root.liveAutoloading, { enabled: false })
+            : root.liveAutoloading
+        when: !!root.colorizer && root.liveAutoloading !== null
     }
 
     Instantiator {

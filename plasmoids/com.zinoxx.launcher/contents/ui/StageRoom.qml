@@ -47,10 +47,10 @@ Item {
                         layer.enabled: glow.visible && visible
                         layer.effect: MultiEffect { colorization: 0.55; colorizationColor: glow.c; brightness: 0.04 }
                     }
-                    Rectangle {     // clear blur: a breath of its colour on the glass
+                    Rectangle {     // glass / solid / aurora: a breath of the app's colour on the room
                         anchors.fill: parent
-                        visible: room.style.glass
-                        color: C.alpha(glow.c, 0.08)
+                        visible: !room.style.matte && !room.style.sharp
+                        color: C.alpha(glow.c, room.style.glass ? 0.08 : 0.06)
                     }
                     Kirigami.Icon {     // (a blurred filter: not in no blur)
                         x: parent.width * 0.94 - width; y: parent.height * 0.04

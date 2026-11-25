@@ -18,10 +18,8 @@ Item {
     property var shells: []                 // [{ name, items, radius, size, window }]
     property color tint: rice.primary       // the focus's colour (the page reads it off its icon)
     property bool dock: false
-    // the dock (design px): the focus x1.6 (never past 116 px), a gaussian over its neighbours (sigma in items), the
-    // other rings at rest x0.86, the active one 22 px further out
+    // the dock (design px): the focus x1.6 (never past 116 px), the other rings at rest x0.86, the active one 22 px further out
     readonly property real dockFocus: 1.6
-    readonly property real dockSigma: 1.3
     readonly property real dockMax: 116
     readonly property real dockRest: 0.86
     readonly property real dockLift: 22
@@ -314,7 +312,7 @@ Item {
                 const take = (x, y, h) => { if (Math.abs(x - lx) < half + h && y - h < av.cy) reach = Math.max(reach, av.cy - (y - h)) }
                 for (let i = 0; i < r.count; i++) {
                     const a = r.angleAt(i) * Math.PI / 180, it = r.items[i] || {}
-                    take(av.cx + r.r * Math.cos(a), av.cy + r.r * Math.sin(a), r.d(it.big || r.size) * r.scaleAt(i) / 2)
+                    take(av.cx + r.r * Math.cos(a), av.cy + r.r * Math.sin(a), r.d(it.big || r.size) * r.shownScale(i) / 2)
                 }
                 if (av.at === index && lens.opacity > 0.01) take(av.lensX, av.lensY, lensReach)
                 return reach + av.d(10) * av.k

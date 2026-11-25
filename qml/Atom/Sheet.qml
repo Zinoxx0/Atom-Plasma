@@ -27,11 +27,13 @@ Item {
     property real radius: Tokens.radius.xl
     property var props: ({})                    // given to every content item (palette, screen, ...)
 
-    // the glass (plain colours)
+    // the glass (plain colours; optional Liquid Glass when pal + liquid are supplied)
     property color fill: Tokens.neutral.dark
     property real fillAlpha: 0.8
     property color rimA: "white"
     property color rimB: "white"
+    property var pal: null
+    property string glassStyle: ""
 
     // live shape, in this item's coordinates (a new object once per frame, not once per edge)
     readonly property var shape: shapeNow
@@ -210,6 +212,10 @@ Item {
         rimA: sheet.rimA
         rimB: sheet.rimB
         lift: sheet.lift
+        glassStyle: sheet.glassStyle
+        pal: sheet.pal
+        screenSize: Qt.size(sheet.width, sheet.height)
+        screenPos: Qt.point(sheet.sx, sheet.sy)
     }
     Item {
         id: clipper

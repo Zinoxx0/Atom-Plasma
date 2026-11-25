@@ -62,7 +62,7 @@ panels().forEach(function (p) {
     // Meta+V: the clipboard's history (plasmashell's own binding is released first, atom/panel.py); a global
     // shortcut belongs to one widget: the main bar's
     if (main && !st.globalShortcut) st.globalShortcut = "Meta+V";
-    if (ARGS.with_claude) one("com.zinoxx.claudeusage");
+    (ARGS.meters || []).forEach(function (plugin) { one(plugin); });
     one("com.zinoxx.sysstats");
     one("com.zinoxx.session");
     // the old secondary bars' show-desktop button isn't one of the islands

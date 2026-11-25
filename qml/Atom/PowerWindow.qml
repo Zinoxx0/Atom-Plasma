@@ -156,17 +156,21 @@ Window {
         window: pw
         pal: pal
         style: pw.overHome ? "veil" : Prefs.backdropStyle
-        grainy: Prefs.backdropStyle === "matte" || Prefs.backdropStyle === "noise"
+        grainy: Prefs.backdropStyle === "matte" || Prefs.backdropStyle === "satin" || Prefs.backdropStyle === "noise"
         // (over the launcher its own grain still shows through the veil, faded: together they come to the one
         // grain, as noise adds: measured, 4.0 against 3.7 at the full strength)
-        grainAlpha: pw.overHome ? Prefs.grainAlpha * Math.sqrt(1 - Math.pow(1 - veil, 2)) : Prefs.grainAlpha
+        grainAlpha: pw.overHome ? Prefs.grainAlpha * Math.sqrt(1 - Math.pow(1 - veil, 2))
+                                : (Prefs.backdropStyle === "satin" ? 0.075 : Prefs.grainAlpha)
         origin: pw.origin
         radius: pw.p >= 1 ? -1 : pw.r
         visible: pw.phase !== "closed" && pw.r > 0.5
-        // (no blur, noisy only: the sharp wallpaper's detail is right behind the text, so the veil is at least
-        // what the theme engine's measure of it needs for the dim text to read, 4.5:1; the others soften it)
+        // (clear / legacy noise: the sharp wallpaper's detail is right behind the text, so the veil is at least
+        // what the theme engine's measure of it needs for the dim text to read, 4.5:1; solid/satin/aurora are
+        // already tuned surfaces and only need a light dimming veil)
         readonly property var sharpLight: pal.values._backdropSharp || ({})
-        veil: Math.max(pw.wasLead ? Prefs.glassVeil : Prefs.glassVeil * 0.7,
+        readonly property bool cleanSurface: !pw.overHome && (Prefs.backdropStyle === "solid" || Prefs.backdropStyle === "satin" || Prefs.backdropStyle === "aurora")
+        veil: cleanSurface ? (pw.wasLead ? 0.16 : 0.08)
+            : Math.max(pw.wasLead ? Prefs.glassVeil : Prefs.glassVeil * 0.7,
                        (Prefs.backdropStyle === "none" || Prefs.backdropStyle === "noise") && pw.wasLead ? C.scrim(Math.max(sharpLight.hero ?? 0.6, sharpLight.rows ?? 0.6), pal.fgDim, pal.surfaceLowest, 4.5) : 0)
     }
     // a click anywhere on the blur folds it away

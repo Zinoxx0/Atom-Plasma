@@ -1,0 +1,14 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [{ "Name": "zinoxx" }],
+        "Category": "System Information",
+        "Description": "Gemini 5-hour and weekly usage meter with Antigravity gravity waves",
+        "Icon": "auto-awesome",
+        "Id": "com.zinoxx.geminiusage",
+        "License": "GPL-3.0-or-later",
+        "Name": "Gemini Usage",
+        "Version": "1.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
