@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.2 (2026-11-25)
+
 **Surfaces & Materials**
 - Unified 7-material library across both the launcher / power backdrop and the taskbar islands + morphing popup sheets:
   Solid, Satin (bead-blasted anodized solid with micro-grain), Aurora (single-pass GPU velvet palette silk mesh with

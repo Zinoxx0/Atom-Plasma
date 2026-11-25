@@ -20,4 +20,4 @@ are the entry points the widgets, units, shortcuts and hooks run; the work happe
     boot       Limine, Plymouth and the login screen
 """
 
-__version__ = "1.1.1"
+__version__ = "1.1.2"
