@@ -1,14 +1,15 @@
 {
     "KPackageStructure": "KWin/Effect",
     "KPlugin": {
-        "Authors": [{ "Name": "zinoxx (plasma-rice), after Vlad Zahorodnii's Scale" }],
+        "Authors": [{ "Name": "ViVia Technologies (Atom Plasma), after Vlad Zahorodnii's Scale" }],
         "Category": "Window Open/Close Animation",
         "Description": "Windows fade in from a slightly smaller size and fade out shrinking a little",
         "EnabledByDefault": false,
         "Icon": "preferences-system-windows-effect-scale",
         "Id": "rice_window",
         "License": "GPL-3.0-or-later",
-        "Name": "Rice window motion"
+        "Name": "Rice window motion",
+        "Website": "https://viviatechnologies.com/atomplasma/"
     },
     "X-KDE-Ordering": 60,
     "X-KWin-Exclusive-Category": "toplevel-open-close-animation",

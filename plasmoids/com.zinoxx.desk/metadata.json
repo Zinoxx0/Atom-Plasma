@@ -3,7 +3,7 @@
     "KPlugin": {
         "Authors": [
             {
-                "Name": "zinoxx"
+                "Name": "ViVia Technologies"
             }
         ],
         "Category": "Date and Time",
@@ -12,7 +12,8 @@
         "Id": "com.zinoxx.desk",
         "License": "GPL-3.0-or-later",
         "Name": "Atom Plasma Desk",
-        "Version": "1.0"
+        "Version": "1.0",
+        "Website": "https://viviatechnologies.com/atomplasma/"
     },
     "X-Plasma-API-Minimum-Version": "6.0"
 }

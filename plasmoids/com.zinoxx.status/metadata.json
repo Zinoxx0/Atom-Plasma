@@ -1,14 +1,15 @@
 {
     "KPackageStructure": "Plasma/Applet",
     "KPlugin": {
-        "Authors": [{ "Name": "zinoxx" }],
+        "Authors": [{ "Name": "ViVia Technologies" }],
         "Category": "System Information",
         "Description": "Your apps' tray icons and the system's state; opens the control center",
         "Icon": "preferences-system",
         "Id": "com.zinoxx.status",
         "License": "GPL-3.0-or-later",
         "Name": "Status",
-        "Version": "1.0"
+        "Version": "1.0",
+        "Website": "https://viviatechnologies.com/atomplasma/"
     },
     "X-Plasma-API-Minimum-Version": "6.0"
 }

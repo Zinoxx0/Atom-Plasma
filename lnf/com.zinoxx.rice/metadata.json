@@ -3,14 +3,15 @@
     "KPlugin": {
         "Authors": [
             {
-                "Name": "zinoxx"
+                "Name": "ViVia Technologies"
             }
         ],
         "Description": "Atom Plasma: the white Orbit splash over the blurred wallpaper, and a wlogout-style logout screen (blurred per-screen wallpaper, big action tiles, countdown). Everything else falls back to Breeze.",
         "Id": "com.zinoxx.rice",
         "License": "GPL-3.0-or-later",
         "Name": "Atom Plasma",
-        "Version": "1.0"
+        "Version": "1.0",
+        "Website": "https://viviatechnologies.com/atomplasma/"
     },
     "X-Plasma-APIVersion": "2"
 }

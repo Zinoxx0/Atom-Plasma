@@ -1,14 +1,15 @@
 {
     "KPackageStructure": "Plasma/Applet",
     "KPlugin": {
-        "Authors": [{ "Name": "zinoxx" }],
+        "Authors": [{ "Name": "ViVia Technologies" }],
         "Category": "Application Launchers",
         "Description": "Calm, wallpaper-lit app launcher: search apps, settings, files and maths",
         "Icon": "start-here-kde",
         "Id": "com.zinoxx.launcher",
         "License": "GPL-3.0-or-later",
         "Name": "Launcher",
-        "Version": "1.0"
+        "Version": "1.0",
+        "Website": "https://viviatechnologies.com/atomplasma/"
     },
     "X-Plasma-API-Minimum-Version": "6.0",
     "X-Plasma-Provides": ["org.kde.plasma.launchermenu"]

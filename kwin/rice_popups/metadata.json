@@ -1,14 +1,15 @@
 {
     "KPackageStructure": "KWin/Effect",
     "KPlugin": {
-        "Authors": [{ "Name": "zinoxx (plasma-rice), after Vlad Zahorodnii's Fading popups" }],
+        "Authors": [{ "Name": "ViVia Technologies (Atom Plasma), after Vlad Zahorodnii's Fading popups" }],
         "Category": "Appearance",
         "Description": "Menus and tooltips fade in with a short slide; other popups fade",
         "EnabledByDefault": false,
         "Icon": "preferences-system-windows-effect-fadingpopups",
         "Id": "rice_popups",
         "License": "GPL-3.0-or-later",
-        "Name": "Rice popups"
+        "Name": "Rice popups",
+        "Website": "https://viviatechnologies.com/atomplasma/"
     },
     "X-KDE-Ordering": 60,
     "X-Plasma-API": "javascript"

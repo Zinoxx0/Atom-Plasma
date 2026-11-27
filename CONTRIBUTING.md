@@ -13,7 +13,7 @@ how they talk to each other.
 ## Setting up
 
 ```sh
-git clone https://github.com/Zinoxx0/Atom-Plasma ~/.config/plasma-rice
+git clone https://github.com/ViviaTech/Atom-Plasma ~/.config/plasma-rice
 cd ~/.config/plasma-rice
 ./rice.py install            # links the widgets, effects and units into this checkout, sets plasmashell's environment
 pkg/atom-native/build.sh     # builds Atom.Native into ~/.local/lib/qt6/qml

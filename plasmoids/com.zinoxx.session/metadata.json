@@ -1,14 +1,15 @@
 {
     "KPackageStructure": "Plasma/Applet",
     "KPlugin": {
-        "Authors": [{ "Name": "zinoxx" }],
+        "Authors": [{ "Name": "ViVia Technologies" }],
         "Category": "System Information",
         "Description": "Lock, sleep, log out, restart and shut down",
         "Icon": "system-shutdown",
         "Id": "com.zinoxx.session",
         "License": "GPL-3.0-or-later",
         "Name": "Session",
-        "Version": "1.0"
+        "Version": "1.0",
+        "Website": "https://viviatechnologies.com/atomplasma/"
     },
     "X-Plasma-API-Minimum-Version": "6.0"
 }

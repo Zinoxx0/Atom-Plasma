@@ -1,14 +1,15 @@
 {
     "KPackageStructure": "Plasma/Applet",
     "KPlugin": {
-        "Authors": [{ "Name": "zinoxx" }],
+        "Authors": [{ "Name": "ViVia Technologies" }],
         "Category": "Windows and Tasks",
         "Description": "Auto-tiling on or off for this screen",
         "Icon": "view-grid",
         "Id": "com.zinoxx.tiling",
         "License": "GPL-3.0-or-later",
         "Name": "Tiling",
-        "Version": "1.0"
+        "Version": "1.0",
+        "Website": "https://viviatechnologies.com/atomplasma/"
     },
     "X-Plasma-API-Minimum-Version": "6.0"
 }

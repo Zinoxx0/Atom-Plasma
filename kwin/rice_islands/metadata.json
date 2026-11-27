@@ -1,13 +1,14 @@
 {
     "KPackageStructure": "KWin/Script",
     "KPlugin": {
-        "Authors": [{ "Name": "zinoxx (plasma-rice)" }],
+        "Authors": [{ "Name": "ViVia Technologies (Atom Plasma)" }],
         "Description": "The bar's islands live on one screen at a time: the pointer's, unless a fullscreen window covers it",
         "EnabledByDefault": false,
         "Icon": "view-split-left-right",
         "Id": "rice_islands",
         "License": "GPL-3.0-or-later",
-        "Name": "Rice islands"
+        "Name": "Rice islands",
+        "Website": "https://viviatechnologies.com/atomplasma/"
     },
     "X-Plasma-API": "declarativescript",
     "X-Plasma-API-Minimum-Version": "6.0",

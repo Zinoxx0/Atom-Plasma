@@ -1,7 +1,7 @@
 {
  "dark": {
   "dialogs/background.svgz": "c97d70011c4a016ea2deff0db197d6b4f294498d3046220b281034b3fa3555ba",
-  "metadata.json": "b844d96366b374a2280bc3655f7e8d1dfd0a7a12466458652ad938c727788270",
+  "metadata.json": "9e9f760bc23446f9ae99036aecb5a1bc2d8c9e9fa6a16e257858851d57bfc61e",
   "opaque/dialogs/background.svgz": "59ec2badba39ddd76cbac40dab223e8a1d1c3284e3ceafe44119d2aeb675a221",
   "opaque/widgets/panel-background.svgz": "3e700bb2241dcf7f696afaadeafbca8eb24935590ba2c7d63c15f6eee7c7fabd",
   "opaque/widgets/tooltip.svgz": "12c53b16f1afbfc74e0459dcdc763d803ea218b03b8c452b8f81805bbbefd285",
@@ -35,7 +35,7 @@
  },
  "light": {
   "dialogs/background.svgz": "2e26b85ced2651d4e870a9fd22cbab01d7bd12f847f376dbfd08d68c809ed78d",
-  "metadata.json": "ff868a8801c07a1b9bd9a9d8c4ce046edb1fae454a7abdd5371d0d6129ac7c6b",
+  "metadata.json": "ef64f54ac424c148c0393430c2106f55cefc4c23d53a117f9661c6c6c6bd288b",
   "opaque/dialogs/background.svgz": "2e92e7db2c8a3d4075331b6a4ddc25175999e4e0ec6db0d078155c7d23b84048",
   "opaque/widgets/panel-background.svgz": "70cad977455c6a4d875d03a6004f14d63f272456baa84220bf5479490cc4611c",
   "opaque/widgets/tooltip.svgz": "775513488fd2014d865afce7b766b307c8e966963fe066f0b0e01e63e8f2cf0d",

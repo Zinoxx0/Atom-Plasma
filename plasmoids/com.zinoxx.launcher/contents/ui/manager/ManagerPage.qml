@@ -899,6 +899,7 @@ Item {
                         required property int index
                         readonly property string link: modelData.name === "Claude" ? "https://claude.com/claude-code"
                                                        : modelData.name === "Gemini" ? "https://gemini.google.com"
+                                                       : modelData.name === "zinoxx" ? "https://github.com/Zinoxx0"
                                                        : modelData.role === "Author" && mp.repo.url ? mp.repo.url.replace(/\/[^\/]+$/, "") : ""
                         studio: mp
                         width: cr.cardW
@@ -972,7 +973,7 @@ Item {
             Text {
                 topPadding: mp.d(10)
                 width: parent.width; wrapMode: Text.WordWrap
-                text: "Atom Plasma is free software under the " + ((mp.info && mp.info.license) || "GPL-3.0-or-later") + ". Every project above keeps its own license."
+                text: "Atom Plasma by ViVia Technologies is free software under the " + ((mp.info && mp.info.license) || "GPL-3.0-or-later") + ". Every project above keeps its own license."
                 color: mp.look.fgDim; font.family: Tokens.font.ui; font.pixelSize: mp.d(14)
             }
         }
@@ -993,8 +994,11 @@ Item {
                              desc: "<b>Report an issue</b> Opens a new issue on GitHub (paste the report in it)."
                              onActivated: mp.openUrl(mp.repo.url + "/issues/new", "GitHub") }
                 StudioChip { studio: mp; fkey: "sys:repo"; icon: "code"; text: "Source"; act: "Open"; visible: !!mp.repo.url
-                             desc: "<b>Source</b> Atom Plasma on GitHub."
+                             desc: "<b>Source</b> Atom Plasma on GitHub (ViVia Technologies)."
                              onActivated: mp.openUrl(mp.repo.url, "GitHub") }
+                StudioChip { studio: mp; fkey: "sys:site"; icon: "language"; text: "Website"; act: "Open"
+                             desc: "<b>Website</b> Atom Plasma on viviatechnologies.com."
+                             onActivated: mp.openUrl("https://viviatechnologies.com/atomplasma/", "viviatechnologies.com") }
                 StudioChip { studio: mp; fkey: "sys:folder"; icon: "folder_open"; text: "Its folder"; act: "Open"
                              desc: "<b>Its folder</b> Where Atom Plasma lives: ~/.config/plasma-rice."
                              onActivated: mp.openUrl("file://" + sh.home + "/.config/plasma-rice", "the folder") }

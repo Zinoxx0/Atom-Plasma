@@ -7,8 +7,8 @@ from atom import manager
 
 class Manager(unittest.TestCase):
     def test_https_url(self):
-        self.assertEqual(manager.https_url("git@github.com:Zinoxx0/Atom-Plasma.git"), "https://github.com/Zinoxx0/Atom-Plasma")
-        self.assertEqual(manager.https_url("https://github.com/Zinoxx0/Atom-Plasma.git"), "https://github.com/Zinoxx0/Atom-Plasma")
+        self.assertEqual(manager.https_url("git@github.com:ViviaTech/Atom-Plasma.git"), "https://github.com/ViviaTech/Atom-Plasma")
+        self.assertEqual(manager.https_url("https://github.com/ViviaTech/Atom-Plasma.git"), "https://github.com/ViviaTech/Atom-Plasma")
         self.assertEqual(manager.https_url("ssh://git@github.com/a/b"), "https://github.com/a/b")
 
     def test_changelog_parses_groups_and_items(self):

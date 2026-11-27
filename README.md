@@ -1,6 +1,6 @@
 # Atom Plasma
 
-A KDE Plasma 6 rice driven by the wallpaper. Every screen gets its own wallpaper and palette, and the desktop follows them: the colour scheme, Plasma Style, bar islands, optical glass materials, terminals, VS Code, Zen, window borders, the login screen and keyboard lighting. It's built to hold up on whatever is plugged in: one laptop panel, seven monitors, a portrait 4K next to an 8K and an 800×800 panel.
+A KDE Plasma 6 rice driven by the wallpaper, by [ViVia Technologies](https://viviatechnologies.com/atomplasma/). Every screen gets its own wallpaper and palette, and the desktop follows them: the colour scheme, Plasma Style, bar islands, optical glass materials, terminals, VS Code, Zen, window borders, the login screen and keyboard lighting. It's built to hold up on whatever is plugged in: one laptop panel, seven monitors, a portrait 4K next to an 8K and an 800×800 panel.
 
 ## Showcase
 
@@ -23,7 +23,7 @@ A KDE Plasma 6 rice driven by the wallpaper. Every screen gets its own wallpaper
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Zinoxx0/Atom-Plasma/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/ViviaTech/Atom-Plasma/main/install.sh | sh
 ```
 
 It checks the system first (KDE Plasma on Wayland, a Plasma version this release supports), installs what's missing (one password prompt; AUR packages build in a terminal you can watch; on non-Arch distros it lists them for you), takes the newest release on your channel and puts every piece in place. Then log out and back in, run `~/.config/plasma-rice/rice.py setup` once and `rice.py random` for a first wallpaper. `ATOM_CHANNEL=beta` (or `alpha`) before `sh` starts you on newer builds.

@@ -1,12 +1,12 @@
 #!/bin/sh
 # Atom Plasma's installer:
-#   curl -fsSL https://raw.githubusercontent.com/Zinoxx0/Atom-Plasma/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/ViviaTech/Atom-Plasma/main/install.sh | sh
 # Clones Atom Plasma into ~/.config/plasma-rice, then hands over to its updater (rice.py update fresh): it checks
 # this system (KDE Plasma on Wayland, the Plasma version), installs what's missing (one password prompt; AUR
 # packages in a terminal you watch), picks the newest release on your channel and puts every piece in place.
 # ATOM_CHANNEL=beta|alpha for newer builds (stable by default). Run again any time: it never overwrites a copy.
 set -eu
-repo="${ATOM_REPO:-https://github.com/Zinoxx0/Atom-Plasma}"
+repo="${ATOM_REPO:-https://github.com/ViviaTech/Atom-Plasma}"
 dest="$HOME/.config/plasma-rice"
 
 say() { printf '%s\n' "$*"; }
