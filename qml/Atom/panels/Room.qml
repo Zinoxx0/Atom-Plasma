@@ -5,11 +5,12 @@ import Atom
 import Rice
 import "parts"
 
-// The room's lights (Atom RoomLight): the bedside lamp and the LED strip side by side, each with its
-// switch, light level, white (warm to cool), a colour field and swatches, and its moods (the lamp also its
-// animations); Match wallpaper for both under them. Opened from the status island's light button or the
-// control center's Room row; shows only what answers. A strip that can't be reached says why, with a
-// way to try again.
+// The room (Atom RoomLight): the bedside lamp, the pixel screen and (when the service drives one) the LED
+// strip side by side. A light has its switch, light level, white (warm to cool), a colour field and
+// swatches, and its moods (the lamp also its animations); the screen its switch, brightness and what it
+// shows (the library's animations, playing, and its clock), with the way into the studio where they're
+// made. Match wallpaper under them. Opened from the status island's light button or the control center's
+// Room row; shows only what answers. A device that can't be reached says why, with a way to try again.
 FocusScope {
     id: rp
     property RicePalette ricePalette: null
@@ -23,12 +24,15 @@ FocusScope {
 
     readonly property real colW: u(330)
     readonly property bool showLamp: lights.lampReachable
-    readonly property bool showStrip: lights.roomReachable
-    implicitWidth: (showLamp && showStrip ? 2 * colW + u(25) : colW + u(40))
+    readonly property bool showStrip: lights.stripEnabled
+    readonly property bool showScreen: lights.screenEnabled
+    readonly property int columns: (showLamp ? 1 : 0) + (showStrip ? 1 : 0) + (showScreen ? 1 : 0)
+    implicitWidth: columns > 1 ? columns * colW + (columns - 1) * u(25) : colW + u(40)
     // as tall as it needs, up to what the screen has above the bar (the laptop's): then it scrolls
     readonly property real maxH: Screen.height > 0 ? Screen.height - u(150) : col.implicitHeight
     implicitHeight: Math.min(col.implicitHeight, maxH)
-    function enter() { lights.refresh(); forceActiveFocus() }
+    function enter() { lights.refresh(); lights.loadScreenItems(); forceActiveFocus() }
+    function openStudio() { Shell.close(); Qt.openUrlExternally(lights.studioUrl) }
     Component.onCompleted: RoomLight.watch("room/" + screenName, true)
     Component.onDestruction: RoomLight.watch("room/" + screenName, false)
 
@@ -77,6 +81,68 @@ FocusScope {
         }
     }
 
+    // something the screen can show: the animation itself, playing (or the clock), its name under it
+    component ShowCard: Rectangle {
+        id: card
+        property RicePalette pal
+        property real ui: 1
+        property string title: ""
+        property string gif: ""
+        property bool clock: false
+        property bool selected: false
+        signal picked()
+        function u(n) { return Math.round(n * ui) }
+        implicitHeight: cardCol.implicitHeight + u(14)
+        radius: u(12)
+        color: C.alpha(pal.fg, cm.pressed ? 0.1 : cm.containsMouse ? 0.075 : 0.04)
+        border.width: selected ? u(2) : 1
+        border.color: selected ? pal.primary : C.alpha(pal.edge, Tokens.alpha.outline)
+        Behavior on color { ColorAnimation { duration: Tokens.fast } }
+        scale: cm.pressed ? 0.97 : 1
+        Behavior on scale { NumberAnimation { duration: Tokens.fast; easing.type: Tokens.enter } }
+        Column {
+            id: cardCol
+            x: card.u(7); y: card.u(7)
+            width: card.width - card.u(14)
+            spacing: card.u(6)
+            Rectangle {         // the screen, 4:1
+                width: parent.width
+                height: Math.round(width / 4)
+                radius: card.u(5)
+                color: "#04060b"
+                clip: true
+                AnimatedImage {
+                    visible: !card.clock && card.gif !== ""
+                    anchors.fill: parent
+                    source: card.clock ? "" : card.gif
+                    smooth: false
+                    fillMode: Image.PreserveAspectFit
+                    playing: visible && card.visible && rp.visible
+                    cache: false
+                }
+                Text {
+                    visible: card.clock
+                    anchors.centerIn: parent
+                    text: Qt.formatTime(clockTick.now, "hh:mm")
+                    color: "#5aaaff"
+                    font.family: Tokens.font.mono
+                    font.pixelSize: Math.round(parent.height * 0.62)
+                    Timer { id: clockTick; property date now: new Date(); interval: 10000; repeat: true; running: card.clock && rp.visible; onTriggered: now = new Date() }
+                }
+            }
+            Text {
+                width: parent.width
+                text: card.title
+                elide: Text.ElideRight
+                color: card.selected ? card.pal.fg : card.pal.fgDim
+                font.family: Tokens.font.ui
+                font.weight: card.selected ? Font.DemiBold : Font.Medium
+                font.pixelSize: card.u(11)
+            }
+        }
+        MouseArea { id: cm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: card.picked() }
+    }
+
     // the lamp's swatches as hue/saturation, the strip's as hex (each light's own language)
     readonly property var lampDots: [{ hue: 0, sat: 90 }, { hue: 22, sat: 100 }, { hue: 40, sat: 100 }, { hue: 140, sat: 80 },
                                      { hue: 188, sat: 90 }, { hue: 224, sat: 85 }, { hue: 268, sat: 80 }, { hue: 332, sat: 68 }]
@@ -117,7 +183,8 @@ FocusScope {
                 }
                 Text {
                     text: !lights.present ? "Away from home" : lights.anyOn
-                        ? [lights.lampOn ? "Lamp on" : "", lights.stripOn ? "Strip on" : ""].filter(x => x).join("  ·  ")
+                        ? [lights.lampOn ? "Lamp on" : "", lights.stripOn ? "Strip on" : "",
+                           lights.screenOn ? "Screen on" : ""].filter(x => x).join("  ·  ")
                         : "All off"
                     color: rp.pal.muted
                     font.family: Tokens.font.ui
@@ -244,7 +311,7 @@ FocusScope {
             }
 
             Rectangle {     // between the lights
-                visible: rp.showLamp && rp.showStrip
+                visible: rp.showLamp && (rp.showStrip || rp.showScreen)
                 Layout.fillHeight: true
                 Layout.preferredWidth: 1
                 color: C.alpha(rp.pal.edge, Tokens.alpha.outline)
@@ -366,11 +433,117 @@ FocusScope {
                     onClicked: { Shell.close(); Qt.openUrlExternally("http://127.0.0.1:48724/calibrate") }
                 }
             }
+
+            Rectangle {     // before the screen
+                visible: rp.showStrip && rp.showScreen
+                Layout.fillHeight: true
+                Layout.preferredWidth: 1
+                color: C.alpha(rp.pal.edge, Tokens.alpha.outline)
+            }
+
+            // ------------------------------------------------------------------ the pixel screen
+            ColumnLayout {
+                visible: rp.showScreen
+                Layout.preferredWidth: rp.colW
+                Layout.maximumWidth: rp.colW
+                Layout.alignment: Qt.AlignTop
+                spacing: rp.u(10)
+                Tile {
+                    Layout.fillWidth: true
+                    pal: rp.pal; ui: rp.ui
+                    icon: lights.screenTrouble ? "bluetooth_disabled" : "grid_view"
+                    label: "Pixel screen"
+                    sub: lights.screenSummary
+                    on: lights.screenOn && !lights.screenTrouble
+                    busy: lights.screenBusy
+                    onToggled: lights.setScreen(!lights.screenOn)
+                }
+                Rectangle {     // can't reach it: why, and a way to try again
+                    visible: lights.screenTrouble
+                    Layout.fillWidth: true
+                    implicitHeight: screenTroubleCol.implicitHeight + rp.u(20)
+                    radius: rp.u(14)
+                    color: C.alpha(rp.pal.warn, 0.1)
+                    border.width: 1
+                    border.color: C.alpha(rp.pal.warn, 0.35)
+                    ColumnLayout {
+                        id: screenTroubleCol
+                        x: rp.u(12); y: rp.u(10)
+                        width: parent.width - rp.u(24)
+                        spacing: rp.u(8)
+                        Text {
+                            Layout.fillWidth: true
+                            text: (lights.screen && lights.screen.error) || "The screen didn't answer."
+                            wrapMode: Text.WordWrap
+                            color: rp.pal.fgDim
+                            font.family: Tokens.font.ui
+                            font.pixelSize: rp.u(11)
+                        }
+                        Chip {
+                            pal: rp.pal; ui: rp.ui; small: true
+                            glyph: "refresh"; text: "Try again"
+                            onClicked: lights.resendScreen()
+                        }
+                    }
+                }
+                Level {
+                    Layout.fillWidth: true
+                    pal: rp.pal; ui: rp.ui
+                    icon: "brightness_6"
+                    label: "Brightness"
+                    value: lights.screenBright / 100
+                    dim: !lights.screenOn
+                    onMoved: v => lights.setScreenBright(v * 100)
+                    onIconClicked: lights.setScreen(!lights.screenOn)
+                }
+                Caption { pal: rp.pal; ui: rp.ui; text: "Show"; Layout.topMargin: rp.u(2) }
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: 2
+                    columnSpacing: rp.u(8)
+                    rowSpacing: rp.u(8)
+                    Repeater {
+                        model: lights.screenItems
+                        ShowCard {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            pal: rp.pal; ui: rp.ui
+                            title: modelData.name
+                            gif: lights.itemGif(modelData)
+                            selected: lights.screenShow.item === modelData.id
+                            onPicked: lights.showOnScreen(modelData.id)
+                        }
+                    }
+                    ShowCard {
+                        Layout.fillWidth: true
+                        pal: rp.pal; ui: rp.ui
+                        title: "Clock"
+                        clock: true
+                        selected: lights.screenShow.clock !== undefined
+                        onPicked: lights.showClock(0)
+                    }
+                }
+                Text {
+                    visible: lights.screenItems.length === 0
+                    Layout.fillWidth: true
+                    text: "Draw something, or bring in a GIF or a video, in the studio: what you save there shows up here."
+                    wrapMode: Text.WordWrap
+                    color: rp.pal.muted
+                    font.family: Tokens.font.ui
+                    font.pixelSize: rp.u(11)
+                }
+                Chip {
+                    pal: rp.pal; ui: rp.ui; small: true
+                    Layout.topMargin: rp.u(2)
+                    glyph: "brush"; text: "Open the pixel studio"
+                    onClicked: rp.openStudio()
+                }
+            }
         }
 
         // ------------------------------------------------------------------ both: match the wallpaper
         Rectangle {
-            visible: rp.showStrip
+            visible: lights.roomReachable && (rp.showStrip || rp.showLamp)
             Layout.fillWidth: true
             implicitHeight: syncCol.implicitHeight + rp.u(20)
             radius: rp.u(18)
@@ -391,13 +564,17 @@ FocusScope {
                         icon: "wallpaper"
                         label: "Match wallpaper"
                         sub: lights.sync.problem ? lights.sync.problem
-                           : lights.sync.on ? "Strip: its primary, lamp: its tertiary, from " + rp.syncSource
-                           : "Both lights take your wallpaper's colours"
+                           : rp.showStrip ? (lights.sync.on ? "Strip: its primary, lamp: its tertiary, from " + rp.syncSource
+                                                            : "Both lights take your wallpaper's colours")
+                           : lights.sync.on ? "The lamp takes its tertiary colour, from " + rp.syncSource
+                           : "The lamp takes your wallpaper's colour"
                         on: lights.sync.on
                         onToggled: lights.setSync({ on: !lights.sync.on })
                     }
                     Repeater {      // what they got
-                        model: lights.sync.on && lights.sync.colours ? [{ g: "wb_iridescent", c: lights.sync.colours.strip }, { g: "light", c: lights.sync.colours.lamp }] : []
+                        model: lights.sync.on && lights.sync.colours
+                               ? (rp.showStrip ? [{ g: "wb_iridescent", c: lights.sync.colours.strip }] : []).concat([{ g: "light", c: lights.sync.colours.lamp }])
+                               : []
                         Rectangle {
                             required property var modelData
                             implicitWidth: rp.u(30); implicitHeight: implicitWidth; radius: implicitWidth / 2
@@ -447,7 +624,7 @@ FocusScope {
 
         // ------------------------------------------------------------------ neither answers
         Text {
-            visible: !rp.showLamp && !rp.showStrip
+            visible: rp.columns === 0
             Layout.fillWidth: true
             text: lights.roomProblem || lights.lampProblem || "Looking for the lights…"
             wrapMode: Text.WordWrap

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Room**
+- The Room panel drives a Bluetooth pixel screen next to the lamp: switch, brightness, and what it shows (the
+  library's animations, playing as thumbnails, or its clock), with a way into the Room service's pixel studio. The
+  LED strip shows only when the Room service drives one (`strip.enabled`). The control center and the status island
+  include the screen (All on/off, wheel dimming).
+
 ## 1.1.2 (2026-11-25)
 
 **Surfaces & Materials**

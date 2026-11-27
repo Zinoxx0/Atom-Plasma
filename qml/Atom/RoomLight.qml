@@ -3,8 +3,9 @@ import QtQuick
 
 // The room's lights, for the whole shell (one object: the status island's button, the control center and
 // the Room panel all see the same state at once): the bedside lamp through its bridge (`lamp serve`,
-// 127.0.0.1:48723) and the LED strip, the wallpaper sync and whether this PC is home through the Room
-// light service (`roomlight serve`, 127.0.0.1:48724). Both are optional: with neither answering, nothing
+// 127.0.0.1:48723); the pixel screen (and its library of animations, made in the service's studio page),
+// the LED strip (when the service drives one: strip.enabled), the wallpaper sync and whether this PC is
+// home through the Room light service (`roomlight serve`, 127.0.0.1:48724). Both are optional: with neither answering, nothing
 // of this shows anywhere. Plain XMLHttpRequest (plasmashell spawns nothing); the services refuse a POST
 // without their header.
 //
@@ -26,7 +27,7 @@ QtObject {
         if (on) next[key] = true
         else delete next[key]
         viewers = next
-        if (on) { refresh(); wake() }       // have the strip's Bluetooth link ready by the first click
+        if (on) { refresh(); wake(); loadScreenItems() }   // Bluetooth links ready by the first click
     }
 
     // ------------------------------------------------------------------ the lamp
@@ -110,7 +111,8 @@ QtObject {
         : ({ on: false, mode: "colour", color: "#ffffff", kelvin: 4000, bright: 80, status: "idle", error: null })
     readonly property var sync: room && room.sync ? room.sync
         : ({ on: false, screen: "theme", vivid: true, screens: [], colours: null, problem: null })
-    readonly property bool stripOn: !!strip.on
+    readonly property bool stripEnabled: roomReachable && strip.enabled !== false
+    readonly property bool stripOn: stripEnabled && !!strip.on
     readonly property int stripBright: strip.bright || 0
     readonly property bool stripTrouble: strip.status === "error"
     readonly property bool stripBusy: strip.status === "connecting"
@@ -164,16 +166,70 @@ QtObject {
     // reset the Bluetooth adapter (the service does it): frees the radio for the strip; headphones reconnect
     function resetBluetooth() { roomPatch("strip", { status: "connecting", stuck: false }); roomPost("reset", "/api/reset", {}) }
 
-    // ------------------------------------------------------------------ both
+    // ------------------------------------------------------------------ the pixel screen
+    readonly property var screen: room && room.screen && room.screen.status ? room.screen : null
+    readonly property bool screenEnabled: roomReachable && screen !== null
+    readonly property bool screenOn: screenEnabled && !!screen.on
+    readonly property int screenBright: screen ? screen.bright : 0
+    readonly property bool screenTrouble: screenEnabled && screen.status === "error"
+    readonly property bool screenBusy: screenEnabled && (screen.status === "connecting" || screen.status === "sending")
+    readonly property var screenShow: screen && screen.show ? screen.show : ({})
+    property var screenItems: []                // the library: [{id, name, frames, ms, updated}]
+    readonly property string studioUrl: roomBase + "/studio"
+    function itemGif(item) { return roomBase + "/api/screen/items/" + item.id + ".gif?v=" + item.updated }
+    readonly property string screenShowing: {
+        if (screenShow.clock !== undefined) return "Clock"
+        if (screenShow.live) return "Studio preview"
+        const it = screenItems.find(i => i.id === screenShow.item)
+        return it ? it.name : ""
+    }
+    readonly property string screenSummary: {
+        if (!roomLoaded) return "Connecting…"
+        if (roomProblem) return roomProblem
+        if (!screen) return "Off in the service's settings"
+        if (screenTrouble) return screen.error || "The screen isn't answering."
+        if (screen.status === "sending") return "Sending " + Math.round((screen.progress || 0) * 100) + "%"
+        if (screen.status === "connecting") return "Connecting…"
+        if (!screenOn) return "Off"
+        return (screenShowing ? screenShowing + " · " : "") + screenBright + "%"
+    }
+    function setScreen(on) {
+        roomPatch("screen", { on: on })
+        roomPost("screen-power", "/api/screen", { on: on })
+    }
+    function setScreenBright(v) {
+        const level = Math.max(1, Math.min(100, Math.round(v)))
+        roomPatch("screen", { bright: level })
+        roomPost("screen-bright", "/api/screen", { bright: level })
+    }
+    function showOnScreen(id) {
+        roomPatch("screen", { show: { item: id }, on: true })
+        roomPost("screen-show", "/api/screen", { show: { item: id } })
+    }
+    function showClock(style) {
+        roomPatch("screen", { show: { clock: style || 0 }, on: true })
+        roomPost("screen-show", "/api/screen", { show: { clock: style || 0 } })
+    }
+    function resendScreen() { roomPatch("screen", { status: "connecting" }); roomPost("screen-resend", "/api/screen", { resend: true }) }
+    function loadScreenItems() {
+        if (!roomReachable && roomLoaded) return
+        request(roomBase, "GET", "/api/screen/items", "", null, 8000, (ok, data) => {
+            if (ok && data && data.items) screenItems = data.items.map(i => ({ id: i.id, name: i.name, frames: i.frames, ms: i.ms, updated: i.updated }))
+        })
+    }
+
+    // ------------------------------------------------------------------ all of them
     readonly property bool present: roomReachable ? home : lampReachable        // anything to show
-    readonly property bool anyOn: lampOn || stripOn
+    readonly property bool anyOn: lampOn || stripOn || screenOn
     function setAll(on) {
         if (lampReachable) setLamp(on)
-        if (roomReachable) setStrip(on)
+        if (stripEnabled) setStrip(on)
+        if (screenEnabled) setScreen(on)
     }
     function nudge(delta) {                     // the wheel: dims (or brightens) what's on
         if (lampOn) setLampBright(lampBright + delta)
         if (stripOn) setStripBright(stripBright + delta)
+        if (screenOn) setScreenBright(screenBright + delta)
     }
 
     // ------------------------------------------------------------------ plumbing
@@ -240,6 +296,7 @@ QtObject {
     property int round: 0
     function refresh() {
         round++
+        if (watched && round % 5 === 0) loadScreenItems()      // saved from the studio meanwhile
         if (!roomSending && Date.now() >= roomQuiet)
             request(roomBase, "GET", "/api/state", "", null, 8000, (ok, data) => {
                 if (roomSending || Date.now() < roomQuiet) return

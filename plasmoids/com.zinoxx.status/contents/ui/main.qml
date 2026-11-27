@@ -677,7 +677,7 @@ PlasmoidItem {
                 cursorShape: Qt.PointingHandCursor
             }
         }
-        // the room's lights (the bedside lamp, the LED strip), only when home: lit while any is on
+        // the room (the bedside lamp, the pixel screen, a strip if driven), only when home: lit while any is on
         Island {
             id: roomBtn
             kind: "room"
@@ -718,7 +718,9 @@ PlasmoidItem {
                 anchors.fill: parent
                 active: !roomBtn.open
                 mainText: "Room light"
-                subText: "Lamp: " + RoomLight.lampSummary.toLowerCase() + "  ·  strip: " + RoomLight.stripSummary.toLowerCase()
+                subText: ["Lamp: " + RoomLight.lampSummary.toLowerCase(),
+                          RoomLight.screenEnabled ? "screen: " + RoomLight.screenSummary.toLowerCase() : "",
+                          RoomLight.stripEnabled ? "strip: " + RoomLight.stripSummary.toLowerCase() : ""].filter(x => x).join("  ·  ")
                          + "\nMiddle-click: all on or off  ·  wheel: dim"
             }
         }

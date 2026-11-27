@@ -466,7 +466,18 @@ FocusScope {
         }
         Level {
             Layout.fillWidth: true
-            visible: room.present && room.roomReachable
+            visible: room.present && room.screenEnabled
+            pal: cc.pal; ui: cc.ui
+            icon: room.screenTrouble ? "bluetooth_disabled" : "grid_view"
+            label: "Pixel screen" + (room.screenTrouble ? "  ·  can't reach it" : room.screenOn ? (room.screenShowing ? "  ·  " + room.screenShowing : "") : "  ·  off")
+            value: room.screenBright / 100
+            dim: !room.screenOn || room.screenTrouble
+            onMoved: v => room.setScreenBright(v * 100)
+            onIconClicked: room.setScreen(!room.screenOn)
+        }
+        Level {
+            Layout.fillWidth: true
+            visible: room.present && room.stripEnabled
             pal: cc.pal; ui: cc.ui
             icon: room.stripTrouble ? "bluetooth_disabled" : "wb_iridescent"
             label: "LED strip" + (room.stripTrouble ? "  ·  can't reach it" : room.stripOn ? "" : "  ·  off")
